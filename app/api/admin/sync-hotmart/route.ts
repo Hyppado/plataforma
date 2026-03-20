@@ -8,8 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { syncAll } from "@/lib/hotmart/sync";
-
-const PRODUCT_ID = process.env.HOTMART_PRODUCT_ID ?? "7420891";
+import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
 
 function isAuthorized(req: NextRequest): boolean {
   const adminSecret = process.env.ADMIN_SECRET;
@@ -26,12 +25,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const productId = await getSettingOrEnv(
+    SETTING_KEYS.HOTMART_PRODUCT_ID,
+    "HOTMART_PRODUCT_ID",
+  );
+
+  if (!productId) {
+    return NextResponse.json(
+      { error: "Product ID não configurado. Configure em Admin → Settings." },
+      { status: 400 },
+    );
+  }
+
   try {
-    const { offers, coupons } = await syncAll(PRODUCT_ID);
+    const { offers, coupons } = await syncAll(productId);
 
     return NextResponse.json({
       status: "ok",
-      productId: PRODUCT_ID,
+      productId,
       offers: {
         upserted: offers.upserted,
         skipped: offers.skipped,
@@ -56,9 +67,17 @@ export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const productId = await getSettingOrEnv(
+    SETTING_KEYS.HOTMART_PRODUCT_ID,
+    "HOTMART_PRODUCT_ID",
+  );
+
   return NextResponse.json({
-    status: "ready",
-    productId: PRODUCT_ID,
-    hint: "Envie POST para disparar o sync.",
+    status: productId ? "ready" : "not_configured",
+    productId: productId || null,
+    hint: productId
+      ? "Envie POST para disparar o sync."
+      : "Configure o Product ID em Admin → Settings.",
   });
 }

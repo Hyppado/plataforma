@@ -1,43 +1,45 @@
-export interface Plan {
+/**
+ * app/data/plans.ts
+ *
+ * Tipos e helper para planos na UI.
+ * Dados reais vêm do banco (API /api/admin/plans).
+ * Este arquivo fornece apenas o tipo e um helper fetch.
+ */
+
+export interface PlanDisplay {
   id: string;
+  code: string;
   name: string;
-  price: string;
+  displayPrice: string | null;
   period: string;
-  description: string;
+  description: string | null;
   features: string[];
   highlight: boolean;
-  badge?: string;
+  badge?: string | null;
 }
 
-export const PLANS: Plan[] = [
-  {
-    id: "pro",
-    name: "Pro",
-    price: "R$ 59,90",
-    period: "mês",
-    description: "Todas funcionalidades",
-    features: [
-      "40 transcripts / mês",
-      "70 insights / mês",
-      "Descoberta de vídeos e produtos em alta",
-      "Prompts avançados (gancho, roteiro e CTA)",
-      "Organização por categorias",
-    ],
-    highlight: false,
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    price: "R$ 647,00",
-    period: "ano",
-    description: "Todas funcionalidades do PRO",
-    features: [
-      "Tudo do Pro incluso",
-      "Economia de 10% vs mensal",
-      "Acesso prioritário a novidades",
-      "Suporte prioritário",
-    ],
-    highlight: true,
-    badge: "Mais escolhido",
-  },
-];
+/** Busca planos ativos do banco via API. */
+export async function fetchPlans(baseUrl = ""): Promise<PlanDisplay[]> {
+  try {
+    const res = await fetch(`${baseUrl}/api/admin/plans`);
+    if (!res.ok) return [];
+    const { plans } = await res.json();
+    return (plans ?? [])
+      .filter((p: Record<string, unknown>) => p.isActive)
+      .map((p: Record<string, unknown>) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        displayPrice:
+          p.displayPrice ??
+          `R$ ${((p.priceAmount as number) / 100).toFixed(2).replace(".", ",")}`,
+        period: p.periodicity === "ANNUAL" ? "ano" : "mês",
+        description: p.description,
+        features: (p.features as string[]) ?? [],
+        highlight: p.highlight ?? false,
+        badge: p.badge,
+      }));
+  } catch {
+    return [];
+  }
+}

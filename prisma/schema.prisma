@@ -51,31 +51,39 @@ enum UserStatus {
 // PLANS
 // ---------------------------------------------------------------------------
 
-// Map: PRO_MENSAL  → Hotmart product + plan/offer code
-//      PREMIUM_ANUAL → Hotmart product + plan/offer code
 model Plan {
   id                  String   @id @default(uuid())
-  code                PlanCode @unique
-  name                String
+  code                String   @unique  // slug livre: "pro_mensal", "premium_anual", etc.
+  name                String             // nome de exibição
   description         String?
-  priceAmount         Int      // centavos (ex: 5990 = R$ 59,90)
+  displayPrice        String?            // "R$ 59,90" — texto livre para UI
+  priceAmount         Int                // centavos (ex: 5990 = R$ 59,90)
   currency            String   @default("BRL")
   periodicity         PlanPeriod
   isActive            Boolean  @default(true)
+  highlight           Boolean  @default(false)  // destaque visual na página de planos
+  badge               String?                   // "Mais escolhido", "Novo", etc.
+  sortOrder           Int      @default(0)       // ordenação na UI
+  features            Json     @default("[]")    // ["40 transcripts / mês", "Suporte prioritário"]
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  // Hotmart product/offer mappings (pode ter >1 offer por plano)
+  // Quotas de uso por plano
+  transcriptsPerMonth       Int  @default(40)
+  scriptsPerMonth           Int  @default(70)
+  insightTokensMonthlyMax   Int  @default(50000)
+  scriptTokensMonthlyMax    Int  @default(20000)
+  insightMaxOutputTokens    Int  @default(800)
+  scriptMaxOutputTokens     Int  @default(1500)
+
+  // Hotmart product/offer mappings
   hotmartProductId    String?
   hotmartPlanCode     String?  // hotmart plan_name or code
   hotmartOfferCode    String?  // hotmart offer_code
 
   subscriptions       Subscription[]
-}
 
-enum PlanCode {
-  PRO_MENSAL
-  PREMIUM_ANUAL
+  @@index([isActive, sortOrder])
 }
 
 enum PlanPeriod {
@@ -366,4 +374,19 @@ model Alert {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([userId, read])
+}
+
+// ---------------------------------------------------------------------------
+// SETTINGS (configurações dinâmicas via admin)
+// ---------------------------------------------------------------------------
+
+model Setting {
+  key         String   @id           // ex: "hotmart.product_id", "app.name"
+  value       String                 // valor serializado (string)
+  label       String?                // rótulo amigável: "ID do Produto Hotmart"
+  group       String   @default("general")  // agrupamento na UI: "hotmart", "general"
+  type        String   @default("text")     // "text" | "number" | "boolean" | "secret"
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
 }
