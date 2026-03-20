@@ -1,69 +1,94 @@
 /**
  * lib/hotmart/processor.ts
- * Processa um evento Hotmart já salvo (raw) e atualiza o estado interno:
- *   - resolve/cria HotmartIdentity (usuário interno)
- *   - resolve/determina Plan interno (PRO_MENSAL / PREMIUM_ANUAL)
- *   - cria/atualiza Subscription + HotmartSubscription
- *   - cria SubscriptionCharge se houver transação/pagamento
- *   - registra AuditLog
+ * Processa eventos Hotmart v2 e atualiza o estado interno.
+ *
+ * Eventos suportados:
+ *  PURCHASE_APPROVED          — compra/renovação aprovada (recurrence_number > 1 = renovação)
+ *  PURCHASE_COMPLETE          — compra concluída (após período antichargeback)
+ *  PURCHASE_CANCELED          — compra cancelada
+ *  PURCHASE_REFUNDED          — reembolso
+ *  PURCHASE_CHARGEBACK        — chargeback
+ *  PURCHASE_DELAYED           — renovação em atraso (grace period → PAST_DUE)
+ *  PURCHASE_BILLET_PRINTED    — boleto gerado (informacional)
+ *  PURCHASE_OUT_OF_SHOPPING_CART / CART_ABANDONMENT — carrinho abandonado (informacional)
+ *  SUBSCRIPTION_CANCELLATION  — assinatura cancelada definitivamente
+ *  SWITCH_PLAN                — mudança de plano
+ *  UPDATE_SUBSCRIPTION_CHARGE_DATE — nova data de cobrança (informacional)
+ *  CLUB_FIRST_ACCESS          — 1º acesso ao clube (informacional)
+ *  CLUB_MODULE_COMPLETED      — módulo concluído (informacional)
+ *
+ * Nota sobre recorrência:
+ *   RECURRENCE_REBILLING_SUCCESS/FAILED NÃO existem como eventos separados.
+ *   Renovação bem-sucedida = PURCHASE_APPROVED com recurrence_number > 1
+ *   Renovação em atraso    = PURCHASE_DELAYED
+ *   Cancelamento por falha = SUBSCRIPTION_CANCELLATION
  */
 
 import prisma from "../prisma";
 import type { HotmartWebhookFields } from "./webhook";
 
 // ---------------------------------------------------------------------------
-// Mapeamento de tipos de evento Hotmart → ação interna
-// Adicione/edite aqui quando conhecer os event types exatos do seu produto.
-// Ref: https://developers.hotmart.com/docs/en/v2/webhooks/
+// Tabelas de eventos
 // ---------------------------------------------------------------------------
-const ACTIVATION_EVENTS = new Set([
-  "PURCHASE_APPROVED",
-  "PURCHASE_COMPLETE",
-  "SUBSCRIPTION_ACTIVATION",
-  "RECURRENCE_REBILLING_SUCCESS",
-]);
+
+const ACTIVATION_EVENTS = new Set(["PURCHASE_APPROVED", "PURCHASE_COMPLETE"]);
 
 const CANCELLATION_EVENTS = new Set([
-  "PURCHASE_CANCELLED",
-  "SUBSCRIPTION_CANCELLATION",
-  "PURCHASE_CHARGEBACK",
+  "PURCHASE_CANCELED",
+  "PURCHASE_CANCELLED", // variação ortográfica
   "PURCHASE_REFUNDED",
+  "PURCHASE_CHARGEBACK",
+  "SUBSCRIPTION_CANCELLATION",
 ]);
 
-const EXPIRATION_EVENTS = new Set([
-  "SUBSCRIPTION_INACTIVATED",
-  "RECURRENCE_REBILLING_FAILED",
+const DELAY_EVENTS = new Set(["PURCHASE_DELAYED"]);
+
+// Eventos que não alteram estado de assinatura — apenas auditados
+const INFORMATIONAL_EVENTS = new Set([
+  "PURCHASE_BILLET_PRINTED",
+  "PURCHASE_OUT_OF_SHOPPING_CART",
+  "CART_ABANDONMENT",
+  "CLUB_FIRST_ACCESS",
+  "CLUB_MODULE_COMPLETED",
+  "UPDATE_SUBSCRIPTION_CHARGE_DATE",
 ]);
 
-// ---------------------------------------------------------------------------
-// Resolve plano interno a partir dos campos Hotmart
-// ---------------------------------------------------------------------------
+// Evento → ChargeStatus
+const CHARGE_STATUS_MAP: Record<string, string> = {
+  PURCHASE_APPROVED: "PAID",
+  PURCHASE_COMPLETE: "PAID",
+  PURCHASE_REFUNDED: "REFUNDED",
+  PURCHASE_CHARGEBACK: "CHARGEBACK",
+  PURCHASE_DELAYED: "FAILED",
+};
 
-// MAPEAMENTO: edite aqui para ligar seus product/plan codes da Hotmart
-// aos planos internos (PRO_MENSAL / PREMIUM_ANUAL).
-// Exemplo:
-//   productId "123456" + planCode "MENSAL" → PRO_MENSAL
-//   productId "123456" + planCode "ANUAL"  → PREMIUM_ANUAL
+// ---------------------------------------------------------------------------
+// Resolve plano interno (PRO_MENSAL / PREMIUM_ANUAL)
+// ---------------------------------------------------------------------------
+// Edite hotmartProductId + hotmartPlanCode no seed dos planos para ligar ao produto real.
+
 async function resolvePlan(fields: HotmartWebhookFields) {
-  // Estratégia 1: busca por hotmartProductId + hotmartPlanCode (mais preciso)
   if (fields.productId) {
-    const byProduct = await prisma.plan.findFirst({
+    const plan = await prisma.plan.findFirst({
       where: {
         hotmartProductId: fields.productId,
-        ...(fields.planCode ? { hotmartPlanCode: fields.planCode } : {}),
-        ...(fields.offerCode ? { hotmartOfferCode: fields.offerCode } : {}),
         isActive: true,
+        ...(fields.planCode ? { hotmartPlanCode: fields.planCode } : {}),
       },
+    });
+    if (plan) return plan;
+
+    // fallback: só productId
+    const byProduct = await prisma.plan.findFirst({
+      where: { hotmartProductId: fields.productId, isActive: true },
     });
     if (byProduct) return byProduct;
   }
 
-  // Estratégia 2: fallback pelo offerCode isolado
   if (fields.offerCode) {
-    const byOffer = await prisma.plan.findFirst({
+    return prisma.plan.findFirst({
       where: { hotmartOfferCode: fields.offerCode, isActive: true },
     });
-    if (byOffer) return byOffer;
   }
 
   return null;
@@ -74,44 +99,130 @@ async function resolvePlan(fields: HotmartWebhookFields) {
 // ---------------------------------------------------------------------------
 
 async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
-  const { buyerEmail, subscriberCode } = fields;
-  if (!buyerEmail && !subscriberCode) return null;
+  const email = fields.buyerEmail ?? fields.subscriberEmail;
+  const { subscriberCode } = fields;
+  if (!email && !subscriberCode) return null;
 
-  // Busca identidade existente por email ou subscriberCode
   const orConditions: { buyerEmail?: string; subscriberCode?: string }[] = [];
-  if (buyerEmail) orConditions.push({ buyerEmail });
+  if (email) orConditions.push({ buyerEmail: email });
   if (subscriberCode) orConditions.push({ subscriberCode });
 
   const existing = await prisma.hotmartIdentity.findFirst({
     where: { OR: orConditions },
     include: { user: true },
   });
-  if (existing) return existing;
 
-  // Cria User + Identity se o email ainda não existe
-  if (!buyerEmail) return null;
+  if (existing) {
+    // Persiste subscriberCode se chegou agora
+    if (subscriberCode && !existing.subscriberCode) {
+      await prisma.hotmartIdentity.update({
+        where: { id: existing.id },
+        data: { subscriberCode },
+      });
+    }
+    return existing;
+  }
+
+  if (!email) return null;
 
   const user = await prisma.user.upsert({
-    where: { email: buyerEmail },
+    where: { email },
     update: {},
     create: {
-      email: buyerEmail,
-      name: buyerEmail.split("@")[0], // nome provisório
+      email,
+      name: fields.buyerName ?? email.split("@")[0],
       role: "USER",
       status: "ACTIVE",
     },
   });
 
-  const identity = await prisma.hotmartIdentity.create({
-    data: {
-      userId: user.id,
-      buyerEmail,
-      subscriberCode,
-    },
+  return prisma.hotmartIdentity.create({
+    data: { userId: user.id, buyerEmail: email, subscriberCode },
     include: { user: true },
   });
+}
 
-  return identity;
+// ---------------------------------------------------------------------------
+// Upsert Subscription + HotmartSubscription
+// ---------------------------------------------------------------------------
+
+async function upsertSubscription(
+  fields: HotmartWebhookFields,
+  userId: string,
+  planId: string,
+  newStatus: string,
+): Promise<string> {
+  const occurredAt = fields.occurredAt ?? new Date();
+  const isActivation = ACTIVATION_EVENTS.has(fields.eventType);
+  const isCancellation = CANCELLATION_EVENTS.has(fields.eventType);
+  const isSwitchPlan = fields.eventType === "SWITCH_PLAN";
+
+  // Busca HotmartSubscription existente por id externo ou subscriberCode
+  const orWhere: { hotmartSubscriptionId?: string; subscriberCode?: string }[] =
+    [];
+  if (fields.subscriptionExternalId)
+    orWhere.push({ hotmartSubscriptionId: fields.subscriptionExternalId });
+  if (fields.subscriberCode)
+    orWhere.push({ subscriberCode: fields.subscriberCode });
+
+  const hotmartSub = orWhere.length
+    ? await prisma.hotmartSubscription.findFirst({ where: { OR: orWhere } })
+    : null;
+
+  if (hotmartSub) {
+    const subscriptionId = hotmartSub.subscriptionId;
+
+    await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: newStatus as never,
+        ...(isSwitchPlan && { planId }),
+        ...(isActivation && { renewedAt: occurredAt }),
+        ...(isActivation &&
+          fields.recurrenceNumber === 1 && { startedAt: occurredAt }),
+        ...(isCancellation && { cancelledAt: occurredAt }),
+        ...(newStatus === "EXPIRED" && { endedAt: occurredAt }),
+      },
+    });
+
+    await prisma.hotmartSubscription.update({
+      where: { id: hotmartSub.id },
+      data: {
+        externalStatus: fields.subscriptionStatus ?? fields.eventType,
+        subscriberCode: fields.subscriberCode ?? hotmartSub.subscriberCode,
+        hotmartPlanCode: fields.planCode ?? hotmartSub.hotmartPlanCode,
+        hotmartOfferCode: fields.offerCode ?? hotmartSub.hotmartOfferCode,
+      },
+    });
+
+    return subscriptionId;
+  }
+
+  // Cria nova Subscription + HotmartSubscription
+  const newSub = await prisma.subscription.create({
+    data: {
+      userId,
+      planId,
+      status: newStatus as never,
+      startedAt: isActivation ? occurredAt : undefined,
+    },
+  });
+
+  await prisma.hotmartSubscription.create({
+    data: {
+      subscriptionId: newSub.id,
+      hotmartSubscriptionId:
+        fields.subscriptionExternalId ?? `hotmart_${Date.now()}`,
+      hotmartProductId: fields.productId,
+      hotmartPlanCode: fields.planCode,
+      hotmartOfferCode: fields.offerCode,
+      buyerEmail: fields.buyerEmail ?? fields.subscriberEmail,
+      subscriberCode: fields.subscriberCode,
+      externalStatus: fields.subscriptionStatus ?? fields.eventType,
+    },
+  });
+
+  return newSub.id;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,148 +234,141 @@ export async function processHotmartEvent(
   fields: HotmartWebhookFields,
 ): Promise<void> {
   try {
-    // 1. Resolve identidade do comprador
+    const { eventType } = fields;
+
+    // Eventos informativos — apenas audit log
+    if (INFORMATIONAL_EVENTS.has(eventType)) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: "system",
+          action: `WEBHOOK_${eventType}`,
+          entityType: "HotmartWebhookEvent",
+          entityId: webhookEventId,
+          after: {
+            eventType,
+            subscriberCode: fields.subscriberCode,
+            productId: fields.productId,
+          },
+        },
+      });
+      await markProcessed(webhookEventId);
+      return;
+    }
+
+    // 1. Resolve identidade
     const identity = await resolveOrCreateIdentity(fields);
 
-    // 2. Resolve plano interno
+    // 2. Resolve plano
     const plan = await resolvePlan(fields);
 
-    const isActivation = ACTIVATION_EVENTS.has(fields.eventType);
-    const isCancellation = CANCELLATION_EVENTS.has(fields.eventType);
-    const isExpiration = EXPIRATION_EVENTS.has(fields.eventType);
+    let subscriptionId: string | undefined;
 
-    // 3. Upsert Subscription (se temos usuário e plano)
     if (identity && plan) {
-      const subscriptionStatus = isActivation
+      // Determina status da assinatura
+      const newStatus = ACTIVATION_EVENTS.has(eventType)
         ? "ACTIVE"
-        : isCancellation
+        : CANCELLATION_EVENTS.has(eventType)
           ? "CANCELLED"
-          : isExpiration
-            ? "EXPIRED"
-            : "PENDING";
+          : DELAY_EVENTS.has(eventType)
+            ? "PAST_DUE"
+            : "ACTIVE"; // SWITCH_PLAN e outros
 
-      // Busca assinatura existente pela HotmartSubscription
-      const hotmartSub = fields.subscriptionExternalId
-        ? await prisma.hotmartSubscription.findUnique({
-            where: { hotmartSubscriptionId: fields.subscriptionExternalId },
-            include: { subscription: true },
-          })
-        : null;
+      subscriptionId = await upsertSubscription(
+        fields,
+        identity.userId,
+        plan.id,
+        newStatus,
+      );
 
-      let subscriptionId: string;
-
-      if (hotmartSub) {
-        // Atualiza assinatura existente
-        subscriptionId = hotmartSub.subscriptionId;
-        await prisma.subscription.update({
-          where: { id: subscriptionId },
-          data: {
-            status: subscriptionStatus,
-            ...(isActivation && {
-              startedAt: fields.occurredAt ?? new Date(),
-              renewedAt: new Date(),
-            }),
-            ...(isCancellation && {
-              cancelledAt: fields.occurredAt ?? new Date(),
-            }),
-            ...(isExpiration && { endedAt: fields.occurredAt ?? new Date() }),
-          },
-        });
-
-        // Atualiza HotmartSubscription
-        await prisma.hotmartSubscription.update({
-          where: { id: hotmartSub.id },
-          data: {
-            externalStatus: fields.eventType,
-            subscriberCode: fields.subscriberCode ?? hotmartSub.subscriberCode,
-          },
-        });
-      } else {
-        // Cria nova Subscription + HotmartSubscription
-        const newSub = await prisma.subscription.create({
-          data: {
-            userId: identity.userId,
-            planId: plan.id,
-            status: subscriptionStatus,
-            startedAt: isActivation
-              ? (fields.occurredAt ?? new Date())
-              : undefined,
-          },
-        });
-        subscriptionId = newSub.id;
-
-        await prisma.hotmartSubscription.create({
-          data: {
-            subscriptionId: newSub.id,
-            hotmartSubscriptionId:
-              fields.subscriptionExternalId ?? `hotmart_${Date.now()}`,
-            hotmartProductId: fields.productId,
-            hotmartPlanCode: fields.planCode,
-            hotmartOfferCode: fields.offerCode,
-            buyerEmail: fields.buyerEmail,
-            subscriberCode: fields.subscriberCode,
-            externalStatus: fields.eventType,
-          },
-        });
-      }
-
-      // 4. Cria SubscriptionCharge se houver transação de pagamento
-      if (isActivation && fields.transactionId) {
+      // 3. Cria SubscriptionCharge se houver transação
+      const chargeStatus = CHARGE_STATUS_MAP[eventType];
+      if (chargeStatus && fields.transactionId) {
         await prisma.subscriptionCharge.upsert({
           where: { transactionId: fields.transactionId },
-          update: { status: "PAID", paidAt: fields.occurredAt ?? new Date() },
+          update: {
+            status: chargeStatus as never,
+            amountCents: fields.amountCents,
+            currency: fields.currency ?? "BRL",
+            paidAt:
+              chargeStatus === "PAID"
+                ? (fields.occurredAt ?? new Date())
+                : undefined,
+          },
           create: {
             subscriptionId,
             transactionId: fields.transactionId,
-            status: "PAID",
-            paidAt: fields.occurredAt ?? new Date(),
+            amountCents: fields.amountCents,
+            currency: fields.currency ?? "BRL",
+            status: chargeStatus as never,
+            paidAt:
+              chargeStatus === "PAID"
+                ? (fields.occurredAt ?? new Date())
+                : undefined,
+            chargeAt: fields.occurredAt,
           },
         });
       }
 
-      // 5. Audit log
+      // 4. Audit log
       await prisma.auditLog.create({
         data: {
           userId: identity.userId,
           actorId: "system",
-          action: `WEBHOOK_${fields.eventType}`,
+          action: `WEBHOOK_${eventType}`,
           entityType: "Subscription",
           entityId: subscriptionId,
           after: {
-            status: subscriptionStatus,
-            eventType: fields.eventType,
+            status: newStatus,
+            eventType,
             transactionId: fields.transactionId,
+            recurrenceNumber: fields.recurrenceNumber,
+            planCode: fields.planCode,
+            amountCents: fields.amountCents,
+          },
+        },
+      });
+    } else {
+      // Sem identidade ou plano resolvido — loga para investigação
+      await prisma.auditLog.create({
+        data: {
+          actorId: "system",
+          action: `WEBHOOK_${eventType}_UNRESOLVED`,
+          entityType: "HotmartWebhookEvent",
+          entityId: webhookEventId,
+          after: {
+            reason: !identity ? "identity_not_found" : "plan_not_found",
+            buyerEmail: fields.buyerEmail,
+            subscriberCode: fields.subscriberCode,
+            productId: fields.productId,
+            planCode: fields.planCode,
           },
         },
       });
     }
 
-    // 6. Marca o webhook event como PROCESSED
-    await prisma.hotmartWebhookEvent.update({
-      where: { id: webhookEventId },
-      data: {
-        processingStatus: "PROCESSED",
-        processedAt: new Date(),
-      },
-    });
+    await markProcessed(webhookEventId);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[Hotmart Processor] Erro ao processar evento:", message);
+    console.error("[Hotmart Processor] Erro:", message);
 
-    // Marca como FAILED com mensagem de erro
     await prisma.hotmartWebhookEvent
       .update({
         where: { id: webhookEventId },
         data: {
           processingStatus: "FAILED",
           processedAt: new Date(),
-          errorMessage: message.slice(0, 1000), // trunca para caber no campo
+          errorMessage: message.slice(0, 1000),
         },
       })
-      .catch(() => {
-        // Ignora erro secundário no update de status
-      });
+      .catch(() => {});
 
-    throw err; // repropaga para o route handler retornar 500
+    throw err;
   }
+}
+
+async function markProcessed(id: string) {
+  await prisma.hotmartWebhookEvent.update({
+    where: { id },
+    data: { processingStatus: "PROCESSED", processedAt: new Date() },
+  });
 }

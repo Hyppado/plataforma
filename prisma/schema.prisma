@@ -187,22 +187,44 @@ model HotmartIdentity {
 
 model HotmartWebhookEvent {
   id                      String              @id @default(uuid())
-  // Campos extraídos para facilitar consultas
-  eventType               String
-  eventExternalId         String?
-  transactionId           String?
-  subscriptionExternalId  String?
-  subscriberCode          String?
-  buyerEmail              String?
-  productId               String?
-  planCode                String?
-  offerCode               String?
-  occurredAt              DateTime?
+
+  // --- Campos extraídos da estrutura v2 da Hotmart ---
+  payloadVersion          String?             // "2.0.0"
+  eventType               String              // PURCHASE_APPROVED, SUBSCRIPTION_CANCELLATION, etc.
+  eventExternalId         String?             // body.id (UUID do evento)
+
+  // Compra
+  transactionId           String?             // data.purchase.transaction
+  purchaseStatus          String?             // data.purchase.status (APPROVED, CANCELED, etc.)
+  isSubscription          Boolean?            // data.purchase.is_subscription
+  recurrenceNumber        Int?                // data.purchase.recurrence_number (1=novo, >1=renovação)
+  amountCents             Int?                // data.purchase.price.value
+  currency                String?             // data.purchase.price.currency_value
+  paymentType             String?             // data.purchase.payment.type (CREDIT_CARD, PIX, BILLET)
+  offerCode               String?             // data.purchase.offer.code
+
+  // Assinatura
+  subscriptionExternalId  String?             // data.subscription.id
+  subscriberCode          String?             // data.subscription.subscriber.code
+  subscriberEmail         String?             // data.subscription.subscriber.email
+  planCode                String?             // data.subscription.plan.name
+  planId                  String?             // data.subscription.plan.id
+  subscriptionStatus      String?             // data.subscription.status
+
+  // Comprador
+  buyerEmail              String?             // data.buyer.email
+  buyerName               String?             // data.buyer.name
+
+  // Produto
+  productId               String?             // data.product.id
+  productName             String?             // data.product.name
+
+  occurredAt              DateTime?           // creation_date (epoch ms convertido)
 
   // Payload bruto completo
   payloadJson             Json
 
-  // Idempotência: SHA-256(eventType + subscriptionId/transactionId + occurredAt + payload)
+  // Idempotência: SHA-256(eventType + [subscriptionId|transactionId] + occurredAt)
   idempotencyKey          String              @unique
 
   // Processamento
@@ -215,6 +237,7 @@ model HotmartWebhookEvent {
   @@index([subscriberCode])
   @@index([transactionId])
   @@index([buyerEmail])
+  @@index([subscriptionExternalId])
 }
 
 enum WebhookStatus {

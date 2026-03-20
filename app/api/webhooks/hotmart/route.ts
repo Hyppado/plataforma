@@ -61,15 +61,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const event = await prisma.hotmartWebhookEvent.create({
       data: {
+        // metadados do evento
+        payloadVersion: fields.payloadVersion,
         eventType: fields.eventType,
         eventExternalId: fields.eventExternalId,
+
+        // compra
         transactionId: fields.transactionId,
+        purchaseStatus: fields.purchaseStatus,
+        isSubscription: fields.isSubscription,
+        recurrenceNumber: fields.recurrenceNumber,
+        amountCents: fields.amountCents,
+        currency: fields.currency,
+        paymentType: fields.paymentType,
+        offerCode: fields.offerCode,
+
+        // assinatura
         subscriptionExternalId: fields.subscriptionExternalId,
         subscriberCode: fields.subscriberCode,
-        buyerEmail: fields.buyerEmail,
-        productId: fields.productId,
+        subscriberEmail: fields.subscriberEmail,
         planCode: fields.planCode,
-        offerCode: fields.offerCode,
+        planId: fields.planId,
+        subscriptionStatus: fields.subscriptionStatus,
+
+        // comprador e produto
+        buyerEmail: fields.buyerEmail,
+        buyerName: fields.buyerName,
+        productId: fields.productId,
+        productName: fields.productName,
+
         occurredAt: fields.occurredAt,
         payloadJson: payload as Prisma.InputJsonValue,
         idempotencyKey,

@@ -1,8 +1,27 @@
 /**
  * lib/hotmart/webhook.ts
- * Parse e extração de campos do payload Hotmart.
+ * Parse e extração de campos do payload Hotmart v2.
  * Geração determinística de idempotencyKey.
- * Placeholder para validação de assinatura.
+ * Validação de assinatura via X-Hotmart-Hottok.
+ *
+ * Estrutura v2 de referência:
+ *   body.event                                   → tipo do evento
+ *   body.id                                      → UUID do evento
+ *   body.version                                 → "2.0.0"
+ *   body.creation_date                           → epoch ms
+ *   body.data.buyer.email/name                   → comprador
+ *   body.data.product.id/name                    → produto
+ *   body.data.purchase.transaction               → id da transação
+ *   body.data.purchase.status                    → APPROVED/CANCELED/etc.
+ *   body.data.purchase.is_subscription           → boolean
+ *   body.data.purchase.recurrence_number         → 1=novo, >1=renovação
+ *   body.data.purchase.offer.code                → código da oferta
+ *   body.data.purchase.price.value/currency_value → valor e moeda
+ *   body.data.purchase.payment.type              → CREDIT_CARD/PIX/BILLET
+ *   body.data.subscription.id                    → id da assinatura
+ *   body.data.subscription.plan.name/id          → plano
+ *   body.data.subscription.subscriber.code/email → assinante
+ *   body.data.subscription.status                → ACTIVE/CANCELED/DELAYED/EXPIRED
  */
 
 import { createHash } from "crypto";
@@ -12,15 +31,36 @@ import { createHash } from "crypto";
 // ---------------------------------------------------------------------------
 
 export interface HotmartWebhookFields {
+  payloadVersion?: string;
   eventType: string;
   eventExternalId?: string;
+
+  // Compra
   transactionId?: string;
+  purchaseStatus?: string;
+  isSubscription?: boolean;
+  recurrenceNumber?: number;
+  amountCents?: number;
+  currency?: string;
+  paymentType?: string;
+  offerCode?: string;
+
+  // Assinatura
   subscriptionExternalId?: string;
   subscriberCode?: string;
-  buyerEmail?: string;
-  productId?: string;
+  subscriberEmail?: string;
   planCode?: string;
-  offerCode?: string;
+  planId?: string;
+  subscriptionStatus?: string;
+
+  // Comprador
+  buyerEmail?: string;
+  buyerName?: string;
+
+  // Produto
+  productId?: string;
+  productName?: string;
+
   occurredAt?: Date;
 }
 
@@ -29,129 +69,143 @@ export interface HotmartWebhookFields {
 // ---------------------------------------------------------------------------
 
 /**
- * TODO: Implementar validação de assinatura Hotmart quando disponível.
- * A Hotmart envia um header "X-Hotmart-Hottok" com um token configurável.
- * Adicione HOTMART_WEBHOOK_SECRET no .env e valide aqui.
+ * Valida o token HOTTOK enviado pela Hotmart no header X-Hotmart-Hottok.
+ * O token é um segredo estático configurado no painel Hotmart → Webhooks.
+ * Variável de ambiente: HOTMART_WEBHOOK_SECRET (env var) ou HOTTOK.
  *
- * Exemplo futuro:
- *   const secret = process.env.HOTMART_WEBHOOK_SECRET;
- *   const signature = headers.get("x-hotmart-hottok");
- *   if (signature !== secret) throw new Error("Assinatura inválida");
+ * Lança Error se o token estiver configurado e não corresponder.
+ * Se HOTMART_WEBHOOK_SECRET não estiver definido, aceita todos (modo dev).
  */
-export function verifySignature(_headers: Headers, _rawBody: Buffer): void {
-  // PLACEHOLDER — não lança erro por enquanto (aceita todos os webhooks)
-  // Quando implementar, lançar um Error se a assinatura for inválida:
-  // throw new Error("[Hotmart Webhook] Assinatura inválida");
+export function verifySignature(headers: Headers, _rawBody: Buffer): void {
+  const secret = process.env.HOTMART_WEBHOOK_SECRET ?? process.env.HOTTOK;
+  if (!secret) {
+    // Sem secret configurado → modo permissivo (desenvolvimento)
+    return;
+  }
+  const received = headers.get("x-hotmart-hottok");
+  if (received !== secret) {
+    throw new Error(
+      `[Hotmart Webhook] HOTTOK inválido: esperado "${secret.substring(0, 4)}…", recebido "${(received ?? "").substring(0, 4)}…"`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Extração de campos — resiliente a variações de payload
+// Extração de campos — estrutura Hotmart v2 (resiliente a v1)
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function str(v: any): string | undefined {
+  return v != null ? String(v) : undefined;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function num(v: any): number | undefined {
+  const n = Number(v);
+  return v != null && !isNaN(n) ? n : undefined;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function bool(v: any): boolean | undefined {
+  return v != null ? Boolean(v) : undefined;
+}
+
+function parseDate(raw: unknown): Date | undefined {
+  if (raw == null) return undefined;
+  const d = typeof raw === "number" ? new Date(raw) : new Date(raw as string);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
 /**
- * Extrai campos padronizados de um payload Hotmart arbitrário.
- * A Hotmart pode variar a estrutura entre versões e tipos de evento.
- * Salvamos sempre o payload bruto; os campos extraídos facilitam queries.
+ * Extrai campos padronizados de um payload Hotmart v2.
+ * Mantém fallbacks para v1 (root-level subscriber, etc.).
+ * O payload bruto é sempre salvo integralmente.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractWebhookFields(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: Record<string, any>,
 ): HotmartWebhookFields {
-  // --- event type ---
-  // Hotmart envia em: event, data.event, hottok (não é o tipo), type
+  const d = payload?.data ?? {};
+
+  // event
   const eventType: string =
-    payload?.event ??
-    payload?.data?.event ??
-    payload?.type ??
-    payload?.name ??
-    "UNKNOWN";
+    payload?.event ?? payload?.type ?? payload?.name ?? "UNKNOWN";
+  const eventExternalId = str(payload?.id ?? payload?.event_id);
+  const payloadVersion = str(payload?.version);
 
-  // --- event external id (ex: id único do evento se existir) ---
-  const eventExternalId: string | undefined =
-    payload?.id ?? payload?.event_id ?? payload?.data?.id ?? undefined;
+  // purchase
+  const purchase = d?.purchase ?? payload?.purchase ?? {};
+  const transactionId = str(purchase?.transaction ?? payload?.transaction);
+  const purchaseStatus = str(purchase?.status);
+  const isSubscription = bool(purchase?.is_subscription);
+  const recurrenceNumber = num(purchase?.recurrence_number);
+  const amountCents = num(purchase?.price?.value);
+  const currency = str(purchase?.price?.currency_value ?? purchase?.currency);
+  const paymentType = str(purchase?.payment?.type);
+  const offerCode = str(
+    purchase?.offer?.code ?? payload?.offer?.code ?? payload?.offer_code,
+  );
 
-  // --- transaction id ---
-  // Hotmart: payload.data.purchase.transaction ou payload.purchase.transaction
-  const transactionId: string | undefined =
-    payload?.data?.purchase?.transaction ??
-    payload?.purchase?.transaction ??
-    payload?.transaction ??
-    undefined;
+  // subscription
+  const sub = d?.subscription ?? payload?.subscription ?? {};
+  const subscriptionExternalId = str(sub?.id);
+  const planCode = str(
+    sub?.plan?.name ?? payload?.plan?.name ?? payload?.plan_name,
+  );
+  const planId = str(sub?.plan?.id);
+  const subscriptionStatus = str(sub?.status);
 
-  // --- subscription external id (id numérico da assinatura na Hotmart) ---
-  const subscriptionExternalId: string | undefined =
-    payload?.data?.subscription?.id ??
-    payload?.subscription?.id ??
-    payload?.subscriber?.code ??
-    undefined;
+  // subscriber — v2: data.subscription.subscriber | v1: data.subscriber / root subscriber
+  const subscriber =
+    sub?.subscriber ?? d?.subscriber ?? payload?.subscriber ?? {};
+  const subscriberCode = str(subscriber?.code ?? payload?.subscriber_code);
+  const subscriberEmail = str(subscriber?.email);
 
-  // --- subscriber_code (código único do assinante na Hotmart) ---
-  const subscriberCode: string | undefined =
-    payload?.data?.subscriber?.code ??
-    payload?.subscriber?.code ??
-    payload?.subscriber_code ??
-    undefined;
+  // buyer
+  const buyer = d?.buyer ?? payload?.buyer ?? {};
+  const buyerEmail = str(
+    buyer?.email ??
+      purchase?.buyer?.email ??
+      // se subscriber_email vier sem buyer (alguns eventos de club)
+      subscriberEmail,
+  );
+  const buyerName = str(buyer?.name ?? buyer?.full_name);
 
-  // --- buyer email ---
-  const buyerEmail: string | undefined =
-    payload?.data?.buyer?.email ??
-    payload?.buyer?.email ??
-    payload?.data?.purchase?.buyer?.email ??
-    payload?.purchase?.buyer?.email ??
-    undefined;
+  // product
+  const product = d?.product ?? payload?.product ?? {};
+  const productId = str(product?.id);
+  const productName = str(product?.name);
 
-  // --- product id ---
-  const productId: string | undefined =
-    payload?.data?.product?.id?.toString() ??
-    payload?.product?.id?.toString() ??
-    payload?.data?.purchase?.product?.id?.toString() ??
-    undefined;
-
-  // --- plan / offer code ---
-  // Hotmart usa plan_name ou offer_code dependendo da versão do webhook
-  const planCode: string | undefined =
-    payload?.data?.subscription?.plan?.name ??
-    payload?.subscription?.plan?.name ??
-    payload?.data?.plan?.name ??
-    payload?.plan?.name ??
-    payload?.plan_name ??
-    undefined;
-
-  const offerCode: string | undefined =
-    payload?.data?.purchase?.offer?.code ??
-    payload?.purchase?.offer?.code ??
-    payload?.offer?.code ??
-    payload?.offer_code ??
-    undefined;
-
-  // --- occurred at ---
-  // Hotmart: creation_date (epoch ms) ou event_date ou occurred_at
-  let occurredAt: Date | undefined;
-  const rawDate =
-    payload?.data?.creation_date ??
+  // occurred_at — creation_date é epoch ms no root level
+  const occurredAt = parseDate(
     payload?.creation_date ??
-    payload?.event_date ??
-    payload?.data?.event_date ??
-    payload?.occurred_at;
-  if (rawDate !== undefined) {
-    // Se for epoch em milissegundos (número grande) ou string ISO
-    const parsed =
-      typeof rawDate === "number"
-        ? new Date(rawDate)
-        : new Date(rawDate as string);
-    occurredAt = isNaN(parsed.getTime()) ? undefined : parsed;
-  }
+      d?.creation_date ??
+      payload?.event_date ??
+      payload?.occurred_at,
+  );
 
   return {
+    payloadVersion,
     eventType,
     eventExternalId,
     transactionId,
+    purchaseStatus,
+    isSubscription,
+    recurrenceNumber,
+    amountCents,
+    currency,
+    paymentType,
+    offerCode,
     subscriptionExternalId,
     subscriberCode,
-    buyerEmail,
-    productId,
+    subscriberEmail,
     planCode,
-    offerCode,
+    planId,
+    subscriptionStatus,
+    buyerEmail,
+    buyerName,
+    productId,
+    productName,
     occurredAt,
   };
 }
@@ -161,28 +215,29 @@ export function extractWebhookFields(
 // ---------------------------------------------------------------------------
 
 /**
- * Gera uma chave determinística SHA-256 para garantir que o mesmo evento
- * não seja processado duas vezes, mesmo que o webhook chegue duplicado.
+ * Gera chave SHA-256 determinística para idempotência.
+ * Usa apenas campos imutáveis do evento — NÃO o payload completo
+ * (que pode variar em whitespace/ordem entre tentativas duplicadas).
  *
- * Composição: eventType + (subscriptionExternalId|transactionId) + occurredAt + canonical payload
+ * Composição: eventType + eventExternalId + anchor(sub|transaction) + occurredAt
  */
 export function buildIdempotencyKey(
   fields: HotmartWebhookFields,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload: Record<string, any>,
+  _payload: Record<string, any>,
 ): string {
+  // Âncora preferencial: UUID do evento (mais estável), depois sub/transação
   const anchor =
+    fields.eventExternalId ??
     fields.subscriptionExternalId ??
     fields.transactionId ??
     fields.subscriberCode ??
-    fields.eventExternalId ??
     "no-id";
 
   const canonical = [
     fields.eventType,
     anchor,
     fields.occurredAt?.toISOString() ?? "no-date",
-    JSON.stringify(payload),
   ].join("|");
 
   return createHash("sha256").update(canonical).digest("hex");
