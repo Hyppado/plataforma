@@ -83,6 +83,31 @@ enum PlanPeriod {
 }
 
 // ---------------------------------------------------------------------------
+// COUPONS (sincronizados via Hotmart API)
+// ---------------------------------------------------------------------------
+
+model Coupon {
+  id                String    @id @default(uuid())
+  hotmartCouponCode String    @unique  // código do cupom na Hotmart
+  productId         String    // hotmartProductId ("7420891")
+  offerCode         String?   // offerCode ao qual o cupom está vinculado
+  name              String?
+  discountType      String    // PERCENTAGE | FIXED_VALUE
+  discountValue     Float     // ex: 20 (20%) ou 50 (R$ 50)
+  currency          String    @default("BRL")
+  maxUses           Int?      // null = ilimitado
+  usedCount         Int       @default(0)
+  startsAt          DateTime?
+  expiresAt         DateTime?
+  isActive          Boolean   @default(true)
+  syncedAt          DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([productId])
+  @@index([isActive, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
 // SUBSCRIPTIONS
 // ---------------------------------------------------------------------------
 

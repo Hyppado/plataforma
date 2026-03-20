@@ -1,18 +1,22 @@
+/**
+ * prisma/seed.ts
+ *
+ * Seed inicial: sincroniza planos e cupons do produto Hotmart 7420891.
+ * Se a API não responder (credenciais ausentes), faz upsert mínimo hardcoded.
+ */
+
 import { PrismaClient, PlanCode, PlanPeriod } from "@prisma/client";
+import { syncAll } from "../lib/hotmart/sync";
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log("🌱 Seeding plans...");
+const PRODUCT_ID = "7420891";
 
-  // PRO MENSAL — R$ 59,90/mês
-  const pro = await prisma.plan.upsert({
+async function baseline() {
+  // Garante que os planos existam mesmo sem API Hotmart disponível
+  await prisma.plan.upsert({
     where: { code: PlanCode.PRO_MENSAL },
-    update: {
-      hotmartProductId: "7420891",
-      // hotmartPlanCode: "NOME_DO_PLANO_NO_HOTMART",   // preencher após verificar no painel
-      // hotmartOfferCode: "OFFER_CODE_MENSAL",          // preencher após verificar no painel
-    },
+    update: {},
     create: {
       code: PlanCode.PRO_MENSAL,
       name: "Pro",
@@ -22,21 +26,13 @@ async function main() {
       currency: "BRL",
       periodicity: PlanPeriod.MONTHLY,
       isActive: true,
-      hotmartProductId: "7420891",
-      // hotmartPlanCode: "NOME_DO_PLANO_NO_HOTMART",
-      // hotmartOfferCode: "OFFER_CODE_MENSAL",
+      hotmartProductId: PRODUCT_ID,
     },
   });
-  console.log(`✅ Plan PRO_MENSAL: ${pro.id}`);
 
-  // PREMIUM ANUAL — R$ 647/ano
-  const premium = await prisma.plan.upsert({
+  await prisma.plan.upsert({
     where: { code: PlanCode.PREMIUM_ANUAL },
-    update: {
-      hotmartProductId: "7420891",
-      // hotmartPlanCode: "NOME_DO_PLANO_ANUAL_NO_HOTMART",
-      // hotmartOfferCode: "OFFER_CODE_ANUAL",
-    },
+    update: {},
     create: {
       code: PlanCode.PREMIUM_ANUAL,
       name: "Premium",
@@ -46,14 +42,47 @@ async function main() {
       currency: "BRL",
       periodicity: PlanPeriod.ANNUAL,
       isActive: true,
-      hotmartProductId: "7420891",
-      // hotmartPlanCode: "NOME_DO_PLANO_ANUAL_NO_HOTMART",
-      // hotmartOfferCode: "OFFER_CODE_ANUAL",
+      hotmartProductId: PRODUCT_ID,
     },
   });
-  console.log(`✅ Plan PREMIUM_ANUAL: ${premium.id}`);
 
-  console.log("🎉 Seed concluído.");
+  console.log("✅ Planos base garantidos no banco.");
+}
+
+async function main() {
+  console.log("🌱 Iniciando seed...\n");
+
+  // 1. Garante planos base (sem depender da API Hotmart)
+  await baseline();
+
+  // 2. Tenta sincronizar dados reais via API Hotmart
+  const hasApiCreds =
+    process.env.HOTMART_CLIENTE_ID &&
+    process.env.HOTMART_CLIENT_SECRET &&
+    process.env.HOTMART_BASIC;
+
+  if (!hasApiCreds) {
+    console.warn("⚠️  Credenciais Hotmart ausentes — pulando sync da API.");
+    console.log("\n🎉 Seed básico concluído.");
+    return;
+  }
+
+  console.log("🔄 Sincronizando dados da API Hotmart...");
+  const { offers, coupons } = await syncAll(PRODUCT_ID);
+
+  console.log(
+    `\n✅ Offers sincronizados: [${offers.upserted.join(", ") || "nenhum"}]`,
+  );
+  if (offers.skipped.length)
+    console.log(`   Pulados (não-assinatura): [${offers.skipped.join(", ")}]`);
+
+  console.log(
+    `✅ Cupons sincronizados: [${coupons.upserted.join(", ") || "nenhum"}]`,
+  );
+  if (coupons.deactivated.length)
+    console.log(`   Desativados: ${coupons.deactivated.join(", ")}`);
+
+  console.log("\n🎉 Seed completo.");
 }
 
 main()
