@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed": "npx tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -24,6 +28,7 @@
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "prisma": "5.22.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }
