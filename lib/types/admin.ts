@@ -1,32 +1,64 @@
 /**
  * Admin types for Hotmart billing integration and token quotas.
- * FRONT-END ONLY - no backend implementation.
  */
 
-// ==================== SUBSCRIBER TYPES (Hotmart-aware) ====================
+// ==================== SUBSCRIBER TYPES (real data from DB) ====================
 
-/** Subscriber status from Hotmart subscription API */
-export type SubscriberStatus = "ACTIVE" | "CANCELED" | "PAST_DUE" | "UNKNOWN";
+/** Subscriber status mapped from Hotmart */
+export type SubscriberStatus =
+  | "ACTIVE"
+  | "CANCELED"
+  | "PAST_DUE"
+  | "PENDING"
+  | "EXPIRED";
 
-/** Subscriber record - phone is optional and only shown if truly available from API/webhook */
+/** Plan info embedded in subscriber response */
+export interface SubscriberPlan {
+  id: string;
+  code: string;
+  name: string;
+  displayPrice?: string | null;
+  periodicity?: string | null;
+}
+
+/** Subscriber record — real data from Subscription + User + HotmartSubscription */
 export interface Subscriber {
   id: string;
   name?: string | null;
   email?: string | null;
-  /** Phone is NOT guaranteed from Hotmart subscription listing.
-   * Requires checkout field config + sales participants / webhook mapping. */
-  phone?: string | null;
   status: SubscriberStatus;
-  productId?: string | null;
-  subscriptionId?: string | null;
+  plan: SubscriberPlan;
+  subscriberCode?: string | null;
+  hotmartStatus?: string | null;
+  startedAt?: string | null;
+  cancelledAt?: string | null;
   lastPaymentAt?: string | null;
+  lastPaymentAmount?: number | null;
+  lastPaymentCurrency?: string;
+  createdAt: string;
 }
 
-/** Aggregated subscription metrics from Hotmart */
+/** Paginated subscribers response */
+export interface SubscribersResponse {
+  subscribers: Subscriber[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+/** Aggregated subscription metrics — real counts from DB */
 export interface SubscriptionMetrics {
-  activeMonthlySubscribers?: number | null;
-  canceledSubscribers?: number | null;
-  periodLabel?: string | null;
+  activeSubscribers: number;
+  canceledSubscribers: number;
+  pastDueSubscribers: number;
+  totalSubscribers: number;
+  newThisMonth: number;
+  cancelledThisMonth: number;
+  revenueThisMonthCents: number;
+  periodLabel: string;
   lastSyncAt?: string | null;
 }
 

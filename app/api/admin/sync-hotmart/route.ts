@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { syncAll } from "@/lib/hotmart/sync";
+import { syncHotmartSubscribers } from "@/lib/hotmart/subscribers";
 import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
 
 function isAuthorized(req: NextRequest): boolean {
@@ -37,8 +38,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Parse body para opções (opcional)
+  let syncSubscribers = true;
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body.skipSubscribers === true) syncSubscribers = false;
+  } catch {
+    /* ignore */
+  }
+
   try {
     const { offers, coupons } = await syncAll(productId);
+
+    // Sync subscribers from Hotmart API
+    let subscribers = null;
+    if (syncSubscribers) {
+      try {
+        subscribers = await syncHotmartSubscribers(productId);
+      } catch (err) {
+        console.error("[sync-hotmart] Erro ao sincronizar subscribers:", err);
+        subscribers = { error: String(err) };
+      }
+    }
 
     return NextResponse.json({
       status: "ok",
@@ -53,6 +74,7 @@ export async function POST(req: NextRequest) {
         deactivated: coupons.deactivated,
         total: coupons.raw.length,
       },
+      subscribers,
     });
   } catch (err) {
     console.error("[sync-hotmart] Erro:", err);

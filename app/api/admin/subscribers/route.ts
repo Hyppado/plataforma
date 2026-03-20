@@ -1,130 +1,127 @@
 import { NextResponse } from "next/server";
-import type { Subscriber } from "@/lib/types/admin";
+import prisma from "@/lib/prisma";
 
 /**
  * GET /api/admin/subscribers
- * Returns subscriber list. If NEXT_PUBLIC_ADMIN_MOCKS is true, returns mock data.
- * Query param: status=active|canceled (optional filter)
+ * Retorna assinantes reais do banco de dados (populados via webhook Hotmart).
+ *
+ * Query params:
+ *   status=active|canceled|past_due  (filtra por status)
+ *   plan=<planCode>                  (filtra por plano)
+ *   search=<termo>                   (busca por nome ou email)
+ *   page=1                           (paginação, default 1)
+ *   limit=50                         (itens por página, max 200)
  */
 export async function GET(request: Request) {
-  const isMockMode = process.env.NEXT_PUBLIC_ADMIN_MOCKS === "true";
-
-  if (!isMockMode) {
-    // No mock mode - return empty array
-    return NextResponse.json([]);
-  }
-
-  // Parse status filter from URL
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status")?.toUpperCase();
+  const planFilter = url.searchParams.get("plan");
+  const search = url.searchParams.get("search");
+  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1"));
+  const limit = Math.min(
+    200,
+    Math.max(1, parseInt(url.searchParams.get("limit") ?? "50")),
+  );
+  const skip = (page - 1) * limit;
 
-  // Mock subscriber data - deterministic
-  const mockSubscribers: Subscriber[] = [
-    // 9 Active subscribers
-    {
-      id: "sub_001",
-      name: "Maria Silva",
-      email: "maria.silva@email.com",
-      phone: "5511999001001",
-      status: "ACTIVE",
-      lastPaymentAt: "2026-02-01T10:00:00Z",
-    },
-    {
-      id: "sub_002",
-      name: "João Santos",
-      email: "joao.santos@email.com",
-      phone: "5511999002002",
-      status: "ACTIVE",
-      lastPaymentAt: "2026-02-03T14:30:00Z",
-    },
-    {
-      id: "sub_003",
-      name: "Ana Oliveira",
-      email: "ana.oliveira@email.com",
-      phone: null, // No phone
-      status: "ACTIVE",
-      lastPaymentAt: "2026-01-28T09:15:00Z",
-    },
-    {
-      id: "sub_004",
-      name: "Pedro Costa",
-      email: "pedro.costa@email.com",
-      phone: "5521988004004",
-      status: "ACTIVE",
-      lastPaymentAt: "2026-02-05T16:45:00Z",
-    },
-    {
-      id: "sub_005",
-      name: "Carla Ferreira",
-      email: "carla.ferreira@email.com",
-      phone: null, // No phone
-      status: "ACTIVE",
-      lastPaymentAt: "2026-01-30T11:20:00Z",
-    },
-    {
-      id: "sub_006",
-      name: "Lucas Almeida",
-      email: "lucas.almeida@email.com",
-      phone: "5531977006006",
-      status: "ACTIVE",
-      lastPaymentAt: "2026-02-04T08:00:00Z",
-    },
-    {
-      id: "sub_007",
-      name: "Juliana Lima",
-      email: "juliana.lima@email.com",
-      phone: "5541966007007",
-      status: "ACTIVE",
-      lastPaymentAt: "2026-02-02T13:10:00Z",
-    },
-    {
-      id: "sub_008",
-      name: "Rafael Souza",
-      email: "rafael.souza@email.com",
-      phone: null, // No phone
-      status: "ACTIVE",
-      lastPaymentAt: "2026-01-29T17:30:00Z",
-    },
-    {
-      id: "sub_009",
-      name: "Fernanda Rocha",
-      email: "fernanda.rocha@email.com",
-      phone: "5551955009009",
-      status: "ACTIVE",
-      lastPaymentAt: "2026-02-06T10:45:00Z",
-    },
-    // 3 Canceled subscribers
-    {
-      id: "sub_010",
-      name: "Bruno Martins",
-      email: "bruno.martins@email.com",
-      phone: "5561944010010",
-      status: "CANCELED",
-      lastPaymentAt: "2026-01-15T12:00:00Z",
-    },
-    {
-      id: "sub_011",
-      name: "Patrícia Gomes",
-      email: "patricia.gomes@email.com",
-      phone: null, // No phone
-      status: "CANCELED",
-      lastPaymentAt: "2026-01-10T09:30:00Z",
-    },
-    {
-      id: "sub_012",
-      name: "Thiago Ribeiro",
-      email: "thiago.ribeiro@email.com",
-      phone: "5571933012012",
-      status: "CANCELED",
-      lastPaymentAt: "2026-01-20T15:15:00Z",
-    },
-  ];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const whereClause: any = {};
 
-  // Filter by status if provided
-  let filtered = mockSubscribers;
-  if (statusFilter === "ACTIVE" || statusFilter === "CANCELED") {
-    filtered = mockSubscribers.filter((s) => s.status === statusFilter);
+    const statusMap: Record<string, string> = {
+      ACTIVE: "ACTIVE",
+      CANCELED: "CANCELLED",
+      CANCELLED: "CANCELLED",
+      PAST_DUE: "PAST_DUE",
+      PENDING: "PENDING",
+      EXPIRED: "EXPIRED",
+    };
+
+    if (statusFilter && statusMap[statusFilter]) {
+      whereClause.status = statusMap[statusFilter];
+    }
+
+    if (planFilter) {
+      whereClause.plan = { code: planFilter };
+    }
+
+    if (search) {
+      whereClause.user = {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+        ],
+      };
+    }
+
+    const total = await prisma.subscription.count({ where: whereClause });
+
+    const subscriptions = await prisma.subscription.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          include: { hotmartIdentity: true },
+        },
+        plan: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            displayPrice: true,
+            periodicity: true,
+          },
+        },
+        hotmart: {
+          select: {
+            hotmartSubscriptionId: true,
+            subscriberCode: true,
+            externalStatus: true,
+            buyerEmail: true,
+          },
+        },
+        charges: {
+          where: { status: "PAID" },
+          orderBy: { paidAt: "desc" },
+          take: 1,
+          select: { paidAt: true, amountCents: true, currency: true },
+        },
+      },
+      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      skip,
+      take: limit,
+    });
+
+    const subscribers = subscriptions.map((sub) => ({
+      id: sub.id,
+      name: sub.user.name,
+      email: sub.user.email,
+      status: sub.status === "CANCELLED" ? "CANCELED" : sub.status,
+      plan: {
+        id: sub.plan.id,
+        code: sub.plan.code,
+        name: sub.plan.name,
+        displayPrice: sub.plan.displayPrice,
+        periodicity: sub.plan.periodicity,
+      },
+      subscriberCode: sub.hotmart?.subscriberCode ?? null,
+      hotmartStatus: sub.hotmart?.externalStatus ?? null,
+      startedAt: sub.startedAt?.toISOString() ?? null,
+      cancelledAt: sub.cancelledAt?.toISOString() ?? null,
+      lastPaymentAt: sub.charges[0]?.paidAt?.toISOString() ?? null,
+      lastPaymentAmount: sub.charges[0]?.amountCents ?? null,
+      lastPaymentCurrency: sub.charges[0]?.currency ?? "BRL",
+      createdAt: sub.createdAt.toISOString(),
+    }));
+
+    return NextResponse.json({
+      subscribers,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    console.error("[admin/subscribers] Erro:", error);
+    return NextResponse.json(
+      { error: "Erro ao buscar assinantes", detail: String(error) },
+      { status: 500 },
+    );
   }
-
-  return NextResponse.json(filtered);
 }
