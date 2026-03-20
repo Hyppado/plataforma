@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { syncAll } from "@/lib/hotmart/sync";
 import { syncHotmartSubscribers } from "@/lib/hotmart/subscribers";
 import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
+import { isSandbox } from "@/lib/hotmart/config";
 
 function isAuthorized(req: NextRequest): boolean {
   const adminSecret = process.env.ADMIN_SECRET;
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       status: "ok",
+      sandbox: isSandbox(),
       productId,
       offers: {
         upserted: offers.upserted,
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     status: productId ? "ready" : "not_configured",
+    sandbox: isSandbox(),
     productId: productId || null,
     hint: productId
       ? "Envie POST para disparar o sync."
