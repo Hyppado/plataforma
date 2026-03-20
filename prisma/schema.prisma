@@ -34,6 +34,10 @@ model User {
   hotmartIdentity   HotmartIdentity?
   subscriptions     Subscription[]
   auditLogs         AuditLog[]
+
+  // Usage tracking
+  usagePeriods      UsagePeriod[]
+  usageEvents       UsageEvent[]
 }
 
 enum UserRole {
@@ -374,6 +378,57 @@ model Alert {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([userId, read])
+}
+
+// ---------------------------------------------------------------------------
+// USAGE TRACKING
+// ---------------------------------------------------------------------------
+
+enum UsageEventType {
+  TRANSCRIPT
+  SCRIPT
+  INSIGHT
+}
+
+/// Período de uso mensal por usuário (criado sob demanda na primeira ação do mês)
+model UsagePeriod {
+  id              String   @id @default(uuid())
+  userId          String
+  periodStart     DateTime // 1º dia do mês, 00:00:00 UTC
+  periodEnd       DateTime // último momento do mês, UTC
+
+  transcriptsUsed Int      @default(0)
+  scriptsUsed     Int      @default(0)
+  insightsUsed    Int      @default(0)
+  tokensUsed      Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+  events          UsageEvent[]
+
+  @@unique([userId, periodStart])
+  @@index([userId, periodStart])
+}
+
+/// Evento atômico de consumo com chave de idempotência
+model UsageEvent {
+  id             String         @id @default(uuid())
+  userId         String
+  periodId       String
+  type           UsageEventType
+  tokensUsed     Int            @default(0)
+  refTable       String?        // ex: "Video", "Script"
+  refId          String?        // ID do objeto relacionado
+  idempotencyKey String         @unique
+  occurredAt     DateTime       @default(now())
+
+  user           User           @relation(fields: [userId], references: [id])
+  period         UsagePeriod    @relation(fields: [periodId], references: [id])
+
+  @@index([userId, occurredAt])
+  @@index([type, occurredAt])
 }
 
 // ---------------------------------------------------------------------------
