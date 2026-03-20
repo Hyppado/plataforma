@@ -226,6 +226,33 @@ async function upsertSubscription(
 }
 
 // ---------------------------------------------------------------------------
+// Retry helper com backoff exponencial
+// ---------------------------------------------------------------------------
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [500, 2000, 5000]; // ms
+
+async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  let lastErr: Error | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAYS[attempt] ?? 5000;
+        console.warn(
+          `[Hotmart Processor] ${label} tentativa ${attempt + 1}/${MAX_RETRIES} falhou, retry em ${delay}ms:`,
+          lastErr.message,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+// ---------------------------------------------------------------------------
 // Processador principal
 // ---------------------------------------------------------------------------
 
@@ -233,123 +260,22 @@ export async function processHotmartEvent(
   webhookEventId: string,
   fields: HotmartWebhookFields,
 ): Promise<void> {
+  // Marca como PROCESSING
+  await prisma.hotmartWebhookEvent
+    .update({
+      where: { id: webhookEventId },
+      data: { processingStatus: "PROCESSING" },
+    })
+    .catch(() => {});
+
   try {
-    const { eventType } = fields;
-
-    // Eventos informativos — apenas audit log
-    if (INFORMATIONAL_EVENTS.has(eventType)) {
-      await prisma.auditLog.create({
-        data: {
-          actorId: "system",
-          action: `WEBHOOK_${eventType}`,
-          entityType: "HotmartWebhookEvent",
-          entityId: webhookEventId,
-          after: {
-            eventType,
-            subscriberCode: fields.subscriberCode,
-            productId: fields.productId,
-          },
-        },
-      });
-      await markProcessed(webhookEventId);
-      return;
-    }
-
-    // 1. Resolve identidade
-    const identity = await resolveOrCreateIdentity(fields);
-
-    // 2. Resolve plano
-    const plan = await resolvePlan(fields);
-
-    let subscriptionId: string | undefined;
-
-    if (identity && plan) {
-      // Determina status da assinatura
-      const newStatus = ACTIVATION_EVENTS.has(eventType)
-        ? "ACTIVE"
-        : CANCELLATION_EVENTS.has(eventType)
-          ? "CANCELLED"
-          : DELAY_EVENTS.has(eventType)
-            ? "PAST_DUE"
-            : "ACTIVE"; // SWITCH_PLAN e outros
-
-      subscriptionId = await upsertSubscription(
-        fields,
-        identity.userId,
-        plan.id,
-        newStatus,
-      );
-
-      // 3. Cria SubscriptionCharge se houver transação
-      const chargeStatus = CHARGE_STATUS_MAP[eventType];
-      if (chargeStatus && fields.transactionId) {
-        await prisma.subscriptionCharge.upsert({
-          where: { transactionId: fields.transactionId },
-          update: {
-            status: chargeStatus as never,
-            amountCents: fields.amountCents,
-            currency: fields.currency ?? "BRL",
-            paidAt:
-              chargeStatus === "PAID"
-                ? (fields.occurredAt ?? new Date())
-                : undefined,
-          },
-          create: {
-            subscriptionId,
-            transactionId: fields.transactionId,
-            amountCents: fields.amountCents,
-            currency: fields.currency ?? "BRL",
-            status: chargeStatus as never,
-            paidAt:
-              chargeStatus === "PAID"
-                ? (fields.occurredAt ?? new Date())
-                : undefined,
-            chargeAt: fields.occurredAt,
-          },
-        });
-      }
-
-      // 4. Audit log
-      await prisma.auditLog.create({
-        data: {
-          userId: identity.userId,
-          actorId: "system",
-          action: `WEBHOOK_${eventType}`,
-          entityType: "Subscription",
-          entityId: subscriptionId,
-          after: {
-            status: newStatus,
-            eventType,
-            transactionId: fields.transactionId,
-            recurrenceNumber: fields.recurrenceNumber,
-            planCode: fields.planCode,
-            amountCents: fields.amountCents,
-          },
-        },
-      });
-    } else {
-      // Sem identidade ou plano resolvido — loga para investigação
-      await prisma.auditLog.create({
-        data: {
-          actorId: "system",
-          action: `WEBHOOK_${eventType}_UNRESOLVED`,
-          entityType: "HotmartWebhookEvent",
-          entityId: webhookEventId,
-          after: {
-            reason: !identity ? "identity_not_found" : "plan_not_found",
-            buyerEmail: fields.buyerEmail,
-            subscriberCode: fields.subscriberCode,
-            productId: fields.productId,
-            planCode: fields.planCode,
-          },
-        },
-      });
-    }
-
-    await markProcessed(webhookEventId);
+    await withRetry(
+      () => _processEvent(webhookEventId, fields),
+      `evento ${webhookEventId}`,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[Hotmart Processor] Erro:", message);
+    console.error("[Hotmart Processor] Falha definitiva:", message);
 
     await prisma.hotmartWebhookEvent
       .update({
@@ -361,9 +287,130 @@ export async function processHotmartEvent(
         },
       })
       .catch(() => {});
-
-    throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Lógica de processamento (chamada com retry)
+// ---------------------------------------------------------------------------
+
+async function _processEvent(
+  webhookEventId: string,
+  fields: HotmartWebhookFields,
+): Promise<void> {
+  const { eventType } = fields;
+
+  // Eventos informativos — apenas audit log
+  if (INFORMATIONAL_EVENTS.has(eventType)) {
+    await prisma.auditLog.create({
+      data: {
+        actorId: "system",
+        action: `WEBHOOK_${eventType}`,
+        entityType: "HotmartWebhookEvent",
+        entityId: webhookEventId,
+        after: {
+          eventType,
+          subscriberCode: fields.subscriberCode,
+          productId: fields.productId,
+        },
+      },
+    });
+    await markProcessed(webhookEventId);
+    return;
+  }
+
+  // 1. Resolve identidade
+  const identity = await resolveOrCreateIdentity(fields);
+
+  // 2. Resolve plano
+  const plan = await resolvePlan(fields);
+
+  let subscriptionId: string | undefined;
+
+  if (identity && plan) {
+    // Determina status da assinatura
+    const newStatus = ACTIVATION_EVENTS.has(eventType)
+      ? "ACTIVE"
+      : CANCELLATION_EVENTS.has(eventType)
+        ? "CANCELLED"
+        : DELAY_EVENTS.has(eventType)
+          ? "PAST_DUE"
+          : "ACTIVE"; // SWITCH_PLAN e outros
+
+    subscriptionId = await upsertSubscription(
+      fields,
+      identity.userId,
+      plan.id,
+      newStatus,
+    );
+
+    // 3. Cria SubscriptionCharge se houver transação
+    const chargeStatus = CHARGE_STATUS_MAP[eventType];
+    if (chargeStatus && fields.transactionId) {
+      await prisma.subscriptionCharge.upsert({
+        where: { transactionId: fields.transactionId },
+        update: {
+          status: chargeStatus as never,
+          amountCents: fields.amountCents,
+          currency: fields.currency ?? "BRL",
+          paidAt:
+            chargeStatus === "PAID"
+              ? (fields.occurredAt ?? new Date())
+              : undefined,
+        },
+        create: {
+          subscriptionId,
+          transactionId: fields.transactionId,
+          amountCents: fields.amountCents,
+          currency: fields.currency ?? "BRL",
+          status: chargeStatus as never,
+          paidAt:
+            chargeStatus === "PAID"
+              ? (fields.occurredAt ?? new Date())
+              : undefined,
+          chargeAt: fields.occurredAt,
+        },
+      });
+    }
+
+    // 4. Audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: identity.userId,
+        actorId: "system",
+        action: `WEBHOOK_${eventType}`,
+        entityType: "Subscription",
+        entityId: subscriptionId,
+        after: {
+          status: newStatus,
+          eventType,
+          transactionId: fields.transactionId,
+          recurrenceNumber: fields.recurrenceNumber,
+          planCode: fields.planCode,
+          amountCents: fields.amountCents,
+        },
+      },
+    });
+  } else {
+    // Sem identidade ou plano resolvido — loga para investigação
+    await prisma.auditLog.create({
+      data: {
+        actorId: "system",
+        action: `WEBHOOK_${eventType}_UNRESOLVED`,
+        entityType: "HotmartWebhookEvent",
+        entityId: webhookEventId,
+        after: {
+          reason: !identity ? "identity_not_found" : "plan_not_found",
+          buyerEmail: fields.buyerEmail,
+          subscriberCode: fields.subscriberCode,
+          productId: fields.productId,
+          planCode: fields.planCode,
+        },
+      },
+    });
+  }
+
+  await markProcessed(webhookEventId);
 }
 
 async function markProcessed(id: string) {

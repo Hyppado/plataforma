@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import prisma from "../../../../lib/prisma";
 import type { Prisma } from "@prisma/client";
 import {
@@ -117,15 +118,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 
-  // 7. Processa de forma assíncrona (não bloqueia a resposta)
-  // Em Vercel, use `waitUntil` se disponível para garantir execução após resposta.
-  // Por ora, inicia sem await para responder < 5s.
-  processHotmartEvent(eventId, fields).catch((err) => {
-    console.error(
-      `[Hotmart Webhook] Falha ao processar evento ${eventId}:`,
-      (err as Error).message,
-    );
-  });
+  // 7. Processa via waitUntil — garante execução após resposta no Vercel
+  waitUntil(
+    processHotmartEvent(eventId, fields).catch((err) => {
+      console.error(
+        `[Hotmart Webhook] Falha ao processar evento ${eventId}:`,
+        (err as Error).message,
+      );
+    }),
+  );
 
   // 8. Responde 200 imediatamente (Hotmart considera sucesso)
   return NextResponse.json({ status: "received", eventId }, { status: 200 });
