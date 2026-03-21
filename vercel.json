@@ -4,7 +4,7 @@
   "buildCommand": "npx prisma generate && next build",
   "git": {
     "deploymentEnabled": {
-      "develop": false,
+      "develop": true,
       "main": true
     }
   }
