@@ -16,8 +16,8 @@ import {
   AutoAwesome,
   PlayArrowRounded,
 } from "@mui/icons-material";
-import type { VideoDTO, ProductDTO } from "@/lib/types/kalodata";
-import { formatCurrency, formatNumber } from "@/lib/kalodata/parser";
+import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSavedVideos, useSavedProducts } from "@/lib/storage/saved";
 import { TranscriptDialog } from "@/app/components/videos/TranscriptDialog";
@@ -164,46 +164,7 @@ function RankBadge({ rank }: RankBadgeProps) {
 }
 
 // Mock products for fallback when video has no product
-const FALLBACK_PRODUCTS = [
-  {
-    name: "Secador de Cabelo Profissional",
-    priceBRL: 189.9,
-    category: "Beleza",
-    imageUrl: "https://picsum.photos/seed/prod001/200/200",
-  },
-  {
-    name: "Kit Maquiagem Completo",
-    priceBRL: 129.9,
-    category: "Beleza",
-    imageUrl: "https://picsum.photos/seed/prod002/200/200",
-  },
-  {
-    name: "Fone Bluetooth Premium",
-    priceBRL: 249.9,
-    category: "Eletrônicos",
-    imageUrl: "https://picsum.photos/seed/prod003/200/200",
-  },
-  {
-    name: "Escova Alisadora 2-em-1",
-    priceBRL: 159.9,
-    category: "Beleza",
-    imageUrl: "https://picsum.photos/seed/prod004/200/200",
-  },
-  {
-    name: "Luminária LED Inteligente",
-    priceBRL: 89.9,
-    category: "Casa",
-    imageUrl: "https://picsum.photos/seed/prod005/200/200",
-  },
-];
-
-/**
- * Get a mock product for a video based on index (deterministic)
- */
-function getMockProductForVideo(videoId: string, index: number) {
-  const idx = index % FALLBACK_PRODUCTS.length;
-  return FALLBACK_PRODUCTS[idx];
-}
+// REMOVED — all product data comes from DB via EchoTik cron
 
 interface VideoCardProProps {
   video?: VideoDTO;
@@ -226,15 +187,8 @@ export function VideoCardPro({
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
 
-  // Always have a product to display (real or fallback mock)
-  const displayProduct =
-    video?.product ||
-    (video
-      ? {
-          ...getMockProductForVideo(video.id, rank ?? 0),
-          id: `fallback-${video.id}`,
-        }
-      : null);
+  // Show product only if it has real data (no mock fallback)
+  const displayProduct = video?.product ?? null;
   const hasRealProduct = !!video?.product;
 
   const saved = video ? savedVideos.isSaved(video.id) : false;
@@ -271,39 +225,20 @@ export function VideoCardPro({
     setTranscriptOpen(true);
   };
 
-  // Generate mock transcript (varies by video id)
-  const getMockTranscript = (videoId: string): string => {
-    const baseText = `Tá, deixa eu te contar por que esse vídeo performou.
-Primeiro: ele abre com uma frase que dá curiosidade imediata.
-Depois ele mostra o produto em 2 segundos, sem enrolar.
-A pessoa explica o 'antes e depois' com um detalhe específico.
-E fecha com uma chamada simples: 'se você quer isso, salva e testa'.
-Observação: a edição usa cortes curtos e deixa a prova visual sempre aparecendo.`;
-
-    // Vary slightly based on video id
-    const lastChar = videoId.slice(-1);
-    const isEven = parseInt(lastChar, 10) % 2 === 0;
-
-    if (isEven) {
-      return (
-        baseText +
-        "\n\nDetalhe extra: o timing da música combina com a revelação do produto."
-      );
-    }
-    return (
-      baseText +
-      "\n\nExtra: o criador mantém contato visual direto, gera conexão."
-    );
+  // Generate transcript placeholder
+  // In production: use /realtime/video/captions endpoint
+  const getTranscriptPlaceholder = (): string => {
+    return "Transcrição não disponível.\n\nEm breve, as transcrições serão geradas automaticamente via API EchoTik (/realtime/video/captions).";
   };
 
-  // Generate mock prompt for insight
-  const getMockPrompt = (video: VideoDTO): string => {
+  // Generate prompt for insight based on real metrics
+  const generatePrompt = (video: VideoDTO): string => {
     const metricsSummary =
       [
         video.views > 0 ? `Views: ${formatNumber(video.views)}` : null,
         video.sales > 0 ? `Vendas: ${formatNumber(video.sales)}` : null,
         video.revenueBRL > 0
-          ? `GMV: ${formatCurrency(video.revenueBRL)}`
+          ? `GMV: ${formatCurrency(video.revenueBRL, video.currency)}`
           : null,
       ]
         .filter(Boolean)
@@ -538,7 +473,7 @@ Entregue:
 
       {/* Content */}
       <Box sx={{ p: { xs: 0.9, sm: 0.9, md: 1.5 } }}>
-        {/* Product Section (ALWAYS visible - uses displayProduct fallback) */}
+        {/* Product Section (visible only when video has associated product) */}
         {displayProduct && (
           <Box
             sx={{
@@ -650,7 +585,9 @@ Entregue:
                 lineHeight: 1.2,
               }}
             >
-              {video.revenueBRL > 0 ? formatCurrency(video.revenueBRL) : "-"}
+              {video.revenueBRL > 0
+                ? formatCurrency(video.revenueBRL, video.currency)
+                : "-"}
             </Typography>
             <Typography
               sx={{
@@ -822,13 +759,13 @@ Entregue:
           <TranscriptDialog
             open={transcriptOpen}
             onClose={() => setTranscriptOpen(false)}
-            transcriptText={getMockTranscript(video.id)}
+            transcriptText={getTranscriptPlaceholder()}
             videoTitle={video.title}
           />
           <InsightDialog
             open={insightOpen}
             onClose={() => setInsightOpen(false)}
-            promptText={getMockPrompt(video)}
+            promptText={generatePrompt(video)}
             videoTitle={video.title}
           />
         </>

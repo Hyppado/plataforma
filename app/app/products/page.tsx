@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { ProductCard } from "@/app/components/cards/ProductCard";
-import type { ProductDTO } from "@/lib/types/kalodata";
+import type { ProductDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { ExpandMore } from "@mui/icons-material";
 import {
@@ -71,7 +71,7 @@ function ProductsContent() {
       const params = new URLSearchParams({ range: timeRange });
       if (searchQuery) params.set("search", searchQuery);
 
-      const res = await fetch(`/api/kalodata/products?${params}`);
+      const res = await fetch(`/api/trending/products?${params}`);
       const json = await res.json();
 
       const items: ProductDTO[] = json?.data?.items ?? [];

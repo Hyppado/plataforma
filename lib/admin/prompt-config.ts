@@ -54,13 +54,13 @@ export const PROMPT_VARIABLES = [
     variable: "{{top_videos_summary}}",
     description: "Resumo dos top vídeos relacionados",
     required: false,
-    source: "Análise de vídeos (Kalodata)",
+    source: "Análise de vídeos em alta",
   },
   {
     variable: "{{top_creators_summary}}",
     description: "Resumo dos top creators do nicho",
     required: false,
-    source: "Análise de creators (Kalodata)",
+    source: "Análise de creators em alta",
   },
   {
     variable: "{{market_country}}",

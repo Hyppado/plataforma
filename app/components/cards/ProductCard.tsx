@@ -18,8 +18,8 @@ import {
   Paid,
   ShoppingCart,
 } from "@mui/icons-material";
-import type { ProductDTO } from "@/lib/types/kalodata";
-import { formatCurrency, formatNumber } from "@/lib/kalodata/parser";
+import type { ProductDTO } from "@/lib/types/dto";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSavedProducts } from "@/lib/storage/saved";
 
@@ -68,8 +68,8 @@ export function ProductCard({
     if (!product) return;
     if (product.tiktokUrl) {
       window.open(product.tiktokUrl, "_blank", "noopener,noreferrer");
-    } else if (product.kalodataUrl) {
-      window.open(product.kalodataUrl, "_blank", "noopener,noreferrer");
+    } else if (product.sourceUrl) {
+      window.open(product.sourceUrl, "_blank", "noopener,noreferrer");
     }
   };
 

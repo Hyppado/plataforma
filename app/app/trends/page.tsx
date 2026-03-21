@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography } from "@mui/material";
 import { ProductTable } from "@/app/components/dashboard/DataTable";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
-import type { ProductDTO } from "@/lib/types/kalodata";
+import type { ProductDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import {
   fetchCategories,
@@ -66,7 +66,7 @@ function TrendsContent() {
       });
       if (searchQuery) params.set("search", searchQuery);
 
-      const res = await fetch(`/api/kalodata/products?${params}`);
+      const res = await fetch(`/api/trending/products?${params}`);
       const json = await res.json();
 
       const items: ProductDTO[] = json?.data?.items ?? [];

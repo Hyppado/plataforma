@@ -28,8 +28,11 @@ export async function getAccessToken(): Promise<string> {
   }
 
   // Cache miss ou prestes a expirar → busca novo token
+  // Hotmart exige client_id e client_secret como query params (além do Basic)
   const params = new URLSearchParams({
     grant_type: "client_credentials",
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
   });
 
   const response = await fetch(`${config.tokenUrl}?${params.toString()}`, {

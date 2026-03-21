@@ -1,41 +1,57 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getPeriodBounds } from "@/lib/usage/period";
 import type { QuotaUsage } from "@/lib/types/admin";
 
 /**
- * GET /api/admin/quota-usage
- * Returns current quota usage. If NEXT_PUBLIC_ADMIN_MOCKS is true, returns mock data.
+ * GET /api/admin/quota-usage?userId=<id>
+ *
+ * Returns the real UsagePeriod counters for the current billing month.
+ * When no userId is provided, returns aggregate totals across all users.
  */
-export async function GET() {
-  const isMockMode = process.env.NEXT_PUBLIC_ADMIN_MOCKS === "true";
+export async function GET(req: NextRequest) {
+  const { start, end } = getPeriodBounds();
+  const userId = req.nextUrl.searchParams.get("userId");
 
-  if (!isMockMode) {
-    // No mock mode - return empty usage
-    const emptyUsage: QuotaUsage = {
-      transcriptsUsed: null,
-      scriptsUsed: null,
-      insightTokensUsed: null,
-      scriptTokensUsed: null,
-      periodStart: null,
-      periodEnd: null,
-      lastUpdatedAt: null,
+  if (userId) {
+    // Single-user lookup
+    const period = await prisma.usagePeriod.findUnique({
+      where: { userId_periodStart: { userId, periodStart: start } },
+    });
+
+    const usage: QuotaUsage = {
+      transcriptsUsed: period?.transcriptsUsed ?? null,
+      scriptsUsed: period?.scriptsUsed ?? null,
+      insightTokensUsed: period?.tokensUsed ?? null,
+      scriptTokensUsed: null, // tracked together in tokensUsed for now
+      periodStart: start.toISOString(),
+      periodEnd: end.toISOString(),
+      lastUpdatedAt: period?.updatedAt.toISOString() ?? null,
     };
-    return NextResponse.json(emptyUsage);
+
+    return NextResponse.json(usage);
   }
 
-  // Mock usage data - realistic numbers
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  // Aggregate across all users for the current period
+  const agg = await prisma.usagePeriod.aggregate({
+    where: { periodStart: start },
+    _sum: {
+      transcriptsUsed: true,
+      scriptsUsed: true,
+      tokensUsed: true,
+    },
+    _max: { updatedAt: true },
+  });
 
-  const mockUsage: QuotaUsage = {
-    transcriptsUsed: 12,
-    scriptsUsed: 27,
-    insightTokensUsed: 8500,
-    scriptTokensUsed: 4200,
-    periodStart: startOfMonth.toISOString(),
-    periodEnd: endOfMonth.toISOString(),
-    lastUpdatedAt: now.toISOString(),
+  const usage: QuotaUsage = {
+    transcriptsUsed: agg._sum.transcriptsUsed ?? null,
+    scriptsUsed: agg._sum.scriptsUsed ?? null,
+    insightTokensUsed: agg._sum.tokensUsed ?? null,
+    scriptTokensUsed: null,
+    periodStart: start.toISOString(),
+    periodEnd: end.toISOString(),
+    lastUpdatedAt: agg._max.updatedAt?.toISOString() ?? null,
   };
 
-  return NextResponse.json(mockUsage);
+  return NextResponse.json(usage);
 }

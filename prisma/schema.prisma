@@ -34,6 +34,10 @@ model User {
   hotmartIdentity   HotmartIdentity?
   subscriptions     Subscription[]
   auditLogs         AuditLog[]
+
+  // Usage tracking
+  usagePeriods      UsagePeriod[]
+  usageEvents       UsageEvent[]
 }
 
 enum UserRole {
@@ -51,31 +55,39 @@ enum UserStatus {
 // PLANS
 // ---------------------------------------------------------------------------
 
-// Map: PRO_MENSAL  → Hotmart product + plan/offer code
-//      PREMIUM_ANUAL → Hotmart product + plan/offer code
 model Plan {
   id                  String   @id @default(uuid())
-  code                PlanCode @unique
-  name                String
+  code                String   @unique  // slug livre: "pro_mensal", "premium_anual", etc.
+  name                String             // nome de exibição
   description         String?
-  priceAmount         Int      // centavos (ex: 5990 = R$ 59,90)
+  displayPrice        String?            // "R$ 59,90" — texto livre para UI
+  priceAmount         Int                // centavos (ex: 5990 = R$ 59,90)
   currency            String   @default("BRL")
   periodicity         PlanPeriod
   isActive            Boolean  @default(true)
+  highlight           Boolean  @default(false)  // destaque visual na página de planos
+  badge               String?                   // "Mais escolhido", "Novo", etc.
+  sortOrder           Int      @default(0)       // ordenação na UI
+  features            Json     @default("[]")    // ["40 transcripts / mês", "Suporte prioritário"]
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  // Hotmart product/offer mappings (pode ter >1 offer por plano)
+  // Quotas de uso por plano
+  transcriptsPerMonth       Int  @default(40)
+  scriptsPerMonth           Int  @default(70)
+  insightTokensMonthlyMax   Int  @default(50000)
+  scriptTokensMonthlyMax    Int  @default(20000)
+  insightMaxOutputTokens    Int  @default(800)
+  scriptMaxOutputTokens     Int  @default(1500)
+
+  // Hotmart product/offer mappings
   hotmartProductId    String?
   hotmartPlanCode     String?  // hotmart plan_name or code
   hotmartOfferCode    String?  // hotmart offer_code
 
   subscriptions       Subscription[]
-}
 
-enum PlanCode {
-  PRO_MENSAL
-  PREMIUM_ANUAL
+  @@index([isActive, sortOrder])
 }
 
 enum PlanPeriod {
@@ -268,6 +280,7 @@ model HotmartWebhookEvent {
 
 enum WebhookStatus {
   RECEIVED
+  PROCESSING
   PROCESSED
   FAILED
   DUPLICATE
@@ -298,7 +311,7 @@ model SavedItem {
   id         String   @id @default(cuid())
   userId     String
   type       String   // 'video' | 'product'
-  externalId String   // ID from Kalodata
+  externalId String   // ID externo do item
   title      String
   metaJson   Json?    // Additional metadata (thumbnail, creator, etc.)
   createdAt  DateTime @default(now())
@@ -365,4 +378,160 @@ model Alert {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([userId, read])
+}
+
+// ---------------------------------------------------------------------------
+// USAGE TRACKING
+// ---------------------------------------------------------------------------
+
+enum UsageEventType {
+  TRANSCRIPT
+  SCRIPT
+  INSIGHT
+}
+
+/// Período de uso mensal por usuário (criado sob demanda na primeira ação do mês)
+model UsagePeriod {
+  id              String   @id @default(uuid())
+  userId          String
+  periodStart     DateTime // 1º dia do mês, 00:00:00 UTC
+  periodEnd       DateTime // último momento do mês, UTC
+
+  transcriptsUsed Int      @default(0)
+  scriptsUsed     Int      @default(0)
+  insightsUsed    Int      @default(0)
+  tokensUsed      Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+  events          UsageEvent[]
+
+  @@unique([userId, periodStart])
+  @@index([userId, periodStart])
+}
+
+/// Evento atômico de consumo com chave de idempotência
+model UsageEvent {
+  id             String         @id @default(uuid())
+  userId         String
+  periodId       String
+  type           UsageEventType
+  tokensUsed     Int            @default(0)
+  refTable       String?        // ex: "Video", "Script"
+  refId          String?        // ID do objeto relacionado
+  idempotencyKey String         @unique
+  occurredAt     DateTime       @default(now())
+
+  user           User           @relation(fields: [userId], references: [id])
+  period         UsagePeriod    @relation(fields: [periodId], references: [id])
+
+  @@index([userId, occurredAt])
+  @@index([type, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// SETTINGS (configurações dinâmicas via admin)
+// ---------------------------------------------------------------------------
+
+model Setting {
+  key         String   @id           // ex: "hotmart.product_id", "app.name"
+  value       String                 // valor serializado (string)
+  label       String?                // rótulo amigável: "ID do Produto Hotmart"
+  group       String   @default("general")  // agrupamento na UI: "hotmart", "general"
+  type        String   @default("text")     // "text" | "number" | "boolean" | "secret"
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+}
+
+// ---------------------------------------------------------------------------
+// ECHOTIK — Categorias & Video Trends (cron ingestão)
+// ---------------------------------------------------------------------------
+
+/// Categorias L1 do TikTok Shop sincronizadas via cron EchoTik
+model EchotikCategory {
+  id                String    @id @default(uuid())
+  externalId        String    @unique              // ID vindo da API EchoTik
+  name              String
+  language          String    @default("en")       // ex: "en", "pt"
+  level             Int       @default(1)           // nível na hierarquia (1 = raiz)
+  parentExternalId  String?                         // FK lógica para categoria pai
+  slug              String?
+  extra             Json?                           // campos adicionais da API
+  syncedAt          DateTime  @default(now())       // última vez que foi upserted
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([level])
+  @@index([language])
+}
+
+/// Snapshot diário de métricas de vídeos trending (TikTok Shop)
+model EchotikVideoTrendDaily {
+  id                String    @id @default(uuid())
+  date              DateTime  @db.Date              // dia do snapshot (sem hora)
+  rankingCycle      Int       @default(1)            // 1=diário, 2=semanal, 3=mensal
+  videoExternalId   String                           // ID do vídeo na plataforma
+  title             String?
+  authorName        String?
+  authorExternalId  String?
+  views             BigInt    @default(0)
+  likes             BigInt    @default(0)
+  comments          BigInt    @default(0)
+  favorites         BigInt    @default(0)
+  shares            BigInt    @default(0)
+  saleCount         BigInt    @default(0)
+  gmv               BigInt    @default(0)            // em centavos / menor unidade
+  currency          String    @default("USD")
+  country           String    @default("US")
+  categoryId        String?                          // externalId da categoria
+  extra             Json?
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@unique([videoExternalId, date, country, rankingCycle])
+  @@index([date])
+  @@index([country, date])
+  @@index([country, date, rankingCycle])
+  @@index([categoryId, date])
+  @@index([views])
+}
+
+/// Payload bruto armazenado para reprodutibilidade / debug
+model EchotikRawResponse {
+  id            String    @id @default(uuid())
+  endpoint      String                              // ex: "/categories", "/videos/trending"
+  paramsJson    Json?                               // query-params utilizados
+  fetchedAt     DateTime  @default(now())
+  payloadJson   Json                                // corpo completo da resposta
+  payloadHash   String    @unique                   // SHA-256 do payload (dedup)
+  ingestionRunId String?
+
+  ingestionRun  IngestionRun? @relation(fields: [ingestionRunId], references: [id])
+
+  @@index([endpoint, fetchedAt])
+}
+
+/// Controle de execuções do cron de ingestão
+model IngestionRun {
+  id            String          @id @default(uuid())
+  source        String          @default("echotik")   // identifica a origem
+  startedAt     DateTime        @default(now())
+  endedAt       DateTime?
+  status        IngestionStatus @default(RUNNING)
+  statsJson     Json?                                  // { categoriesSynced, videosSynced, ... }
+  errorMessage  String?
+
+  rawResponses  EchotikRawResponse[]
+
+  @@index([source, startedAt])
+  @@index([status])
+}
+
+enum IngestionStatus {
+  RUNNING
+  SUCCESS
+  FAILED
 }

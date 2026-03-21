@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "npx tsx prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -18,17 +21,20 @@
     "@mui/icons-material": "^5.15.6",
     "@mui/material": "^5.15.6",
     "@prisma/client": "5.22.0",
+    "@vercel/functions": "3.4.3",
     "next": "14.1.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "xlsx": "0.18.5"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@vitest/coverage-v8": "4.1.0",
     "prisma": "5.22.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite-tsconfig-paths": "6.1.1",
+    "vitest": "4.1.0"
   }
 }

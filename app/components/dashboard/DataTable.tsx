@@ -21,8 +21,8 @@ import {
   OpenInNew,
   Inventory2,
 } from "@mui/icons-material";
-import type { ProductDTO, CreatorDTO } from "@/lib/types/kalodata";
-import { formatCurrency, formatNumber } from "@/lib/kalodata/parser";
+import type { ProductDTO, CreatorDTO } from "@/lib/types/dto";
+import { formatCurrency, formatNumber } from "@/lib/format";
 
 interface ProductTableProps {
   products: ProductDTO[];
@@ -301,14 +301,14 @@ export function ProductTable({
                           </IconButton>
                         </Tooltip>
                       )}
-                      {product.kalodataUrl && product.kalodataUrl !== "—" && (
-                        <Tooltip title="Abrir no Kalodata">
+                      {product.sourceUrl && product.sourceUrl !== "—" && (
+                        <Tooltip title="Ver detalhes">
                           <IconButton
                             size="small"
                             onClick={(e) => {
                               e.stopPropagation();
                               window.open(
-                                product.kalodataUrl,
+                                product.sourceUrl,
                                 "_blank",
                                 "noopener,noreferrer",
                               );
@@ -503,14 +503,14 @@ export function CreatorTable({
                           </IconButton>
                         </Tooltip>
                       )}
-                      {creator.kalodataUrl && creator.kalodataUrl !== "—" && (
-                        <Tooltip title="Abrir no Kalodata">
+                      {creator.sourceUrl && creator.sourceUrl !== "—" && (
+                        <Tooltip title="Ver detalhes">
                           <IconButton
                             size="small"
                             onClick={(e) => {
                               e.stopPropagation();
                               window.open(
-                                creator.kalodataUrl,
+                                creator.sourceUrl,
                                 "_blank",
                                 "noopener,noreferrer",
                               );

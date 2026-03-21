@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography } from "@mui/material";
 import { CreatorTable } from "@/app/components/dashboard/DataTable";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
-import type { CreatorDTO } from "@/lib/types/kalodata";
+import type { CreatorDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 
 function CreatorsContent() {
@@ -27,7 +27,7 @@ function CreatorsContent() {
       const params = new URLSearchParams({ range: timeRange, limit: "10" });
       if (searchQuery) params.set("search", searchQuery);
 
-      const res = await fetch(`/api/kalodata/creators?${params}`);
+      const res = await fetch(`/api/trending/creators?${params}`);
       const json = await res.json();
 
       const items: CreatorDTO[] = json?.data?.items ?? [];

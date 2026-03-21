@@ -1,61 +1,121 @@
 /**
  * prisma/seed.ts
  *
- * Seed inicial: sincroniza planos e cupons do produto Hotmart 7420891.
- * Se a API não responder (credenciais ausentes), faz upsert mínimo hardcoded.
+ * Seed inicial: cria planos padrão e settings de configuração.
+ * Nada é hardcoded no código — tudo é configurável via admin.
+ * Se a API Hotmart estiver disponível, sincroniza offers e cupons.
  */
 
-import { PrismaClient, PlanCode, PlanPeriod } from "@prisma/client";
-import { syncAll } from "../lib/hotmart/sync";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const PRODUCT_ID = "7420891";
+async function seedSettings() {
+  const defaults = [
+    {
+      key: "hotmart.product_id",
+      value: process.env.HOTMART_PRODUCT_ID ?? "",
+      label: "ID do Produto Hotmart",
+      group: "hotmart",
+      type: "text",
+    },
+    {
+      key: "hotmart.webhook_url",
+      value: "",
+      label: "URL do Webhook (informativo)",
+      group: "hotmart",
+      type: "text",
+    },
+    {
+      key: "app.name",
+      value: "Hyppado",
+      label: "Nome da Aplicação",
+      group: "general",
+      type: "text",
+    },
+  ];
 
-async function baseline() {
-  // Garante que os planos existam mesmo sem API Hotmart disponível
-  await prisma.plan.upsert({
-    where: { code: PlanCode.PRO_MENSAL },
-    update: {},
-    create: {
-      code: PlanCode.PRO_MENSAL,
+  for (const s of defaults) {
+    await prisma.setting.upsert({
+      where: { key: s.key },
+      update: {}, // não sobrescreve se já existir
+      create: s,
+    });
+  }
+
+  console.log("✅ Settings base criados.");
+}
+
+async function seedPlans() {
+  const plans = [
+    {
+      code: "pro_mensal",
       name: "Pro",
       description:
         "Plano Pro mensal com acesso completo às ferramentas Hyppado.",
+      displayPrice: "R$ 59,90",
       priceAmount: 5990,
-      currency: "BRL",
-      periodicity: PlanPeriod.MONTHLY,
-      isActive: true,
-      hotmartProductId: PRODUCT_ID,
+      periodicity: "MONTHLY" as const,
+      sortOrder: 1,
+      highlight: false,
+      features: [
+        "40 transcripts / mês",
+        "70 insights / mês",
+        "Descoberta de vídeos e produtos em alta",
+        "Prompts avançados (gancho, roteiro e CTA)",
+        "Organização por categorias",
+      ],
+      transcriptsPerMonth: 40,
+      scriptsPerMonth: 70,
+      insightTokensMonthlyMax: 50000,
+      scriptTokensMonthlyMax: 20000,
+      insightMaxOutputTokens: 800,
+      scriptMaxOutputTokens: 1500,
     },
-  });
-
-  await prisma.plan.upsert({
-    where: { code: PlanCode.PREMIUM_ANUAL },
-    update: {},
-    create: {
-      code: PlanCode.PREMIUM_ANUAL,
+    {
+      code: "premium_anual",
       name: "Premium",
       description:
         "Plano Premium anual com todos os recursos e suporte prioritário.",
+      displayPrice: "R$ 647,00",
       priceAmount: 64700,
-      currency: "BRL",
-      periodicity: PlanPeriod.ANNUAL,
-      isActive: true,
-      hotmartProductId: PRODUCT_ID,
+      periodicity: "ANNUAL" as const,
+      sortOrder: 2,
+      highlight: true,
+      badge: "Mais escolhido",
+      features: [
+        "Tudo do Pro incluso",
+        "Economia de 10% vs mensal",
+        "Acesso prioritário a novidades",
+        "Suporte prioritário",
+      ],
+      transcriptsPerMonth: 40,
+      scriptsPerMonth: 70,
+      insightTokensMonthlyMax: 50000,
+      scriptTokensMonthlyMax: 20000,
+      insightMaxOutputTokens: 800,
+      scriptMaxOutputTokens: 1500,
     },
-  });
+  ];
 
-  console.log("✅ Planos base garantidos no banco.");
+  for (const plan of plans) {
+    await prisma.plan.upsert({
+      where: { code: plan.code },
+      update: {}, // não sobrescreve se admin já editou
+      create: plan,
+    });
+  }
+
+  console.log("✅ Planos base criados.");
 }
 
 async function main() {
   console.log("🌱 Iniciando seed...\n");
 
-  // 1. Garante planos base (sem depender da API Hotmart)
-  await baseline();
+  await seedSettings();
+  await seedPlans();
 
-  // 2. Tenta sincronizar dados reais via API Hotmart
+  // Tenta sincronizar dados reais via API Hotmart
   const hasApiCreds =
     process.env.HOTMART_CLIENTE_ID &&
     process.env.HOTMART_CLIENT_SECRET &&
@@ -67,8 +127,21 @@ async function main() {
     return;
   }
 
+  // Lê productId do banco (que acabou de ser seedado)
+  const productIdSetting = await prisma.setting.findUnique({
+    where: { key: "hotmart.product_id" },
+  });
+  const productId = productIdSetting?.value;
+
+  if (!productId) {
+    console.warn("⚠️  Product ID não configurado — pulando sync.");
+    console.log("\n🎉 Seed básico concluído.");
+    return;
+  }
+
   console.log("🔄 Sincronizando dados da API Hotmart...");
-  const { offers, coupons } = await syncAll(PRODUCT_ID);
+  const { syncAll } = await import("../lib/hotmart/sync");
+  const { offers, coupons } = await syncAll(productId);
 
   console.log(
     `\n✅ Offers sincronizados: [${offers.upserted.join(", ") || "nenhum"}]`,

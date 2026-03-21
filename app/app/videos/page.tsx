@@ -2,19 +2,46 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
+  Grid,
+  Chip,
+  Stack,
+} from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { VideoCardPro } from "@/app/components/cards/VideoCardPro";
-import type { VideoDTO } from "@/lib/types/kalodata";
+import type { VideoDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { ExpandMore } from "@mui/icons-material";
 import {
   fetchCategories,
-  pickCategoryByHash,
   matchesCategory,
   ALL_CATEGORY_ID,
   type Category,
 } from "@/lib/categories";
+
+const REGION_FLAGS: Record<string, string> = {
+  US: "🇺🇸",
+  BR: "🇧🇷",
+  UK: "🇬🇧",
+  GB: "🇬🇧",
+  MX: "🇲🇽",
+  CA: "🇨🇦",
+  AU: "🇦🇺",
+  DE: "🇩🇪",
+  FR: "🇫🇷",
+  ES: "🇪🇸",
+  IT: "🇮🇹",
+  ID: "🇮🇩",
+  PH: "🇵🇭",
+  TH: "🇹🇭",
+  VN: "🇻🇳",
+  SG: "🇸🇬",
+  MY: "🇲🇾",
+};
 
 function VideosContent() {
   const router = useRouter();
@@ -27,30 +54,41 @@ function VideosContent() {
   const [allVideos, setAllVideos] = useState<VideoDTO[]>([]);
   const [page, setPage] = useState(1);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [availableRegions, setAvailableRegions] = useState<string[]>(["US"]);
+  const [effectiveRankingCycle, setEffectiveRankingCycle] = useState<
+    1 | 2 | 3 | null
+  >(null);
 
   // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
+  const regionFilter = (searchParams.get("region") || "US").toUpperCase();
   const pageSize = 24; // Carregar 24 por vez
+
+  const requestedRankingCycle: 1 | 2 | 3 =
+    timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
+
+  const rankingCycleLabel: Record<1 | 2 | 3, string> = {
+    1: "diário",
+    2: "semanal",
+    3: "mensal",
+  };
 
   // Load categories on mount
   useEffect(() => {
     fetchCategories().then(setCategories);
   }, []);
 
-  // Helper to get/assign category ID for a video
+  // Helper to get category ID for a video
   const getVideoCategoryId = useCallback(
-    (video: VideoDTO): string => {
-      // Use existing category if available
-      if (video.product?.category) return video.product.category;
-      // Otherwise, assign deterministically
-      return pickCategoryByHash(video.id, categories);
+    (video: VideoDTO): string | undefined => {
+      return video.categoryId ?? video.product?.category;
     },
-    [categories],
+    [],
   );
 
-  // Filter videos by category
+  // Filter videos by category (pure derivation, not a dependency of fetch)
   const filterByCategory = useCallback(
     (items: VideoDTO[]): VideoDTO[] => {
       if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
@@ -61,40 +99,64 @@ function VideosContent() {
     [categoryFilter, categories, getVideoCategoryId],
   );
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setPage(1);
+  const fetchData = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      setPage(1);
 
-    try {
-      // Fetch sem limit hardcoded - backend retorna o que tiver
-      const params = new URLSearchParams({ range: timeRange });
-      if (searchQuery) params.set("search", searchQuery);
+      try {
+        const params = new URLSearchParams({
+          range: timeRange,
+          region: regionFilter,
+        });
+        if (searchQuery) params.set("search", searchQuery);
 
-      const res = await fetch(`/api/kalodata/videos?${params}`);
-      const json = await res.json();
+        const res = await fetch(`/api/trending/videos?${params}`, { signal });
 
-      const items: VideoDTO[] = json?.data?.items ?? [];
-      setAllVideos(items);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
 
-      // Apply category filter
-      const filtered = filterByCategory(items);
-      setVideos(filtered.slice(0, pageSize));
+        const json = await res.json();
 
-      if (json?.data?.error) {
-        console.warn("Videos API returned error:", json.data.error);
+        const items: VideoDTO[] = json?.data?.items ?? [];
+        setAllVideos(items);
+        setEffectiveRankingCycle(
+          (json?.data?.effectiveRankingCycle as 1 | 2 | 3 | undefined) ?? null,
+        );
+
+        if (json?.data?.availableRegions?.length > 0) {
+          setAvailableRegions(json.data.availableRegions);
+        }
+
+        if (json?.data?.error) {
+          console.warn("Videos API returned error:", json.data.error);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("Failed to fetch videos:", err);
+        setError("Erro ao carregar vídeos. Tente novamente.");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch videos:", err);
-      setError("Erro ao carregar vídeos. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  }, [timeRange, searchQuery, filterByCategory, pageSize]);
+    },
+    [timeRange, searchQuery, regionFilter],
+  );
 
+  // Fetch only when query params change (not when categories change)
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData]);
+
+  // Re-apply category filter whenever allVideos or filter criteria change
+  useEffect(() => {
+    const filtered = filterByCategory(allVideos);
+    setVideos(filtered.slice(0, pageSize));
+    setPage(1);
+  }, [allVideos, filterByCategory, pageSize]);
 
   const handleLoadMore = () => {
     setLoadingMore(true);
@@ -116,6 +178,7 @@ function VideosContent() {
   const handleTimeRangeChange = (range: TimeRange) => {
     const params = new URLSearchParams();
     params.set("range", range);
+    params.set("region", regionFilter);
     if (searchQuery) params.set("q", searchQuery);
     if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/app/videos?${params.toString()}`);
@@ -124,6 +187,7 @@ function VideosContent() {
   const handleSearchChange = (query: string) => {
     const params = new URLSearchParams();
     params.set("range", timeRange);
+    params.set("region", regionFilter);
     if (query) params.set("q", query);
     if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/app/videos?${params.toString()}`);
@@ -132,8 +196,18 @@ function VideosContent() {
   const handleCategoryChange = (category: string) => {
     const params = new URLSearchParams();
     params.set("range", timeRange);
+    params.set("region", regionFilter);
     if (searchQuery) params.set("q", searchQuery);
     if (category) params.set("category", category);
+    router.push(`/app/videos?${params.toString()}`);
+  };
+
+  const handleRegionChange = (region: string) => {
+    const params = new URLSearchParams();
+    params.set("range", timeRange);
+    params.set("region", region);
+    if (searchQuery) params.set("q", searchQuery);
+    if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/app/videos?${params.toString()}`);
   };
 
@@ -146,13 +220,17 @@ function VideosContent() {
   const filteredTotal = filterByCategory(allVideos).length;
   const hasMore = videos.length < filteredTotal;
 
-  // Get category name for display
+  // Get category name for display (preferir PT)
   const getCategoryName = () => {
     if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return "";
     const cat = categories.find(
       (c) => c.id === categoryFilter || c.slug === categoryFilter,
     );
-    return cat?.name || categoryFilter;
+    return (
+      (cat as typeof cat & { namePt?: string })?.namePt ||
+      cat?.name ||
+      categoryFilter
+    );
   };
 
   return (
@@ -187,7 +265,7 @@ function VideosContent() {
             }}
           >
             {allVideos.length > 0
-              ? `${filteredTotal} vídeos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${videos.length}`
+              ? `${filteredTotal} vídeos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${videos.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` • dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
               : "Explorando os vídeos mais performáticos"}
           </Typography>
         </Box>
@@ -196,12 +274,41 @@ function VideosContent() {
           onTimeRangeChange={handleTimeRangeChange}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
-          onRefresh={fetchData}
+          onRefresh={() => fetchData()}
           loading={loading}
           category={categoryFilter}
           onCategoryChange={handleCategoryChange}
           categories={categories}
         />
+        {/* Region filter chips */}
+        {availableRegions.length > 1 && (
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+            {availableRegions.map((r) => (
+              <Chip
+                key={r}
+                label={`${REGION_FLAGS[r] ?? ""} ${r}`}
+                size="small"
+                onClick={() => handleRegionChange(r)}
+                variant={regionFilter === r ? "filled" : "outlined"}
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                  borderColor:
+                    regionFilter === r ? "#2DD4FF" : "rgba(255,255,255,0.2)",
+                  color:
+                    regionFilter === r ? "#0a0a0f" : "rgba(255,255,255,0.7)",
+                  background: regionFilter === r ? "#2DD4FF" : "transparent",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    background:
+                      regionFilter === r ? "#2DD4FF" : "rgba(45,212,255,0.08)",
+                  },
+                }}
+              />
+            ))}
+          </Stack>
+        )}
       </Box>
 
       {/* Scrollable Content */}

@@ -23,8 +23,8 @@ import {
   ShoppingCart,
   AccessTime,
 } from "@mui/icons-material";
-import type { VideoDTO } from "@/lib/types/kalodata";
-import { formatCurrency, formatNumber } from "@/lib/kalodata/parser";
+import type { VideoDTO } from "@/lib/types/dto";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 
 // ============================================
@@ -102,7 +102,7 @@ export function VideoCard({
   const isTop3 = rank !== undefined && rank >= 1 && rank <= 3;
   const topStyle = isTop3 ? TOP_3_STYLES[rank] : null;
   const hasTikTokUrl = !!video?.tiktokUrl;
-  const hasKalodataUrl = !!video?.kalodataUrl;
+  const hasSourceUrl = !!video?.sourceUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
 
   // ---- handlers ----
@@ -134,10 +134,10 @@ export function VideoCard({
     window.open(video.tiktokUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleOpenKalodata = () => {
+  const handleOpenSource = () => {
     handleMenuClose();
-    if (!video || !hasKalodataUrl) return;
-    window.open(video.kalodataUrl, "_blank", "noopener,noreferrer");
+    if (!video || !hasSourceUrl) return;
+    window.open(video.sourceUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleAddToCollection = () => {
@@ -597,9 +597,9 @@ export function VideoCard({
               <FolderOpen sx={{ fontSize: 16 }} />
               Adicionar à coleção
             </MenuItem>
-            <MenuItem onClick={handleOpenKalodata} disabled={!hasKalodataUrl}>
+            <MenuItem onClick={handleOpenSource} disabled={!hasSourceUrl}>
               <OpenInNew sx={{ fontSize: 16 }} />
-              Abrir no Kalodata
+              Ver detalhes
             </MenuItem>
           </Menu>
         </Box>

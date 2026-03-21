@@ -2,7 +2,7 @@
 
 import { Box, Grid, Typography } from "@mui/material";
 import { VideoCard } from "./VideoCard";
-import type { VideoDTO } from "@/lib/types/kalodata";
+import type { VideoDTO } from "@/lib/types/dto";
 
 const GRID_SIZE = 10;
 

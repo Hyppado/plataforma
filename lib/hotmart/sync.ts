@@ -9,7 +9,7 @@
  *   GET /payment/api/v1/coupons?productId={id}
  */
 
-import { PrismaClient, PlanCode, PlanPeriod } from "@prisma/client";
+import { PrismaClient, PlanPeriod } from "@prisma/client";
 import { hotmartRequest } from "./client";
 
 const prisma = new PrismaClient();
@@ -71,11 +71,11 @@ function toPlanPeriod(period?: string): PlanPeriod {
   return PlanPeriod.MONTHLY;
 }
 
-/** Resolve qual PlanCode usar com base no período do plano */
-function toPlanCode(period?: string): PlanCode {
+/** Resolve qual plan code usar com base no período do plano */
+function toPlanCode(period?: string): string {
   return toPlanPeriod(period) === PlanPeriod.ANNUAL
-    ? PlanCode.PREMIUM_ANUAL
-    : PlanCode.PRO_MENSAL;
+    ? "premium_anual"
+    : "pro_mensal";
 }
 
 // ---------------------------------------------------------------------------
@@ -121,9 +121,14 @@ export async function syncHotmartOffers(
     const planPeriod = toPlanPeriod(period);
     const priceAmount = offer.price?.value
       ? Math.round(offer.price.value * 100) // Hotmart retorna em reais
-      : planCode === PlanCode.PRO_MENSAL
-        ? 5990
-        : 64700;
+      : undefined;
+
+    // Busca plano existente para não sobrescrever dados do admin
+    const existingPlan = await prisma.plan.findUnique({
+      where: { code: planCode },
+    });
+
+    const finalPrice = priceAmount ?? existingPlan?.priceAmount ?? 0;
 
     await prisma.plan.upsert({
       where: { code: planCode },
@@ -131,13 +136,13 @@ export async function syncHotmartOffers(
         hotmartProductId: productId,
         hotmartPlanCode: offer.plan?.name ?? undefined,
         hotmartOfferCode: offer.offer_code,
-        priceAmount,
+        ...(priceAmount !== undefined && { priceAmount: priceAmount }),
         updatedAt: new Date(),
       },
       create: {
         code: planCode,
-        name: planCode === PlanCode.PRO_MENSAL ? "Pro" : "Premium",
-        priceAmount,
+        name: offer.name ?? planCode,
+        priceAmount: finalPrice,
         currency: offer.currency_code ?? "BRL",
         periodicity: planPeriod,
         isActive: true,

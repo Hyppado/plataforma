@@ -1,14 +1,14 @@
 /**
  * Admin API client for Hotmart integration and quota management.
- * 
- * This client calls internal API endpoints (not Hotmart directly).
- * If endpoints don't exist yet, returns empty/not-connected states.
- * NO fake data - all unknown values return null.
+ *
+ * Calls internal API endpoints that query real DB data.
+ * No mock data — all values come from Prisma queries.
  */
 
 import type {
   HotmartConnection,
   Subscriber,
+  SubscribersResponse,
   SubscriptionMetrics,
   QuotaPolicy,
   QuotaUsage,
@@ -37,7 +37,6 @@ export const NOT_CONNECTED: HotmartConnection = {
 
 /**
  * Check Hotmart connection status.
- * Returns not_configured if endpoint doesn't exist.
  */
 export async function getHotmartConnection(): Promise<HotmartConnection> {
   try {
@@ -50,53 +49,110 @@ export async function getHotmartConnection(): Promise<HotmartConnection> {
 }
 
 /**
- * Get subscribers list filtered by status.
- * Returns empty array if not connected or endpoint doesn't exist.
+ * Get subscribers list from real DB data.
+ * Returns paginated response with subscriber details.
  */
 export async function getSubscribers(
-  status?: "active" | "canceled"
-): Promise<Subscriber[]> {
+  status?: "active" | "canceled" | "past_due",
+  page = 1,
+  limit = 50,
+  search?: string,
+): Promise<SubscribersResponse> {
+  const empty: SubscribersResponse = {
+    subscribers: [],
+    pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+  };
   try {
-    const url = status
-      ? `/api/admin/subscribers?status=${status}`
-      : "/api/admin/subscribers";
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : data.subscribers ?? [];
-  } catch {
-    return [];
-  }
-}
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (search) params.set("search", search);
+    params.set("page", String(page));
+    params.set("limit", String(limit));
 
-/**
- * Get subscription metrics (aggregated counts).
- * Returns null values if not connected.
- */
-export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
-  try {
-    const res = await fetch("/api/admin/subscription-metrics");
-    if (!res.ok) {
+    const res = await fetch(`/api/admin/subscribers?${params.toString()}`);
+    if (!res.ok) return empty;
+    const data = await res.json();
+    // Handle both new paginated format and potential legacy array format
+    if (data.subscribers) return data as SubscribersResponse;
+    if (Array.isArray(data)) {
       return {
-        activeMonthlySubscribers: null,
-        canceledSubscribers: null,
-        periodLabel: null,
-        lastSyncAt: null,
+        subscribers: data as Subscriber[],
+        pagination: {
+          page: 1,
+          limit: data.length,
+          total: data.length,
+          totalPages: 1,
+        },
       };
     }
-    return await res.json();
+    return empty;
   } catch {
-    return {
-      activeMonthlySubscribers: null,
-      canceledSubscribers: null,
-      periodLabel: null,
-      lastSyncAt: null,
-    };
+    return empty;
   }
 }
 
 /**
- * Get quota policy (our internal limits).
+ * Get subscription metrics (real aggregated counts from DB).
+ */
+export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
+  const empty: SubscriptionMetrics = {
+    activeSubscribers: 0,
+    canceledSubscribers: 0,
+    pastDueSubscribers: 0,
+    totalSubscribers: 0,
+    newThisMonth: 0,
+    cancelledThisMonth: 0,
+    revenueThisMonthCents: 0,
+    periodLabel: "",
+    lastSyncAt: null,
+  };
+  try {
+    const res = await fetch("/api/admin/subscription-metrics");
+    if (!res.ok) return empty;
+    return await res.json();
+  } catch {
+    return empty;
+  }
+}
+
+/**
+ * Trigger Hotmart sync (plans + coupons + subscribers).
+ */
+export async function triggerHotmartSync(): Promise<{
+  success: boolean;
+  message: string;
+  data?: unknown;
+}> {
+  try {
+    const adminSecret = getAdminSecret();
+    const res = await fetch("/api/admin/sync-hotmart", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(adminSecret ? { Authorization: `Bearer ${adminSecret}` } : {}),
+      },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, message: data.error ?? "Sync falhou", data };
+    }
+    return { success: true, message: "Sync concluído", data };
+  } catch (err) {
+    return { success: false, message: String(err) };
+  }
+}
+
+function getAdminSecret(): string | null {
+  // In client-side context, we can't access server env vars directly
+  // The admin page should have stored this or it's passed via header
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("hyppado_admin_secret");
+  }
+  return process.env.ADMIN_SECRET ?? null;
+}
+
+/**
+ * Get quota policy from the Plan table (server-side).
  * Falls back to defaults if not configured.
  */
 export async function getQuotaPolicy(): Promise<QuotaPolicy> {
@@ -159,7 +215,7 @@ export interface CouponCreateRequest {
  * Returns { success: false, message } if not connected.
  */
 export async function createHotmartCoupon(
-  coupon: CouponCreateRequest
+  coupon: CouponCreateRequest,
 ): Promise<{ success: boolean; message: string }> {
   try {
     const res = await fetch("/api/admin/hotmart/coupons", {

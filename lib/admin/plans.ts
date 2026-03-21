@@ -1,61 +1,76 @@
 /**
- * Plan configurations for Hyppado billing.
- * FRONT-END ONLY - these are default UI configurations.
- * Actual plan data should come from Hotmart API when connected.
+ * lib/admin/plans.ts
+ *
+ * Helpers para planos com quotas.
+ * Dados reais vêm do banco — este arquivo provê tipos e fallbacks.
  */
 
+import prisma from "@/lib/prisma";
 import type { Plan } from "@/lib/types/admin";
 
 /**
- * Default plans for UI display.
- * NOTE: These are placeholder configurations for UI scaffolding only.
- * Real billing plans are managed in Hotmart and synced via webhooks.
+ * Busca plano do banco e converte para o tipo Plan da UI.
+ * Retorna fallback se não encontrado.
  */
-export const DEFAULT_PLANS: Plan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: "R$ 97/mês",
-    billingCycle: "monthly",
+export async function getPlanFromDb(planId: string): Promise<Plan> {
+  const dbPlan = await prisma.plan.findUnique({ where: { id: planId } });
+
+  if (!dbPlan) return DEFAULT_FALLBACK_PLAN;
+
+  return {
+    id: dbPlan.id,
+    name: dbPlan.name,
+    price: dbPlan.displayPrice ?? undefined,
+    billingCycle: dbPlan.periodicity === "ANNUAL" ? "yearly" : "monthly",
     quotas: {
-      insightTokensMonthlyMax: 50_000,
-      scriptTokensMonthlyMax: 20_000,
-      insightMaxOutputTokens: 700,
-      scriptMaxOutputTokens: 1200,
+      insightTokensMonthlyMax: dbPlan.insightTokensMonthlyMax,
+      scriptTokensMonthlyMax: dbPlan.scriptTokensMonthlyMax,
+      insightMaxOutputTokens: dbPlan.insightMaxOutputTokens,
+      scriptMaxOutputTokens: dbPlan.scriptMaxOutputTokens,
     },
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "R$ 197/mês",
-    billingCycle: "monthly",
+  };
+}
+
+/** Busca plano por code (slug). */
+export async function getPlanByCode(code: string): Promise<Plan> {
+  const dbPlan = await prisma.plan.findUnique({ where: { code } });
+
+  if (!dbPlan) return DEFAULT_FALLBACK_PLAN;
+
+  return {
+    id: dbPlan.id,
+    name: dbPlan.name,
+    price: dbPlan.displayPrice ?? undefined,
+    billingCycle: dbPlan.periodicity === "ANNUAL" ? "yearly" : "monthly",
     quotas: {
-      insightTokensMonthlyMax: 200_000,
-      scriptTokensMonthlyMax: 80_000,
-      insightMaxOutputTokens: 900,
-      scriptMaxOutputTokens: 1600,
+      insightTokensMonthlyMax: dbPlan.insightTokensMonthlyMax,
+      scriptTokensMonthlyMax: dbPlan.scriptTokensMonthlyMax,
+      insightMaxOutputTokens: dbPlan.insightMaxOutputTokens,
+      scriptMaxOutputTokens: dbPlan.scriptMaxOutputTokens,
     },
+  };
+}
+
+/** Fallback se plano não existir no banco. */
+const DEFAULT_FALLBACK_PLAN: Plan = {
+  id: "fallback",
+  name: "Free",
+  billingCycle: "monthly",
+  quotas: {
+    insightTokensMonthlyMax: 10000,
+    scriptTokensMonthlyMax: 5000,
+    insightMaxOutputTokens: 500,
+    scriptMaxOutputTokens: 800,
   },
-  {
-    id: "agency",
-    name: "Agency",
-    price: "R$ 497/mês",
-    billingCycle: "monthly",
-    quotas: {
-      insightTokensMonthlyMax: 1_000_000,
-      scriptTokensMonthlyMax: 400_000,
-      insightMaxOutputTokens: 1200,
-      scriptMaxOutputTokens: 2200,
-    },
-  },
-];
+};
 
 /**
- * Get a plan by ID.
- * Falls back to Starter if not found.
+ * Get a plan by ID — reads from database.
+ * Falls back to default if not found.
  */
-export function getPlanById(planId: string | undefined): Plan {
-  return DEFAULT_PLANS.find((p) => p.id === planId) ?? DEFAULT_PLANS[0];
+export function getPlanById(planId: string | undefined): Promise<Plan> {
+  if (!planId) return Promise.resolve(DEFAULT_FALLBACK_PLAN);
+  return getPlanFromDb(planId);
 }
 
 /**

@@ -49,7 +49,53 @@ import {
   AutoAwesome,
 } from "@mui/icons-material";
 import theme from "./theme";
-import { PLANS } from "./data/plans";
+import { type PlanDisplay, fetchPlans } from "./data/plans";
+
+// Fallback estático caso a API não responda
+const PLANS_FALLBACK: PlanDisplay[] = [
+  {
+    id: "pro",
+    code: "pro_mensal",
+    name: "Pro",
+    displayPrice: "R$ 59,90",
+    period: "mês",
+    description: "Todas funcionalidades",
+    features: [
+      "40 transcripts / mês",
+      "70 insights / mês",
+      "Descoberta de vídeos e produtos em alta",
+      "Prompts avançados (gancho, roteiro e CTA)",
+      "Organização por categorias",
+    ],
+    highlight: false,
+  },
+  {
+    id: "premium",
+    code: "premium_anual",
+    name: "Premium",
+    displayPrice: "R$ 647,00",
+    period: "ano",
+    description: "Todas funcionalidades do PRO",
+    features: [
+      "Tudo do Pro incluso",
+      "Economia de 10% vs mensal",
+      "Acesso prioritário a novidades",
+      "Suporte prioritário",
+    ],
+    highlight: true,
+    badge: "Mais escolhido",
+  },
+];
+
+function usePlans(): PlanDisplay[] {
+  const [plans, setPlans] = useState<PlanDisplay[]>(PLANS_FALLBACK);
+  useEffect(() => {
+    fetchPlans().then((p) => {
+      if (p.length > 0) setPlans(p);
+    });
+  }, []);
+  return plans;
+}
 import { BrandLogo } from "@/app/components/BrandLogo";
 
 /* ============================================
@@ -1197,6 +1243,7 @@ function HeroBackgroundVideo() {
 ============================================ */
 export default function HomePage() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const plans = usePlans();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -2877,7 +2924,7 @@ export default function HomePage() {
                 justifyContent="center"
                 sx={{ overflow: "visible" }}
               >
-                {PLANS.map((plan) => (
+                {plans.map((plan) => (
                   <Grid
                     item
                     xs={12}
@@ -3004,7 +3051,7 @@ export default function HomePage() {
                             letterSpacing: "-0.02em",
                           }}
                         >
-                          {plan.price}
+                          {plan.displayPrice}
                         </Typography>
                         <Typography
                           component="span"

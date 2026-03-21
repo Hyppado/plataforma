@@ -7,7 +7,7 @@
 
 ## 1. Visão Geral do Produto
 
-**Hyppado** é um web app de inteligência de tendências para o TikTok Shop Brasil, focado em permitir que criadores de conteúdo, afiliados e vendedores descubram rapidamente vídeos virais, produtos em alta e creators de sucesso. O dashboard prioriza a visualização imediata dos "Top 10 Vídeos em Alta" com thumbnails, seguido por rankings de produtos e creators, tudo com filtros de período e categoria. A fonte de dados atual são exports do Kalodata (XLSX) e endpoints mock internos, com planos de integrar APIs reais futuramente.
+**Hyppado** é um web app de inteligência de tendências para o TikTok Shop Brasil, focado em permitir que criadores de conteúdo, afiliados e vendedores descubram rapidamente vídeos virais, produtos em alta e creators de sucesso. O dashboard prioriza a visualização imediata dos "Top 10 Vídeos em Alta" com thumbnails, seguido por rankings de produtos e creators, tudo com filtros de período e categoria. A fonte de dados é o banco de dados PostgreSQL, populado automaticamente via cron job (EchoTik API).
 
 ---
 
@@ -53,7 +53,7 @@
 ├── login/page.tsx           # Login
 ├── app/page.tsx             # Dashboard principal
 ├── api/
-│   ├── kalodata/
+│   ├── trending/
 │   │   ├── videos/route.ts
 │   │   ├── products/route.ts
 │   │   └── creators/route.ts
@@ -116,7 +116,7 @@ interface VideoDTO {
   adRatio: number; // % de views vindas de ads
   adCostBRL: number; // Custo de publicidade (R$)
   roas: number; // Return on Ad Spend
-  kalodataUrl: string; // Link para Kalodata
+  sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link para TikTok
   thumbnailUrl?: string; // URL da thumbnail
   dateRange: string; // "Últimos 7 dias"
@@ -144,7 +144,7 @@ interface ProductDTO {
   mallRevenueBRL: number; // Receita de shopping
   creatorCount: number; // Qtd de creators vendendo
   creatorConversionRate: number;
-  kalodataUrl: string;
+  sourceUrl: string;
   tiktokUrl: string;
   dateRange: string;
 }
@@ -166,7 +166,7 @@ interface CreatorDTO {
   videoGmvBRL: number; // GMV de vídeos
   views: number; // Views totais
   debutDate: string; // Data de estreia
-  kalodataUrl: string;
+  sourceUrl: string;
   tiktokUrl: string;
   dateRange: string;
 }
@@ -295,10 +295,10 @@ interface CategoryDTO {
 
 /lib
 ├── types/
-│   └── kalodata.ts       # Todas as interfaces DTO
-├── kalodata/
-│   └── parser.ts         # Parser de XLSX do Kalodata
-└── mock-dashboard.ts     # Gerador de dados mock
+│   └── dto.ts            # Todas as interfaces DTO
+├── format.ts             # Utilitários de formatação
+├── echotik/              # Client e cron da API EchoTik
+└── prisma.ts             # Prisma client
 
 /prisma                   # Schema do banco (futuro)
 /public                   # Assets estáticos
@@ -357,23 +357,21 @@ Uma feature é considerada **pronta** quando:
 
 ### Dados
 
-3. **Quando a API real do Kalodata estará disponível?** (ou continuamos com scraping/export?)
-4. **Qual a frequência de atualização dos dados?** (real-time, hourly, daily?)
-5. **Haverá cache?** (Redis, ISR, SWR?)
+3. **Qual a frequência de atualização dos dados?** (real-time, hourly, daily?)
+4. **Haverá cache?** (Redis, ISR, SWR?)
 
 ### Paginação e Limites
 
-6. **Qual o limite máximo de itens por lista?** (100, 500, 1000?)
-7. **Paginação ou infinite scroll nas listas completas?**
+5. **Qual o limite máximo de itens por lista?** (100, 500, 1000?)
+6. **Paginação ou infinite scroll nas listas completas?**
 
 ### Monetização
 
-8. **Quais features são exclusivas de planos pagos?** (limitar dados mock ou criar paywall?)
+7. **Quais features são exclusivas de planos pagos?**
 
 ### Persistência
 
-9. **Para onde vai o banco de dados?** (Supabase, PlanetScale, Neon, Vercel Postgres?)
-10. **Salvos/coleções/notas já devem persistir em DB ou localStorage?**
+8. **Salvos/coleções/notas já devem persistir em DB ou localStorage?**
 
 ---
 
