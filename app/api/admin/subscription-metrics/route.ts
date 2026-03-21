@@ -1,74 +1,55 @@
 import { NextResponse } from "next/server";
-import { waitUntil } from "@vercel/functions";
-import prisma from "@/lib/prisma";
-import { syncHotmartSubscribers } from "@/lib/hotmart/subscribers";
+import { hotmartRequest } from "@/lib/hotmart/client";
 import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
 
 /**
  * GET /api/admin/subscription-metrics
- * Retorna métricas reais de assinatura agregadas do banco de dados.
+ * Busca métricas de assinatura direto da API da Hotmart.
+ * Webhooks continuam sendo o canal para receber eventos em tempo real.
  */
+
+interface HotmartSubscriptionsResponse {
+  items?: unknown[];
+  page_info?: { total_results?: number };
+}
+
+async function fetchCount(productId: string, status?: string): Promise<number> {
+  const params: Record<string, string | number> = {
+    product_id: productId,
+    max_results: 500,
+  };
+  if (status) params.status = status;
+
+  const data = await hotmartRequest<HotmartSubscriptionsResponse>(
+    "/payments/api/v1/subscriptions",
+    { params },
+  );
+  return data.items?.length ?? 0;
+}
+
 export async function GET() {
   try {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
+    const productId = await getSettingOrEnv(
+      SETTING_KEYS.HOTMART_PRODUCT_ID,
+      "HOTMART_PRODUCT_ID",
     );
 
-    // Parallel queries for all metrics
-    const [
-      activeCount,
-      cancelledCount,
-      pastDueCount,
-      totalCount,
-      revenueResult,
-      cancelledThisMonth,
-      newThisMonth,
-      lastWebhook,
-    ] = await Promise.all([
-      // Active subscriptions
-      prisma.subscription.count({ where: { status: "ACTIVE" } }),
-      // All-time cancelled
-      prisma.subscription.count({ where: { status: "CANCELLED" } }),
-      // Past due
-      prisma.subscription.count({ where: { status: "PAST_DUE" } }),
-      // Total subscriptions ever
-      prisma.subscription.count(),
-      // Revenue this month (sum of paid charges)
-      prisma.subscriptionCharge.aggregate({
-        _sum: { amountCents: true },
-        where: {
-          status: "PAID",
-          paidAt: { gte: startOfMonth, lte: endOfMonth },
-        },
-      }),
-      // Cancelled this month
-      prisma.subscription.count({
-        where: {
-          status: "CANCELLED",
-          cancelledAt: { gte: startOfMonth, lte: endOfMonth },
-        },
-      }),
-      // New subscriptions this month
-      prisma.subscription.count({
-        where: {
-          startedAt: { gte: startOfMonth, lte: endOfMonth },
-        },
-      }),
-      // Last webhook received
-      prisma.hotmartWebhookEvent.findFirst({
-        orderBy: { receivedAt: "desc" },
-        select: { receivedAt: true },
-      }),
+    if (!productId) {
+      return NextResponse.json(
+        { error: "HOTMART_PRODUCT_ID não configurado" },
+        { status: 400 },
+      );
+    }
+
+    const [active, cancelled, overdue, inactive, total] = await Promise.all([
+      fetchCount(productId, "ACTIVE"),
+      fetchCount(productId, "CANCELLED_BY_CUSTOMER"),
+      fetchCount(productId, "OVERDUE"),
+      fetchCount(productId, "INACTIVE"),
+      fetchCount(productId),
     ]);
 
+    const now = new Date();
     const monthNames = [
       "Janeiro",
       "Fevereiro",
@@ -83,31 +64,17 @@ export async function GET() {
       "Novembro",
       "Dezembro",
     ];
-    const periodLabel = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
-
-    // Trigger background sync so next page load gets fresh data
-    const productId = await getSettingOrEnv(
-      SETTING_KEYS.HOTMART_PRODUCT_ID,
-      "HOTMART_PRODUCT_ID",
-    );
-    if (productId) {
-      waitUntil(
-        syncHotmartSubscribers(productId).catch((err) =>
-          console.error("[auto-sync/metrics] Error:", err),
-        ),
-      );
-    }
 
     return NextResponse.json({
-      activeSubscribers: activeCount,
-      canceledSubscribers: cancelledCount,
-      pastDueSubscribers: pastDueCount,
-      totalSubscribers: totalCount,
-      newThisMonth,
-      cancelledThisMonth,
-      revenueThisMonthCents: revenueResult._sum.amountCents ?? 0,
-      periodLabel,
-      lastSyncAt: lastWebhook?.receivedAt?.toISOString() ?? null,
+      activeSubscribers: active,
+      canceledSubscribers: cancelled,
+      pastDueSubscribers: overdue + inactive,
+      totalSubscribers: total,
+      newThisMonth: 0,
+      cancelledThisMonth: 0,
+      revenueThisMonthCents: 0,
+      periodLabel: `${monthNames[now.getMonth()]} ${now.getFullYear()}`,
+      lastSyncAt: null,
     });
   } catch (error) {
     console.error("[admin/subscription-metrics] Erro:", error);
