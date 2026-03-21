@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { AlertDTO } from "@/lib/types/kalodata";
+import type { AlertDTO } from "@/lib/types/dto";
 
 // Mock alerts (in production, use Prisma)
 const mockAlerts: AlertDTO[] = [

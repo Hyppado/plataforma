@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import type { VideoDTO, ProductDTO } from "@/lib/types/kalodata";
+import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 
 const STORAGE_VERSION = "v1";
 const SAVED_VIDEOS_KEY = `hyppado:savedVideos:${STORAGE_VERSION}`;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SavedItemDTO } from "@/lib/types/kalodata";
+import type { SavedItemDTO } from "@/lib/types/dto";
 
 // Mock saved items (in production, use Prisma)
 const mockSavedItems: SavedItemDTO[] = [

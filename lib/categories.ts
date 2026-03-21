@@ -1,10 +1,8 @@
 /**
  * Centralized Categories Module
  *
- * Módulo centralizado para buscar e gerenciar categorias do TikTok Shop.
- * - Busca via API interna que lê do banco de dados (sincronizado pelo cron)
- * - Cache em memória no client
- * - Utilitário pickCategoryByHash para atribuição determinística
+ * Módulo centralizado para categorias do TikTok Shop.
+ * As categorias são buscadas via API route (compatível com client components).
  */
 
 // ====================
@@ -13,7 +11,8 @@
 
 export type Category = {
   id: string;
-  name: string;
+  name: string; // nome em inglês (original da API)
+  namePt?: string; // tradução em português
   parentId?: string | null;
   level?: number;
   slug?: string;
@@ -23,79 +22,77 @@ export type Category = {
 export const ALL_CATEGORY_ID = "all";
 
 // ====================
-// CLIENT-SIDE CACHE
+// FETCH CATEGORIES (from DB with in-memory cache)
 // ====================
 
-let cachedCategories: Category[] | null = null;
-let cacheTimestamp: number = 0;
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
-
-/** Categoria mínima retornada quando o banco ainda não tem dados */
-const EMPTY_FALLBACK: Category[] = [
-  { id: ALL_CATEGORY_ID, name: "Todas as Categorias", level: 0, slug: "all" },
-];
-
-// ====================
-// FETCH CATEGORIES
-// ====================
+let _categoriesCache: Category[] | null = null;
+let _cacheExpiresAt = 0;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 min
 
 /**
- * Busca categorias do TikTok Shop via API interna (que lê do banco).
- * Usa cache em memória e retorna "Todas" caso o banco ainda esteja vazio.
- *
- * @returns Lista flat de categorias, sempre começando com "Todas"
+ * Retorna as categorias do TikTok Shop via API route.
+ * Usa cache em memória de 10 min para evitar requests repetidos.
+ * Compatível com client e server components.
  */
 export async function fetchCategories(): Promise<Category[]> {
-  // Verificar cache válido
   const now = Date.now();
-  if (cachedCategories && now - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedCategories;
+
+  if (_categoriesCache && now < _cacheExpiresAt) {
+    return _categoriesCache;
   }
 
   try {
-    const res = await fetch("/api/echotik/categories", {
-      cache: "force-cache",
+    const baseUrl =
+      typeof window === "undefined"
+        ? process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+        : "";
+
+    const res = await fetch(`${baseUrl}/api/echotik/categories`, {
+      next: { revalidate: 600 }, // 10 min cache on server
     });
 
-    if (!res.ok) {
-      console.warn("[categories] API retornou erro, usando cache/fallback");
-      return cachedCategories ?? EMPTY_FALLBACK;
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    const categories: Category[] = data.categories || [];
+    const categories: Category[] = data.categories ?? [];
 
-    // Se banco vazio (só "Todas"), retornar e não cachear por muito tempo
-    if (categories.length <= 1) {
-      console.warn("[categories] Banco sem categorias — aguardando cron");
-      cachedCategories = EMPTY_FALLBACK;
-      cacheTimestamp = now - CACHE_TTL_MS + 5 * 60 * 1000; // cachear só 5 min
-      return EMPTY_FALLBACK;
-    }
+    _categoriesCache = categories;
+    _cacheExpiresAt = now + CACHE_TTL_MS;
 
-    // Garantir que "Todas" está no início
-    const hasAll = categories.some((c) => c.id === ALL_CATEGORY_ID);
-    if (!hasAll) {
-      categories.unshift({
+    return categories;
+  } catch (error) {
+    console.error("[categories] Erro ao buscar categorias:", error);
+
+    return [
+      {
         id: ALL_CATEGORY_ID,
         name: "Todas as Categorias",
         level: 0,
         slug: "all",
-      });
-    }
-
-    cachedCategories = categories;
-    cacheTimestamp = now;
-    return categories;
-  } catch (error) {
-    console.warn("[categories] Erro no fetch, usando cache/fallback:", error);
-    return cachedCategories ?? EMPTY_FALLBACK;
+      },
+    ];
   }
+}
+
+/**
+ * Limpa o cache em memória de categorias.
+ * Chamado após sync do cron para forçar reload na próxima requisição.
+ */
+export function clearCategoriesCache(): void {
+  _categoriesCache = null;
+  _cacheExpiresAt = 0;
 }
 
 // ====================
 // UTILITIES
 // ====================
+
+/**
+ * Retorna categorias raiz (nível 1)
+ */
+export function getRootCategories(categories: Category[]): Category[] {
+  return categories.filter((c) => c.level === 1);
+}
 
 /**
  * Atribui uma categoria de forma determinística baseado no ID do item.
@@ -142,13 +139,6 @@ export function getCategoryById(
 }
 
 /**
- * Retorna categorias raiz (level 0)
- */
-export function getRootCategories(categories: Category[]): Category[] {
-  return categories.filter((c) => c.level === 0 || !c.parentId);
-}
-
-/**
  * Retorna subcategorias de um parent
  */
 export function getSubcategories(
@@ -184,12 +174,4 @@ export function matchesCategory(
   }
 
   return false;
-}
-
-/**
- * Limpa o cache de categorias (útil para testes ou refresh forçado)
- */
-export function clearCategoriesCache(): void {
-  cachedCategories = null;
-  cacheTimestamp = 0;
 }

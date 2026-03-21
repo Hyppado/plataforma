@@ -1,4 +1,4 @@
-// DTO types for Kalodata normalized data
+// DTO types for Hyppado trending data
 
 export type TimeRange = "1d" | "7d" | "30d" | "90d";
 
@@ -17,18 +17,20 @@ export interface VideoDTO {
   duration: string; // Duração
   creatorHandle: string; // Usuário do criador
   publishedAt: string; // Data de publicação
-  revenueBRL: number; // Receita (R$)
+  revenueBRL: number; // Receita (valor na moeda da região)
+  currency: string; // Moeda da receita (ex: "USD", "BRL")
   sales: number; // Vendas
   views: number; // Visualizações
   gpmBRL: number; // GPM (R$)
   cpaBRL: number; // CPA (R$)
-  adRatio: number; // Ratio de visualizaciones de Ads
+  adRatio: number; // Ratio de visualizações de Ads
   adCostBRL: number; // Custo de publicidade (R$)
   roas: number; // ROAS
-  kalodataUrl: string; // Link de Kalodata
+  sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok (canonical when possible)
   thumbnailUrl: string | null; // Real thumbnail from TikTok oEmbed
   dateRange: string; // Intervalo de datas
+  categoryId?: string; // externalId da categoria EchoTik
   product?: ProductDTO; // Produto relacionado ao vídeo (opcional)
 }
 
@@ -53,7 +55,7 @@ export interface ProductDTO {
   mallRevenueBRL: number; // Receita de shopping centers (R$)
   creatorCount: number; // Número de criadores
   creatorConversionRate: number; // Taxa de conversão de criadores
-  kalodataUrl: string; // Link de Kalodata
+  sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok
   dateRange: string; // Intervalo de datas
 }
@@ -74,7 +76,7 @@ export interface CreatorDTO {
   videoGmvBRL: number; // GMV por vídeo (R$)
   views: number; // Visualizações
   debutDate: string; // Data de estreia do criador
-  kalodataUrl: string; // Link de Kalodata
+  sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok
   dateRange: string; // Intervalo de datas
 }

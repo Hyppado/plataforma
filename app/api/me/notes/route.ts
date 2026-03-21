@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { NoteDTO } from "@/lib/types/kalodata";
+import type { NoteDTO } from "@/lib/types/dto";
 
 // Mock notes (in production, use Prisma)
 const mockNotes: NoteDTO[] = [

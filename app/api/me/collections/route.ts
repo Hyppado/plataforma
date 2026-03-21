@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { CollectionDTO } from "@/lib/types/kalodata";
+import type { CollectionDTO } from "@/lib/types/dto";
 
 // Mock collections (in production, use Prisma)
 const mockCollections: CollectionDTO[] = [

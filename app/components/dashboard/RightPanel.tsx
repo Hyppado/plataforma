@@ -22,7 +22,7 @@ import type {
   CollectionDTO,
   AlertDTO,
   NoteDTO,
-} from "@/lib/types/kalodata";
+} from "@/lib/types/dto";
 
 interface RightPanelProps {
   savedItems: SavedItemDTO[];

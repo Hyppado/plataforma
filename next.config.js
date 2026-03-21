@@ -28,14 +28,6 @@ const nextConfig = {
       },
     ],
   },
-  // Include XLSX data files in serverless function bundles
-  experimental: {
-    outputFileTracingIncludes: {
-      "/api/kalodata/videos": ["./app/data/kalodata/*.xlsx"],
-      "/api/kalodata/products": ["./app/data/kalodata/*.xlsx"],
-      "/api/kalodata/creators": ["./app/data/kalodata/*.xlsx"],
-    },
-  },
 };
 
 module.exports = nextConfig;

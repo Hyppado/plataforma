@@ -1,17 +1,14 @@
 /**
- * Kalodata formatting utilities
+ * Formatting utilities for the Hyppado UI.
  *
- * Pure formatting helpers used by UI components.
- * Mock data generators removed — all data comes from DB via EchoTik cron.
+ * Pure formatting helpers — no data fetching, no side effects.
  */
 
-// ============================================
-// Formatting helpers
-// ============================================
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
+export function formatCurrency(value: number, currency = "BRL"): string {
+  const locale = currency === "BRL" ? "pt-BR" : "en-US";
+  return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: "BRL",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);

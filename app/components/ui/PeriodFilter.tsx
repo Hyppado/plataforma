@@ -2,7 +2,7 @@
 
 import { Select, MenuItem, Box, Typography } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { TimeRange } from "@/lib/types/kalodata";
+import type { TimeRange } from "@/lib/types/dto";
 
 interface PeriodFilterProps {
   value: TimeRange;

@@ -6,18 +6,27 @@ import type { Category } from "@/lib/categories";
  * API Route: GET /api/echotik/categories
  *
  * Retorna categorias do TikTok Shop direto do banco de dados.
- * Os dados são sincronizados pelo cron (/api/cron/echotik).
+ * Os dados são sincronizados pelo cron (/api/cron/echotik) via EchoTik L1/L2/L3.
  *
  * Query params opcionais:
- *   ?level=1  — filtrar por nível de hierarquia
+ *   ?level=1       — filtrar por nível específico (1, 2 ou 3)
+ *   ?maxLevel=2    — retornar até um nível máximo (padrão: 2)
  */
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const level = url.searchParams.get("level");
+    const levelParam = url.searchParams.get("level");
+    const maxLevelParam = url.searchParams.get("maxLevel");
 
-    const where = level ? { level: Number(level) } : {};
+    let where: { level?: number | { lte: number } } = {};
+    if (levelParam) {
+      where = { level: Number(levelParam) };
+    } else {
+      // por padrão retornar L1 + L2 (L3 tem 2348 itens — muito granular para o filtro)
+      const maxLevel = maxLevelParam ? Number(maxLevelParam) : 2;
+      where = { level: { lte: maxLevel } };
+    }
 
     const dbCategories = await prisma.echotikCategory.findMany({
       where,

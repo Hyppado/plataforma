@@ -146,8 +146,8 @@ export default function ProdutosSalvosPage() {
               <ProductCard
                 product={product}
                 onViewDetails={(p) => {
-                  if (p.kalodataUrl) {
-                    window.open(p.kalodataUrl, "_blank", "noopener,noreferrer");
+                  if (p.sourceUrl) {
+                    window.open(p.sourceUrl, "_blank", "noopener,noreferrer");
                   }
                 }}
               />

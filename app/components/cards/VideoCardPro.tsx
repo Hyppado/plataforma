@@ -16,8 +16,8 @@ import {
   AutoAwesome,
   PlayArrowRounded,
 } from "@mui/icons-material";
-import type { VideoDTO, ProductDTO } from "@/lib/types/kalodata";
-import { formatCurrency, formatNumber } from "@/lib/kalodata/parser";
+import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSavedVideos, useSavedProducts } from "@/lib/storage/saved";
 import { TranscriptDialog } from "@/app/components/videos/TranscriptDialog";
@@ -238,7 +238,7 @@ export function VideoCardPro({
         video.views > 0 ? `Views: ${formatNumber(video.views)}` : null,
         video.sales > 0 ? `Vendas: ${formatNumber(video.sales)}` : null,
         video.revenueBRL > 0
-          ? `GMV: ${formatCurrency(video.revenueBRL)}`
+          ? `GMV: ${formatCurrency(video.revenueBRL, video.currency)}`
           : null,
       ]
         .filter(Boolean)
@@ -585,7 +585,9 @@ Entregue:
                 lineHeight: 1.2,
               }}
             >
-              {video.revenueBRL > 0 ? formatCurrency(video.revenueBRL) : "-"}
+              {video.revenueBRL > 0
+                ? formatCurrency(video.revenueBRL, video.currency)
+                : "-"}
             </Typography>
             <Typography
               sx={{

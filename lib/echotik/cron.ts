@@ -29,8 +29,11 @@ import { echotikRequest } from "@/lib/echotik/client";
 // Intervalos de sincronização (em horas)
 // ---------------------------------------------------------------------------
 
-/** Categorias mudam raramente → sincronizar 1×/dia */
+/** Intervalos de sincronização de categorias (em horas) */
 const CATEGORIES_INTERVAL_HOURS = 24;
+
+/** Categorias L2/L3 mudam pouco — sincronizar 1×/semana */
+const CATEGORIES_L2L3_INTERVAL_HOURS = 168;
 
 /** Vídeos trending mudam constantemente → 4×/dia */
 const VIDEO_TREND_INTERVAL_HOURS = 6;
@@ -102,6 +105,13 @@ function todayDate(): Date {
   return d;
 }
 
+/** Retorna ontem à meia-noite UTC (dados de ranklist geralmente ficam disponíveis com 1 dia de atraso) */
+function yesterdayDate(): Date {
+  const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
 /** Formata data como yyyy-MM-dd para a API */
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -109,7 +119,7 @@ function formatDate(d: Date): string {
 
 /**
  * Extrai o primeiro category_id do campo product_category_list (JSON string).
- * Ex: '[{ "category_name":"Beauty","category_id":"601450" }]' → "601450"
+ * Ex: '[{ "category_name":"Home Supplies","category_id":"600001" }]' → "600001"
  */
 function extractCategoryId(productCategoryList: string): string | null {
   try {
@@ -172,28 +182,30 @@ async function saveRawResponse(
 }
 
 // ---------------------------------------------------------------------------
-// 1. Sincronizar Categorias L1
+// 1. Sincronizar Categorias L1, L2, L3
 // ---------------------------------------------------------------------------
 
-async function syncCategoriesL1(runId: string): Promise<number> {
-  const endpoint = "/api/v3/echotik/category/l1";
+async function syncCategoriesForLevel(
+  level: 1 | 2 | 3,
+  runId: string,
+): Promise<number> {
+  const endpoint = `/api/v3/echotik/category/l${level}`;
   const params = { language: "en-US" };
 
   let body: EchotikApiResponse<EchotikCategoryItem>;
-
   try {
     body = await echotikRequest<EchotikApiResponse<EchotikCategoryItem>>(
       endpoint,
       { params },
     );
   } catch (err) {
-    console.error("[echotik-cron] Erro ao buscar categorias:", err);
+    console.error(`[echotik-cron] Erro ao buscar categorias L${level}:`, err);
     throw err;
   }
 
   if (body.code !== 0) {
     throw new Error(
-      `[echotik-cron] API retornou erro: ${body.code} — ${body.message}`,
+      `[echotik-cron] API retornou erro para L${level}: ${body.code} — ${body.message}`,
     );
   }
 
@@ -209,9 +221,8 @@ async function syncCategoriesL1(runId: string): Promise<number> {
     const name = item.category_name ?? "Sem nome";
     const parentExternalId =
       item.parent_id && item.parent_id !== "0" ? item.parent_id : null;
-    const level = parseInt(item.category_level, 10) || 1;
+    const lvl = parseInt(item.category_level, 10) || level;
     const language = item.language ?? "en-US";
-
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -223,7 +234,7 @@ async function syncCategoriesL1(runId: string): Promise<number> {
         externalId,
         name,
         language,
-        level,
+        level: lvl,
         parentExternalId,
         slug,
         extra: item as any,
@@ -231,7 +242,7 @@ async function syncCategoriesL1(runId: string): Promise<number> {
       update: {
         name,
         language,
-        level,
+        level: lvl,
         parentExternalId,
         slug,
         extra: item as any,
@@ -241,27 +252,169 @@ async function syncCategoriesL1(runId: string): Promise<number> {
     synced++;
   }
 
-  console.log(`[echotik-cron] Categorias L1 sincronizadas: ${synced}`);
+  console.log(`[echotik-cron] Categorias L${level} sincronizadas: ${synced}`);
   return synced;
 }
 
+async function syncAllCategories(runId: string): Promise<number> {
+  const skipL2L3 = await shouldSkip(
+    "echotik:categories:l2l3",
+    CATEGORIES_L2L3_INTERVAL_HOURS,
+  );
+
+  // L1 roda sempre (1×/dia)
+  const l1 = await syncCategoriesForLevel(1, runId);
+
+  let l2 = 0;
+  let l3 = 0;
+  if (!skipL2L3) {
+    l2 = await syncCategoriesForLevel(2, runId);
+    l3 = await syncCategoriesForLevel(3, runId);
+    await prisma.ingestionRun.create({
+      data: {
+        source: "echotik:categories:l2l3",
+        status: "SUCCESS",
+        endedAt: new Date(),
+      },
+    });
+  } else {
+    console.log(
+      "[echotik-cron] Categorias L2/L3: skip (já sincronizadas recentemente)",
+    );
+  }
+
+  return l1 + l2 + l3;
+}
+
 // ---------------------------------------------------------------------------
-// 2. Sincronizar Vídeo Ranklist (top vídeos do dia)
+// Helper: regiões configuradas via env var ECHOTIK_REGIONS (padrão: "US")
 // ---------------------------------------------------------------------------
 
-async function syncVideoRanklist(runId: string): Promise<number> {
+function getConfiguredRegions(): string[] {
+  return (process.env.ECHOTIK_REGIONS || "US")
+    .split(",")
+    .map((r) => r.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// 2. Sincronizar Vídeo Ranklist — TikTok Shop (带货榜)
+// video_rank_field=2 retorna vídeos que vendem produtos (com vendas e GMV).
+// ---------------------------------------------------------------------------
+
+/** Moeda local de cada região suportada. */
+const REGION_CURRENCY: Record<string, string> = {
+  US: "USD",
+  BR: "BRL",
+  UK: "GBP",
+  GB: "GBP",
+  MX: "MXN",
+  CA: "CAD",
+  AU: "AUD",
+  DE: "EUR",
+  FR: "EUR",
+  ES: "EUR",
+  IT: "EUR",
+  ID: "IDR",
+  PH: "PHP",
+  TH: "THB",
+  VN: "VND",
+  SG: "SGD",
+  MY: "MYR",
+};
+
+/** Retorna a segunda-feira (UTC) da semana contendo a data dada */
+function getMondayOf(d: Date): Date {
+  const day = d.getUTCDay(); // 0=dom, 1=seg, ..., 6=sab
+  const diff = day === 0 ? -6 : 1 - day; // quantos dias até segunda anterior
+  const monday = new Date(d);
+  monday.setUTCDate(d.getUTCDate() + diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
+}
+
+/** Retorna o 1º dia (UTC) do mês contendo a data dada */
+function getFirstOfMonth(d: Date): Date {
+  const first = new Date(d);
+  first.setUTCDate(1);
+  first.setUTCHours(0, 0, 0, 0);
+  return first;
+}
+
+async function syncVideoRanklistForRegion(
+  runId: string,
+  region: string,
+  rankingCycle: 1 | 2 | 3,
+): Promise<number> {
   const endpoint = "/api/v3/echotik/video/ranklist";
-  const date = todayDate();
-  const dateStr = formatDate(date);
+
+  // Datas candidatas dependem do tipo de ciclo:
+  // cycle=1 (diário): ontem e anteontem
+  // cycle=2 (semanal): segunda desta semana e segunda da semana passada
+  // cycle=3 (mensal): 1º deste mês e 1º do mês passado
+  let datesToTry: Date[];
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
+  const yesterday = yesterdayDate();
+
+  if (rankingCycle === 1) {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    twoDaysAgo.setUTCHours(0, 0, 0, 0);
+    datesToTry = [yesterday, twoDaysAgo];
+  } else if (rankingCycle === 2) {
+    const thisMonday = getMondayOf(yesterday);
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setUTCDate(thisMonday.getUTCDate() - 7);
+    // também tenta os dias desta semana caso segunda ainda não tenha dados
+    datesToTry = [thisMonday, lastMonday, yesterday];
+  } else {
+    const thisMonth = getFirstOfMonth(yesterday);
+    const lastMonth = new Date(thisMonth);
+    lastMonth.setUTCMonth(thisMonth.getUTCMonth() - 1);
+    // tenta também yesterday por via das dúvidas
+    datesToTry = [thisMonth, lastMonth, yesterday];
+  }
+
   let synced = 0;
+  let effectiveDate: Date | null = null;
+
+  // Descobrir qual data tem dados
+  for (const candidateDate of datesToTry) {
+    const checkParams = {
+      date: formatDate(candidateDate),
+      region,
+      video_rank_field: 2, // 2=带货榜 (TikTok Shop — vendas)
+      rank_type: rankingCycle,
+      page_num: 1,
+      page_size: 1,
+    };
+    const check = await echotikRequest<
+      EchotikApiResponse<EchotikVideoRankItem>
+    >(endpoint, { params: checkParams });
+    if (check.code === 0 && check.data && check.data.length > 0) {
+      effectiveDate = candidateDate;
+      console.log(
+        `[echotik-cron] Dados encontrados para ${formatDate(candidateDate)}`,
+      );
+      break;
+    }
+  }
+
+  if (!effectiveDate) {
+    console.warn("[echotik-cron] Nenhuma data com dados de vídeo disponível");
+    return 0;
+  }
+
+  const dateStr = formatDate(effectiveDate);
+  const date = effectiveDate;
 
   // Buscar várias páginas (page_size max = 10)
   for (let page = 1; page <= VIDEO_RANKLIST_PAGES; page++) {
     const params = {
       date: dateStr,
-      region: "US",
-      video_rank_field: 1, // 1=popular (views), 2=sales
-      rank_type: 1, // 1=day, 2=week, 3=month
+      region,
+      video_rank_field: 2, // 2=带货榜 (TikTok Shop — vendas)
+      rank_type: rankingCycle, // 1=day, 2=week, 3=month
       page_num: page,
       page_size: 10,
     };
@@ -305,13 +458,16 @@ async function syncVideoRanklist(runId: string): Promise<number> {
 
       await prisma.echotikVideoTrendDaily.upsert({
         where: {
-          videoExternalId_date: {
+          videoExternalId_date_country_rankingCycle: {
             videoExternalId,
             date,
+            country: region,
+            rankingCycle,
           },
         },
         create: {
           date,
+          rankingCycle,
           videoExternalId,
           title: item.video_desc || null,
           authorName: item.nick_name || null,
@@ -323,7 +479,7 @@ async function syncVideoRanklist(runId: string): Promise<number> {
           shares: BigInt(item.total_shares_cnt ?? 0),
           saleCount: BigInt(item.total_video_sale_cnt ?? 0),
           gmv: BigInt(gmvCents),
-          currency: "USD",
+          currency: REGION_CURRENCY[region] ?? "USD",
           country: item.region ?? "US",
           categoryId,
           extra: item as any,
@@ -339,8 +495,9 @@ async function syncVideoRanklist(runId: string): Promise<number> {
           shares: BigInt(item.total_shares_cnt ?? 0),
           saleCount: BigInt(item.total_video_sale_cnt ?? 0),
           gmv: BigInt(gmvCents),
-          currency: "USD",
+          currency: REGION_CURRENCY[region] ?? "USD",
           country: item.region ?? "US",
+          rankingCycle,
           categoryId: categoryId ?? undefined,
           extra: item as any,
           syncedAt: new Date(),
@@ -350,8 +507,30 @@ async function syncVideoRanklist(runId: string): Promise<number> {
     }
   }
 
-  console.log(`[echotik-cron] Vídeos ranklist sincronizados: ${synced}`);
+  console.log(
+    `[echotik-cron] [${region}] [cycle=${rankingCycle}] Vídeos ranklist sincronizados: ${synced}`,
+  );
   return synced;
+}
+
+async function syncVideoRanklist(runId: string): Promise<number> {
+  const regions = getConfiguredRegions();
+  console.log(
+    `[echotik-cron] Sincronizando vídeos para regiões: ${regions.join(", ")}`,
+  );
+  const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
+  let total = 0;
+  for (const region of regions) {
+    for (const rankingCycle of rankingCycles) {
+      const count = await syncVideoRanklistForRegion(
+        runId,
+        region,
+        rankingCycle,
+      );
+      total += count;
+    }
+  }
+  return total;
 }
 
 // ---------------------------------------------------------------------------
@@ -377,9 +556,10 @@ export interface CronResult {
  * O cron roda a cada hora (Vercel), mas cada tarefa respeita
  * seu próprio intervalo — evitando desperdício de requests:
  *
- *   - Categorias L1:    1×/dia   (~30 req/mês)
- *   - Vídeo ranklist:   4×/dia, 5 págs (~600 req/mês)
- *   - Budget usado:     ~630/10 000 req/mês
+ *   - Categorias L1:        1×/dia     (~30 req/mês)
+ *   - Categorias L2/L3:    1×/semana  (~8 req/mês)
+ *   - Vídeo ranklist:      4×/dia, 5 págs (~600 req/mês)
+ *   - Budget usado:        ~638/10 000 req/mês
  *
  * @param force — se true, ignora intervalos e força todas as tarefas
  * @returns CronResult com runId, status e stats
@@ -419,9 +599,9 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
   let videosSynced = 0;
 
   try {
-    // 1. Categorias L1
+    // 1. Categorias (L1 diário, L2/L3 semanal)
     if (!skipCategories) {
-      categoriesSynced = await syncCategoriesL1(run.id);
+      categoriesSynced = await syncAllCategories(run.id);
       // Registrar sucesso específico para controle de intervalo
       await prisma.ingestionRun.create({
         data: {
