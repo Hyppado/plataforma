@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Body must be an object" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Body must be an object" },
+      { status: 400 },
+    );
   }
 
   const {
@@ -69,11 +72,16 @@ export async function POST(req: NextRequest) {
     await assertQuota(userId, action as UsageEventType, tokenCount);
 
     // 2. Record consumption
-    const result = await consumeUsage(userId, action as UsageEventType, tokenCount, {
-      idempotencyKey,
-      refTable: typeof refTable === "string" ? refTable : undefined,
-      refId: typeof refId === "string" ? refId : undefined,
-    });
+    const result = await consumeUsage(
+      userId,
+      action as UsageEventType,
+      tokenCount,
+      {
+        idempotencyKey,
+        refTable: typeof refTable === "string" ? refTable : undefined,
+        refId: typeof refId === "string" ? refId : undefined,
+      },
+    );
 
     return NextResponse.json(result, { status: 200 });
   } catch (err) {
@@ -89,6 +97,9 @@ export async function POST(req: NextRequest) {
       );
     }
     console.error("[POST /api/usage/consume]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

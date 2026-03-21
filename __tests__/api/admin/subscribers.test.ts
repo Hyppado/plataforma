@@ -1,19 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/admin/subscribers/route";
 import { hotmartRequest } from "@/lib/hotmart/client";
-import { getSettingOrEnv } from "@/lib/settings";
 
 vi.mock("@/lib/hotmart/client", () => ({
   hotmartRequest: vi.fn(),
-}));
-
-vi.mock("@/lib/settings", () => ({
-  getSettingOrEnv: vi.fn(),
-  SETTING_KEYS: {
-    HOTMART_PRODUCT_ID: "hotmart.product_id",
-    HOTMART_WEBHOOK_URL: "hotmart.webhook_url",
-    APP_NAME: "app.name",
-  },
 }));
 
 /** Cria um Request para a rota de assinantes com query params opcionais. */
@@ -41,7 +31,7 @@ const mockItem = (overrides: Record<string, unknown> = {}) => ({
 describe("GET /api/admin/subscribers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getSettingOrEnv).mockResolvedValue("7420891");
+    process.env.HOTMART_PRODUCT_ID = "7420891";
   });
 
   // ---------------------------------------------------------------------------
@@ -306,7 +296,7 @@ describe("GET /api/admin/subscribers", () => {
   // ---------------------------------------------------------------------------
 
   it("retorna 400 quando HOTMART_PRODUCT_ID não está configurado", async () => {
-    vi.mocked(getSettingOrEnv).mockResolvedValue("");
+    delete process.env.HOTMART_PRODUCT_ID;
 
     const res = await GET(makeRequest());
     const body = await res.json();

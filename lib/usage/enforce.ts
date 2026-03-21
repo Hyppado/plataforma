@@ -12,9 +12,7 @@ export class QuotaExceededError extends Error {
   public readonly limit: number;
 
   constructor(action: UsageEventType, used: number, limit: number) {
-    super(
-      `Quota exceeded for ${action}: used ${used} of ${limit} this month.`,
-    );
+    super(`Quota exceeded for ${action}: used ${used} of ${limit} this month.`);
     this.name = "QuotaExceededError";
     this.action = action;
     this.used = used;
@@ -58,19 +56,37 @@ export async function assertQuota(
 
   switch (action) {
     case "TRANSCRIPT":
-      if (limits.transcriptsPerMonth > 0 && used.transcripts >= limits.transcriptsPerMonth) {
-        throw new QuotaExceededError(action, used.transcripts, limits.transcriptsPerMonth);
+      if (
+        limits.transcriptsPerMonth > 0 &&
+        used.transcripts >= limits.transcriptsPerMonth
+      ) {
+        throw new QuotaExceededError(
+          action,
+          used.transcripts,
+          limits.transcriptsPerMonth,
+        );
       }
       break;
 
     case "SCRIPT":
-      if (limits.scriptsPerMonth > 0 && used.scripts >= limits.scriptsPerMonth) {
-        throw new QuotaExceededError(action, used.scripts, limits.scriptsPerMonth);
+      if (
+        limits.scriptsPerMonth > 0 &&
+        used.scripts >= limits.scriptsPerMonth
+      ) {
+        throw new QuotaExceededError(
+          action,
+          used.scripts,
+          limits.scriptsPerMonth,
+        );
       }
       if (limits.scriptTokensMonthlyMax > 0 && tokens > 0) {
         const projectedTokens = used.tokens + tokens;
         if (projectedTokens > limits.scriptTokensMonthlyMax) {
-          throw new QuotaExceededError("SCRIPT", used.tokens, limits.scriptTokensMonthlyMax);
+          throw new QuotaExceededError(
+            "SCRIPT",
+            used.tokens,
+            limits.scriptTokensMonthlyMax,
+          );
         }
       }
       break;
@@ -79,7 +95,11 @@ export async function assertQuota(
       if (limits.insightTokensMonthlyMax > 0 && tokens > 0) {
         const projectedTokens = used.tokens + tokens;
         if (projectedTokens > limits.insightTokensMonthlyMax) {
-          throw new QuotaExceededError("INSIGHT", used.tokens, limits.insightTokensMonthlyMax);
+          throw new QuotaExceededError(
+            "INSIGHT",
+            used.tokens,
+            limits.insightTokensMonthlyMax,
+          );
         }
       }
       break;

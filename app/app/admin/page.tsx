@@ -716,7 +716,7 @@ export default function AdminPage() {
                         >
                           {loading
                             ? "Carregando..."
-                            : "Nenhum assinante encontrado. Use o botão 'Sync Hotmart' para importar dados."}
+                            : "Nenhum assinante encontrado para o filtro selecionado."}
                         </TableCell>
                       </TableRow>
                     ) : (

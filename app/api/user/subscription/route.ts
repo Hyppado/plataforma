@@ -93,7 +93,8 @@ export async function GET(req: NextRequest) {
       ? {
           planName: subscription.plan.name,
           planCode: subscription.plan.code,
-          billingCycle: subscription.plan.periodicity === "ANNUAL" ? "Anual" : "Mensal",
+          billingCycle:
+            subscription.plan.periodicity === "ANNUAL" ? "Anual" : "Mensal",
           displayPrice: subscription.plan.displayPrice,
           status: statusLabel,
           startedAt: subscription.startedAt?.toISOString() ?? null,

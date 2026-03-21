@@ -251,7 +251,9 @@ export default function AssinaturaPage() {
                           border: `1px solid ${UI.card.border}`,
                         }}
                       >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box
+                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                        >
                           {getStatusIcon(sub.status)}
                           <Typography
                             sx={{
@@ -286,7 +288,10 @@ export default function AssinaturaPage() {
                           }}
                         >
                           <Typography
-                            sx={{ fontSize: "0.875rem", color: UI.text.secondary }}
+                            sx={{
+                              fontSize: "0.875rem",
+                              color: UI.text.secondary,
+                            }}
                           >
                             Próxima renovação
                           </Typography>
@@ -309,7 +314,10 @@ export default function AssinaturaPage() {
                           }}
                         >
                           <Typography
-                            sx={{ fontSize: "0.875rem", color: UI.text.secondary }}
+                            sx={{
+                              fontSize: "0.875rem",
+                              color: UI.text.secondary,
+                            }}
                           >
                             Data de início
                           </Typography>
@@ -332,7 +340,10 @@ export default function AssinaturaPage() {
                           }}
                         >
                           <Typography
-                            sx={{ fontSize: "0.875rem", color: UI.text.secondary }}
+                            sx={{
+                              fontSize: "0.875rem",
+                              color: UI.text.secondary,
+                            }}
                           >
                             Produto
                           </Typography>
@@ -350,7 +361,11 @@ export default function AssinaturaPage() {
                     </>
                   ) : (
                     <Typography
-                      sx={{ fontSize: "0.875rem", color: UI.text.muted, fontStyle: "italic" }}
+                      sx={{
+                        fontSize: "0.875rem",
+                        color: UI.text.muted,
+                        fontStyle: "italic",
+                      }}
                     >
                       Nenhuma assinatura encontrada.
                     </Typography>
@@ -538,7 +553,8 @@ export default function AssinaturaPage() {
                         quota.transcripts.used !== null
                           ? Math.min(
                               (quota.transcripts.used /
-                                (sub?.transcriptsPerMonth ?? quota.transcripts.max)) *
+                                (sub?.transcriptsPerMonth ??
+                                  quota.transcripts.max)) *
                                 100,
                               100,
                             )
@@ -626,7 +642,8 @@ export default function AssinaturaPage() {
                         fontStyle: "italic",
                       }}
                     >
-                      Os limites são renovados mensalmente com base no seu plano.
+                      Os limites são renovados mensalmente com base no seu
+                      plano.
                     </Typography>
                   </Box>
                 </Stack>
@@ -684,7 +701,9 @@ export default function AssinaturaPage() {
                       Status
                     </Typography>
                     <Chip
-                      label={hotmart.connected ? "Conectado" : "Não configurado"}
+                      label={
+                        hotmart.connected ? "Conectado" : "Não configurado"
+                      }
                       size="small"
                       icon={
                         hotmart.connected ? (
@@ -732,7 +751,9 @@ export default function AssinaturaPage() {
                       sx={{
                         fontSize: "0.875rem",
                         fontWeight: 600,
-                        color: hotmart.webhookConfigured ? UI.success : UI.text.muted,
+                        color: hotmart.webhookConfigured
+                          ? UI.success
+                          : UI.text.muted,
                       }}
                     >
                       {hotmart.webhookConfigured ? "Sim" : "Não"}
@@ -883,20 +904,20 @@ export default function AssinaturaPage() {
                                   event.status === "Aprovado"
                                     ? `${UI.success}15`
                                     : event.status === "Estornado"
-                                    ? `${UI.warning}15`
-                                    : "rgba(255,255,255,0.05)",
+                                      ? `${UI.warning}15`
+                                      : "rgba(255,255,255,0.05)",
                                 color:
                                   event.status === "Aprovado"
                                     ? UI.success
                                     : event.status === "Estornado"
-                                    ? UI.warning
-                                    : UI.text.muted,
+                                      ? UI.warning
+                                      : UI.text.muted,
                                 border: `1px solid ${
                                   event.status === "Aprovado"
                                     ? `${UI.success}30`
                                     : event.status === "Estornado"
-                                    ? `${UI.warning}30`
-                                    : UI.card.border
+                                      ? `${UI.warning}30`
+                                      : UI.card.border
                                 }`,
                               }}
                             />

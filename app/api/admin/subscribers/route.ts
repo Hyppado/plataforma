@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { hotmartRequest } from "@/lib/hotmart/client";
-import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
 
 /**
  * GET /api/admin/subscribers
@@ -57,10 +56,7 @@ export async function GET(request: Request) {
   );
 
   try {
-    const productId = await getSettingOrEnv(
-      SETTING_KEYS.HOTMART_PRODUCT_ID,
-      "HOTMART_PRODUCT_ID",
-    );
+    const productId = process.env.HOTMART_PRODUCT_ID;
 
     if (!productId) {
       return NextResponse.json(
