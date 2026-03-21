@@ -24,8 +24,6 @@ import {
   Tooltip,
   IconButton,
   Stack,
-  Alert,
-  CircularProgress,
 } from "@mui/material";
 import {
   Check as CheckIcon,
@@ -39,7 +37,6 @@ import {
   SupportAgentOutlined,
   Email as EmailIcon,
   SettingsOutlined,
-  SyncOutlined,
   TrendingUpOutlined,
   AttachMoneyOutlined,
 } from "@mui/icons-material";
@@ -53,7 +50,6 @@ import type {
 import {
   getSubscribers,
   getSubscriptionMetrics,
-  triggerHotmartSync,
 } from "@/lib/admin/admin-client";
 import {
   getEffectiveQuotaPolicy,
@@ -110,12 +106,6 @@ export default function AdminPage() {
     useState<QuotaPolicy>(DEFAULT_QUOTA_POLICY);
   const [quotaUsage, setQuotaUsage] = useState<QuotaUsage>({});
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-
   // UI state
   const [subscriberTab, setSubscriberTab] = useState(0);
   const [subscriberSearch, setSubscriberSearch] = useState("");
@@ -176,31 +166,6 @@ export default function AdminPage() {
   useEffect(() => {
     setPromptConfig(loadPromptConfigLocally());
   }, []);
-
-  // Sync with Hotmart
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    setSyncMessage(null);
-    try {
-      const result = await triggerHotmartSync();
-      if (result.success) {
-        setSyncMessage({
-          type: "success",
-          text: "Sincronização concluída com sucesso!",
-        });
-        // Reload data after sync
-        await loadData();
-      } else {
-        setSyncMessage({ type: "error", text: result.message });
-      }
-    } catch {
-      setSyncMessage({ type: "error", text: "Erro na sincronização" });
-    } finally {
-      setSyncing(false);
-      // Clear message after 5s
-      setTimeout(() => setSyncMessage(null), 5000);
-    }
-  }, [loadData]);
 
   // Save limits to localStorage
   const saveLimits = useCallback(() => {
@@ -267,37 +232,7 @@ export default function AdminPage() {
             Gerenciamento de assinantes, quotas e configurações
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={
-            syncing ? (
-              <CircularProgress size={16} color="inherit" />
-            ) : (
-              <SyncOutlined />
-            )
-          }
-          onClick={handleSync}
-          disabled={syncing}
-          sx={{
-            background: "linear-gradient(135deg, #2DD4FF, #7B61FF)",
-            color: "#fff",
-            fontWeight: 600,
-            "&:disabled": { opacity: 0.6 },
-          }}
-        >
-          {syncing ? "Sincronizando..." : "Sync Hotmart"}
-        </Button>
       </Box>
-
-      {syncMessage && (
-        <Alert
-          severity={syncMessage.type}
-          sx={{ mb: 3 }}
-          onClose={() => setSyncMessage(null)}
-        >
-          {syncMessage.text}
-        </Alert>
-      )}
 
       {loading && <LinearProgress sx={{ mb: 3 }} />}
 

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import prisma from "@/lib/prisma";
+import { syncHotmartSubscribers } from "@/lib/hotmart/subscribers";
+import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
 
 /**
  * GET /api/admin/subscribers
@@ -112,6 +115,19 @@ export async function GET(request: Request) {
       lastPaymentCurrency: sub.charges[0]?.currency ?? "BRL",
       createdAt: sub.createdAt.toISOString(),
     }));
+
+    // Trigger background sync so next page load gets fresh data
+    const productId = await getSettingOrEnv(
+      SETTING_KEYS.HOTMART_PRODUCT_ID,
+      "HOTMART_PRODUCT_ID",
+    );
+    if (productId) {
+      waitUntil(
+        syncHotmartSubscribers(productId).catch((err) =>
+          console.error("[auto-sync/subscribers] Error:", err),
+        ),
+      );
+    }
 
     return NextResponse.json({
       subscribers,

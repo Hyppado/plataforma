@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import prisma from "@/lib/prisma";
+import { syncHotmartSubscribers } from "@/lib/hotmart/subscribers";
+import { getSettingOrEnv, SETTING_KEYS } from "@/lib/settings";
 
 /**
  * GET /api/admin/subscription-metrics
@@ -81,6 +84,19 @@ export async function GET() {
       "Dezembro",
     ];
     const periodLabel = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
+    // Trigger background sync so next page load gets fresh data
+    const productId = await getSettingOrEnv(
+      SETTING_KEYS.HOTMART_PRODUCT_ID,
+      "HOTMART_PRODUCT_ID",
+    );
+    if (productId) {
+      waitUntil(
+        syncHotmartSubscribers(productId).catch((err) =>
+          console.error("[auto-sync/metrics] Error:", err),
+        ),
+      );
+    }
 
     return NextResponse.json({
       activeSubscribers: activeCount,
