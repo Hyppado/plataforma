@@ -124,6 +124,12 @@ export async function echotikRequest<T = unknown>(
           throw err;
         }
 
+        // Quota exceeded → não vale retry (API retorna 500 com esta mensagem)
+        if (body.includes("Usage Limit Exceeded")) {
+          err.message = `[echotik-client] Quota excedida — ${url.pathname}`;
+          throw err;
+        }
+
         lastError = err;
       } else {
         const data: T = await res.json();

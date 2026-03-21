@@ -1,16 +1,20 @@
 /**
  * EchoTik Cron Service
  *
- * Orquestra a ingestão periódica de dados da API EchoTik:
+ * Orquestra a ingestão periódica de dados da API EchoTik (v3):
  *   1. Sincroniza categorias L1  (upsert por externalId)
- *   2. Sincroniza vídeos trending (upsert por videoExternalId + date)
+ *   2. Sincroniza vídeo ranklist — top vídeos do dia (upsert por videoExternalId + date)
  *   3. Salva payloads brutos com dedup via SHA-256
  *   4. Registra cada execução em IngestionRun
  *
+ * Endpoints reais (docs: opendocs.echotik.live):
+ *   - Categorias L1: GET /api/v3/echotik/category/l1?language=en-US
+ *   - Vídeo ranklist: GET /api/v3/echotik/video/ranklist?date&region&video_rank_field&rank_type&page_num&page_size
+ *
  * Estratégia de budget (10 000 req/mês):
  *   - Categorias L1: 1×/dia   (~30 req/mês)  — mudam pouco
- *   - Vídeos trending: 4×/dia (~120 req/mês)  — a cada 6 h
- *   - Total estimado: ~150 req/mês (sobra para futuros endpoints)
+ *   - Vídeo ranklist: 4×/dia, 5 págs cada (~600 req/mês) — top 50 vídeos/dia
+ *   - Total estimado: ~630 req/mês (sobra para futuros endpoints)
  *   - Cron roda a cada hora, mas faz skip se ainda não passou o intervalo
  *
  * Chamado pelo route handler: app/api/cron/echotik/route.ts
@@ -31,70 +35,57 @@ const CATEGORIES_INTERVAL_HOURS = 24;
 /** Vídeos trending mudam constantemente → 4×/dia */
 const VIDEO_TREND_INTERVAL_HOURS = 6;
 
+/** Quantas páginas buscar do ranklist (page_size max = 10) */
+const VIDEO_RANKLIST_PAGES = 5; // 5 × 10 = top 50 vídeos
+
 // ---------------------------------------------------------------------------
-// Tipos de resposta esperados da API EchoTik
-// (Ajustar caso a documentação oficial revele estrutura diferente)
+// Tipos de resposta da API EchoTik v3
+// (Baseado na documentação oficial: opendocs.echotik.live)
 // ---------------------------------------------------------------------------
 
+/** Resposta genérica da API EchoTik v3 */
+interface EchotikApiResponse<T> {
+  code: number;
+  message: string;
+  data: T[];
+  requestId: string;
+}
+
+/** Item de categoria L1/L2/L3 */
 interface EchotikCategoryItem {
-  category_id?: string;
-  id?: string;
-  category_name?: string;
-  name?: string;
-  parent_id?: string;
-  parent_category_id?: string;
-  level?: number;
-  language?: string;
+  category_id: string;
+  category_level: string; // "1", "2", "3"
+  category_name: string;
+  language: string;
+  parent_id: string; // "0" para L1
   [key: string]: unknown;
 }
 
-interface EchotikCategoriesResponse {
-  code?: number;
-  msg?: string;
-  data?: {
-    categories?: EchotikCategoryItem[];
-    list?: EchotikCategoryItem[];
-  };
-  categories?: EchotikCategoryItem[];
-  list?: EchotikCategoryItem[];
-}
-
-interface EchotikVideoItem {
-  video_id?: string;
-  id?: string;
-  title?: string;
-  author_name?: string;
-  author_nickname?: string;
-  author_id?: string;
-  views?: number;
-  view_count?: number;
-  likes?: number;
-  like_count?: number;
-  comments?: number;
-  comment_count?: number;
-  favorites?: number;
-  favorite_count?: number;
-  shares?: number;
-  share_count?: number;
-  sale_count?: number;
-  sales?: number;
-  gmv?: number;
-  revenue?: number;
-  currency?: string;
-  country?: string;
-  category_id?: string;
+/** Item do vídeo ranklist */
+interface EchotikVideoRankItem {
+  video_id: string;
+  video_desc: string;
+  nick_name: string;
+  unique_id: string;
+  user_id: string;
+  avatar: string;
+  category: string;
+  create_time: string;
+  created_by_ai: string;
+  duration: number;
+  product_category_list: string; // JSON string: [{ category_name, category_id }]
+  reflow_cover: string;
+  region: string;
+  sales_flag: number; // 0=não vende, 1=vídeo, 2=live
+  total_comments_cnt: number;
+  total_digg_cnt: number;
+  total_favorites_cnt: number;
+  total_shares_cnt: number;
+  total_video_sale_cnt: number;
+  total_video_sale_gmv_amt: number;
+  total_views_cnt: number;
+  video_products: string; // JSON string: [product_id, ...]
   [key: string]: unknown;
-}
-
-interface EchotikVideosResponse {
-  code?: number;
-  msg?: string;
-  data?: {
-    videos?: EchotikVideoItem[];
-    list?: EchotikVideoItem[];
-  };
-  videos?: EchotikVideoItem[];
-  list?: EchotikVideoItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -111,22 +102,22 @@ function todayDate(): Date {
   return d;
 }
 
-/** Normaliza lista de categorias vindas de formatos variados da API */
-function extractCategories(
-  body: EchotikCategoriesResponse,
-): EchotikCategoryItem[] {
-  return (
-    body.data?.categories ??
-    body.data?.list ??
-    body.categories ??
-    body.list ??
-    []
-  );
+/** Formata data como yyyy-MM-dd para a API */
+function formatDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
-/** Normaliza lista de vídeos */
-function extractVideos(body: EchotikVideosResponse): EchotikVideoItem[] {
-  return body.data?.videos ?? body.data?.list ?? body.videos ?? body.list ?? [];
+/**
+ * Extrai o primeiro category_id do campo product_category_list (JSON string).
+ * Ex: '[{ "category_name":"Beauty","category_id":"601450" }]' → "601450"
+ */
+function extractCategoryId(productCategoryList: string): string | null {
+  try {
+    const arr = JSON.parse(productCategoryList || "[]");
+    return arr?.[0]?.category_id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -185,33 +176,42 @@ async function saveRawResponse(
 // ---------------------------------------------------------------------------
 
 async function syncCategoriesL1(runId: string): Promise<number> {
-  const endpoint = "/api/v1/category";
-  let body: EchotikCategoriesResponse;
+  const endpoint = "/api/v3/echotik/category/l1";
+  const params = { language: "en-US" };
+
+  let body: EchotikApiResponse<EchotikCategoryItem>;
 
   try {
-    body = await echotikRequest<EchotikCategoriesResponse>(endpoint, {
-      params: { level: 1 },
-    });
+    body = await echotikRequest<EchotikApiResponse<EchotikCategoryItem>>(
+      endpoint,
+      { params },
+    );
   } catch (err) {
     console.error("[echotik-cron] Erro ao buscar categorias:", err);
     throw err;
   }
 
-  await saveRawResponse(endpoint, { level: 1 }, body, runId);
+  if (body.code !== 0) {
+    throw new Error(
+      `[echotik-cron] API retornou erro: ${body.code} — ${body.message}`,
+    );
+  }
 
-  const items = extractCategories(body);
+  await saveRawResponse(endpoint, params, body, runId);
+
+  const items = body.data ?? [];
   let synced = 0;
 
   for (const item of items) {
-    const externalId = String(item.category_id ?? item.id ?? "");
+    const externalId = item.category_id;
     if (!externalId) continue;
 
-    const name = item.category_name ?? item.name ?? "Sem nome";
-    const parentExternalId = item.parent_id ?? item.parent_category_id ?? null;
-    const level = item.level ?? 1;
-    const language = item.language ?? "en";
+    const name = item.category_name ?? "Sem nome";
+    const parentExternalId =
+      item.parent_id && item.parent_id !== "0" ? item.parent_id : null;
+    const level = parseInt(item.category_level, 10) || 1;
+    const language = item.language ?? "en-US";
 
-    // Gerar slug a partir do nome
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -224,7 +224,7 @@ async function syncCategoriesL1(runId: string): Promise<number> {
         name,
         language,
         level,
-        parentExternalId: parentExternalId ? String(parentExternalId) : null,
+        parentExternalId,
         slug,
         extra: item as any,
       },
@@ -232,7 +232,7 @@ async function syncCategoriesL1(runId: string): Promise<number> {
         name,
         language,
         level,
-        parentExternalId: parentExternalId ? String(parentExternalId) : null,
+        parentExternalId,
         slug,
         extra: item as any,
         syncedAt: new Date(),
@@ -241,94 +241,116 @@ async function syncCategoriesL1(runId: string): Promise<number> {
     synced++;
   }
 
-  console.log(`[echotik-cron] Categorias sincronizadas: ${synced}`);
+  console.log(`[echotik-cron] Categorias L1 sincronizadas: ${synced}`);
   return synced;
 }
 
 // ---------------------------------------------------------------------------
-// 2. Sincronizar Vídeos Trending
+// 2. Sincronizar Vídeo Ranklist (top vídeos do dia)
 // ---------------------------------------------------------------------------
 
-async function syncVideoTrend(runId: string): Promise<number> {
-  const endpoint = "/api/v1/videos/trending";
+async function syncVideoRanklist(runId: string): Promise<number> {
+  const endpoint = "/api/v3/echotik/video/ranklist";
   const date = todayDate();
-  let body: EchotikVideosResponse;
-
-  try {
-    body = await echotikRequest<EchotikVideosResponse>(endpoint, {
-      params: {
-        country: "US",
-        sort_by: "views",
-        page: 1,
-        size: 50,
-      },
-    });
-  } catch (err) {
-    console.error("[echotik-cron] Erro ao buscar vídeos trending:", err);
-    throw err;
-  }
-
-  await saveRawResponse(
-    endpoint,
-    { country: "US", sort_by: "views", page: 1, size: 50 },
-    body,
-    runId,
-  );
-
-  const items = extractVideos(body);
+  const dateStr = formatDate(date);
   let synced = 0;
 
-  for (const item of items) {
-    const videoExternalId = String(item.video_id ?? item.id ?? "");
-    if (!videoExternalId) continue;
+  // Buscar várias páginas (page_size max = 10)
+  for (let page = 1; page <= VIDEO_RANKLIST_PAGES; page++) {
+    const params = {
+      date: dateStr,
+      region: "US",
+      video_rank_field: 1, // 1=popular (views), 2=sales
+      rank_type: 1, // 1=day, 2=week, 3=month
+      page_num: page,
+      page_size: 10,
+    };
 
-    await prisma.echotikVideoTrendDaily.upsert({
-      where: {
-        videoExternalId_date: {
-          videoExternalId,
-          date,
+    let body: EchotikApiResponse<EchotikVideoRankItem>;
+
+    try {
+      body = await echotikRequest<EchotikApiResponse<EchotikVideoRankItem>>(
+        endpoint,
+        { params },
+      );
+    } catch (err) {
+      console.error(
+        `[echotik-cron] Erro ao buscar vídeo ranklist (página ${page}):`,
+        err,
+      );
+      throw err;
+    }
+
+    if (body.code !== 0) {
+      throw new Error(
+        `[echotik-cron] API retornou erro: ${body.code} — ${body.message}`,
+      );
+    }
+
+    await saveRawResponse(endpoint, params, body, runId);
+
+    const items = body.data ?? [];
+
+    // Se não retornou dados, não há mais páginas
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const videoExternalId = item.video_id;
+      if (!videoExternalId) continue;
+
+      const categoryId = extractCategoryId(item.product_category_list);
+
+      // gmv vem em dólares inteiros da API, converter para centavos (BigInt)
+      const gmvCents = Math.round((item.total_video_sale_gmv_amt ?? 0) * 100);
+
+      await prisma.echotikVideoTrendDaily.upsert({
+        where: {
+          videoExternalId_date: {
+            videoExternalId,
+            date,
+          },
         },
-      },
-      create: {
-        date,
-        videoExternalId,
-        title: item.title ?? null,
-        authorName: item.author_name ?? item.author_nickname ?? null,
-        authorExternalId: item.author_id ? String(item.author_id) : null,
-        views: BigInt(item.views ?? item.view_count ?? 0),
-        likes: BigInt(item.likes ?? item.like_count ?? 0),
-        comments: BigInt(item.comments ?? item.comment_count ?? 0),
-        favorites: BigInt(item.favorites ?? item.favorite_count ?? 0),
-        shares: BigInt(item.shares ?? item.share_count ?? 0),
-        saleCount: BigInt(item.sale_count ?? item.sales ?? 0),
-        gmv: BigInt(item.gmv ?? item.revenue ?? 0),
-        currency: item.currency ?? "USD",
-        country: item.country ?? "US",
-        categoryId: item.category_id ? String(item.category_id) : null,
-        extra: item as any,
-      },
-      update: {
-        title: item.title ?? undefined,
-        authorName: item.author_name ?? item.author_nickname ?? undefined,
-        authorExternalId: item.author_id ? String(item.author_id) : undefined,
-        views: BigInt(item.views ?? item.view_count ?? 0),
-        likes: BigInt(item.likes ?? item.like_count ?? 0),
-        comments: BigInt(item.comments ?? item.comment_count ?? 0),
-        favorites: BigInt(item.favorites ?? item.favorite_count ?? 0),
-        shares: BigInt(item.shares ?? item.share_count ?? 0),
-        saleCount: BigInt(item.sale_count ?? item.sales ?? 0),
-        gmv: BigInt(item.gmv ?? item.revenue ?? 0),
-        currency: item.currency ?? "USD",
-        country: item.country ?? "US",
-        categoryId: item.category_id ? String(item.category_id) : undefined,
-        extra: item as any,
-        syncedAt: new Date(),
-      },
-    });
-    synced++;
+        create: {
+          date,
+          videoExternalId,
+          title: item.video_desc || null,
+          authorName: item.nick_name || null,
+          authorExternalId: item.user_id || null,
+          views: BigInt(item.total_views_cnt ?? 0),
+          likes: BigInt(item.total_digg_cnt ?? 0),
+          comments: BigInt(item.total_comments_cnt ?? 0),
+          favorites: BigInt(item.total_favorites_cnt ?? 0),
+          shares: BigInt(item.total_shares_cnt ?? 0),
+          saleCount: BigInt(item.total_video_sale_cnt ?? 0),
+          gmv: BigInt(gmvCents),
+          currency: "USD",
+          country: item.region ?? "US",
+          categoryId,
+          extra: item as any,
+        },
+        update: {
+          title: item.video_desc || undefined,
+          authorName: item.nick_name || undefined,
+          authorExternalId: item.user_id || undefined,
+          views: BigInt(item.total_views_cnt ?? 0),
+          likes: BigInt(item.total_digg_cnt ?? 0),
+          comments: BigInt(item.total_comments_cnt ?? 0),
+          favorites: BigInt(item.total_favorites_cnt ?? 0),
+          shares: BigInt(item.total_shares_cnt ?? 0),
+          saleCount: BigInt(item.total_video_sale_cnt ?? 0),
+          gmv: BigInt(gmvCents),
+          currency: "USD",
+          country: item.region ?? "US",
+          categoryId: categoryId ?? undefined,
+          extra: item as any,
+          syncedAt: new Date(),
+        },
+      });
+      synced++;
+    }
   }
 
-  console.log(`[echotik-cron] Vídeos trending sincronizados: ${synced}`);
+  console.log(`[echotik-cron] Vídeos ranklist sincronizados: ${synced}`);
   return synced;
 }
 
@@ -356,8 +378,8 @@ export interface CronResult {
  * seu próprio intervalo — evitando desperdício de requests:
  *
  *   - Categorias L1:    1×/dia   (~30 req/mês)
- *   - Vídeos trending:  4×/dia   (~120 req/mês)
- *   - Budget usado:     ~150/10 000 req/mês
+ *   - Vídeo ranklist:   4×/dia, 5 págs (~600 req/mês)
+ *   - Budget usado:     ~630/10 000 req/mês
  *
  * @param force — se true, ignora intervalos e força todas as tarefas
  * @returns CronResult com runId, status e stats
@@ -414,9 +436,9 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
       );
     }
 
-    // 2. Vídeos trending
+    // 2. Vídeo ranklist
     if (!skipVideos) {
-      videosSynced = await syncVideoTrend(run.id);
+      videosSynced = await syncVideoRanklist(run.id);
       await prisma.ingestionRun.create({
         data: {
           source: "echotik:videos",
