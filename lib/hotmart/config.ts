@@ -46,10 +46,10 @@ export function getHotmartConfig() {
 
     // Base URL da Hotmart REST API
     // Sandbox: https://sandbox.hotmart.com
-    // Produção: https://api-worker.hotmart.com
+    // Produção: https://developers.hotmart.com
     apiBaseUrl: sandbox
       ? "https://sandbox.hotmart.com"
-      : "https://api-worker.hotmart.com",
+      : "https://developers.hotmart.com",
 
     // Quanto antes do vencimento do token renovar (em ms). Padrão: 60s.
     tokenRefreshBuffer: 60_000,
