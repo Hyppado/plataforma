@@ -24,6 +24,7 @@ export interface ShopCategory {
  */
 export interface CategoriesResponse {
   categories: ShopCategory[];
-  source: "echotik" | "mock";
+  source: "echotik" | "database" | "mock";
+  count: number;
   timestamp: string;
 }

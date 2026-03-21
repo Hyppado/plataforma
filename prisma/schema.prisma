@@ -445,3 +445,90 @@ model Setting {
 
   @@index([group])
 }
+
+// ---------------------------------------------------------------------------
+// ECHOTIK — Categorias & Video Trends (cron ingestão)
+// ---------------------------------------------------------------------------
+
+/// Categorias L1 do TikTok Shop sincronizadas via cron EchoTik
+model EchotikCategory {
+  id                String    @id @default(uuid())
+  externalId        String    @unique              // ID vindo da API EchoTik
+  name              String
+  language          String    @default("en")       // ex: "en", "pt"
+  level             Int       @default(1)           // nível na hierarquia (1 = raiz)
+  parentExternalId  String?                         // FK lógica para categoria pai
+  slug              String?
+  extra             Json?                           // campos adicionais da API
+  syncedAt          DateTime  @default(now())       // última vez que foi upserted
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([level])
+  @@index([language])
+}
+
+/// Snapshot diário de métricas de vídeos trending (TikTok Shop)
+model EchotikVideoTrendDaily {
+  id                String    @id @default(uuid())
+  date              DateTime  @db.Date              // dia do snapshot (sem hora)
+  videoExternalId   String                           // ID do vídeo na plataforma
+  title             String?
+  authorName        String?
+  authorExternalId  String?
+  views             BigInt    @default(0)
+  likes             BigInt    @default(0)
+  comments          BigInt    @default(0)
+  favorites         BigInt    @default(0)
+  shares            BigInt    @default(0)
+  saleCount         BigInt    @default(0)
+  gmv               BigInt    @default(0)            // em centavos / menor unidade
+  currency          String    @default("USD")
+  country           String    @default("US")
+  categoryId        String?                          // externalId da categoria
+  extra             Json?
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@unique([videoExternalId, date])
+  @@index([date])
+  @@index([categoryId, date])
+  @@index([views])
+}
+
+/// Payload bruto armazenado para reprodutibilidade / debug
+model EchotikRawResponse {
+  id            String    @id @default(uuid())
+  endpoint      String                              // ex: "/categories", "/videos/trending"
+  paramsJson    Json?                               // query-params utilizados
+  fetchedAt     DateTime  @default(now())
+  payloadJson   Json                                // corpo completo da resposta
+  payloadHash   String    @unique                   // SHA-256 do payload (dedup)
+  ingestionRunId String?
+
+  ingestionRun  IngestionRun? @relation(fields: [ingestionRunId], references: [id])
+
+  @@index([endpoint, fetchedAt])
+}
+
+/// Controle de execuções do cron de ingestão
+model IngestionRun {
+  id            String          @id @default(uuid())
+  source        String          @default("echotik")   // identifica a origem
+  startedAt     DateTime        @default(now())
+  endedAt       DateTime?
+  status        IngestionStatus @default(RUNNING)
+  statsJson     Json?                                  // { categoriesSynced, videosSynced, ... }
+  errorMessage  String?
+
+  rawResponses  EchotikRawResponse[]
+
+  @@index([source, startedAt])
+  @@index([status])
+}
+
+enum IngestionStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
