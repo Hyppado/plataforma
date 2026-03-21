@@ -40,13 +40,13 @@ export function CategoryFilter({
   // Build hierarchy once
   const { l1, l2ByParent, flatStrings } = useMemo(() => {
     if (!isCategoryObjects) {
-      return { l1: [], l2ByParent: {}, flatStrings: categories as string[] };
+      return { l1: [], l2ByParent: {} as Record<string, CategoryItem[]>, flatStrings: categories as string[] };
     }
     const cats = (categories as CategoryItem[]).filter((c) => c.id !== "all");
     const hasLevels = cats.some((c) => (c as Category).level != null);
 
     if (!hasLevels) {
-      return { l1: cats, l2ByParent: {}, flatStrings: [] };
+      return { l1: cats, l2ByParent: {} as Record<string, CategoryItem[]>, flatStrings: [] };
     }
 
     const l1Items = cats.filter((c) => (c as Category).level === 1);
