@@ -5,8 +5,8 @@
  * Chamado pelo seed e pela rota /api/admin/sync-hotmart.
  *
  * Endpoints Hotmart v2:
- *   GET /payment/api/v1/offers?productId={id}
- *   GET /payment/api/v1/coupons?productId={id}
+ *   GET /payments/api/v1/offers?productId={id}
+ *   GET /payments/api/v1/coupons?productId={id}
  */
 
 import { PrismaClient, PlanPeriod } from "@prisma/client";
@@ -96,7 +96,7 @@ export async function syncHotmartOffers(
   let data: HotmartOffersResponse;
   try {
     data = await hotmartRequest<HotmartOffersResponse>(
-      "/payment/api/v1/offers",
+      "/payments/api/v1/offers",
       { params: { productId } },
     );
   } catch (err) {
@@ -176,7 +176,7 @@ export async function syncHotmartCoupons(
   let data: HotmartCouponsResponse;
   try {
     data = await hotmartRequest<HotmartCouponsResponse>(
-      "/payment/api/v1/coupons",
+      "/payments/api/v1/coupons",
       { params: { productId } },
     );
   } catch (err) {

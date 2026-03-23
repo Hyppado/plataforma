@@ -2,11 +2,31 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Chip, Stack } from "@mui/material";
 import { CreatorTable } from "@/app/components/dashboard/DataTable";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import type { CreatorDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
+
+const REGION_FLAGS: Record<string, string> = {
+  US: "\uD83C\uDDFA\uD83C\uDDF8",
+  BR: "\uD83C\uDDE7\uD83C\uDDF7",
+  UK: "\uD83C\uDDEC\uD83C\uDDE7",
+  GB: "\uD83C\uDDEC\uD83C\uDDE7",
+  MX: "\uD83C\uDDF2\uD83C\uDDFD",
+  CA: "\uD83C\uDDE8\uD83C\uDDE6",
+  AU: "\uD83C\uDDE6\uD83C\uDDFA",
+  DE: "\uD83C\uDDE9\uD83C\uDDEA",
+  FR: "\uD83C\uDDEB\uD83C\uDDF7",
+  ES: "\uD83C\uDDEA\uD83C\uDDF8",
+  IT: "\uD83C\uDDEE\uD83C\uDDF9",
+  ID: "\uD83C\uDDEE\uD83C\uDDE9",
+  PH: "\uD83C\uDDF5\uD83C\uDDED",
+  TH: "\uD83C\uDDF9\uD83C\uDDED",
+  VN: "\uD83C\uDDFB\uD83C\uDDF3",
+  SG: "\uD83C\uDDF8\uD83C\uDDEC",
+  MY: "\uD83C\uDDF2\uD83C\uDDFE",
+};
 
 function CreatorsContent() {
   const router = useRouter();
@@ -15,50 +35,70 @@ function CreatorsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creators, setCreators] = useState<CreatorDTO[]>([]);
+  const [allCreators, setAllCreators] = useState<CreatorDTO[]>([]);
+  const [availableRegions, setAvailableRegions] = useState<string[]>(["US"]);
+  const [effectiveRankingCycle, setEffectiveRankingCycle] = useState<
+    1 | 2 | 3 | null
+  >(null);
 
-  // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
+  const regionFilter = (searchParams.get("region") || "US").toUpperCase();
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ range: timeRange, limit: "10" });
-      if (searchQuery) params.set("search", searchQuery);
-
-      const res = await fetch(`/api/trending/creators?${params}`);
-      const json = await res.json();
-
-      const items: CreatorDTO[] = json?.data?.items ?? [];
-      setCreators(items);
-
-      if (json?.data?.error) {
-        console.warn("Creators API returned error:", json.data.error);
-      }
-    } catch (err) {
-      console.error("Failed to fetch creators:", err);
-      setError("Erro ao carregar creators. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  }, [timeRange, searchQuery]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleTimeRangeChange = (range: TimeRange) => {
-    const params = new URLSearchParams();
-    params.set("range", range);
-    if (searchQuery) params.set("q", searchQuery);
-    router.push(`/app/creators?${params.toString()}`);
+  const requestedRankingCycle: 1 | 2 | 3 =
+    timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
+  const rankingCycleLabel: Record<1 | 2 | 3, string> = {
+    1: "di\u00e1rio",
+    2: "semanal",
+    3: "mensal",
   };
 
-  const handleSearchChange = (query: string) => {
+  const fetchData = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams({
+          range: timeRange,
+          limit: "50",
+          region: regionFilter,
+        });
+        if (searchQuery) params.set("search", searchQuery);
+        const res = await fetch(`/api/trending/creators?${params}`, { signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const items: CreatorDTO[] = json?.data?.items ?? [];
+        setAllCreators(items);
+        setCreators(items);
+        setEffectiveRankingCycle(
+          (json?.data?.effectiveRankingCycle as 1 | 2 | 3 | undefined) ?? null,
+        );
+        if (json?.data?.availableRegions?.length > 0) {
+          setAvailableRegions(json.data.availableRegions);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("Failed to fetch creators:", err);
+        setError("Erro ao carregar creators. Tente novamente.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [timeRange, searchQuery, regionFilter],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
+  }, [fetchData]);
+
+  const updateUrl = (overrides: Record<string, string>) => {
     const params = new URLSearchParams();
-    params.set("range", timeRange);
-    if (query) params.set("q", query);
+    params.set("range", overrides.range ?? timeRange);
+    params.set("region", overrides.region ?? regionFilter);
+    const q = overrides.q ?? searchQuery;
+    if (q) params.set("q", q);
     router.push(`/app/creators?${params.toString()}`);
   };
 
@@ -71,7 +111,6 @@ function CreatorsContent() {
         overflow: "hidden",
       }}
     >
-      {/* Fixed Header */}
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
           <Typography
@@ -84,7 +123,7 @@ function CreatorsContent() {
               lineHeight: 1.3,
             }}
           >
-            Creators
+            Creators em Alta
           </Typography>
           <Typography
             sx={{
@@ -93,22 +132,50 @@ function CreatorsContent() {
               lineHeight: 1.3,
             }}
           >
-            Top criadores no TikTok Shop — dados dos últimos 7 dias
+            {allCreators.length > 0
+              ? `${creators.length} creators \u2022 Top vendedores${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+              : "Top criadores no TikTok Shop"}
           </Typography>
         </Box>
         <DashboardHeader
           timeRange={timeRange}
-          onTimeRangeChange={handleTimeRangeChange}
+          onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
           searchQuery={searchQuery}
-          onSearchChange={handleSearchChange}
-          onRefresh={fetchData}
+          onSearchChange={(q: string) => updateUrl({ q })}
+          onRefresh={() => fetchData()}
           loading={loading}
         />
+        {availableRegions.length > 1 && (
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+            {availableRegions.map((r) => (
+              <Chip
+                key={r}
+                label={`${REGION_FLAGS[r] ?? ""} ${r}`}
+                size="small"
+                onClick={() => updateUrl({ region: r })}
+                variant={regionFilter === r ? "filled" : "outlined"}
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                  borderColor:
+                    regionFilter === r ? "#2DD4FF" : "rgba(255,255,255,0.2)",
+                  color:
+                    regionFilter === r ? "#0a0a0f" : "rgba(255,255,255,0.7)",
+                  background: regionFilter === r ? "#2DD4FF" : "transparent",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    background:
+                      regionFilter === r ? "#2DD4FF" : "rgba(45,212,255,0.08)",
+                  },
+                }}
+              />
+            ))}
+          </Stack>
+        )}
       </Box>
 
-      {/* Scrollable Content */}
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", mt: 2 }}>
-        {/* Error State */}
         {error && (
           <Box
             role="alert"
@@ -126,8 +193,6 @@ function CreatorsContent() {
             {error}
           </Box>
         )}
-
-        {/* Creators Table */}
         <CreatorTable
           creators={creators}
           loading={loading}

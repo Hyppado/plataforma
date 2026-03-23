@@ -38,8 +38,16 @@ const CATEGORIES_L2L3_INTERVAL_HOURS = 168;
 /** Vídeos trending mudam constantemente → 4×/dia */
 const VIDEO_TREND_INTERVAL_HOURS = 6;
 
+/** Produtos trending → 4×/dia */
+const PRODUCT_TREND_INTERVAL_HOURS = 6;
+
+/** Creators/influencers trending → 4×/dia */
+const CREATOR_TREND_INTERVAL_HOURS = 6;
+
 /** Quantas páginas buscar do ranklist (page_size max = 10) */
 const VIDEO_RANKLIST_PAGES = 5; // 5 × 10 = top 50 vídeos
+const PRODUCT_RANKLIST_PAGES = 5; // 5 × 10 = top 50 produtos
+const CREATOR_RANKLIST_PAGES = 5; // 5 × 10 = top 50 creators
 
 // ---------------------------------------------------------------------------
 // Tipos de resposta da API EchoTik v3
@@ -88,6 +96,56 @@ interface EchotikVideoRankItem {
   total_video_sale_gmv_amt: number;
   total_views_cnt: number;
   video_products: string; // JSON string: [product_id, ...]
+  [key: string]: unknown;
+}
+
+/** Item do product ranklist */
+interface EchotikProductRankItem {
+  product_id: string;
+  product_name: string;
+  category_id: string;
+  category_l2_id: string;
+  category_l3_id: string;
+  min_price: number;
+  max_price: number;
+  spu_avg_price: number;
+  product_commission_rate: number;
+  total_sale_cnt: number;
+  total_sale_gmv_amt: number;
+  total_ifl_cnt: number;
+  total_video_cnt: number;
+  total_live_cnt: number;
+  region: string;
+  [key: string]: unknown;
+}
+
+/** Item do influencer ranklist */
+interface EchotikInfluencerRankItem {
+  user_id: string;
+  unique_id: string;
+  nick_name: string;
+  avatar: string;
+  category: string;
+  ec_score: number;
+  total_followers_cnt: number;
+  total_followers_history_cnt: number;
+  total_sale_cnt: number;
+  total_sale_gmv_amt: number;
+  total_sale_history_cnt: number;
+  total_sale_gmv_history_amt: number;
+  total_digg_cnt: number;
+  total_digg_history_cnt: number;
+  total_product_cnt: number;
+  total_product_history_cnt: number;
+  total_video_cnt: number;
+  total_post_video_cnt: number;
+  total_live_cnt: number;
+  most_category_id: string;
+  most_category_l2_id: string;
+  most_category_l3_id: string;
+  product_category_list: string;
+  region: string;
+  sales_flag: number;
   [key: string]: unknown;
 }
 
@@ -534,6 +592,630 @@ async function syncVideoRanklist(runId: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// 2b. Enriquecer vídeos com detalhes dos produtos associados
+// Busca product/detail para product IDs referenciados nos vídeos.
+// Resultados ficam em cache (EchotikProductDetail) e são usados
+// pela API /api/trending/videos para popular o campo "product" do DTO.
+// ---------------------------------------------------------------------------
+
+/** Tamanho do batch de IDs por request ao product/detail */
+const PRODUCT_DETAIL_BATCH_SIZE = 5;
+
+/** Idade máxima (dias) antes de re-buscar detalhes do produto */
+const PRODUCT_DETAIL_MAX_AGE_DAYS = 7;
+
+interface EchotikProductDetailItem {
+  product_id: string;
+  product_name: string;
+  cover_url: string; // JSON string: [{ url, index }]
+  spu_avg_price: number;
+  min_price: number;
+  max_price: number;
+  product_rating: number;
+  product_commission_rate: number;
+  category_id: string;
+  region: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Extrai a primeira URL de imagem do campo cover_url da API.
+ * cover_url é um JSON string como:
+ * [{ "url":"https://...jpeg","index":4 }, ...]
+ */
+function extractFirstCoverUrl(
+  coverUrlField: string | null | undefined,
+): string | null {
+  if (!coverUrlField) return null;
+  try {
+    const arr = JSON.parse(coverUrlField);
+    if (Array.isArray(arr) && arr.length > 0) {
+      // Ordenar por index e retornar a primeira
+      const sorted = arr.sort(
+        (a: { index: number }, b: { index: number }) =>
+          (a.index ?? 0) - (b.index ?? 0),
+      );
+      return sorted[0]?.url ?? null;
+    }
+  } catch {
+    // Se não for JSON válido, pode ser URL direta
+    if (coverUrlField.startsWith("http")) return coverUrlField;
+  }
+  return null;
+}
+
+/**
+ * Upsert de detalhes de um produto no cache.
+ */
+async function upsertProductDetail(
+  item: EchotikProductDetailItem,
+): Promise<void> {
+  const coverUrl = extractFirstCoverUrl(item.cover_url);
+  const avgPriceCents = Math.round((item.spu_avg_price ?? 0) * 100);
+  const minPriceCents = Math.round((item.min_price ?? 0) * 100);
+  const maxPriceCents = Math.round((item.max_price ?? 0) * 100);
+
+  await prisma.echotikProductDetail.upsert({
+    where: { productExternalId: String(item.product_id) },
+    create: {
+      productExternalId: String(item.product_id),
+      productName: item.product_name || null,
+      coverUrl,
+      avgPrice: avgPriceCents,
+      minPrice: minPriceCents,
+      maxPrice: maxPriceCents,
+      rating: item.product_rating ?? 0,
+      commissionRate: item.product_commission_rate ?? 0,
+      categoryId: item.category_id || null,
+      region: item.region || null,
+      extra: item as any,
+    },
+    update: {
+      productName: item.product_name || undefined,
+      coverUrl: coverUrl ?? undefined,
+      avgPrice: avgPriceCents,
+      minPrice: minPriceCents,
+      maxPrice: maxPriceCents,
+      rating: item.product_rating ?? 0,
+      commissionRate: item.product_commission_rate ?? 0,
+      categoryId: item.category_id || undefined,
+      region: item.region || undefined,
+      extra: item as any,
+      fetchedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Busca detalhes dos produtos associados a vídeos recentes e salva em cache.
+ * Retorna o número de produtos enriquecidos/cacheados.
+ */
+async function syncVideoProductDetails(): Promise<number> {
+  // 1. Coletar product IDs únicos dos vídeos mais recentes
+  const recentVideos = await prisma.echotikVideoTrendDaily.findMany({
+    where: {
+      syncedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+    select: { extra: true },
+  });
+
+  const allProductIds = new Set<string>();
+  for (const video of recentVideos) {
+    const extra = video.extra as Record<string, unknown> | null;
+    if (!extra?.video_products) continue;
+
+    // video_products é um JSON string como "[1730657715722490842]"
+    // Os IDs excedem Number.MAX_SAFE_INTEGER, então usamos regex
+    // para extrair como strings ao invés de JSON.parse
+    const raw = String(extra.video_products);
+    const matches = raw.match(/\d{10,}/g); // IDs têm 16+ dígitos
+    if (matches) {
+      for (const pid of matches) {
+        allProductIds.add(pid);
+      }
+    }
+  }
+
+  if (allProductIds.size === 0) {
+    console.log(
+      "[echotik-cron] Nenhum product ID encontrado nos vídeos recentes",
+    );
+    return 0;
+  }
+
+  console.log(
+    `[echotik-cron] ${allProductIds.size} product IDs únicos encontrados nos vídeos`,
+  );
+
+  // 2. Filtrar os que já estão no cache e são recentes
+  const freshCutoff = new Date(
+    Date.now() - PRODUCT_DETAIL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const existingProducts = await prisma.echotikProductDetail.findMany({
+    where: {
+      productExternalId: { in: Array.from(allProductIds) },
+      fetchedAt: { gte: freshCutoff },
+    },
+    select: { productExternalId: true },
+  });
+
+  const cachedIds = new Set(existingProducts.map((p) => p.productExternalId));
+  const missingIds = Array.from(allProductIds).filter(
+    (id) => !cachedIds.has(id),
+  );
+
+  if (missingIds.length === 0) {
+    console.log("[echotik-cron] Todos os produtos de vídeos já estão em cache");
+    return 0;
+  }
+
+  console.log(
+    `[echotik-cron] Buscando detalhes de ${missingIds.length} produtos (${cachedIds.size} já em cache)`,
+  );
+
+  // 3. Buscar em batches via product/detail API
+  // Se um batch falhar (code=500), tenta IDs individualmente
+  let enriched = 0;
+  const failedIds: string[] = [];
+
+  for (let i = 0; i < missingIds.length; i += PRODUCT_DETAIL_BATCH_SIZE) {
+    const batch = missingIds.slice(i, i + PRODUCT_DETAIL_BATCH_SIZE);
+    const idsParam = batch.join(",");
+
+    try {
+      const body = await echotikRequest<
+        EchotikApiResponse<EchotikProductDetailItem>
+      >("/api/v3/echotik/product/detail", {
+        params: { product_ids: idsParam, language: "en-US" },
+      });
+
+      if (body.code !== 0 || !body.data) {
+        // Batch falhou, tentar individualmente depois
+        failedIds.push(...batch);
+        continue;
+      }
+
+      for (const item of body.data) {
+        await upsertProductDetail(item);
+        enriched++;
+      }
+    } catch (err) {
+      console.error(
+        `[echotik-cron] Erro ao buscar product/detail batch ${i / PRODUCT_DETAIL_BATCH_SIZE + 1}:`,
+        err,
+      );
+      failedIds.push(...batch);
+    }
+  }
+
+  // 4. Retry IDs que falharam em batch — tentar individualmente
+  if (failedIds.length > 0) {
+    console.log(
+      `[echotik-cron] Tentando ${failedIds.length} produtos individualmente...`,
+    );
+    let retried = 0;
+    for (const pid of failedIds) {
+      try {
+        const body = await echotikRequest<
+          EchotikApiResponse<EchotikProductDetailItem>
+        >("/api/v3/echotik/product/detail", {
+          params: { product_ids: pid, language: "en-US" },
+        });
+
+        if (body.code === 0 && body.data && body.data.length > 0) {
+          await upsertProductDetail(body.data[0]);
+          enriched++;
+          retried++;
+        }
+      } catch {
+        // ID inválido ou não encontrado — silenciar
+      }
+
+      // Limitar retries para não consumir muitas requests
+      if (retried >= 50) {
+        console.log("[echotik-cron] Limite de retries atingido (50)");
+        break;
+      }
+    }
+    console.log(
+      `[echotik-cron] Retries individuais: ${retried} produtos recuperados`,
+    );
+  }
+
+  console.log(
+    `[echotik-cron] Detalhes de ${enriched} produtos cacheados com sucesso`,
+  );
+  return enriched;
+}
+
+// ---------------------------------------------------------------------------
+// 3. Sincronizar Product Ranklist — TikTok Shop
+// product_rank_field=1 retorna produtos ordenados por vendas.
+// ---------------------------------------------------------------------------
+
+async function syncProductRanklistForRegion(
+  runId: string,
+  region: string,
+  rankingCycle: 1 | 2 | 3,
+): Promise<number> {
+  const endpoint = "/api/v3/echotik/product/ranklist";
+
+  let datesToTry: Date[];
+  const yesterday = yesterdayDate();
+
+  if (rankingCycle === 1) {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    twoDaysAgo.setUTCHours(0, 0, 0, 0);
+    datesToTry = [yesterday, twoDaysAgo];
+  } else if (rankingCycle === 2) {
+    const thisMonday = getMondayOf(yesterday);
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setUTCDate(thisMonday.getUTCDate() - 7);
+    datesToTry = [thisMonday, lastMonday, yesterday];
+  } else {
+    const thisMonth = getFirstOfMonth(yesterday);
+    const lastMonth = new Date(thisMonth);
+    lastMonth.setUTCMonth(thisMonth.getUTCMonth() - 1);
+    datesToTry = [thisMonth, lastMonth, yesterday];
+  }
+
+  let synced = 0;
+  let effectiveDate: Date | null = null;
+
+  for (const candidateDate of datesToTry) {
+    const checkParams = {
+      date: formatDate(candidateDate),
+      region,
+      product_rank_field: 1, // 1=vendas
+      rank_type: rankingCycle,
+      page_num: 1,
+      page_size: 1,
+      language: "en-US",
+    };
+    const check = await echotikRequest<
+      EchotikApiResponse<EchotikProductRankItem>
+    >(endpoint, { params: checkParams });
+    if (check.code === 0 && check.data && check.data.length > 0) {
+      effectiveDate = candidateDate;
+      console.log(
+        `[echotik-cron] Produtos: dados encontrados para ${formatDate(candidateDate)}`,
+      );
+      break;
+    }
+  }
+
+  if (!effectiveDate) {
+    console.warn("[echotik-cron] Nenhuma data com dados de produto disponível");
+    return 0;
+  }
+
+  const dateStr = formatDate(effectiveDate);
+  const date = effectiveDate;
+
+  for (let page = 1; page <= PRODUCT_RANKLIST_PAGES; page++) {
+    const params = {
+      date: dateStr,
+      region,
+      product_rank_field: 1,
+      rank_type: rankingCycle,
+      page_num: page,
+      page_size: 10,
+      language: "en-US",
+    };
+
+    let body: EchotikApiResponse<EchotikProductRankItem>;
+    try {
+      body = await echotikRequest<EchotikApiResponse<EchotikProductRankItem>>(
+        endpoint,
+        { params },
+      );
+    } catch (err) {
+      console.error(
+        `[echotik-cron] Erro ao buscar product ranklist (página ${page}):`,
+        err,
+      );
+      throw err;
+    }
+
+    if (body.code !== 0) {
+      throw new Error(
+        `[echotik-cron] Product API retornou erro: ${body.code} — ${body.message}`,
+      );
+    }
+
+    await saveRawResponse(endpoint, params, body, runId);
+
+    const items = body.data ?? [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const productExternalId = item.product_id;
+      if (!productExternalId) continue;
+
+      const gmvCents = Math.round((item.total_sale_gmv_amt ?? 0) * 100);
+
+      await prisma.echotikProductTrendDaily.upsert({
+        where: {
+          productExternalId_date_country_rankingCycle: {
+            productExternalId,
+            date,
+            country: region,
+            rankingCycle,
+          },
+        },
+        create: {
+          date,
+          rankingCycle,
+          productExternalId,
+          productName: item.product_name || null,
+          categoryId: item.category_id || null,
+          categoryL2Id: item.category_l2_id || null,
+          categoryL3Id: item.category_l3_id || null,
+          minPrice: item.min_price ?? 0,
+          maxPrice: item.max_price ?? 0,
+          avgPrice: item.spu_avg_price ?? 0,
+          commissionRate: item.product_commission_rate ?? 0,
+          saleCount: BigInt(item.total_sale_cnt ?? 0),
+          gmv: BigInt(gmvCents),
+          influencerCount: BigInt(item.total_ifl_cnt ?? 0),
+          videoCount: BigInt(item.total_video_cnt ?? 0),
+          liveCount: BigInt(item.total_live_cnt ?? 0),
+          currency: REGION_CURRENCY[region] ?? "USD",
+          country: region,
+          extra: item as any,
+        },
+        update: {
+          productName: item.product_name || undefined,
+          categoryId: item.category_id || undefined,
+          categoryL2Id: item.category_l2_id || undefined,
+          categoryL3Id: item.category_l3_id || undefined,
+          minPrice: item.min_price ?? 0,
+          maxPrice: item.max_price ?? 0,
+          avgPrice: item.spu_avg_price ?? 0,
+          commissionRate: item.product_commission_rate ?? 0,
+          saleCount: BigInt(item.total_sale_cnt ?? 0),
+          gmv: BigInt(gmvCents),
+          influencerCount: BigInt(item.total_ifl_cnt ?? 0),
+          videoCount: BigInt(item.total_video_cnt ?? 0),
+          liveCount: BigInt(item.total_live_cnt ?? 0),
+          currency: REGION_CURRENCY[region] ?? "USD",
+          country: region,
+          extra: item as any,
+          syncedAt: new Date(),
+        },
+      });
+      synced++;
+    }
+  }
+
+  console.log(
+    `[echotik-cron] [${region}] [cycle=${rankingCycle}] Produtos ranklist sincronizados: ${synced}`,
+  );
+  return synced;
+}
+
+async function syncProductRanklist(runId: string): Promise<number> {
+  const regions = getConfiguredRegions();
+  console.log(
+    `[echotik-cron] Sincronizando produtos para regiões: ${regions.join(", ")}`,
+  );
+  const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
+  let total = 0;
+  for (const region of regions) {
+    for (const rankingCycle of rankingCycles) {
+      const count = await syncProductRanklistForRegion(
+        runId,
+        region,
+        rankingCycle,
+      );
+      total += count;
+    }
+  }
+  return total;
+}
+
+// ---------------------------------------------------------------------------
+// 4. Sincronizar Influencer/Creator Ranklist — TikTok Shop
+// influencer_rank_field=2 retorna influencers ordenados por vendas.
+// ---------------------------------------------------------------------------
+
+async function syncCreatorRanklistForRegion(
+  runId: string,
+  region: string,
+  rankingCycle: 1 | 2 | 3,
+): Promise<number> {
+  const endpoint = "/api/v3/echotik/influencer/ranklist";
+
+  let datesToTry: Date[];
+  const yesterday = yesterdayDate();
+
+  if (rankingCycle === 1) {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    twoDaysAgo.setUTCHours(0, 0, 0, 0);
+    datesToTry = [yesterday, twoDaysAgo];
+  } else if (rankingCycle === 2) {
+    const thisMonday = getMondayOf(yesterday);
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setUTCDate(thisMonday.getUTCDate() - 7);
+    datesToTry = [thisMonday, lastMonday, yesterday];
+  } else {
+    const thisMonth = getFirstOfMonth(yesterday);
+    const lastMonth = new Date(thisMonth);
+    lastMonth.setUTCMonth(thisMonth.getUTCMonth() - 1);
+    datesToTry = [thisMonth, lastMonth, yesterday];
+  }
+
+  let synced = 0;
+  let effectiveDate: Date | null = null;
+
+  for (const candidateDate of datesToTry) {
+    const checkParams = {
+      date: formatDate(candidateDate),
+      region,
+      influencer_rank_field: 2, // 2=vendas
+      rank_type: rankingCycle,
+      page_num: 1,
+      page_size: 1,
+      language: "en-US",
+    };
+    const check = await echotikRequest<
+      EchotikApiResponse<EchotikInfluencerRankItem>
+    >(endpoint, { params: checkParams });
+    if (check.code === 0 && check.data && check.data.length > 0) {
+      effectiveDate = candidateDate;
+      console.log(
+        `[echotik-cron] Creators: dados encontrados para ${formatDate(candidateDate)}`,
+      );
+      break;
+    }
+  }
+
+  if (!effectiveDate) {
+    console.warn("[echotik-cron] Nenhuma data com dados de creator disponível");
+    return 0;
+  }
+
+  const dateStr = formatDate(effectiveDate);
+  const date = effectiveDate;
+
+  for (let page = 1; page <= CREATOR_RANKLIST_PAGES; page++) {
+    const params = {
+      date: dateStr,
+      region,
+      influencer_rank_field: 2,
+      rank_type: rankingCycle,
+      page_num: page,
+      page_size: 10,
+      language: "en-US",
+    };
+
+    let body: EchotikApiResponse<EchotikInfluencerRankItem>;
+    try {
+      body = await echotikRequest<
+        EchotikApiResponse<EchotikInfluencerRankItem>
+      >(endpoint, { params });
+    } catch (err) {
+      console.error(
+        `[echotik-cron] Erro ao buscar creator ranklist (página ${page}):`,
+        err,
+      );
+      throw err;
+    }
+
+    if (body.code !== 0) {
+      throw new Error(
+        `[echotik-cron] Creator API retornou erro: ${body.code} — ${body.message}`,
+      );
+    }
+
+    await saveRawResponse(endpoint, params, body, runId);
+
+    const items = body.data ?? [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const userExternalId = item.user_id;
+      if (!userExternalId) continue;
+
+      const gmvCents = Math.round((item.total_sale_gmv_amt ?? 0) * 100);
+
+      await prisma.echotikCreatorTrendDaily.upsert({
+        where: {
+          userExternalId_date_country_rankingCycle: {
+            userExternalId,
+            date,
+            country: region,
+            rankingCycle,
+          },
+        },
+        create: {
+          date,
+          rankingCycle,
+          userExternalId,
+          uniqueId: item.unique_id || null,
+          nickName: item.nick_name || null,
+          avatar: item.avatar || null,
+          category: item.category || null,
+          ecScore: item.ec_score ?? 0,
+          followersCount: BigInt(
+            item.total_followers_cnt || item.total_followers_history_cnt || 0,
+          ),
+          saleCount: BigInt(item.total_sale_cnt ?? 0),
+          gmv: BigInt(gmvCents),
+          diggCount: BigInt(
+            item.total_digg_cnt || item.total_digg_history_cnt || 0,
+          ),
+          productCount: BigInt(
+            item.total_product_cnt || item.total_product_history_cnt || 0,
+          ),
+          videoCount: BigInt(
+            item.total_video_cnt || item.total_post_video_cnt || 0,
+          ),
+          liveCount: BigInt(item.total_live_cnt ?? 0),
+          mostCategoryId: item.most_category_id || null,
+          currency: REGION_CURRENCY[region] ?? "USD",
+          country: region,
+          extra: item as any,
+        },
+        update: {
+          uniqueId: item.unique_id || undefined,
+          nickName: item.nick_name || undefined,
+          avatar: item.avatar || undefined,
+          category: item.category || undefined,
+          ecScore: item.ec_score ?? 0,
+          followersCount: BigInt(
+            item.total_followers_cnt || item.total_followers_history_cnt || 0,
+          ),
+          saleCount: BigInt(item.total_sale_cnt ?? 0),
+          gmv: BigInt(gmvCents),
+          diggCount: BigInt(
+            item.total_digg_cnt || item.total_digg_history_cnt || 0,
+          ),
+          productCount: BigInt(
+            item.total_product_cnt || item.total_product_history_cnt || 0,
+          ),
+          videoCount: BigInt(
+            item.total_video_cnt || item.total_post_video_cnt || 0,
+          ),
+          liveCount: BigInt(item.total_live_cnt ?? 0),
+          mostCategoryId: item.most_category_id || undefined,
+          currency: REGION_CURRENCY[region] ?? "USD",
+          country: region,
+          extra: item as any,
+          syncedAt: new Date(),
+        },
+      });
+      synced++;
+    }
+  }
+
+  console.log(
+    `[echotik-cron] [${region}] [cycle=${rankingCycle}] Creators ranklist sincronizados: ${synced}`,
+  );
+  return synced;
+}
+
+async function syncCreatorRanklist(runId: string): Promise<number> {
+  const regions = getConfiguredRegions();
+  console.log(
+    `[echotik-cron] Sincronizando creators para regiões: ${regions.join(", ")}`,
+  );
+  const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
+  let total = 0;
+  for (const region of regions) {
+    for (const rankingCycle of rankingCycles) {
+      const count = await syncCreatorRanklistForRegion(
+        runId,
+        region,
+        rankingCycle,
+      );
+      total += count;
+    }
+  }
+  return total;
+}
+
+// ---------------------------------------------------------------------------
 // Orquestrador principal
 // ---------------------------------------------------------------------------
 
@@ -543,8 +1225,13 @@ export interface CronResult {
   stats: {
     categoriesSynced: number;
     videosSynced: number;
+    productsSynced: number;
+    creatorsSynced: number;
+    productDetailsEnriched: number;
     categoriesSkipped: boolean;
     videosSkipped: boolean;
+    productsSkipped: boolean;
+    creatorsSkipped: boolean;
     durationMs: number;
   };
   error?: string;
@@ -573,18 +1260,63 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
     (await shouldSkip("echotik:categories", CATEGORIES_INTERVAL_HOURS));
   const skipVideos =
     !force && (await shouldSkip("echotik:videos", VIDEO_TREND_INTERVAL_HOURS));
+  const skipProducts =
+    !force &&
+    (await shouldSkip("echotik:products", PRODUCT_TREND_INTERVAL_HOURS));
+  const skipCreators =
+    !force &&
+    (await shouldSkip("echotik:creators", CREATOR_TREND_INTERVAL_HOURS));
 
-  // Se tudo está em dia, retornar SKIPPED sem criar run
-  if (skipCategories && skipVideos) {
-    console.log("[echotik-cron] Tudo em dia, nada a sincronizar");
+  // Se tudo está em dia, verificar se há detalhes de produtos pendentes
+  if (skipCategories && skipVideos && skipProducts && skipCreators) {
+    // Mesmo com tudo em dia, tentar enriquecer detalhes de produtos
+    let productDetailsEnriched = 0;
+    try {
+      productDetailsEnriched = await syncVideoProductDetails();
+    } catch (err) {
+      console.error(
+        "[echotik-cron] Erro ao enriquecer detalhes (skip path):",
+        err,
+      );
+    }
+
+    if (productDetailsEnriched === 0) {
+      console.log("[echotik-cron] Tudo em dia, nada a sincronizar");
+      return {
+        runId: "",
+        status: "SKIPPED",
+        stats: {
+          categoriesSynced: 0,
+          videosSynced: 0,
+          productsSynced: 0,
+          creatorsSynced: 0,
+          productDetailsEnriched: 0,
+          categoriesSkipped: true,
+          videosSkipped: true,
+          productsSkipped: true,
+          creatorsSkipped: true,
+          durationMs: Date.now() - start,
+        },
+      };
+    }
+
+    // Se enriqueceu produtos, retornar SUCCESS
+    console.log(
+      `[echotik-cron] Detalhes de ${productDetailsEnriched} produtos enriquecidos (tasks skipped)`,
+    );
     return {
       runId: "",
-      status: "SKIPPED",
+      status: "SUCCESS",
       stats: {
         categoriesSynced: 0,
         videosSynced: 0,
+        productsSynced: 0,
+        creatorsSynced: 0,
+        productDetailsEnriched,
         categoriesSkipped: true,
         videosSkipped: true,
+        productsSkipped: true,
+        creatorsSkipped: true,
         durationMs: Date.now() - start,
       },
     };
@@ -597,12 +1329,14 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
 
   let categoriesSynced = 0;
   let videosSynced = 0;
+  let productsSynced = 0;
+  let creatorsSynced = 0;
+  let productDetailsEnriched = 0;
 
   try {
     // 1. Categorias (L1 diário, L2/L3 semanal)
     if (!skipCategories) {
       categoriesSynced = await syncAllCategories(run.id);
-      // Registrar sucesso específico para controle de intervalo
       await prisma.ingestionRun.create({
         data: {
           source: "echotik:categories",
@@ -630,13 +1364,64 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
       console.log("[echotik-cron] Vídeos: skip (já sincronizado recentemente)");
     }
 
+    // 2b. Enriquecer vídeos com detalhes dos produtos associados
+    // Roda sempre (tem cache próprio), não depende de video sync
+    try {
+      productDetailsEnriched = await syncVideoProductDetails();
+      console.log(
+        `[echotik-cron] Detalhes de produtos: ${productDetailsEnriched} enriquecidos`,
+      );
+    } catch (err) {
+      console.error(
+        "[echotik-cron] Erro ao enriquecer detalhes de produtos (não-fatal):",
+        err,
+      );
+    }
+
+    // 3. Product ranklist
+    if (!skipProducts) {
+      productsSynced = await syncProductRanklist(run.id);
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:products",
+          status: "SUCCESS",
+          endedAt: new Date(),
+        },
+      });
+    } else {
+      console.log(
+        "[echotik-cron] Produtos: skip (já sincronizado recentemente)",
+      );
+    }
+
+    // 4. Creator/Influencer ranklist
+    if (!skipCreators) {
+      creatorsSynced = await syncCreatorRanklist(run.id);
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:creators",
+          status: "SUCCESS",
+          endedAt: new Date(),
+        },
+      });
+    } else {
+      console.log(
+        "[echotik-cron] Creators: skip (já sincronizado recentemente)",
+      );
+    }
+
     // Finalizar com sucesso
     const durationMs = Date.now() - start;
     const stats = {
       categoriesSynced,
       videosSynced,
+      productsSynced,
+      creatorsSynced,
+      productDetailsEnriched,
       categoriesSkipped: skipCategories,
       videosSkipped: skipVideos,
+      productsSkipped: skipProducts,
+      creatorsSkipped: skipCreators,
       durationMs,
     };
 
@@ -652,7 +1437,10 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
     console.log(
       `[echotik-cron] Concluído em ${durationMs}ms — ` +
         `categorias: ${skipCategories ? "skip" : categoriesSynced}, ` +
-        `vídeos: ${skipVideos ? "skip" : videosSynced}`,
+        `vídeos: ${skipVideos ? "skip" : videosSynced}, ` +
+        `produtos: ${skipProducts ? "skip" : productsSynced}, ` +
+        `creators: ${skipCreators ? "skip" : creatorsSynced}, ` +
+        `detalhes: ${productDetailsEnriched}`,
     );
 
     return { runId: run.id, status: "SUCCESS", stats };
@@ -663,8 +1451,13 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
     const stats = {
       categoriesSynced,
       videosSynced,
+      productsSynced,
+      creatorsSynced,
+      productDetailsEnriched,
       categoriesSkipped: skipCategories,
       videosSkipped: skipVideos,
+      productsSkipped: skipProducts,
+      creatorsSkipped: skipCreators,
       durationMs,
     };
 

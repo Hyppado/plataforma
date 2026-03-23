@@ -45,11 +45,10 @@ export function getHotmartConfig() {
     tokenUrl: "https://api-sec-vlc.hotmart.com/security/oauth/token",
 
     // Base URL da Hotmart REST API
-    // Sandbox: https://sandbox.hotmart.com
+    // Sandbox: https://developers.hotmart.com (mesmo host que produção)
+    // sandbox.hotmart.com não resolve — a diferenciação sandbox/prod é feita pelo token
     // Produção: https://developers.hotmart.com
-    apiBaseUrl: sandbox
-      ? "https://sandbox.hotmart.com"
-      : "https://developers.hotmart.com",
+    apiBaseUrl: "https://developers.hotmart.com",
 
     // Quanto antes do vencimento do token renovar (em ms). Padrão: 60s.
     tokenRefreshBuffer: 60_000,

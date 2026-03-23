@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
+  Grid,
+  Chip,
+  Stack,
+} from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { ProductCard } from "@/app/components/cards/ProductCard";
 import type { ProductDTO } from "@/lib/types/dto";
@@ -16,6 +24,26 @@ import {
   type Category,
 } from "@/lib/categories";
 
+const REGION_FLAGS: Record<string, string> = {
+  US: "\uD83C\uDDFA\uD83C\uDDF8",
+  BR: "\uD83C\uDDE7\uD83C\uDDF7",
+  UK: "\uD83C\uDDEC\uD83C\uDDE7",
+  GB: "\uD83C\uDDEC\uD83C\uDDE7",
+  MX: "\uD83C\uDDF2\uD83C\uDDFD",
+  CA: "\uD83C\uDDE8\uD83C\uDDE6",
+  AU: "\uD83C\uDDE6\uD83C\uDDFA",
+  DE: "\uD83C\uDDE9\uD83C\uDDEA",
+  FR: "\uD83C\uDDEB\uD83C\uDDF7",
+  ES: "\uD83C\uDDEA\uD83C\uDDF8",
+  IT: "\uD83C\uDDEE\uD83C\uDDF9",
+  ID: "\uD83C\uDDEE\uD83C\uDDE9",
+  PH: "\uD83C\uDDF5\uD83C\uDDED",
+  TH: "\uD83C\uDDF9\uD83C\uDDED",
+  VN: "\uD83C\uDDFB\uD83C\uDDF3",
+  SG: "\uD83C\uDDF8\uD83C\uDDEC",
+  MY: "\uD83C\uDDF2\uD83C\uDDFE",
+};
+
 function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,30 +55,37 @@ function ProductsContent() {
   const [allProducts, setAllProducts] = useState<ProductDTO[]>([]);
   const [page, setPage] = useState(1);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [availableRegions, setAvailableRegions] = useState<string[]>(["US"]);
+  const [effectiveRankingCycle, setEffectiveRankingCycle] = useState<
+    1 | 2 | 3 | null
+  >(null);
 
-  // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
-  const pageSize = 24; // Carregar 24 por vez
+  const regionFilter = (searchParams.get("region") || "US").toUpperCase();
+  const pageSize = 24;
 
-  // Load categories on mount
+  const requestedRankingCycle: 1 | 2 | 3 =
+    timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
+  const rankingCycleLabel: Record<1 | 2 | 3, string> = {
+    1: "di\u00e1rio",
+    2: "semanal",
+    3: "mensal",
+  };
+
   useEffect(() => {
     fetchCategories().then(setCategories);
   }, []);
 
-  // Helper to get/assign category ID for a product
   const getProductCategoryId = useCallback(
     (product: ProductDTO): string => {
-      // Use existing category if available
       if (product.category) return product.category;
-      // Otherwise, assign deterministically
       return pickCategoryByHash(product.id, categories);
     },
     [categories],
   );
 
-  // Filter products by category
   const filterByCategory = useCallback(
     (items: ProductDTO[]): ProductDTO[] => {
       if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
@@ -61,51 +96,58 @@ function ProductsContent() {
     [categoryFilter, categories, getProductCategoryId],
   );
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setPage(1);
-
-    try {
-      // Fetch sem limit hardcoded - backend retorna o que tiver
-      const params = new URLSearchParams({ range: timeRange });
-      if (searchQuery) params.set("search", searchQuery);
-
-      const res = await fetch(`/api/trending/products?${params}`);
-      const json = await res.json();
-
-      const items: ProductDTO[] = json?.data?.items ?? [];
-      setAllProducts(items);
-
-      // Apply category filter
-      const filtered = filterByCategory(items);
-      setProducts(filtered.slice(0, pageSize));
-
-      if (json?.data?.error) {
-        console.warn("Products API returned error:", json.data.error);
+  const fetchData = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      setPage(1);
+      try {
+        const params = new URLSearchParams({
+          range: timeRange,
+          region: regionFilter,
+        });
+        if (searchQuery) params.set("search", searchQuery);
+        const res = await fetch(`/api/trending/products?${params}`, { signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const items: ProductDTO[] = json?.data?.items ?? [];
+        setAllProducts(items);
+        setEffectiveRankingCycle(
+          (json?.data?.effectiveRankingCycle as 1 | 2 | 3 | undefined) ?? null,
+        );
+        if (json?.data?.availableRegions?.length > 0) {
+          setAvailableRegions(json.data.availableRegions);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("Failed to fetch products:", err);
+        setError("Erro ao carregar produtos. Tente novamente.");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch products:", err);
-      setError("Erro ao carregar produtos. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  }, [timeRange, searchQuery, filterByCategory, pageSize]);
+    },
+    [timeRange, searchQuery, regionFilter],
+  );
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData]);
+
+  useEffect(() => {
+    const filtered = filterByCategory(allProducts);
+    setProducts(filtered.slice(0, pageSize));
+    setPage(1);
+  }, [allProducts, filterByCategory, pageSize]);
 
   const handleLoadMore = () => {
     setLoadingMore(true);
     const nextPage = page + 1;
     const start = nextPage * pageSize;
     const end = start + pageSize;
-
-    // Apply category filter for load more
     const filtered = filterByCategory(allProducts);
     const moreProducts = filtered.slice(start, end);
-
     setTimeout(() => {
       setProducts((prev) => [...prev, ...moreProducts]);
       setPage(nextPage);
@@ -113,40 +155,24 @@ function ProductsContent() {
     }, 300);
   };
 
-  const handleTimeRangeChange = (range: TimeRange) => {
+  const updateUrl = (overrides: Record<string, string>) => {
     const params = new URLSearchParams();
-    params.set("range", range);
-    if (searchQuery) params.set("q", searchQuery);
-    if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/products?${params.toString()}`);
-  };
-
-  const handleSearchChange = (query: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    if (query) params.set("q", query);
-    if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/products?${params.toString()}`);
-  };
-
-  const handleCategoryChange = (category: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    if (searchQuery) params.set("q", searchQuery);
-    if (category) params.set("category", category);
+    params.set("range", overrides.range ?? timeRange);
+    params.set("region", overrides.region ?? regionFilter);
+    const q = overrides.q ?? searchQuery;
+    if (q) params.set("q", q);
+    const cat = overrides.category ?? categoryFilter;
+    if (cat) params.set("category", cat);
     router.push(`/app/products?${params.toString()}`);
   };
 
   const handleViewDetails = (product: ProductDTO) => {
     console.log("View details for", product.id);
-    // TODO: Implementar modal de detalhes
   };
 
-  // Calculate hasMore based on filtered data
   const filteredTotal = filterByCategory(allProducts).length;
   const hasMore = products.length < filteredTotal;
 
-  // Get category name for display
   const getCategoryName = () => {
     if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return "";
     const cat = categories.find(
@@ -164,7 +190,6 @@ function ProductsContent() {
         overflow: "hidden",
       }}
     >
-      {/* Fixed Header */}
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
           <Typography
@@ -187,26 +212,52 @@ function ProductsContent() {
             }}
           >
             {allProducts.length > 0
-              ? `${filteredTotal} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${products.length}`
+              ? `${filteredTotal} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} \u2022 Mostrando ${products.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
               : "Explorando os produtos mais vendidos"}
           </Typography>
         </Box>
         <DashboardHeader
           timeRange={timeRange}
-          onTimeRangeChange={handleTimeRangeChange}
+          onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
           searchQuery={searchQuery}
-          onSearchChange={handleSearchChange}
-          onRefresh={fetchData}
+          onSearchChange={(q: string) => updateUrl({ q })}
+          onRefresh={() => fetchData()}
           loading={loading}
           category={categoryFilter}
-          onCategoryChange={handleCategoryChange}
+          onCategoryChange={(c: string) => updateUrl({ category: c })}
           categories={categories}
         />
+        {availableRegions.length > 1 && (
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+            {availableRegions.map((r) => (
+              <Chip
+                key={r}
+                label={`${REGION_FLAGS[r] ?? ""} ${r}`}
+                size="small"
+                onClick={() => updateUrl({ region: r })}
+                variant={regionFilter === r ? "filled" : "outlined"}
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                  borderColor:
+                    regionFilter === r ? "#2DD4FF" : "rgba(255,255,255,0.2)",
+                  color:
+                    regionFilter === r ? "#0a0a0f" : "rgba(255,255,255,0.7)",
+                  background: regionFilter === r ? "#2DD4FF" : "transparent",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    background:
+                      regionFilter === r ? "#2DD4FF" : "rgba(45,212,255,0.08)",
+                  },
+                }}
+              />
+            ))}
+          </Stack>
+        )}
       </Box>
 
-      {/* Scrollable Content */}
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", mt: 2 }}>
-        {/* Error State */}
         {error && (
           <Box
             role="alert"
@@ -225,7 +276,6 @@ function ProductsContent() {
           </Box>
         )}
 
-        {/* Product Grid */}
         <Grid container spacing={{ xs: 2, md: 2.5 }}>
           {products.map((product) => (
             <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
@@ -235,8 +285,6 @@ function ProductsContent() {
               />
             </Grid>
           ))}
-
-          {/* Loading skeletons */}
           {loading &&
             Array.from({ length: 12 }).map((_, idx) => (
               <Grid item xs={6} sm={6} md={4} lg={2.4} key={`skeleton-${idx}`}>
@@ -245,7 +293,6 @@ function ProductsContent() {
             ))}
         </Grid>
 
-        {/* Load More Button */}
         {!loading && hasMore && products.length > 0 && (
           <Box
             sx={{
@@ -284,7 +331,6 @@ function ProductsContent() {
           </Box>
         )}
 
-        {/* Empty State */}
         {!loading && products.length === 0 && (
           <Box
             sx={{

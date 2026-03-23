@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { VideoDTO } from "@/lib/types/dto";
+import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Extrai product IDs do campo extra.video_products de um vídeo.
+ * Os IDs (ex: 1730657715722490842) excedem Number.MAX_SAFE_INTEGER,
+ * então usamos regex ao invés de JSON.parse para evitar perda de precisão.
+ */
+function extractProductIds(extra: Record<string, unknown> | null): string[] {
+  if (!extra?.video_products) return [];
+  const raw = String(extra.video_products);
+  const matches = raw.match(/\d{10,}/g);
+  return matches ?? [];
+}
 
 /**
  * GET /api/trending/videos
  *
  * DB-first: reads from EchotikVideoTrendDaily.
+ * Enriches each video with product data from EchotikProductDetail cache.
  * Returns empty array when DB is empty (cron hasn't run yet).
  */
 export async function GET(request: NextRequest) {
@@ -79,8 +92,83 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
+    // Collect all product IDs from video extras for batch lookup
+    const productIdSet = new Set<string>();
+    for (const r of rows) {
+      const extra = r.extra as Record<string, unknown> | null;
+      for (const pid of extractProductIds(extra)) {
+        productIdSet.add(pid);
+      }
+    }
+
+    // Batch fetch product details from cache
+    const productMap = new Map<
+      string,
+      {
+        productExternalId: string;
+        productName: string | null;
+        coverUrl: string | null;
+        avgPrice: unknown;
+        minPrice: unknown;
+        commissionRate: unknown;
+        rating: unknown;
+        categoryId: string | null;
+      }
+    >();
+
+    if (productIdSet.size > 0) {
+      const productDetails = await prisma.echotikProductDetail.findMany({
+        where: { productExternalId: { in: Array.from(productIdSet) } },
+        select: {
+          productExternalId: true,
+          productName: true,
+          coverUrl: true,
+          avgPrice: true,
+          minPrice: true,
+          commissionRate: true,
+          rating: true,
+          categoryId: true,
+        },
+      });
+      for (const pd of productDetails) {
+        productMap.set(pd.productExternalId, pd);
+      }
+    }
+
     const items: VideoDTO[] = rows.map((r) => {
       const extra = r.extra as Record<string, unknown> | null;
+
+      // Build product DTO from cache if available
+      const videoProductIds = extractProductIds(extra);
+      let product: ProductDTO | undefined;
+      if (videoProductIds.length > 0) {
+        const pd = productMap.get(videoProductIds[0]);
+        if (pd) {
+          const price = Number(pd.avgPrice ?? pd.minPrice ?? 0) / 100;
+          product = {
+            id: pd.productExternalId,
+            name: pd.productName || "Produto",
+            imageUrl: pd.coverUrl || "",
+            category: pd.categoryId || "",
+            priceBRL: price,
+            launchDate: "",
+            rating: Number(pd.rating ?? 0),
+            sales: 0,
+            avgPriceBRL: price,
+            commissionRate: Number(pd.commissionRate ?? 0),
+            revenueBRL: 0,
+            liveRevenueBRL: 0,
+            videoRevenueBRL: 0,
+            mallRevenueBRL: 0,
+            creatorCount: 0,
+            creatorConversionRate: 0,
+            sourceUrl: "",
+            tiktokUrl: "",
+            dateRange: range,
+          };
+        }
+      }
+
       return {
         id: r.videoExternalId,
         title: r.title || "",
@@ -101,6 +189,7 @@ export async function GET(request: NextRequest) {
         thumbnailUrl: `/api/proxy/image?videoId=${r.videoExternalId}`,
         dateRange: range,
         categoryId: r.categoryId ?? undefined,
+        product,
       };
     });
 
