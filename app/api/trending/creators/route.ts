@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { CreatorDTO } from "@/lib/types/dto";
 
+const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
+
+/** Wraps echosell-images URLs through the image proxy */
+function proxyIfEchotikCdn(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    if (new URL(url).hostname === ECHOTIK_CDN) {
+      return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+    }
+  } catch {}
+  return url;
+}
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -96,7 +109,7 @@ export async function GET(request: NextRequest) {
         sourceUrl: `https://echotik.live/influencer/${r.uniqueId || r.userExternalId}`,
         tiktokUrl: r.uniqueId ? `https://www.tiktok.com/@${r.uniqueId}` : "",
         dateRange: range,
-        avatarUrl: r.avatar || undefined,
+        avatarUrl: proxyIfEchotikCdn(r.avatar) || undefined,
         ecScore: r.ecScore,
         category: r.category || undefined,
       };
