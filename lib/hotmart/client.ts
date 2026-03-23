@@ -20,7 +20,7 @@ interface RequestOptions {
 /**
  * Faz uma requisição autenticada para a Hotmart API.
  *
- * @param path  Caminho relativo à apiBaseUrl, ex: "/payment/api/v1/subscriptions"
+ * @param path  Caminho relativo à apiBaseUrl, ex: "/payments/api/v1/subscriptions"
  * @param opts  Opções opcionais: params (query string), body, method
  */
 export async function hotmartRequest<T = unknown>(

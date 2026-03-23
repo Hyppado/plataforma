@@ -499,6 +499,92 @@ model EchotikVideoTrendDaily {
   @@index([views])
 }
 
+/// Snapshot diário de métricas de produtos trending (TikTok Shop)
+model EchotikProductTrendDaily {
+  id                String    @id @default(uuid())
+  date              DateTime  @db.Date
+  rankingCycle      Int       @default(1)            // 1=diário, 2=semanal, 3=mensal
+  productExternalId String                           // product_id da API
+  productName       String?
+  categoryId        String?                          // L1 category
+  categoryL2Id      String?
+  categoryL3Id      String?
+  minPrice          Float     @default(0)
+  maxPrice          Float     @default(0)
+  avgPrice          Float     @default(0)            // spu_avg_price
+  commissionRate    Float     @default(0)            // product_commission_rate
+  saleCount         BigInt    @default(0)            // total_sale_cnt
+  gmv               BigInt    @default(0)            // em centavos
+  influencerCount   BigInt    @default(0)            // total_ifl_cnt
+  videoCount        BigInt    @default(0)            // total_video_cnt
+  liveCount         BigInt    @default(0)            // total_live_cnt
+  currency          String    @default("USD")
+  country           String    @default("US")
+  extra             Json?
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@unique([productExternalId, date, country, rankingCycle])
+  @@index([date])
+  @@index([country, date])
+  @@index([country, date, rankingCycle])
+  @@index([categoryId, date])
+  @@index([saleCount])
+}
+
+/// Snapshot diário de métricas de criadores/influencers trending (TikTok Shop)
+model EchotikCreatorTrendDaily {
+  id                String    @id @default(uuid())
+  date              DateTime  @db.Date
+  rankingCycle      Int       @default(1)            // 1=diário, 2=semanal, 3=mensal
+  userExternalId    String                           // user_id da API
+  uniqueId          String?                          // @handle do TikTok
+  nickName          String?
+  avatar            String?
+  category          String?                          // categoria principal textual
+  ecScore           Float     @default(0)
+  followersCount    BigInt    @default(0)
+  saleCount         BigInt    @default(0)
+  gmv               BigInt    @default(0)            // em centavos
+  diggCount         BigInt    @default(0)
+  productCount      BigInt    @default(0)
+  videoCount        BigInt    @default(0)
+  liveCount         BigInt    @default(0)
+  mostCategoryId    String?                          // categoria principal ID
+  currency          String    @default("USD")
+  country           String    @default("US")
+  extra             Json?
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@unique([userExternalId, date, country, rankingCycle])
+  @@index([date])
+  @@index([country, date])
+  @@index([country, date, rankingCycle])
+  @@index([saleCount])
+}
+
+/// Cache de detalhes de produto (populado via /api/v3/echotik/product/detail)
+/// Usado para enriquecer vídeos com dados do produto associado
+model EchotikProductDetail {
+  id                String    @id @default(uuid())
+  productExternalId String    @unique               // product_id da API
+  productName       String?
+  coverUrl          String?                          // Primeira imagem extraída do cover_url JSON
+  avgPrice          Decimal?  @db.Decimal(12, 2)
+  minPrice          Decimal?  @db.Decimal(12, 2)
+  maxPrice          Decimal?  @db.Decimal(12, 2)
+  rating            Decimal?  @db.Decimal(3, 2)
+  commissionRate    Decimal?  @db.Decimal(5, 4)
+  categoryId        String?
+  region            String?
+  extra             Json?                            // Payload completo da API
+  fetchedAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([fetchedAt])
+}
+
 /// Payload bruto armazenado para reprodutibilidade / debug
 model EchotikRawResponse {
   id            String    @id @default(uuid())

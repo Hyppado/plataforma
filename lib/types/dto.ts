@@ -79,6 +79,9 @@ export interface CreatorDTO {
   sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok
   dateRange: string; // Intervalo de datas
+  avatarUrl?: string; // Avatar URL
+  ecScore?: number; // E-commerce score
+  category?: string; // Categoria principal
 }
 
 // ============================================
