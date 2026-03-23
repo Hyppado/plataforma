@@ -145,10 +145,14 @@ export async function GET(request: NextRequest) {
         const pd = productMap.get(videoProductIds[0]);
         if (pd) {
           const price = Number(pd.avgPrice ?? pd.minPrice ?? 0) / 100;
+          const rawImg = pd.coverUrl || "";
+          const proxyImg = rawImg
+            ? `/api/proxy/image?url=${encodeURIComponent(rawImg)}`
+            : "";
           product = {
             id: pd.productExternalId,
             name: pd.productName || "Produto",
-            imageUrl: pd.coverUrl || "",
+            imageUrl: proxyImg,
             category: pd.categoryId || "",
             priceBRL: price,
             launchDate: "",
