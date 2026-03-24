@@ -13,9 +13,9 @@
  *
  * Estratégia de budget (10 000 req/mês):
  *   - Categorias L1: 1×/dia   (~30 req/mês)  — mudam pouco
- *   - Vídeo ranklist: 4×/dia, 5 págs cada (~600 req/mês) — top 50 vídeos/dia
- *   - Total estimado: ~630 req/mês (sobra para futuros endpoints)
- *   - Cron roda a cada hora, mas faz skip se ainda não passou o intervalo
+ *   - Vídeo ranklist: 1×/dia, 5 págs cada (~150 req/mês) — top 50 vídeos/dia
+ *   - Total estimado: ~250 req/mês (sobra para futuros endpoints)
+ *   - Cron roda 1×/dia (03:00 UTC); use ?force=true para disparar manualmente
  *
  * Chamado pelo route handler: app/api/cron/echotik/route.ts
  */
@@ -35,14 +35,14 @@ const CATEGORIES_INTERVAL_HOURS = 24;
 /** Categorias L2/L3 mudam pouco — sincronizar 1×/semana */
 const CATEGORIES_L2L3_INTERVAL_HOURS = 168;
 
-/** Vídeos trending mudam constantemente → 4×/dia */
-const VIDEO_TREND_INTERVAL_HOURS = 6;
+/** Vídeos trending → 1×/dia */
+const VIDEO_TREND_INTERVAL_HOURS = 24;
 
-/** Produtos trending → 4×/dia */
-const PRODUCT_TREND_INTERVAL_HOURS = 6;
+/** Produtos trending → 1×/dia */
+const PRODUCT_TREND_INTERVAL_HOURS = 24;
 
-/** Creators/influencers trending → 4×/dia */
-const CREATOR_TREND_INTERVAL_HOURS = 6;
+/** Creators/influencers trending → 1×/dia */
+const CREATOR_TREND_INTERVAL_HOURS = 24;
 
 /** Quantas páginas buscar do ranklist (page_size max = 10) */
 const VIDEO_RANKLIST_PAGES = 5; // 5 × 10 = top 50 vídeos

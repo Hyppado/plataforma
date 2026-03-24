@@ -1,11 +1,11 @@
 /**
  * Cron Route: GET /api/cron/echotik
  *
- * Executado a cada hora pelo Vercel Cron.
+ * Executado 1×/dia (03:00 UTC) pelo Vercel Cron.
  * Valida CRON_SECRET e dispara a ingestão EchoTik com smart scheduling.
  *
  * Query params:
- *   ?force=true  — ignora intervalos e força todas as tarefas
+ *   ?force=true  — ignora intervalos e força todas as tarefas (útil em testes)
  *
  * Headers esperados (Vercel Cron envia automaticamente):
  *   Authorization: Bearer <CRON_SECRET>
