@@ -68,19 +68,16 @@ export function AppTopHeader() {
     <Box
       component="header"
       sx={{
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
         display: "flex",
         justifyContent: "flex-end",
         alignItems: "center",
+        flexShrink: 0,
         height: { xs: 44, md: 48 },
         minHeight: { xs: 44, md: 48 },
         px: { xs: 2, md: 2.5 },
         background: "rgba(6, 8, 15, 0.75)",
         backdropFilter: "blur(12px)",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
-        flexShrink: 0,
       }}
     >
       {/* Left side — espaço para breadcrumbs futuros */}

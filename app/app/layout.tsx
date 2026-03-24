@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -34,6 +34,7 @@ import {
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import { useQuotaUsage, formatQuotaDisplay } from "@/lib/admin/useQuotaUsage";
+import { AppTopHeader } from "@/app/components/layout/AppTopHeader";
 
 // Hyppado dark theme (navy #06080F + accent #2DD4FF)
 const theme = createTheme({
@@ -671,6 +672,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Box>
             </Toolbar>
           </AppBar>
+
+          {/* Header global com seletor de país */}
+          <Suspense fallback={null}>
+            <AppTopHeader />
+          </Suspense>
 
           {/* Page Content - scrollable */}
           <Box
