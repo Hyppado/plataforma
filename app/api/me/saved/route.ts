@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
+    const limit = Math.min(
+      parseInt(searchParams.get("limit") || "20", 10),
+      100,
+    );
     const type = searchParams.get("type") || undefined;
 
     const where = {
@@ -128,5 +131,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-
-

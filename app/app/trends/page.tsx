@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import { ProductTable } from "@/app/components/dashboard/DataTable";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import type { ProductDTO } from "@/lib/types/dto";
-import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
+import {
+  normalizeRange,
+  rangeToDays,
+  type TimeRange,
+} from "@/lib/filters/timeRange";
 import {
   fetchCategories,
-  pickCategoryByHash,
   matchesCategory,
   ALL_CATEGORY_ID,
   type Category,
@@ -24,6 +27,9 @@ function TrendsContent() {
   const [newProducts, setNewProducts] = useState<ProductDTO[]>([]);
   const [allProducts, setAllProducts] = useState<ProductDTO[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
@@ -35,60 +41,77 @@ function TrendsContent() {
     fetchCategories().then(setCategories);
   }, []);
 
-  // Helper to get/assign category ID for a product
-  const getProductCategoryId = useCallback(
-    (product: ProductDTO): string => {
-      if (product.category) return product.category;
-      return pickCategoryByHash(product.id, categories);
-    },
-    [categories],
-  );
-
-  // Filter products by category
+  // Filter products by category (client-side, for categories not sent to API)
   const filterByCategory = useCallback(
     (items: ProductDTO[]): ProductDTO[] => {
       if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
       return items.filter((p) =>
-        matchesCategory(getProductCategoryId(p), categoryFilter, categories),
+        matchesCategory(p.category || p.id, categoryFilter, categories),
       );
     },
-    [categoryFilter, categories, getProductCategoryId],
+    [categoryFilter, categories],
   );
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        range: timeRange,
-        limit: "50",
-        filter: "new",
-      });
-      if (searchQuery) params.set("search", searchQuery);
+  // ---- Fetch new products from Echotik Product List ----
+  const fetchData = useCallback(
+    async (pageNum = 1) => {
+      if (pageNum === 1) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const daysBack = rangeToDays(timeRange);
+        const params = new URLSearchParams({
+          daysBack: String(daysBack),
+          page: String(pageNum),
+          pageSize: "10",
+          sort: "1", // total_sale_cnt
+          order: "1", // desc
+        });
+        if (searchQuery) params.set("search", searchQuery);
+        if (categoryFilter && categoryFilter !== ALL_CATEGORY_ID) {
+          params.set("category", categoryFilter);
+        }
 
-      const res = await fetch(`/api/trending/products?${params}`);
-      const json = await res.json();
+        const res = await fetch(`/api/echotik/products/new?${params}`);
+        const json = await res.json();
 
-      const items: ProductDTO[] = json?.data?.items ?? [];
-      setAllProducts(items);
+        if (!res.ok || json?.success === false) {
+          setError(json?.error || `Erro HTTP ${res.status}`);
+          return;
+        }
 
-      // Apply category filter
-      const filtered = filterByCategory(items);
-      setNewProducts(filtered);
+        const items: ProductDTO[] = json?.data?.items ?? [];
 
-      if (json?.data?.error) {
-        console.warn("New Products API returned error:", json.data.error);
+        if (pageNum === 1) {
+          setAllProducts(items);
+          setNewProducts(filterByCategory(items));
+        } else {
+          setAllProducts((prev) => {
+            const merged = [...prev, ...items];
+            setNewProducts(filterByCategory(merged));
+            return merged;
+          });
+        }
+
+        // API retorna max 10 por página; se veio menos, não há mais
+        setHasMore(items.length >= 10);
+        setPage(pageNum);
+      } catch (err) {
+        console.error("Failed to fetch new products:", err);
+        setError("Erro ao carregar novos produtos. Tente novamente.");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch new products:", err);
-      setError("Erro ao carregar novos produtos. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  }, [timeRange, searchQuery, filterByCategory]);
+    },
+    [timeRange, searchQuery, categoryFilter, filterByCategory],
+  );
 
+  // Reset to page 1 when filters change
   useEffect(() => {
-    fetchData();
+    setPage(1);
+    setHasMore(true);
+    fetchData(1);
   }, [fetchData]);
 
   const handleTimeRangeChange = (range: TimeRange) => {
@@ -157,7 +180,7 @@ function TrendsContent() {
           >
             {allProducts.length > 0
               ? `${newProducts.length} novos produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} detectados`
-              : "Novos produtos detectados no TikTok Shop — dados dos últimos 7 dias"}
+              : `Novos produtos detectados no TikTok Shop — dados dos últimos ${rangeToDays(timeRange)} dias`}
           </Typography>
         </Box>
         <DashboardHeader
@@ -201,6 +224,32 @@ function TrendsContent() {
           title="Novos Produtos Detectados"
           showNewBadge
         />
+
+        {/* Load More */}
+        {!loading && hasMore && newProducts.length > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+            <Button
+              variant="outlined"
+              onClick={() => fetchData(page + 1)}
+              disabled={loadingMore}
+              sx={{
+                borderColor: "rgba(255,255,255,0.2)",
+                color: "rgba(255,255,255,0.7)",
+                "&:hover": {
+                  borderColor: "rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.05)",
+                },
+                textTransform: "none",
+                px: 4,
+              }}
+            >
+              {loadingMore ? (
+                <CircularProgress size={20} sx={{ color: "inherit", mr: 1 }} />
+              ) : null}
+              {loadingMore ? "Carregando..." : "Carregar mais"}
+            </Button>
+          </Box>
+        )}
       </Box>
     </Box>
   );

@@ -9,10 +9,7 @@ import {
   Grid,
   Stack,
 } from "@mui/material";
-import {
-  EmailOutlined,
-  HelpOutline,
-} from "@mui/icons-material";
+import { EmailOutlined, HelpOutline } from "@mui/icons-material";
 
 const SUPPORT_EMAIL = "suporte@hyppado.com";
 
