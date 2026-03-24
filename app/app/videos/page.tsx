@@ -8,8 +8,6 @@ import {
   Button,
   CircularProgress,
   Grid,
-  Chip,
-  Stack,
 } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { VideoCardPro } from "@/app/components/cards/VideoCardPro";
@@ -22,26 +20,7 @@ import {
   ALL_CATEGORY_ID,
   type Category,
 } from "@/lib/categories";
-
-const REGION_FLAGS: Record<string, string> = {
-  US: "🇺🇸",
-  BR: "🇧🇷",
-  UK: "🇬🇧",
-  GB: "🇬🇧",
-  MX: "🇲🇽",
-  CA: "🇨🇦",
-  AU: "🇦🇺",
-  DE: "🇩🇪",
-  FR: "🇫🇷",
-  ES: "🇪🇸",
-  IT: "🇮🇹",
-  ID: "🇮🇩",
-  PH: "🇵🇭",
-  TH: "🇹🇭",
-  VN: "🇻🇳",
-  SG: "🇸🇬",
-  MY: "🇲🇾",
-};
+import { getStoredRegion } from "@/lib/region";
 
 function VideosContent() {
   const router = useRouter();
@@ -63,7 +42,7 @@ function VideosContent() {
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
-  const regionFilter = (searchParams.get("region") || "US").toUpperCase();
+  const regionFilter = (searchParams.get("region") || getStoredRegion()).toUpperCase();
   const pageSize = 24; // Carregar 24 por vez
 
   const requestedRankingCycle: 1 | 2 | 3 =
@@ -280,35 +259,7 @@ function VideosContent() {
           onCategoryChange={handleCategoryChange}
           categories={categories}
         />
-        {/* Region filter chips */}
-        {availableRegions.length > 1 && (
-          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-            {availableRegions.map((r) => (
-              <Chip
-                key={r}
-                label={`${REGION_FLAGS[r] ?? ""} ${r}`}
-                size="small"
-                onClick={() => handleRegionChange(r)}
-                variant={regionFilter === r ? "filled" : "outlined"}
-                sx={{
-                  fontWeight: 600,
-                  fontSize: "0.75rem",
-                  cursor: "pointer",
-                  borderColor:
-                    regionFilter === r ? "#2DD4FF" : "rgba(255,255,255,0.2)",
-                  color:
-                    regionFilter === r ? "#0a0a0f" : "rgba(255,255,255,0.7)",
-                  background: regionFilter === r ? "#2DD4FF" : "transparent",
-                  "&:hover": {
-                    borderColor: "#2DD4FF",
-                    background:
-                      regionFilter === r ? "#2DD4FF" : "rgba(45,212,255,0.08)",
-                  },
-                }}
-              />
-            ))}
-          </Stack>
-        )}
+
       </Box>
 
       {/* Scrollable Content */}
