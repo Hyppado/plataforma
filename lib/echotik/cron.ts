@@ -345,11 +345,17 @@ async function syncAllCategories(runId: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: regiões configuradas via env var ECHOTIK_REGIONS (padrão: "US")
+// Helper: regiões ativas no banco de dados (fallback para ECHOTIK_REGIONS)
 // ---------------------------------------------------------------------------
 
-function getConfiguredRegions(): string[] {
-  return (process.env.ECHOTIK_REGIONS || "US")
+async function getConfiguredRegions(): Promise<string[]> {
+  const rows = await prisma.region.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: "asc" },
+  });
+  if (rows.length > 0) return rows.map((r) => r.code);
+  // Fallback: env var caso o banco ainda não tenha sido seedado
+  return (process.env.ECHOTIK_REGIONS || "BR")
     .split(",")
     .map((r) => r.trim().toUpperCase())
     .filter(Boolean);
@@ -572,7 +578,7 @@ async function syncVideoRanklistForRegion(
 }
 
 async function syncVideoRanklist(runId: string): Promise<number> {
-  const regions = getConfiguredRegions();
+  const regions = await getConfiguredRegions();
   console.log(
     `[echotik-cron] Sincronizando vídeos para regiões: ${regions.join(", ")}`,
   );
@@ -1135,7 +1141,7 @@ async function syncProductRanklistForRegion(
 }
 
 async function syncProductRanklist(runId: string): Promise<number> {
-  const regions = getConfiguredRegions();
+  const regions = await getConfiguredRegions();
   console.log(
     `[echotik-cron] Sincronizando produtos para regiões: ${regions.join(", ")}`,
   );
@@ -1336,7 +1342,7 @@ async function syncCreatorRanklistForRegion(
 }
 
 async function syncCreatorRanklist(runId: string): Promise<number> {
-  const regions = getConfiguredRegions();
+  const regions = await getConfiguredRegions();
   console.log(
     `[echotik-cron] Sincronizando creators para regiões: ${regions.join(", ")}`,
   );

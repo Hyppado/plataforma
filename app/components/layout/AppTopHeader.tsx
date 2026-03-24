@@ -12,12 +12,7 @@ import {
 } from "@mui/material";
 import { KeyboardArrowDown } from "@mui/icons-material";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import {
-  REGION_FLAGS,
-  SELECTABLE_REGIONS,
-  getStoredRegion,
-  setStoredRegion,
-} from "@/lib/region";
+import { REGION_FLAGS, getStoredRegion, setStoredRegion } from "@/lib/region";
 
 /**
  * AppTopHeader — header global das páginas /app/*
@@ -35,6 +30,17 @@ export function AppTopHeader() {
   const [currentRegion, setCurrentRegion] = useState<string>(() =>
     getStoredRegion(),
   );
+
+  // Lista de regiões disponíveis — carregada do banco via API
+  const [regions, setRegions] = useState<string[]>([getStoredRegion()]);
+  useEffect(() => {
+    fetch("/api/regions")
+      .then((r) => r.json())
+      .then((data: { regions: string[] }) => {
+        if (data.regions?.length) setRegions(data.regions);
+      })
+      .catch(() => {}); // silencia erros — fallback para a região atual
+  }, []);
 
   // Sincroniza com URL quando ela muda (ex.: navegação direta com ?region=US)
   useEffect(() => {
@@ -167,7 +173,7 @@ export function AppTopHeader() {
         </Typography>
         <Divider sx={{ borderColor: "rgba(255,255,255,0.07)", mb: 1 }} />
         <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-          {SELECTABLE_REGIONS.map((r) => {
+          {regions.map((r) => {
             const isActive = r === currentRegion;
             return (
               <Chip
@@ -181,16 +187,12 @@ export function AppTopHeader() {
                   fontSize: "0.72rem",
                   cursor: "pointer",
                   mb: 0.75,
-                  borderColor: isActive
-                    ? "#2DD4FF"
-                    : "rgba(255,255,255,0.18)",
+                  borderColor: isActive ? "#2DD4FF" : "rgba(255,255,255,0.18)",
                   color: isActive ? "#0a0a0f" : "rgba(255,255,255,0.7)",
                   background: isActive ? "#2DD4FF" : "transparent",
                   "&:hover": {
                     borderColor: "#2DD4FF",
-                    background: isActive
-                      ? "#5BE0FF"
-                      : "rgba(45,212,255,0.1)",
+                    background: isActive ? "#5BE0FF" : "rgba(45,212,255,0.1)",
                     color: isActive ? "#0a0a0f" : "#fff",
                   },
                 }}
