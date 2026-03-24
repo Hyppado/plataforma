@@ -117,6 +117,10 @@ export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
 
 /**
  * Trigger Hotmart sync (plans + coupons + subscribers).
+ *
+ * A autenticação é feita via sessão NextAuth (cookie httpOnly enviado
+ * automaticamente pelo browser). Nenhum segredo é armazenado ou transmitido
+ * pelo frontend.
  */
 export async function triggerHotmartSync(): Promise<{
   success: boolean;
@@ -124,13 +128,9 @@ export async function triggerHotmartSync(): Promise<{
   data?: unknown;
 }> {
   try {
-    const adminSecret = getAdminSecret();
     const res = await fetch("/api/admin/sync-hotmart", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(adminSecret ? { Authorization: `Bearer ${adminSecret}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await res.json();
     if (!res.ok) {
@@ -140,17 +140,6 @@ export async function triggerHotmartSync(): Promise<{
   } catch (err) {
     return { success: false, message: String(err) };
   }
-}
-
-function getAdminSecret(): string | null {
-  // AVISO DE SEGURANÇA: Este helper recupera um segredo admin do localStorage,
-  // que é acessível por qualquer script na página (XSS). O ideal é usar
-  // session-based auth (next-auth) ao invés de um segredo via localStorage.
-  // TODO: Migrar /api/admin/sync-hotmart para autenticação via sessão.
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("hyppado_admin_secret");
-  }
-  return process.env.ADMIN_SECRET ?? null;
 }
 
 /**

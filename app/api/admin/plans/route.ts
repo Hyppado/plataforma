@@ -9,19 +9,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-function isAuthorized(req: NextRequest): boolean {
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret) return process.env.NODE_ENV !== "production";
-  const auth = req.headers.get("authorization") ?? "";
-  return auth === `Bearer ${adminSecret}`;
-}
-
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const plans = await prisma.plan.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -31,9 +24,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const {
@@ -105,9 +97,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { id, ...data } = body;
@@ -131,9 +122,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { id } = body;
