@@ -10,6 +10,49 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+async function seedRegions() {
+  const REGION_NAMES: Record<string, string> = {
+    BR: "Brasil",
+    US: "United States",
+    MX: "México",
+    GB: "United Kingdom",
+    CA: "Canada",
+    AU: "Australia",
+    ID: "Indonesia",
+    PH: "Philippines",
+    TH: "Thailand",
+    VN: "Vietnam",
+    SG: "Singapore",
+    MY: "Malaysia",
+    DE: "Germany",
+    FR: "France",
+    ES: "Spain",
+    IT: "Italy",
+    UK: "United Kingdom",
+  };
+
+  const codes = (process.env.ECHOTIK_REGIONS || "BR")
+    .split(",")
+    .map((r) => r.trim().toUpperCase())
+    .filter(Boolean);
+
+  for (let i = 0; i < codes.length; i++) {
+    const code = codes[i];
+    await prisma.region.upsert({
+      where: { code },
+      update: {}, // não sobrescreve se admin já editou
+      create: {
+        code,
+        name: REGION_NAMES[code] ?? code,
+        isActive: true,
+        sortOrder: i,
+      },
+    });
+  }
+
+  console.log(`✅ Regiões seedadas: [${codes.join(", ")}]`);
+}
+
 async function seedSettings() {
   const defaults = [
     {
@@ -114,6 +157,7 @@ async function main() {
 
   await seedSettings();
   await seedPlans();
+  await seedRegions();
 
   // Tenta sincronizar dados reais via API Hotmart
   const hasApiCreds =

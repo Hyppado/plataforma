@@ -2,6 +2,7 @@
  * Utilitários globais de região/país
  * - Chave persistida em localStorage: hyppado_region
  * - Padrão: BR
+ * - Lista de regiões disponíveis vem do banco de dados via /api/regions
  */
 
 export const REGION_STORAGE_KEY = "hyppado_region";
@@ -27,13 +28,12 @@ export const REGION_FLAGS: Record<string, string> = {
   MY: "🇲🇾",
 };
 
-/** Regiões exibidas no seletor do header */
-export const SELECTABLE_REGIONS = ["BR", "US", "MX", "GB", "CA", "AU", "ID", "PH", "TH", "VN", "SG", "MY"];
-
 /** Lê a região armazenada no browser. Retorna BR em SSR. */
 export function getStoredRegion(): string {
   if (typeof window === "undefined") return DEFAULT_REGION;
-  return (localStorage.getItem(REGION_STORAGE_KEY) || DEFAULT_REGION).toUpperCase();
+  return (
+    localStorage.getItem(REGION_STORAGE_KEY) || DEFAULT_REGION
+  ).toUpperCase();
 }
 
 /** Grava a região escolhida no localStorage. */

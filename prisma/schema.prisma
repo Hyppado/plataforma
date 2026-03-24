@@ -621,3 +621,14 @@ enum IngestionStatus {
   SUCCESS
   FAILED
 }
+
+/// Regiões/países disponíveis na plataforma
+/// Controlado via painel admin — o cron e o seletor de país usam esta tabela
+model Region {
+  code      String   @id           // "BR", "US", "MX", etc.
+  name      String                 // "Brasil", "United States", etc.
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
