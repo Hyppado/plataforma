@@ -24,6 +24,11 @@ import { createHash } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { echotikRequest } from "@/lib/echotik/client";
+import {
+  VIDEO_RANK_FIELDS,
+  PRODUCT_RANK_FIELDS,
+  CREATOR_RANK_FIELDS,
+} from "@/lib/echotik/rankFields";
 
 // ---------------------------------------------------------------------------
 // Intervalos de sincronização (em horas)
@@ -409,6 +414,7 @@ async function syncVideoRanklistForRegion(
   runId: string,
   region: string,
   rankingCycle: 1 | 2 | 3,
+  rankField: number,
 ): Promise<number> {
   const endpoint = "/api/v3/echotik/video/ranklist";
 
@@ -429,13 +435,11 @@ async function syncVideoRanklistForRegion(
     const thisMonday = getMondayOf(yesterday);
     const lastMonday = new Date(thisMonday);
     lastMonday.setUTCDate(thisMonday.getUTCDate() - 7);
-    // também tenta os dias desta semana caso segunda ainda não tenha dados
     datesToTry = [thisMonday, lastMonday, yesterday];
   } else {
     const thisMonth = getFirstOfMonth(yesterday);
     const lastMonth = new Date(thisMonth);
     lastMonth.setUTCMonth(thisMonth.getUTCMonth() - 1);
-    // tenta também yesterday por via das dúvidas
     datesToTry = [thisMonth, lastMonth, yesterday];
   }
 
@@ -447,7 +451,7 @@ async function syncVideoRanklistForRegion(
     const checkParams = {
       date: formatDate(candidateDate),
       region,
-      video_rank_field: 2, // 2=带货榜 (TikTok Shop — vendas)
+      video_rank_field: rankField,
       rank_type: rankingCycle,
       page_num: 1,
       page_size: 1,
@@ -458,14 +462,16 @@ async function syncVideoRanklistForRegion(
     if (check.code === 0 && check.data && check.data.length > 0) {
       effectiveDate = candidateDate;
       console.log(
-        `[echotik-cron] Dados encontrados para ${formatDate(candidateDate)}`,
+        `[echotik-cron] Vídeos [field=${rankField}]: dados encontrados para ${formatDate(candidateDate)}`,
       );
       break;
     }
   }
 
   if (!effectiveDate) {
-    console.warn("[echotik-cron] Nenhuma data com dados de vídeo disponível");
+    console.warn(
+      `[echotik-cron] Nenhuma data com dados de vídeo disponível (field=${rankField})`,
+    );
     return 0;
   }
 
@@ -477,7 +483,7 @@ async function syncVideoRanklistForRegion(
     const params = {
       date: dateStr,
       region,
-      video_rank_field: 2, // 2=带货榜 (TikTok Shop — vendas)
+      video_rank_field: rankField,
       rank_type: rankingCycle, // 1=day, 2=week, 3=month
       page_num: page,
       page_size: 10,
@@ -508,30 +514,32 @@ async function syncVideoRanklistForRegion(
 
     const items = body.data ?? [];
 
-    // Se não retornou dados, não há mais páginas
     if (items.length === 0) break;
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const videoExternalId = item.video_id;
       if (!videoExternalId) continue;
 
       const categoryId = extractCategoryId(item.product_category_list);
-
-      // gmv vem em dólares inteiros da API, converter para centavos (BigInt)
       const gmvCents = Math.round((item.total_video_sale_gmv_amt ?? 0) * 100);
+      const rankPosition = (page - 1) * 10 + i + 1;
 
       await prisma.echotikVideoTrendDaily.upsert({
         where: {
-          videoExternalId_date_country_rankingCycle: {
+          videoExternalId_date_country_rankingCycle_rankField: {
             videoExternalId,
             date,
             country: region,
             rankingCycle,
+            rankField,
           },
         },
         create: {
           date,
           rankingCycle,
+          rankField,
+          rankPosition,
           videoExternalId,
           title: item.video_desc || null,
           authorName: item.nick_name || null,
@@ -544,11 +552,12 @@ async function syncVideoRanklistForRegion(
           saleCount: BigInt(item.total_video_sale_cnt ?? 0),
           gmv: BigInt(gmvCents),
           currency: REGION_CURRENCY[region] ?? "USD",
-          country: item.region ?? "US",
+          country: item.region ?? region,
           categoryId,
           extra: item as any,
         },
         update: {
+          rankPosition,
           title: item.video_desc || undefined,
           authorName: item.nick_name || undefined,
           authorExternalId: item.user_id || undefined,
@@ -560,7 +569,7 @@ async function syncVideoRanklistForRegion(
           saleCount: BigInt(item.total_video_sale_cnt ?? 0),
           gmv: BigInt(gmvCents),
           currency: REGION_CURRENCY[region] ?? "USD",
-          country: item.region ?? "US",
+          country: item.region ?? region,
           rankingCycle,
           categoryId: categoryId ?? undefined,
           extra: item as any,
@@ -572,7 +581,7 @@ async function syncVideoRanklistForRegion(
   }
 
   console.log(
-    `[echotik-cron] [${region}] [cycle=${rankingCycle}] Vídeos ranklist sincronizados: ${synced}`,
+    `[echotik-cron] [${region}] [cycle=${rankingCycle}] [field=${rankField}] Vídeos sincronizados: ${synced}`,
   );
   return synced;
 }
@@ -586,12 +595,15 @@ async function syncVideoRanklist(runId: string): Promise<number> {
   let total = 0;
   for (const region of regions) {
     for (const rankingCycle of rankingCycles) {
-      const count = await syncVideoRanklistForRegion(
-        runId,
-        region,
-        rankingCycle,
-      );
-      total += count;
+      for (const { field } of VIDEO_RANK_FIELDS) {
+        const count = await syncVideoRanklistForRegion(
+          runId,
+          region,
+          rankingCycle,
+          field,
+        );
+        total += count;
+      }
     }
   }
   return total;
@@ -983,6 +995,7 @@ async function syncProductRanklistForRegion(
   runId: string,
   region: string,
   rankingCycle: 1 | 2 | 3,
+  rankField: number,
 ): Promise<number> {
   const endpoint = "/api/v3/echotik/product/ranklist";
 
@@ -1012,7 +1025,7 @@ async function syncProductRanklistForRegion(
     const checkParams = {
       date: formatDate(candidateDate),
       region,
-      product_rank_field: 1, // 1=vendas
+      product_rank_field: rankField,
       rank_type: rankingCycle,
       page_num: 1,
       page_size: 1,
@@ -1024,14 +1037,16 @@ async function syncProductRanklistForRegion(
     if (check.code === 0 && check.data && check.data.length > 0) {
       effectiveDate = candidateDate;
       console.log(
-        `[echotik-cron] Produtos: dados encontrados para ${formatDate(candidateDate)}`,
+        `[echotik-cron] Produtos [field=${rankField}]: dados encontrados para ${formatDate(candidateDate)}`,
       );
       break;
     }
   }
 
   if (!effectiveDate) {
-    console.warn("[echotik-cron] Nenhuma data com dados de produto disponível");
+    console.warn(
+      `[echotik-cron] Nenhuma data com dados de produto disponível (field=${rankField})`,
+    );
     return 0;
   }
 
@@ -1042,7 +1057,7 @@ async function syncProductRanklistForRegion(
     const params = {
       date: dateStr,
       region,
-      product_rank_field: 1,
+      product_rank_field: rankField,
       rank_type: rankingCycle,
       page_num: page,
       page_size: 10,
@@ -1074,24 +1089,29 @@ async function syncProductRanklistForRegion(
     const items = body.data ?? [];
     if (items.length === 0) break;
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const productExternalId = item.product_id;
       if (!productExternalId) continue;
 
       const gmvCents = Math.round((item.total_sale_gmv_amt ?? 0) * 100);
+      const rankPosition = (page - 1) * 10 + i + 1;
 
       await prisma.echotikProductTrendDaily.upsert({
         where: {
-          productExternalId_date_country_rankingCycle: {
+          productExternalId_date_country_rankingCycle_rankField: {
             productExternalId,
             date,
             country: region,
             rankingCycle,
+            rankField,
           },
         },
         create: {
           date,
           rankingCycle,
+          rankField,
+          rankPosition,
           productExternalId,
           productName: item.product_name || null,
           categoryId: item.category_id || null,
@@ -1111,6 +1131,7 @@ async function syncProductRanklistForRegion(
           extra: item as any,
         },
         update: {
+          rankPosition,
           productName: item.product_name || undefined,
           categoryId: item.category_id || undefined,
           categoryL2Id: item.category_l2_id || undefined,
@@ -1135,7 +1156,7 @@ async function syncProductRanklistForRegion(
   }
 
   console.log(
-    `[echotik-cron] [${region}] [cycle=${rankingCycle}] Produtos ranklist sincronizados: ${synced}`,
+    `[echotik-cron] [${region}] [cycle=${rankingCycle}] [field=${rankField}] Produtos sincronizados: ${synced}`,
   );
   return synced;
 }
@@ -1149,12 +1170,15 @@ async function syncProductRanklist(runId: string): Promise<number> {
   let total = 0;
   for (const region of regions) {
     for (const rankingCycle of rankingCycles) {
-      const count = await syncProductRanklistForRegion(
-        runId,
-        region,
-        rankingCycle,
-      );
-      total += count;
+      for (const { field } of PRODUCT_RANK_FIELDS) {
+        const count = await syncProductRanklistForRegion(
+          runId,
+          region,
+          rankingCycle,
+          field,
+        );
+        total += count;
+      }
     }
   }
   return total;
@@ -1169,6 +1193,7 @@ async function syncCreatorRanklistForRegion(
   runId: string,
   region: string,
   rankingCycle: 1 | 2 | 3,
+  rankField: number,
 ): Promise<number> {
   const endpoint = "/api/v3/echotik/influencer/ranklist";
 
@@ -1198,7 +1223,7 @@ async function syncCreatorRanklistForRegion(
     const checkParams = {
       date: formatDate(candidateDate),
       region,
-      influencer_rank_field: 2, // 2=vendas
+      influencer_rank_field: rankField,
       rank_type: rankingCycle,
       page_num: 1,
       page_size: 1,
@@ -1210,14 +1235,16 @@ async function syncCreatorRanklistForRegion(
     if (check.code === 0 && check.data && check.data.length > 0) {
       effectiveDate = candidateDate;
       console.log(
-        `[echotik-cron] Creators: dados encontrados para ${formatDate(candidateDate)}`,
+        `[echotik-cron] Creators [field=${rankField}]: dados encontrados para ${formatDate(candidateDate)}`,
       );
       break;
     }
   }
 
   if (!effectiveDate) {
-    console.warn("[echotik-cron] Nenhuma data com dados de creator disponível");
+    console.warn(
+      `[echotik-cron] Nenhuma data com dados de creator disponível (field=${rankField})`,
+    );
     return 0;
   }
 
@@ -1228,7 +1255,7 @@ async function syncCreatorRanklistForRegion(
     const params = {
       date: dateStr,
       region,
-      influencer_rank_field: 2,
+      influencer_rank_field: rankField,
       rank_type: rankingCycle,
       page_num: page,
       page_size: 10,
@@ -1259,24 +1286,29 @@ async function syncCreatorRanklistForRegion(
     const items = body.data ?? [];
     if (items.length === 0) break;
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const userExternalId = item.user_id;
       if (!userExternalId) continue;
 
       const gmvCents = Math.round((item.total_sale_gmv_amt ?? 0) * 100);
+      const rankPosition = (page - 1) * 10 + i + 1;
 
       await prisma.echotikCreatorTrendDaily.upsert({
         where: {
-          userExternalId_date_country_rankingCycle: {
+          userExternalId_date_country_rankingCycle_rankField: {
             userExternalId,
             date,
             country: region,
             rankingCycle,
+            rankField,
           },
         },
         create: {
           date,
           rankingCycle,
+          rankField,
+          rankPosition,
           userExternalId,
           uniqueId: item.unique_id || null,
           nickName: item.nick_name || null,
@@ -1304,6 +1336,7 @@ async function syncCreatorRanklistForRegion(
           extra: item as any,
         },
         update: {
+          rankPosition,
           uniqueId: item.unique_id || undefined,
           nickName: item.nick_name || undefined,
           avatar: item.avatar || undefined,
@@ -1336,7 +1369,7 @@ async function syncCreatorRanklistForRegion(
   }
 
   console.log(
-    `[echotik-cron] [${region}] [cycle=${rankingCycle}] Creators ranklist sincronizados: ${synced}`,
+    `[echotik-cron] [${region}] [cycle=${rankingCycle}] [field=${rankField}] Creators sincronizados: ${synced}`,
   );
   return synced;
 }
@@ -1350,12 +1383,15 @@ async function syncCreatorRanklist(runId: string): Promise<number> {
   let total = 0;
   for (const region of regions) {
     for (const rankingCycle of rankingCycles) {
-      const count = await syncCreatorRanklistForRegion(
-        runId,
-        region,
-        rankingCycle,
-      );
-      total += count;
+      for (const { field } of CREATOR_RANK_FIELDS) {
+        const count = await syncCreatorRanklistForRegion(
+          runId,
+          region,
+          rankingCycle,
+          field,
+        );
+        total += count;
+      }
     }
   }
   return total;

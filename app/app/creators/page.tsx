@@ -9,6 +9,7 @@ import type { CreatorDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 
 import { getStoredRegion } from "@/lib/region";
+import { CREATOR_RANK_FIELDS } from "@/lib/echotik/rankFields";
 
 function CreatorsContent() {
   const router = useRouter();
@@ -25,7 +26,10 @@ function CreatorsContent() {
 
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
-  const regionFilter = (searchParams.get("region") || getStoredRegion()).toUpperCase();
+  const regionFilter = (
+    searchParams.get("region") || getStoredRegion()
+  ).toUpperCase();
+  const sort = searchParams.get("sort") || "sales";
 
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
@@ -44,6 +48,7 @@ function CreatorsContent() {
           range: timeRange,
           limit: "50",
           region: regionFilter,
+          sort,
         });
         if (searchQuery) params.set("search", searchQuery);
         const res = await fetch(`/api/trending/creators?${params}`, { signal });
@@ -66,7 +71,7 @@ function CreatorsContent() {
         setLoading(false);
       }
     },
-    [timeRange, searchQuery, regionFilter],
+    [timeRange, searchQuery, regionFilter, sort],
   );
 
   useEffect(() => {
@@ -79,6 +84,7 @@ function CreatorsContent() {
     const params = new URLSearchParams();
     params.set("range", overrides.range ?? timeRange);
     params.set("region", overrides.region ?? regionFilter);
+    params.set("sort", overrides.sort ?? sort);
     const q = overrides.q ?? searchQuery;
     if (q) params.set("q", q);
     router.push(`/app/creators?${params.toString()}`);
@@ -127,7 +133,41 @@ function CreatorsContent() {
           onRefresh={() => fetchData()}
           loading={loading}
         />
-
+        {/* Sort chips */}
+        <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
+          {CREATOR_RANK_FIELDS.map((rf) => {
+            const active = sort === rf.key;
+            return (
+              <Box
+                key={rf.key}
+                component="button"
+                onClick={() => updateUrl({ sort: rf.key })}
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 99,
+                  border: active
+                    ? "1px solid #2DD4FF"
+                    : "1px solid rgba(255,255,255,0.15)",
+                  background: active
+                    ? "rgba(45,212,255,0.12)"
+                    : "rgba(255,255,255,0.05)",
+                  color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
+                  fontSize: "0.75rem",
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 150ms ease",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    color: "#2DD4FF",
+                  },
+                }}
+              >
+                {rf.label}
+              </Box>
+            );
+          })}
+        </Box>
       </Box>
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", mt: 2 }}>
