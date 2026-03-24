@@ -47,7 +47,10 @@ export async function POST() {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[sync-hotmart] Erro durante sync:", message);
     return NextResponse.json(
-      { success: false, error: "Sync falhou. Verifique as credenciais Hotmart." },
+      {
+        success: false,
+        error: "Sync falhou. Verifique as credenciais Hotmart.",
+      },
       { status: 500 },
     );
   }

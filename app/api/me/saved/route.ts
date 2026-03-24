@@ -1,71 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import type { SavedItemDTO } from "@/lib/types/dto";
 
-// Mock saved items (in production, use Prisma)
-const mockSavedItems: SavedItemDTO[] = [
-  {
-    id: "saved-1",
-    type: "video",
-    externalId: "vid-0-como-usar-o-produto",
-    title: "Como usar o produto X em 5 passos",
-    meta: { creator: "@mariabela", revenue: 245000 },
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "saved-2",
-    type: "product",
-    externalId: "prod-0-serum-vitamina-c",
-    title: "Sérum Vitamina C 30ml",
-    meta: { category: "Skincare", sales: 45200 },
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "saved-3",
-    type: "video",
-    externalId: "vid-3-antes-e-depois",
-    title: "ANTES E DEPOIS impressionante",
-    meta: { creator: "@pedrosaude", revenue: 142000 },
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "saved-4",
-    type: "product",
-    externalId: "prod-1-fone-bluetooth",
-    title: "Fone Bluetooth Pro Max",
-    meta: { category: "Eletrônicos", sales: 38700 },
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "saved-5",
-    type: "video",
-    externalId: "vid-6-comparativo",
-    title: "Comparativo: produto A vs B",
-    meta: { creator: "@techreview", revenue: 87000 },
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "10", 10);
-    const type = searchParams.get("type") || undefined; // 'video' | 'product'
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
+    const type = searchParams.get("type") || undefined;
 
-    let items = [...mockSavedItems];
+    const where = {
+      userId: auth.userId,
+      ...(type ? { type } : {}),
+    };
 
-    if (type) {
-      items = items.filter((item) => item.type === type);
-    }
+    const [items, total] = await prisma.$transaction([
+      prisma.savedItem.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.savedItem.count({ where }),
+    ]);
 
-    const limitedItems = items.slice(0, limit);
+    const dtos: SavedItemDTO[] = items.map((s) => ({
+      id: s.id,
+      type: s.type as SavedItemDTO["type"],
+      externalId: s.externalId,
+      title: s.title,
+      meta: (s.metaJson as SavedItemDTO["meta"]) ?? undefined,
+      createdAt: s.createdAt.toISOString(),
+    }));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        items: limitedItems,
-        total: items.length,
-      },
-    });
+    return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
     console.error("Error fetching saved items:", error);
     return NextResponse.json(
@@ -76,6 +46,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const body = await request.json();
     const { type, externalId, title, meta } = body;
@@ -87,20 +60,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In production, save to Prisma
-    const newItem: SavedItemDTO = {
-      id: `saved-${Date.now()}`,
-      type,
-      externalId,
-      title,
-      meta,
-      createdAt: new Date().toISOString(),
+    const item = await prisma.savedItem.upsert({
+      where: {
+        userId_type_externalId: { userId: auth.userId, type, externalId },
+      },
+      create: {
+        userId: auth.userId,
+        type,
+        externalId,
+        title,
+        metaJson: meta ?? undefined,
+      },
+      update: { title, metaJson: meta ?? undefined },
+    });
+
+    const dto: SavedItemDTO = {
+      id: item.id,
+      type: item.type as SavedItemDTO["type"],
+      externalId: item.externalId,
+      title: item.title,
+      meta: (item.metaJson as SavedItemDTO["meta"]) ?? undefined,
+      createdAt: item.createdAt.toISOString(),
     };
 
-    return NextResponse.json({
-      success: true,
-      data: newItem,
-    });
+    return NextResponse.json({ success: true, data: dto });
   } catch (error) {
     console.error("Error saving item:", error);
     return NextResponse.json(
@@ -111,6 +94,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -122,11 +108,18 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // In production, delete from Prisma
-    return NextResponse.json({
-      success: true,
-      data: { deleted: id },
+    const deleted = await prisma.savedItem.deleteMany({
+      where: { id, userId: auth.userId },
     });
+
+    if (deleted.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Saved item not found" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ success: true, data: { deleted: id } });
   } catch (error) {
     console.error("Error deleting item:", error);
     return NextResponse.json(
@@ -135,3 +128,5 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+

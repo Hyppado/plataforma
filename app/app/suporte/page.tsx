@@ -8,23 +8,13 @@ import {
   Button,
   Grid,
   Stack,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
 } from "@mui/material";
 import {
   EmailOutlined,
   HelpOutline,
-  WhatsApp,
-  CheckCircle,
-  Article,
-  Schedule,
 } from "@mui/icons-material";
-import {
-  mockSupportContact,
-  mockSuggestedArticles,
-} from "../../lib/mocks/supportMock";
+
+const SUPPORT_EMAIL = "suporte@hyppado.com";
 
 // ============================================
 // Design Tokens
@@ -102,7 +92,7 @@ export default function SuportePage() {
               {/* Email */}
               <Button
                 component="a"
-                href={`mailto:${mockSupportContact.supportEmail}`}
+                href={`mailto:${SUPPORT_EMAIL}`}
                 variant="outlined"
                 fullWidth
                 startIcon={<EmailOutlined />}
@@ -125,55 +115,17 @@ export default function SuportePage() {
                   <Typography
                     sx={{ fontSize: "0.75rem", color: UI.text.secondary }}
                   >
-                    {mockSupportContact.supportEmail}
+                    {SUPPORT_EMAIL}
                   </Typography>
                 </Box>
               </Button>
 
-              {/* WhatsApp */}
-              {mockSupportContact.whatsapp && (
-                <Button
-                  component="a"
-                  href={`https://wa.me/${mockSupportContact.whatsapp.number}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<WhatsApp />}
-                  sx={{
-                    justifyContent: "flex-start",
-                    textTransform: "none",
-                    borderColor: UI.card.border,
-                    color: UI.text.primary,
-                    py: 1.5,
-                    "&:hover": {
-                      borderColor: UI.accent,
-                      backgroundColor: "rgba(45,212,255,0.05)",
-                    },
-                  }}
-                >
-                  <Box sx={{ textAlign: "left", flex: 1 }}>
-                    <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>
-                      WhatsApp
-                    </Typography>
-                    <Typography
-                      sx={{ fontSize: "0.75rem", color: UI.text.secondary }}
-                    >
-                      {mockSupportContact.whatsapp.label}
-                    </Typography>
-                  </Box>
-                </Button>
-              )}
-
               {/* Central de Ajuda */}
               <Button
-                component="a"
-                href={mockSupportContact.helpCenterUrl}
-                target="_blank"
-                rel="noopener noreferrer"
                 variant="outlined"
                 fullWidth
                 startIcon={<HelpOutline />}
+                disabled
                 sx={{
                   justifyContent: "flex-start",
                   textTransform: "none",
@@ -193,7 +145,7 @@ export default function SuportePage() {
                   <Typography
                     sx={{ fontSize: "0.75rem", color: UI.text.secondary }}
                   >
-                    Tutoriais e documentação
+                    Em breve
                   </Typography>
                 </Box>
               </Button>
