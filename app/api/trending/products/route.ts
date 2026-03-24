@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ProductDTO } from "@/lib/types/dto";
 
+const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
+
+/** Wraps echosell-images URLs through the image proxy */
+function proxyIfEchotikCdn(url: string | null): string {
+  if (!url) return "";
+  try {
+    if (new URL(url).hostname === ECHOTIK_CDN) {
+      return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+    }
+  } catch {}
+  return url;
+}
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -76,15 +89,24 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
+    // Batch-fetch product detail images from cache
+    const productIds = rows.map((r) => r.productExternalId);
+    const detailRows = await prisma.echotikProductDetail.findMany({
+      where: { productExternalId: { in: productIds } },
+      select: { productExternalId: true, coverUrl: true, rating: true },
+    });
+    const detailMap = new Map(detailRows.map((d) => [d.productExternalId, d]));
+
     const items: ProductDTO[] = rows.map((r) => {
+      const detail = detailMap.get(r.productExternalId);
       return {
         id: r.productExternalId,
         name: r.productName || "",
-        imageUrl: "", // Will be enriched by product detail later
+        imageUrl: proxyIfEchotikCdn(detail?.coverUrl ?? null),
         category: r.categoryId ?? "",
         priceBRL: r.avgPrice,
         launchDate: r.date.toISOString(),
-        rating: 0,
+        rating: Number(detail?.rating ?? 0),
         sales: Number(r.saleCount),
         avgPriceBRL: r.avgPrice,
         commissionRate: r.commissionRate,

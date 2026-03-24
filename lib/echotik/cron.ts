@@ -829,6 +829,146 @@ async function syncVideoProductDetails(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// 2c. Enriquecer produtos do ranklist com detalhes (cover_url, rating, etc.)
+// Busca product/detail para IDs presentes em EchotikProductTrendDaily que
+// ainda não têm entrada em EchotikProductDetail.
+// ---------------------------------------------------------------------------
+
+/**
+ * Busca detalhes dos produtos do ranklist (top trending) e salva em cache.
+ * Os IDs vêm de EchotikProductTrendDaily — conjunto diferente dos vídeos.
+ * Retorna o número de produtos enriquecidos.
+ */
+async function syncRanklistProductDetails(): Promise<number> {
+  // 1. Coletar product IDs únicos do ranklist recente (últimos 3 dias)
+  const recentRanklist = await prisma.echotikProductTrendDaily.findMany({
+    where: {
+      syncedAt: { gte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+    },
+    select: { productExternalId: true },
+    distinct: ["productExternalId"],
+  });
+
+  const allProductIds = new Set(
+    recentRanklist
+      .map((r) => r.productExternalId)
+      .filter((id): id is string => !!id),
+  );
+
+  if (allProductIds.size === 0) {
+    console.log(
+      "[echotik-cron] Nenhum product ID encontrado no ranklist recente",
+    );
+    return 0;
+  }
+
+  console.log(
+    `[echotik-cron] ${allProductIds.size} product IDs únicos no ranklist`,
+  );
+
+  // 2. Filtrar os que já estão no cache e são recentes
+  const freshCutoff = new Date(
+    Date.now() - PRODUCT_DETAIL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const existingProducts = await prisma.echotikProductDetail.findMany({
+    where: {
+      productExternalId: { in: Array.from(allProductIds) },
+      fetchedAt: { gte: freshCutoff },
+    },
+    select: { productExternalId: true },
+  });
+
+  const cachedIds = new Set(existingProducts.map((p) => p.productExternalId));
+  const missingIds = Array.from(allProductIds).filter(
+    (id) => !cachedIds.has(id),
+  );
+
+  if (missingIds.length === 0) {
+    console.log(
+      "[echotik-cron] Todos os produtos do ranklist já estão em cache",
+    );
+    return 0;
+  }
+
+  console.log(
+    `[echotik-cron] Buscando detalhes de ${missingIds.length} produtos do ranklist (${cachedIds.size} já em cache)`,
+  );
+
+  // 3. Buscar em batches via product/detail API
+  let enriched = 0;
+  const failedIds: string[] = [];
+
+  for (let i = 0; i < missingIds.length; i += PRODUCT_DETAIL_BATCH_SIZE) {
+    const batch = missingIds.slice(i, i + PRODUCT_DETAIL_BATCH_SIZE);
+    const idsParam = batch.join(",");
+
+    try {
+      const body = await echotikRequest<
+        EchotikApiResponse<EchotikProductDetailItem>
+      >("/api/v3/echotik/product/detail", {
+        params: { product_ids: idsParam, language: "en-US" },
+      });
+
+      if (body.code !== 0 || !body.data) {
+        failedIds.push(...batch);
+        continue;
+      }
+
+      for (const item of body.data) {
+        await upsertProductDetail(item);
+        enriched++;
+      }
+    } catch (err) {
+      console.error(
+        `[echotik-cron] Erro ao buscar ranklist product/detail batch ${Math.floor(i / PRODUCT_DETAIL_BATCH_SIZE) + 1}:`,
+        err,
+      );
+      failedIds.push(...batch);
+    }
+  }
+
+  // 4. Retry individuais para os que falharam em batch
+  if (failedIds.length > 0) {
+    console.log(
+      `[echotik-cron] Tentando ${failedIds.length} produtos do ranklist individualmente...`,
+    );
+    let retried = 0;
+    for (const pid of failedIds) {
+      try {
+        const body = await echotikRequest<
+          EchotikApiResponse<EchotikProductDetailItem>
+        >("/api/v3/echotik/product/detail", {
+          params: { product_ids: pid, language: "en-US" },
+        });
+
+        if (body.code === 0 && body.data && body.data.length > 0) {
+          await upsertProductDetail(body.data[0]);
+          enriched++;
+          retried++;
+        }
+      } catch {
+        // ID inválido ou não encontrado — silenciar
+      }
+
+      if (retried >= 50) {
+        console.log(
+          "[echotik-cron] Limite de retries do ranklist atingido (50)",
+        );
+        break;
+      }
+    }
+    console.log(
+      `[echotik-cron] Retries ranklist: ${retried} produtos recuperados`,
+    );
+  }
+
+  console.log(
+    `[echotik-cron] Detalhes de ${enriched} produtos do ranklist cacheados`,
+  );
+  return enriched;
+}
+
+// ---------------------------------------------------------------------------
 // 3. Sincronizar Product Ranklist — TikTok Shop
 // product_rank_field=1 retorna produtos ordenados por vendas.
 // ---------------------------------------------------------------------------
@@ -1272,7 +1412,11 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
     // Mesmo com tudo em dia, tentar enriquecer detalhes de produtos
     let productDetailsEnriched = 0;
     try {
-      productDetailsEnriched = await syncVideoProductDetails();
+      const [videoDetails, ranklistDetails] = await Promise.all([
+        syncVideoProductDetails(),
+        syncRanklistProductDetails(),
+      ]);
+      productDetailsEnriched = videoDetails + ranklistDetails;
     } catch (err) {
       console.error(
         "[echotik-cron] Erro ao enriquecer detalhes (skip path):",
@@ -1364,12 +1508,16 @@ export async function runEchotikCron(force = false): Promise<CronResult> {
       console.log("[echotik-cron] Vídeos: skip (já sincronizado recentemente)");
     }
 
-    // 2b. Enriquecer vídeos com detalhes dos produtos associados
-    // Roda sempre (tem cache próprio), não depende de video sync
+    // 2b. Enriquecer vídeos e ranklist com detalhes dos produtos associados
+    // Roda sempre (tem cache próprio), não depende de video/product sync
     try {
-      productDetailsEnriched = await syncVideoProductDetails();
+      const [videoDetails, ranklistDetails] = await Promise.all([
+        syncVideoProductDetails(),
+        syncRanklistProductDetails(),
+      ]);
+      productDetailsEnriched = videoDetails + ranklistDetails;
       console.log(
-        `[echotik-cron] Detalhes de produtos: ${productDetailsEnriched} enriquecidos`,
+        `[echotik-cron] Detalhes de produtos: ${productDetailsEnriched} enriquecidos (vídeos: ${videoDetails}, ranklist: ${ranklistDetails})`,
       );
     } catch (err) {
       console.error(
