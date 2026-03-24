@@ -6,24 +6,16 @@
  */
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { resolveUserAccess } from "@/lib/access/resolver";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
 
-  const userId = (session.user as { id?: string }).id;
-  if (!userId) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
-
-  const access = await resolveUserAccess(userId);
+  const access = await resolveUserAccess(auth.userId);
 
   return NextResponse.json({
     status: access.status,

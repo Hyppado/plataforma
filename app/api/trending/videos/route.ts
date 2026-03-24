@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VIDEO_RANK_FIELDS, videoSortToField } from "@/lib/echotik/rankFields";
+import {
+  rangeToCycles,
+  resolveCycleAndDate,
+  getAvailableRegions,
+} from "@/lib/echotik/trending";
 import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 
 export const dynamic = "force-dynamic";
@@ -41,32 +46,16 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || "sales";
     const rankField = videoSortToField(sort);
 
-    const requestedRankingCycle = range === "1d" ? 1 : range === "7d" ? 2 : 3;
-    const cycleCandidates: Array<1 | 2 | 3> =
-      range === "1d" ? [1] : range === "7d" ? [2, 1] : [3, 2, 1];
+    const { candidates } = rangeToCycles(range);
 
-    // Find the most recent snapshot for the best available cycle
-    let latest: { date: Date } | null = null;
-    let rankingCycle = requestedRankingCycle;
-    for (const cycle of cycleCandidates) {
-      const candidate = await prisma.echotikVideoTrendDaily.findFirst({
-        where: { country: region, rankingCycle: cycle, rankField },
-        orderBy: { date: "desc" },
-        select: { date: true },
-      });
-      if (candidate) {
-        latest = candidate;
-        rankingCycle = cycle;
-        break;
-      }
-    }
-
-    // Available regions (for frontend filter population)
-    const availableRegionsRaw = await prisma.echotikVideoTrendDaily.findMany({
-      distinct: ["country"],
-      select: { country: true },
+    const { latest, rankingCycle } = await resolveCycleAndDate({
+      model: "video",
+      region,
+      rankField,
+      candidates,
     });
-    const availableRegions = availableRegionsRaw.map((r) => r.country).sort();
+
+    const availableRegions = await getAvailableRegions("video");
 
     if (!latest) {
       return NextResponse.json({
@@ -77,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: Record<string, unknown> = {
-      date: latest.date,
+      date: latest,
       country: region,
       rankingCycle,
       rankField,
@@ -215,9 +204,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching videos:", error);
-    return NextResponse.json({
-      success: true,
-      data: { items: [], total: 0, range: "7d", error: "Failed to load" },
-    });
+    return NextResponse.json(
+      { success: false, error: "Failed to load videos" },
+      { status: 500 },
+    );
   }
 }

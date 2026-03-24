@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPeriodBounds } from "@/lib/usage/period";
 import type { QuotaUsage } from "@/lib/types/admin";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 /**
  * GET /api/admin/quota-usage?userId=<id>
@@ -10,6 +11,9 @@ import type { QuotaUsage } from "@/lib/types/admin";
  * When no userId is provided, returns aggregate totals across all users.
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
   const { start, end } = getPeriodBounds();
   const userId = req.nextUrl.searchParams.get("userId");
 

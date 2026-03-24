@@ -5,8 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 import { processErasure, rejectErasure } from "@/lib/lgpd/erasure";
 
 export const runtime = "nodejs";
@@ -16,10 +15,8 @@ export const runtime = "nodejs";
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status"); // PENDING, IN_PROGRESS, COMPLETED, REJECTED
@@ -43,10 +40,8 @@ export async function GET(req: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { requestId, action, reason } = body as {
@@ -62,7 +57,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const adminId = (session.user as { id?: string }).id ?? "unknown";
+  const adminId = auth.userId;
 
   if (action === "approve") {
     try {

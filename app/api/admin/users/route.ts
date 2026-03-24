@@ -5,8 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -15,10 +14,8 @@ export const runtime = "nodejs";
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const { searchParams } = req.nextUrl;
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
@@ -76,10 +73,8 @@ export async function GET(req: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { userId, status, role } = body as {
@@ -97,7 +92,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const adminId = (session.user as { id?: string }).id ?? "unknown";
+  const adminId = auth.userId;
   const before = { status: user.status, role: user.role };
   const data: Record<string, unknown> = {};
 

@@ -59,7 +59,16 @@ export default function Error({
             mb: 3,
           }}
         >
-          {error.message || "Ocorreu um erro inesperado"}
+          Ocorreu um erro inesperado. Tente novamente ou entre em contato com o
+          suporte.
+          {error.digest && (
+            <Typography
+              component="span"
+              sx={{ display: "block", mt: 1, fontSize: 12, opacity: 0.5 }}
+            >
+              Ref: {error.digest}
+            </Typography>
+          )}
         </Typography>
         <Button
           variant="contained"

@@ -6,13 +6,26 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
-    // Admin routes require ADMIN role
-    if (pathname.startsWith("/app/admin") && token?.role !== "ADMIN") {
+    // Admin routes (UI and API) require ADMIN role
+    if (
+      (pathname.startsWith("/app/admin") ||
+        pathname.startsWith("/api/admin")) &&
+      token?.role !== "ADMIN"
+    ) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       return NextResponse.redirect(new URL("/app/videos", req.url));
     }
 
     // Block soft-deleted users (LGPD)
     if (token?.deleted) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "Account deleted" },
+          { status: 403 },
+        );
+      }
       return NextResponse.redirect(
         new URL("/login?error=account_deleted", req.url),
       );
@@ -22,12 +35,12 @@ export default withAuth(
   },
   {
     callbacks: {
-      // Require a valid JWT for all /app/** routes
+      // Require a valid JWT for all matched routes
       authorized: ({ token }) => !!token,
     },
   },
 );
 
 export const config = {
-  matcher: ["/app/:path*"],
+  matcher: ["/app/:path*", "/api/admin/:path*"],
 };

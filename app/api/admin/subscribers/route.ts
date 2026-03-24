@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hotmartRequest } from "@/lib/hotmart/client";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 /**
  * GET /api/admin/subscribers
@@ -46,6 +47,9 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export async function GET(request: Request) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status")?.toUpperCase();
   const search = url.searchParams.get("search");

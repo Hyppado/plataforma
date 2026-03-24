@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hotmartRequest } from "@/lib/hotmart/client";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 /**
  * GET /api/admin/subscription-metrics
@@ -27,6 +28,9 @@ async function fetchCount(productId: string, status?: string): Promise<number> {
 }
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const productId = process.env.HOTMART_PRODUCT_ID;
 

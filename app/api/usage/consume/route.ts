@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertQuota, consumeUsage, QuotaExceededError } from "@/lib/usage";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import type { UsageEventType } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -9,7 +10,6 @@ export const runtime = "nodejs";
  *
  * Body:
  * {
- *   userId:          string   — internal User ID (required)
  *   action:          "TRANSCRIPT" | "SCRIPT" | "INSIGHT"
  *   tokens?:         number   — tokens consumed (for SCRIPT / INSIGHT)
  *   idempotencyKey:  string   — unique key; duplicate keys are no-ops
@@ -17,13 +17,19 @@ export const runtime = "nodejs";
  *   refId?:          string   — ID of the related object
  * }
  *
+ * userId is derived from the authenticated session — never from the body.
+ *
  * Responses:
  *  200 { event, duplicate }          — success or idempotent replay
  *  402 { error, used, limit }        — quota exceeded
  *  400 { error }                     — bad request
+ *  401 { error }                     — unauthenticated
  *  500 { error }                     — internal error
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -39,7 +45,6 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    userId,
     action,
     tokens = 0,
     idempotencyKey,
@@ -47,9 +52,8 @@ export async function POST(req: NextRequest) {
     refId,
   } = body as Record<string, unknown>;
 
-  if (!userId || typeof userId !== "string") {
-    return NextResponse.json({ error: "userId is required" }, { status: 400 });
-  }
+  const userId = auth.userId;
+
   if (!idempotencyKey || typeof idempotencyKey !== "string") {
     return NextResponse.json(
       { error: "idempotencyKey is required" },

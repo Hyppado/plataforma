@@ -4,8 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createErasureRequest } from "@/lib/lgpd/erasure";
 
@@ -16,15 +15,10 @@ export const runtime = "nodejs";
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
 
-  const userId = (session.user as { id?: string }).id;
-  if (!userId) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
+  const userId = auth.userId;
 
   const body = await req.json();
   const { consentType, version, granted } = body as {
@@ -42,7 +36,8 @@ export async function POST(req: NextRequest) {
 
   // Get IP and User-Agent from headers
   const forwarded = req.headers.get("x-forwarded-for");
-  const ipAddress = forwarded?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? null;
+  const ipAddress =
+    forwarded?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
 
   const record = await prisma.consentRecord.create({

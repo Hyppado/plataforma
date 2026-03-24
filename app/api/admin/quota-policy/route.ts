@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import type { QuotaPolicy } from "@/lib/types/admin";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 /**
  * GET /api/admin/quota-policy
  * Returns quota policy defaults.
  */
 export async function GET() {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
   // Always return default policy (localStorage override happens client-side)
   const defaultPolicy: QuotaPolicy = {
     transcriptsPerMonth: 40,

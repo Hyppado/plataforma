@@ -6,8 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -16,10 +15,8 @@ export const runtime = "nodejs";
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const { searchParams } = req.nextUrl;
   const userId = searchParams.get("userId");
@@ -49,10 +46,8 @@ export async function GET(req: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { userId, reason, planId, expiresAt } = body as {
@@ -83,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const adminId = (session.user as { id?: string }).id ?? "unknown";
+  const adminId = auth.userId;
 
   const grant = await prisma.accessGrant.create({
     data: {
@@ -122,19 +117,14 @@ export async function POST(req: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { grantId } = body as { grantId?: string };
 
   if (!grantId) {
-    return NextResponse.json(
-      { error: "grantId is required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "grantId is required" }, { status: 400 });
   }
 
   const grant = await prisma.accessGrant.findUnique({
@@ -144,7 +134,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Grant not found" }, { status: 404 });
   }
 
-  const adminId = (session.user as { id?: string }).id ?? "unknown";
+  const adminId = auth.userId;
 
   await prisma.accessGrant.update({
     where: { id: grantId },
