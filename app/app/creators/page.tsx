@@ -46,7 +46,6 @@ function CreatorsContent() {
       try {
         const params = new URLSearchParams({
           range: timeRange,
-          limit: "50",
           region: regionFilter,
           sort,
         });

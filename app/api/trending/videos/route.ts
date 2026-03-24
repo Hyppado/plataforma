@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
       | "30d"
       | "90d";
     const limit = Math.min(
-      parseInt(searchParams.get("limit") || "50", 10),
-      200,
+      parseInt(searchParams.get("limit") || "100", 10),
+      1000,
     );
     const search = searchParams.get("search") || undefined;
     const region = (searchParams.get("region") || "US").toUpperCase();

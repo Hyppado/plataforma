@@ -49,10 +49,10 @@ const PRODUCT_TREND_INTERVAL_HOURS = 24;
 /** Creators/influencers trending → 1×/dia */
 const CREATOR_TREND_INTERVAL_HOURS = 24;
 
-/** Quantas páginas buscar do ranklist (page_size max = 10) */
-const VIDEO_RANKLIST_PAGES = 5; // 5 × 10 = top 50 vídeos
-const PRODUCT_RANKLIST_PAGES = 5; // 5 × 10 = top 50 produtos
-const CREATOR_RANKLIST_PAGES = 5; // 5 × 10 = top 50 creators
+/** Quantas páginas buscar do ranklist (page_size max = 10 por página) */
+const VIDEO_RANKLIST_PAGES = 10; // 10 × 10 = top 100 vídeos
+const PRODUCT_RANKLIST_PAGES = 10; // 10 × 10 = top 100 produtos
+const CREATOR_RANKLIST_PAGES = 10; // 10 × 10 = top 100 creators
 
 // ---------------------------------------------------------------------------
 // Tipos de resposta da API EchoTik v3

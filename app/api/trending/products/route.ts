@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PRODUCT_RANK_FIELDS, productSortToField } from "@/lib/echotik/rankFields";
+import {
+  PRODUCT_RANK_FIELDS,
+  productSortToField,
+} from "@/lib/echotik/rankFields";
 import type { ProductDTO } from "@/lib/types/dto";
 
 const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
       | "90d";
     const limit = Math.min(
       parseInt(searchParams.get("limit") || "100", 10),
-      200,
+      1000,
     );
     const search = searchParams.get("search") || undefined;
     const region = (searchParams.get("region") || "US").toUpperCase();
