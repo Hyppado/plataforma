@@ -143,8 +143,10 @@ export async function triggerHotmartSync(): Promise<{
 }
 
 function getAdminSecret(): string | null {
-  // In client-side context, we can't access server env vars directly
-  // The admin page should have stored this or it's passed via header
+  // AVISO DE SEGURANÇA: Este helper recupera um segredo admin do localStorage,
+  // que é acessível por qualquer script na página (XSS). O ideal é usar
+  // session-based auth (next-auth) ao invés de um segredo via localStorage.
+  // TODO: Migrar /api/admin/sync-hotmart para autenticação via sessão.
   if (typeof window !== "undefined") {
     return localStorage.getItem("hyppado_admin_secret");
   }
@@ -285,8 +287,10 @@ export function loadSupportConfigLocally(): SupportConfig {
 // ==================== ADMIN MODE CHECK ====================
 
 /**
- * Check if admin mode is enabled.
- * Uses NEXT_PUBLIC_ADMIN_MODE env var.
+ * @deprecated A função isAdminMode() usa NEXT_PUBLIC_ADMIN_MODE cheé uma
+ * variável de ambiente pública. A verificação de admin deve ser feita via
+ * session.user.role === "ADMIN" (server-side) ou pelo helper requireAdmin()
+ * em lib/auth.ts. Esta função será removida numa versão futura.
  */
 export function isAdminMode(): boolean {
   return process.env.NEXT_PUBLIC_ADMIN_MODE === "true";

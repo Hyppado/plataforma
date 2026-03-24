@@ -370,6 +370,10 @@ async function getConfiguredRegions(): Promise<string[]> {
 // 2. Sincronizar Vídeo Ranklist — TikTok Shop (带货榜)
 // video_rank_field=2 retorna vídeos que vendem produtos (com vendas e GMV).
 // ---------------------------------------------------------------------------
+// TODO: syncVideoRanklistForRegion, syncProductRanklistForRegion e
+// syncCreatorRanklistForRegion são estruturalmente quase idênticas (~175 linhas
+// cada). Candidatas a uma função shared syncRanklistForRegion(model, ...) no
+// futuro para reduzir duplicação de código.
 
 /** Moeda local de cada região suportada. */
 const REGION_CURRENCY: Record<string, string> = {
@@ -614,6 +618,10 @@ async function syncVideoRanklist(runId: string): Promise<number> {
 // Busca product/detail para product IDs referenciados nos vídeos.
 // Resultados ficam em cache (EchotikProductDetail) e são usados
 // pela API /api/trending/videos para popular o campo "product" do DTO.
+// ---------------------------------------------------------------------------
+// TODO: syncVideoProductDetails e syncRanklistProductDetails são quase
+// idênticas (~150 linhas cada). Candidatas a uma função shared
+// syncProductDetails(sourceIds: string[], label: string) no futuro.
 // ---------------------------------------------------------------------------
 
 /** Tamanho do batch de IDs por request ao product/detail */
@@ -1117,6 +1125,9 @@ async function syncProductRanklistForRegion(
           categoryId: item.category_id || null,
           categoryL2Id: item.category_l2_id || null,
           categoryL3Id: item.category_l3_id || null,
+          // Nota: min/max/avgPrice armazenam o valor BRUTO da API (ex: 9.99),
+          // ao contrário de EchotikProductDetail que armazena em centavos.
+          // Os DTOs de trending usam este valor diretamente — não dividir por 100.
           minPrice: item.min_price ?? 0,
           maxPrice: item.max_price ?? 0,
           avgPrice: item.spu_avg_price ?? 0,

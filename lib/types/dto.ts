@@ -76,7 +76,7 @@ export interface CreatorDTO {
   liveGmvBRL: number; // GMV ao vivo (R$)
   videoCount: number; // Número de vídeos
   videoGmvBRL: number; // GMV por vídeo (R$)
-  views: number; // Visualizações
+  likes: number; // Total de curtidas (diggCount da API Echotik; API não fornece views para influencers)
   debutDate: string; // Data de estreia do criador
   sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok

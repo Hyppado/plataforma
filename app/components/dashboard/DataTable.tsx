@@ -376,7 +376,7 @@ export function CreatorTable({
                 Seguidores
               </TableCell>
               <TableCell sx={tableHeaderSx} align="right">
-                Views
+                Curtidas
               </TableCell>
               <TableCell sx={tableHeaderSx} align="right">
                 Vídeos
@@ -458,7 +458,7 @@ export function CreatorTable({
                     {formatNumber(creator.followers)}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
-                    {formatNumber(creator.views)}
+                    {formatNumber(creator.likes)}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
                     {formatNumber(creator.videoCount)}

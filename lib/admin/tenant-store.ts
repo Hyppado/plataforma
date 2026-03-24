@@ -1,4 +1,8 @@
 /**
+ * @deprecated Este módulo é scaffolding não utilizado. Dados de tenant
+ * devem vir do banco de dados via sessão NextAuth (session.user.id).
+ * Esta arquivo será removido numa versão futura.
+ *
  * Tenant store for front-end only.
  * In production, tenant data would come from a backend/database.
  */

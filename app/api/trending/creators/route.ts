@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         liveGmvBRL: 0,
         videoCount: Number(r.videoCount),
         videoGmvBRL: 0,
-        views: Number(r.diggCount),
+        likes: Number(r.diggCount),
         debutDate: r.date.toISOString(),
         sourceUrl: `https://echotik.live/influencer/${r.uniqueId || r.userExternalId}`,
         tiktokUrl: r.uniqueId ? `https://www.tiktok.com/@${r.uniqueId}` : "",

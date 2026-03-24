@@ -21,10 +21,7 @@ export default withAuth(
     // Block soft-deleted users (LGPD)
     if (token?.deleted) {
       if (pathname.startsWith("/api/")) {
-        return NextResponse.json(
-          { error: "Account deleted" },
-          { status: 403 },
-        );
+        return NextResponse.json({ error: "Account deleted" }, { status: 403 });
       }
       return NextResponse.redirect(
         new URL("/login?error=account_deleted", req.url),
