@@ -473,6 +473,8 @@ model EchotikVideoTrendDaily {
   id                String    @id @default(uuid())
   date              DateTime  @db.Date              // dia do snapshot (sem hora)
   rankingCycle      Int       @default(1)            // 1=diário, 2=semanal, 3=mensal
+  rankField         Int       @default(2)            // video_rank_field: 1=views, 2=sales
+  rankPosition      Int       @default(0)            // posição no ranklist (1-based)
   videoExternalId   String                           // ID do vídeo na plataforma
   title             String?
   authorName        String?
@@ -491,12 +493,13 @@ model EchotikVideoTrendDaily {
   syncedAt          DateTime  @default(now())
   createdAt         DateTime  @default(now())
 
-  @@unique([videoExternalId, date, country, rankingCycle])
+  @@unique([videoExternalId, date, country, rankingCycle, rankField])
   @@index([date])
   @@index([country, date])
   @@index([country, date, rankingCycle])
+  @@index([country, date, rankingCycle, rankField])
   @@index([categoryId, date])
-  @@index([views])
+  @@index([rankPosition])
 }
 
 /// Snapshot diário de métricas de produtos trending (TikTok Shop)
@@ -504,6 +507,8 @@ model EchotikProductTrendDaily {
   id                String    @id @default(uuid())
   date              DateTime  @db.Date
   rankingCycle      Int       @default(1)            // 1=diário, 2=semanal, 3=mensal
+  rankField         Int       @default(1)            // product_rank_field: 1=sales, 2=gmv
+  rankPosition      Int       @default(0)            // posição no ranklist (1-based)
   productExternalId String                           // product_id da API
   productName       String?
   categoryId        String?                          // L1 category
@@ -524,12 +529,13 @@ model EchotikProductTrendDaily {
   syncedAt          DateTime  @default(now())
   createdAt         DateTime  @default(now())
 
-  @@unique([productExternalId, date, country, rankingCycle])
+  @@unique([productExternalId, date, country, rankingCycle, rankField])
   @@index([date])
   @@index([country, date])
   @@index([country, date, rankingCycle])
+  @@index([country, date, rankingCycle, rankField])
   @@index([categoryId, date])
-  @@index([saleCount])
+  @@index([rankPosition])
 }
 
 /// Snapshot diário de métricas de criadores/influencers trending (TikTok Shop)
@@ -537,6 +543,8 @@ model EchotikCreatorTrendDaily {
   id                String    @id @default(uuid())
   date              DateTime  @db.Date
   rankingCycle      Int       @default(1)            // 1=diário, 2=semanal, 3=mensal
+  rankField         Int       @default(2)            // influencer_rank_field: 1=followers, 2=sales
+  rankPosition      Int       @default(0)            // posição no ranklist (1-based)
   userExternalId    String                           // user_id da API
   uniqueId          String?                          // @handle do TikTok
   nickName          String?
@@ -557,11 +565,12 @@ model EchotikCreatorTrendDaily {
   syncedAt          DateTime  @default(now())
   createdAt         DateTime  @default(now())
 
-  @@unique([userExternalId, date, country, rankingCycle])
+  @@unique([userExternalId, date, country, rankingCycle, rankField])
   @@index([date])
   @@index([country, date])
   @@index([country, date, rankingCycle])
-  @@index([saleCount])
+  @@index([country, date, rankingCycle, rankField])
+  @@index([rankPosition])
 }
 
 /// Cache de detalhes de produto (populado via /api/v3/echotik/product/detail)

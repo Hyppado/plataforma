@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { VIDEO_RANK_FIELDS, videoSortToField } from "@/lib/echotik/rankFields";
 import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,8 @@ export async function GET(request: NextRequest) {
     );
     const search = searchParams.get("search") || undefined;
     const region = (searchParams.get("region") || "US").toUpperCase();
+    const sort = searchParams.get("sort") || "sales";
+    const rankField = videoSortToField(sort);
 
     const requestedRankingCycle = range === "1d" ? 1 : range === "7d" ? 2 : 3;
     const cycleCandidates: Array<1 | 2 | 3> =
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest) {
     let rankingCycle = requestedRankingCycle;
     for (const cycle of cycleCandidates) {
       const candidate = await prisma.echotikVideoTrendDaily.findFirst({
-        where: { country: region, rankingCycle: cycle },
+        where: { country: region, rankingCycle: cycle, rankField },
         orderBy: { date: "desc" },
         select: { date: true },
       });
@@ -77,6 +80,7 @@ export async function GET(request: NextRequest) {
       date: latest.date,
       country: region,
       rankingCycle,
+      rankField,
     };
     if (search) {
       const q = search.toLowerCase();
@@ -88,7 +92,7 @@ export async function GET(request: NextRequest) {
 
     const rows = await prisma.echotikVideoTrendDaily.findMany({
       where,
-      orderBy: { saleCount: "desc" },
+      orderBy: { rankPosition: "asc" },
       take: limit,
     });
 
@@ -205,6 +209,8 @@ export async function GET(request: NextRequest) {
         range,
         availableRegions,
         effectiveRankingCycle: rankingCycle,
+        availableSorts: VIDEO_RANK_FIELDS,
+        currentSort: sort,
       },
     });
   } catch (error) {

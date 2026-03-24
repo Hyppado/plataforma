@@ -2,13 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Grid,
-} from "@mui/material";
+import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { VideoCardPro } from "@/app/components/cards/VideoCardPro";
 import type { VideoDTO } from "@/lib/types/dto";
@@ -21,6 +15,7 @@ import {
   type Category,
 } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
+import { VIDEO_RANK_FIELDS } from "@/lib/echotik/rankFields";
 
 function VideosContent() {
   const router = useRouter();
@@ -42,7 +37,10 @@ function VideosContent() {
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
-  const regionFilter = (searchParams.get("region") || getStoredRegion()).toUpperCase();
+  const regionFilter = (
+    searchParams.get("region") || getStoredRegion()
+  ).toUpperCase();
+  const sort = searchParams.get("sort") || "sales";
   const pageSize = 24; // Carregar 24 por vez
 
   const requestedRankingCycle: 1 | 2 | 3 =
@@ -88,6 +86,7 @@ function VideosContent() {
         const params = new URLSearchParams({
           range: timeRange,
           region: regionFilter,
+          sort,
         });
         if (searchQuery) params.set("search", searchQuery);
 
@@ -120,7 +119,7 @@ function VideosContent() {
         setLoading(false);
       }
     },
-    [timeRange, searchQuery, regionFilter],
+    [timeRange, searchQuery, regionFilter, sort],
   );
 
   // Fetch only when query params change (not when categories change)
@@ -158,6 +157,7 @@ function VideosContent() {
     const params = new URLSearchParams();
     params.set("range", range);
     params.set("region", regionFilter);
+    params.set("sort", sort);
     if (searchQuery) params.set("q", searchQuery);
     if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/app/videos?${params.toString()}`);
@@ -167,6 +167,7 @@ function VideosContent() {
     const params = new URLSearchParams();
     params.set("range", timeRange);
     params.set("region", regionFilter);
+    params.set("sort", sort);
     if (query) params.set("q", query);
     if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/app/videos?${params.toString()}`);
@@ -176,6 +177,7 @@ function VideosContent() {
     const params = new URLSearchParams();
     params.set("range", timeRange);
     params.set("region", regionFilter);
+    params.set("sort", sort);
     if (searchQuery) params.set("q", searchQuery);
     if (category) params.set("category", category);
     router.push(`/app/videos?${params.toString()}`);
@@ -185,6 +187,17 @@ function VideosContent() {
     const params = new URLSearchParams();
     params.set("range", timeRange);
     params.set("region", region);
+    params.set("sort", sort);
+    if (searchQuery) params.set("q", searchQuery);
+    if (categoryFilter) params.set("category", categoryFilter);
+    router.push(`/app/videos?${params.toString()}`);
+  };
+
+  const handleSortChange = (newSort: string) => {
+    const params = new URLSearchParams();
+    params.set("range", timeRange);
+    params.set("region", regionFilter);
+    params.set("sort", newSort);
     if (searchQuery) params.set("q", searchQuery);
     if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/app/videos?${params.toString()}`);
@@ -259,7 +272,41 @@ function VideosContent() {
           onCategoryChange={handleCategoryChange}
           categories={categories}
         />
-
+        {/* Sort chips */}
+        <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
+          {VIDEO_RANK_FIELDS.map((rf) => {
+            const active = sort === rf.key;
+            return (
+              <Box
+                key={rf.key}
+                component="button"
+                onClick={() => handleSortChange(rf.key)}
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 99,
+                  border: active
+                    ? "1px solid #2DD4FF"
+                    : "1px solid rgba(255,255,255,0.15)",
+                  background: active
+                    ? "rgba(45,212,255,0.12)"
+                    : "rgba(255,255,255,0.05)",
+                  color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
+                  fontSize: "0.75rem",
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 150ms ease",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    color: "#2DD4FF",
+                  },
+                }}
+              >
+                {rf.label}
+              </Box>
+            );
+          })}
+        </Box>
       </Box>
 
       {/* Scrollable Content */}

@@ -2,13 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Grid,
-} from "@mui/material";
+import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { ProductCard } from "@/app/components/cards/ProductCard";
 import type { ProductDTO } from "@/lib/types/dto";
@@ -22,6 +16,7 @@ import {
   type Category,
 } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
+import { PRODUCT_RANK_FIELDS } from "@/lib/echotik/rankFields";
 
 function ProductsContent() {
   const router = useRouter();
@@ -42,7 +37,10 @@ function ProductsContent() {
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
-  const regionFilter = (searchParams.get("region") || getStoredRegion()).toUpperCase();
+  const regionFilter = (
+    searchParams.get("region") || getStoredRegion()
+  ).toUpperCase();
+  const sort = searchParams.get("sort") || "sales";
   const pageSize = 24;
 
   const requestedRankingCycle: 1 | 2 | 3 =
@@ -84,6 +82,7 @@ function ProductsContent() {
         const params = new URLSearchParams({
           range: timeRange,
           region: regionFilter,
+          sort,
         });
         if (searchQuery) params.set("search", searchQuery);
         const res = await fetch(`/api/trending/products?${params}`, { signal });
@@ -105,7 +104,7 @@ function ProductsContent() {
         setLoading(false);
       }
     },
-    [timeRange, searchQuery, regionFilter],
+    [timeRange, searchQuery, regionFilter, sort],
   );
 
   useEffect(() => {
@@ -138,6 +137,7 @@ function ProductsContent() {
     const params = new URLSearchParams();
     params.set("range", overrides.range ?? timeRange);
     params.set("region", overrides.region ?? regionFilter);
+    params.set("sort", overrides.sort ?? sort);
     const q = overrides.q ?? searchQuery;
     if (q) params.set("q", q);
     const cat = overrides.category ?? categoryFilter;
@@ -206,7 +206,41 @@ function ProductsContent() {
           onCategoryChange={(c: string) => updateUrl({ category: c })}
           categories={categories}
         />
-
+        {/* Sort chips */}
+        <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
+          {PRODUCT_RANK_FIELDS.map((rf) => {
+            const active = sort === rf.key;
+            return (
+              <Box
+                key={rf.key}
+                component="button"
+                onClick={() => updateUrl({ sort: rf.key })}
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 99,
+                  border: active
+                    ? "1px solid #2DD4FF"
+                    : "1px solid rgba(255,255,255,0.15)",
+                  background: active
+                    ? "rgba(45,212,255,0.12)"
+                    : "rgba(255,255,255,0.05)",
+                  color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
+                  fontSize: "0.75rem",
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 150ms ease",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    color: "#2DD4FF",
+                  },
+                }}
+              >
+                {rf.label}
+              </Box>
+            );
+          })}
+        </Box>
       </Box>
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", mt: 2 }}>
