@@ -391,6 +391,28 @@ async function _processEvent(
         },
       },
     });
+
+    // 5. Auto-suspensão em CHARGEBACK (proteção contra fraude)
+    if (eventType === "PURCHASE_CHARGEBACK") {
+      await prisma.user.update({
+        where: { id: identity.userId },
+        data: { status: "SUSPENDED" },
+      });
+      await prisma.auditLog.create({
+        data: {
+          userId: identity.userId,
+          actorId: "system",
+          action: "AUTO_SUSPENSION_CHARGEBACK",
+          entityType: "User",
+          entityId: identity.userId,
+          after: {
+            reason: "Chargeback detectado — conta suspensa automaticamente",
+            transactionId: fields.transactionId,
+            webhookEventId,
+          },
+        },
+      });
+    }
   } else {
     // Sem identidade ou plano resolvido — loga para investigação
     await prisma.auditLog.create({

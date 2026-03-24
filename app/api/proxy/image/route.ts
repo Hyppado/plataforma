@@ -119,7 +119,11 @@ async function getSignedCoverUrl(coverUrl: string): Promise<string> {
     { params: { cover_urls: coverUrl } },
   );
 
-  if (result.code !== 0 || !Array.isArray(result.data) || result.data.length === 0) {
+  if (
+    result.code !== 0 ||
+    !Array.isArray(result.data) ||
+    result.data.length === 0
+  ) {
     throw new Error(
       `[image-proxy] batch/cover/download failed: ${result.message}`,
     );

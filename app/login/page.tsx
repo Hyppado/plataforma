@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import {
   Box,
   Container,
@@ -77,11 +78,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setLoading(true);
-    // Redirect to dashboard
-    window.location.href = "/app";
+    setError(null);
+    const result = await signIn("credentials", {
+      email: email.trim().toLowerCase(),
+      password,
+      redirect: false,
+    });
+    if (result?.error) {
+      setError("Email ou senha incorretos.");
+      setLoading(false);
+    } else {
+      window.location.href = "/app";
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -227,6 +239,22 @@ export default function LoginPage() {
             </Box>
 
             {/* 5) Link Esqueceu sua senha? alinhado à direita */}
+            {error && (
+              <Box
+                sx={{
+                  mb: 2,
+                  p: 1.5,
+                  borderRadius: 2,
+                  background: "rgba(239,68,68,0.1)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  color: "#ef4444",
+                  fontSize: "0.8rem",
+                  textAlign: "center",
+                }}
+              >
+                {error}
+              </Box>
+            )}
             <Box sx={{ textAlign: "right", mb: 3 }}>
               <Link
                 href="/recuperar"

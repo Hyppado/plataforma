@@ -1,0 +1,134 @@
+/**
+ * GET  /api/admin/users — Lista usuários com filtros
+ * PATCH /api/admin/users — Atualiza status de um usuário
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
+export const runtime = "nodejs";
+
+// ---------------------------------------------------------------------------
+// GET — Lista paginada de usuários
+// ---------------------------------------------------------------------------
+
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { searchParams } = req.nextUrl;
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "20", 10));
+  const status = searchParams.get("status"); // ACTIVE, INACTIVE, SUSPENDED
+  const role = searchParams.get("role"); // ADMIN, USER
+  const search = searchParams.get("search"); // email or name partial match
+  const skip = (page - 1) * limit;
+
+  const where: Record<string, unknown> = {};
+  if (status) where.status = status;
+  if (role) where.role = role;
+  if (search) {
+    where.OR = [
+      { email: { contains: search, mode: "insensitive" } },
+      { name: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  // Exclude LGPD-deleted users by default
+  where.deletedAt = null;
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where: where as never,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        lastLoginAt: true,
+        _count: {
+          select: {
+            subscriptions: true,
+            accessGrants: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.user.count({ where: where as never }),
+  ]);
+
+  return NextResponse.json({
+    users,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// PATCH — Atualiza status ou role de um usuário
+// ---------------------------------------------------------------------------
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const { userId, status, role } = body as {
+    userId?: string;
+    status?: string;
+    role?: string;
+  };
+
+  if (!userId) {
+    return NextResponse.json({ error: "userId required" }, { status: 400 });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  const adminId = (session.user as { id?: string }).id ?? "unknown";
+  const before = { status: user.status, role: user.role };
+  const data: Record<string, unknown> = {};
+
+  if (status && ["ACTIVE", "INACTIVE", "SUSPENDED"].includes(status)) {
+    data.status = status;
+  }
+  if (role && ["ADMIN", "USER"].includes(role)) {
+    data.role = role;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: data as never,
+    select: { id: true, email: true, name: true, role: true, status: true },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId,
+      actorId: adminId,
+      action: "USER_STATUS_CHANGED",
+      entityType: "User",
+      entityId: userId,
+      before,
+      after: data as Record<string, string>,
+    },
+  });
+
+  return NextResponse.json({ user: updated });
+}

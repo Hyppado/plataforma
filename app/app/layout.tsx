@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
   Box,
   AppBar,
@@ -151,7 +152,7 @@ const NAV_SECTIONS = [
 ];
 
 // Bottom nav section (Admin + Sair)
-const isAdminMode = process.env.NEXT_PUBLIC_ADMIN_MODE === "true";
+// Admin link is shown dynamically based on session role (see AppLayout component)
 
 /** Sidebar Quota - Compact status block */
 function SidebarQuota() {
@@ -301,6 +302,8 @@ function SidebarQuota() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -466,8 +469,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Bottom actions - fixed at bottom */}
       <Box sx={{ flexShrink: 0, px: 1.25, pb: 0.75, pt: 0.75 }}>
-        {/* Admin section (if enabled) */}
-        {isAdminMode && (
+        {/* Admin section (if admin user) */}
+        {isAdmin && (
           <Box sx={{ mb: 0.6 }}>
             <Typography
               sx={{
@@ -547,8 +550,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <List disablePadding>
           <ListItem disablePadding>
             <ListItemButton
-              component={Link}
-              href="/login"
+              onClick={() => signOut({ callbackUrl: "/login" })}
               sx={{
                 borderRadius: 2,
                 minHeight: 32,

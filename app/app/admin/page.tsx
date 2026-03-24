@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Box,
   Typography,
@@ -98,6 +100,20 @@ const cardStyle = {
 };
 
 export default function AdminPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // Role guard — redirect non-admins immediately
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user?.role !== "ADMIN") {
+      router.replace("/app/videos");
+    }
+  }, [session, status, router]);
+
+  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
+    return null;
+  }
   // Data state
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [totalSubscribers, setTotalSubscribers] = useState(0);
