@@ -9,10 +9,8 @@
  * enquanto este sync puxar o estado atual de todas as assinaturas.
  */
 
-import { PrismaClient } from "@prisma/client";
 import { hotmartRequest } from "./client";
-
-const prisma = new PrismaClient();
+import prisma from "../prisma";
 
 // ---------------------------------------------------------------------------
 // Tipos da API Hotmart — Subscriptions
