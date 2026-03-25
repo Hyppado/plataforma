@@ -56,7 +56,7 @@ export async function createErasureRequest(userId: string): Promise<string> {
  *
  * Dados anonimizados:
  *   - User: email → "deleted_XXX@anon.hyppado", name → null, passwordHash → null
- *   - HotmartIdentity: buyerEmail → null
+ *   - ExternalAccountLink: externalEmail → null, externalCustomerId → "anon_XXX"
  *
  * Dados deletados:
  *   - SavedItem, CollectionItem, Collection, Note, Alert
@@ -128,16 +128,23 @@ export async function processErasure(
     await prisma.note.deleteMany({ where: { userId } });
     anonymizedFields.push("notes");
 
-    // 4. Anonymize HotmartIdentity
-    const identity = await prisma.hotmartIdentity.findUnique({
+    // 4. Anonymize ExternalAccountLink (all providers)
+    const externalAccounts = await prisma.externalAccountLink.findMany({
       where: { userId },
     });
-    if (identity) {
-      await prisma.hotmartIdentity.update({
-        where: { id: identity.id },
-        data: { buyerEmail: null },
+    if (externalAccounts.length > 0) {
+      await prisma.externalAccountLink.updateMany({
+        where: { userId },
+        data: {
+          externalEmail: null,
+          externalCustomerId: `anon_${anonSuffix}`,
+          isActive: false,
+        },
       });
-      anonymizedFields.push("hotmartIdentity.buyerEmail");
+      anonymizedFields.push(
+        "externalAccountLink.externalEmail",
+        "externalAccountLink.externalCustomerId",
+      );
     }
 
     // 5. Delete usage events (non-fiscal)

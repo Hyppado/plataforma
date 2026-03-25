@@ -95,29 +95,35 @@ async function resolvePlan(fields: HotmartWebhookFields) {
 }
 
 // ---------------------------------------------------------------------------
-// Resolve/cria identidade Hotmart → User interno
+// Resolve/cria vínculo externo Hotmart → User interno
 // ---------------------------------------------------------------------------
+// O User é a entidade principal. Hotmart é apenas uma origem externa.
+// Se o email já existe no sistema, vincula. Caso contrário, cria User novo.
 
 async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
   const email = fields.buyerEmail ?? fields.subscriberEmail;
   const { subscriberCode } = fields;
   if (!email && !subscriberCode) return null;
 
-  const orConditions: { buyerEmail?: string; subscriberCode?: string }[] = [];
-  if (email) orConditions.push({ buyerEmail: email });
-  if (subscriberCode) orConditions.push({ subscriberCode });
+  // Busca vínculo existente por email ou subscriberCode
+  const orConditions: {
+    externalEmail?: string;
+    externalCustomerId?: string;
+  }[] = [];
+  if (email) orConditions.push({ externalEmail: email });
+  if (subscriberCode) orConditions.push({ externalCustomerId: subscriberCode });
 
-  const existing = await prisma.hotmartIdentity.findFirst({
-    where: { OR: orConditions },
+  const existing = await prisma.externalAccountLink.findFirst({
+    where: { provider: "hotmart", OR: orConditions },
     include: { user: true },
   });
 
   if (existing) {
-    // Persiste subscriberCode se chegou agora
-    if (subscriberCode && !existing.subscriberCode) {
-      await prisma.hotmartIdentity.update({
+    // Atualiza subscriberCode se chegou agora
+    if (subscriberCode && !existing.externalCustomerId) {
+      await prisma.externalAccountLink.update({
         where: { id: existing.id },
-        data: { subscriberCode },
+        data: { externalCustomerId: subscriberCode },
       });
     }
     return existing;
@@ -125,6 +131,7 @@ async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
 
   if (!email) return null;
 
+  // Busca ou cria User pelo email (User é independente do Hotmart)
   const user = await prisma.user.upsert({
     where: { email },
     update: {},
@@ -136,8 +143,15 @@ async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
     },
   });
 
-  return prisma.hotmartIdentity.create({
-    data: { userId: user.id, buyerEmail: email, subscriberCode },
+  return prisma.externalAccountLink.create({
+    data: {
+      userId: user.id,
+      provider: "hotmart",
+      externalCustomerId: subscriberCode ?? undefined,
+      externalEmail: email,
+      linkConfidence: "auto_email",
+      linkMethod: "webhook",
+    },
     include: { user: true },
   });
 }

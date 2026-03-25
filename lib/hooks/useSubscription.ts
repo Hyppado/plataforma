@@ -39,12 +39,24 @@ export interface SubscriptionData {
     nextRenewalAt: string | null;
     cancelledAt: string | null;
     productName: string;
+    source?: string;
     transcriptsPerMonth: number;
     scriptsPerMonth: number;
     insightTokensMonthlyMax: number;
     scriptTokensMonthlyMax: number;
   } | null;
   billingHistory: BillingEvent[];
+  /** Provider-agnostic external account integrations */
+  externalIntegration?: {
+    connected: boolean;
+    providers: Array<{
+      provider: string;
+      externalId: string;
+      reference: string | null;
+      linkedAt: string;
+    }>;
+  };
+  /** @deprecated Use externalIntegration instead */
   hotmartIntegration: {
     connected: boolean;
     webhookConfigured: boolean;

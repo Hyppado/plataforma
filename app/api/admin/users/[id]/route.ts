@@ -31,7 +31,7 @@ export async function GET(
         orderBy: { createdAt: "desc" },
         include: { plan: true },
       },
-      hotmartIdentity: true,
+      externalAccounts: true,
       consentRecords: {
         orderBy: { createdAt: "desc" },
         take: 10,
@@ -80,7 +80,7 @@ export async function GET(
     },
     subscriptions: user.subscriptions,
     accessGrants: user.accessGrants,
-    hotmartIdentity: user.hotmartIdentity,
+    externalAccounts: user.externalAccounts,
     consentRecords: user.consentRecords,
     erasureRequests: user.erasureRequests,
     counts: user._count,

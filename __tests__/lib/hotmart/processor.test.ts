@@ -56,8 +56,10 @@ const mockPlan = buildPlan({
 const mockIdentity = {
   id: "ident-1",
   userId: "user-1",
-  buyerEmail: "buyer@test.com",
-  subscriberCode: "SC1",
+  provider: "hotmart",
+  externalEmail: "buyer@test.com",
+  externalCustomerId: "SC1",
+  externalReference: "SC1",
   user: mockUser,
 };
 
@@ -66,9 +68,9 @@ function setupFullMocks() {
   prismaMock.hotmartWebhookEvent.update.mockResolvedValue({});
 
   // Identity resolution
-  prismaMock.hotmartIdentity.findFirst.mockResolvedValue(mockIdentity);
-  prismaMock.hotmartIdentity.update.mockResolvedValue({});
-  prismaMock.hotmartIdentity.create.mockResolvedValue(mockIdentity);
+  prismaMock.externalAccountLink.findFirst.mockResolvedValue(mockIdentity);
+  prismaMock.externalAccountLink.update.mockResolvedValue({});
+  prismaMock.externalAccountLink.create.mockResolvedValue(mockIdentity);
 
   // Plan resolution
   prismaMock.plan.findFirst.mockResolvedValue(mockPlan);
@@ -119,7 +121,7 @@ describe("processHotmartEvent()", () => {
       }),
     );
     // Should NOT try to resolve identity (informationals skip this)
-    expect(prismaMock.hotmartIdentity.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.externalAccountLink.findFirst).not.toHaveBeenCalled();
   });
 
   it("processes PURCHASE_APPROVED and creates subscription", async () => {
@@ -130,7 +132,7 @@ describe("processHotmartEvent()", () => {
     await promise;
 
     // Should resolve identity
-    expect(prismaMock.hotmartIdentity.findFirst).toHaveBeenCalled();
+    expect(prismaMock.externalAccountLink.findFirst).toHaveBeenCalled();
     // Should create subscription
     expect(prismaMock.subscription.create).toHaveBeenCalled();
   });
@@ -143,7 +145,7 @@ describe("processHotmartEvent()", () => {
     await promise;
 
     // Resolved identity and plan
-    expect(prismaMock.hotmartIdentity.findFirst).toHaveBeenCalled();
+    expect(prismaMock.externalAccountLink.findFirst).toHaveBeenCalled();
     expect(prismaMock.plan.findFirst).toHaveBeenCalled();
   });
 
@@ -210,7 +212,7 @@ describe("processHotmartEvent()", () => {
   });
 
   it("creates audit log for unresolved identity", async () => {
-    prismaMock.hotmartIdentity.findFirst.mockResolvedValue(null);
+    prismaMock.externalAccountLink.findFirst.mockResolvedValue(null);
     // Remove email so we can't create user
     const fields = makeFields({
       buyerEmail: undefined as any,

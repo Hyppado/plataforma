@@ -62,9 +62,15 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // Hotmart identity
-  const hotmartIdentity = await prisma.hotmartIdentity.findUnique({
-    where: { userId: user.id },
+  // External account links (provider-agnostic)
+  const externalAccounts = await prisma.externalAccountLink.findMany({
+    where: { userId: user.id, isActive: true },
+    select: {
+      provider: true,
+      externalCustomerId: true,
+      externalReference: true,
+      linkedAt: true,
+    },
   });
 
   // Build status label
@@ -80,9 +86,6 @@ export async function GET(req: NextRequest) {
     amountCents: charge.amountCents ?? 0,
     currency: charge.currency,
   }));
-
-  // Hotmart integration state: "connected" if we have an identity record
-  const hotmartConnected = !!hotmartIdentity;
 
   return NextResponse.json({
     member: {
@@ -101,6 +104,7 @@ export async function GET(req: NextRequest) {
           nextRenewalAt: subscription.nextChargeAt?.toISOString() ?? null,
           cancelledAt: subscription.cancelledAt?.toISOString() ?? null,
           productName: `Hyppado — ${subscription.plan.name}`,
+          source: subscription.source,
           // Quotas
           transcriptsPerMonth: subscription.plan.transcriptsPerMonth,
           scriptsPerMonth: subscription.plan.scriptsPerMonth,
@@ -109,10 +113,22 @@ export async function GET(req: NextRequest) {
         }
       : null,
     billingHistory,
+    externalIntegration: {
+      connected: externalAccounts.length > 0,
+      providers: externalAccounts.map((a) => ({
+        provider: a.provider,
+        externalId: a.externalCustomerId,
+        reference: a.externalReference,
+        linkedAt: a.linkedAt.toISOString(),
+      })),
+    },
+    // Backward compat — deprecated, use externalIntegration
     hotmartIntegration: {
-      connected: hotmartConnected,
-      webhookConfigured: true, // always true — webhook endpoint is always live
-      subscriberCode: hotmartIdentity?.subscriberCode ?? null,
+      connected: externalAccounts.some((a) => a.provider === "hotmart"),
+      webhookConfigured: true,
+      subscriberCode:
+        externalAccounts.find((a) => a.provider === "hotmart")
+          ?.externalReference ?? null,
     },
   });
 }

@@ -1,55 +1,56 @@
 import { NextResponse } from "next/server";
-import { hotmartRequest } from "@/lib/hotmart/client";
+import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 
 /**
  * GET /api/admin/subscription-metrics
- * Busca métricas de assinatura direto da API da Hotmart.
- * Webhooks continuam sendo o canal para receber eventos em tempo real.
+ * Calcula métricas de assinatura a partir do banco de dados local.
+ * Independente de provider externo.
  */
-
-interface HotmartSubscriptionsResponse {
-  items?: unknown[];
-  page_info?: { total_results?: number };
-}
-
-async function fetchCount(productId: string, status?: string): Promise<number> {
-  const params: Record<string, string | number> = {
-    product_id: productId,
-    max_results: 500,
-  };
-  if (status) params.status = status;
-
-  const data = await hotmartRequest<HotmartSubscriptionsResponse>(
-    "/payments/api/v1/subscriptions",
-    { params },
-  );
-  return data.items?.length ?? 0;
-}
 
 export async function GET() {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
   try {
-    const productId = process.env.HOTMART_PRODUCT_ID;
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    if (!productId) {
-      return NextResponse.json(
-        { error: "HOTMART_PRODUCT_ID não configurado" },
-        { status: 400 },
-      );
-    }
-
-    const [active, cancelled, overdue, inactive, total] = await Promise.all([
-      fetchCount(productId, "ACTIVE"),
-      fetchCount(productId, "CANCELLED_BY_CUSTOMER"),
-      fetchCount(productId, "OVERDUE"),
-      fetchCount(productId, "INACTIVE"),
-      fetchCount(productId),
+    const [
+      active,
+      cancelled,
+      pastDue,
+      total,
+      newThisMonth,
+      cancelledThisMonth,
+      revenueAgg,
+      lastSync,
+    ] = await Promise.all([
+      prisma.subscription.count({ where: { status: "ACTIVE" } }),
+      prisma.subscription.count({ where: { status: "CANCELLED" } }),
+      prisma.subscription.count({
+        where: { status: { in: ["PAST_DUE", "PENDING"] } },
+      }),
+      prisma.subscription.count(),
+      prisma.subscription.count({
+        where: { createdAt: { gte: startOfMonth } },
+      }),
+      prisma.subscription.count({
+        where: {
+          status: "CANCELLED",
+          cancelledAt: { gte: startOfMonth },
+        },
+      }),
+      prisma.subscriptionCharge.aggregate({
+        _sum: { amountCents: true },
+        where: { paidAt: { gte: startOfMonth } },
+      }),
+      prisma.subscription.findFirst({
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      }),
     ]);
 
-    const now = new Date();
     const monthNames = [
       "Janeiro",
       "Fevereiro",
@@ -68,13 +69,13 @@ export async function GET() {
     return NextResponse.json({
       activeSubscribers: active,
       canceledSubscribers: cancelled,
-      pastDueSubscribers: overdue + inactive,
+      pastDueSubscribers: pastDue,
       totalSubscribers: total,
-      newThisMonth: 0,
-      cancelledThisMonth: 0,
-      revenueThisMonthCents: 0,
+      newThisMonth,
+      cancelledThisMonth,
+      revenueThisMonthCents: revenueAgg._sum.amountCents ?? 0,
       periodLabel: `${monthNames[now.getMonth()]} ${now.getFullYear()}`,
-      lastSyncAt: null,
+      lastSyncAt: lastSync?.updatedAt?.toISOString() ?? null,
     });
   } catch (error) {
     console.error("[admin/subscription-metrics] Erro:", error);

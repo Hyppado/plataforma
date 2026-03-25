@@ -84,7 +84,7 @@ export interface SyncSubscribersResult {
 
 /**
  * Puxa todas as assinaturas do produto na Hotmart e sincroniza com o DB local.
- * Cria User + HotmartIdentity + Subscription + HotmartSubscription conforme necessário.
+ * Cria User + ExternalAccountLink + Subscription + HotmartSubscription conforme necessário.
  */
 export async function syncHotmartSubscribers(
   productId: string,
@@ -181,7 +181,7 @@ async function syncOneSubscriber(
     throw new Error("Sem email ou subscriber_code");
   }
 
-  // 1. Resolve ou cria User
+  // 1. Resolve ou cria User (independente de Hotmart)
   let userId: string;
   if (email) {
     const user = await prisma.user.upsert({
@@ -198,48 +198,52 @@ async function syncOneSubscriber(
     });
     userId = user.id;
 
-    // 2. Resolve ou cria HotmartIdentity
-    const existingIdentity = await prisma.hotmartIdentity.findFirst({
+    // 2. Resolve ou cria ExternalAccountLink (vínculo Hotmart)
+    const existingLink = await prisma.externalAccountLink.findFirst({
       where: {
+        provider: "hotmart",
         OR: [
-          ...(email ? [{ buyerEmail: email }] : []),
-          ...(subscriberCode ? [{ subscriberCode }] : []),
+          ...(email ? [{ externalEmail: email }] : []),
+          ...(subscriberCode ? [{ externalCustomerId: subscriberCode }] : []),
         ],
       },
     });
 
-    if (existingIdentity) {
-      if (existingIdentity.userId !== userId) {
-        // Identity exists for different user — skip to avoid conflicts
-        userId = existingIdentity.userId;
+    if (existingLink) {
+      if (existingLink.userId !== userId) {
+        // Link exists for different user — skip to avoid conflicts
+        userId = existingLink.userId;
       }
       // Update subscriberCode if needed
-      if (subscriberCode && !existingIdentity.subscriberCode) {
-        await prisma.hotmartIdentity.update({
-          where: { id: existingIdentity.id },
-          data: { subscriberCode },
+      if (subscriberCode && !existingLink.externalCustomerId) {
+        await prisma.externalAccountLink.update({
+          where: { id: existingLink.id },
+          data: { externalCustomerId: subscriberCode },
         });
       }
     } else {
-      await prisma.hotmartIdentity.create({
+      await prisma.externalAccountLink.create({
         data: {
           userId,
-          buyerEmail: email,
-          subscriberCode: subscriberCode ?? undefined,
+          provider: "hotmart",
+          externalCustomerId: subscriberCode ?? undefined,
+          externalEmail: email,
+          linkConfidence: "auto_email",
+          linkMethod: "sync",
         },
       });
     }
   } else {
-    // Only subscriberCode, find existing identity
-    const identity = await prisma.hotmartIdentity.findFirst({
-      where: { subscriberCode },
+    // Only subscriberCode, find existing external link
+    const link = await prisma.externalAccountLink.findFirst({
+      where: { provider: "hotmart", externalCustomerId: subscriberCode },
     });
-    if (!identity) {
+    if (!link) {
       throw new Error(
-        `Identity não encontrada para subscriberCode: ${subscriberCode}`,
+        `External link não encontrado para subscriberCode: ${subscriberCode}`,
       );
     }
-    userId = identity.userId;
+    userId = link.userId;
   }
 
   // 3. Resolve Plan

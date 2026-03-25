@@ -38,7 +38,7 @@ describe("GET /api/user/subscription — SECURITY", () => {
     const user = buildUser({ id: "victim-id" });
     prismaMock.user.findUnique.mockResolvedValue(user);
     prismaMock.subscription.findFirst.mockResolvedValue(null);
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([]);
 
     const req = makeReq({ userId: "victim-id" });
     const res = await GET(req);
@@ -51,7 +51,7 @@ describe("GET /api/user/subscription — SECURITY", () => {
     const user = buildUser({ id: "victim-id", email: "victim@real.com" });
     prismaMock.user.findUnique.mockResolvedValue(user);
     prismaMock.subscription.findFirst.mockResolvedValue(null);
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([]);
 
     const req = makeReq({ email: "victim@real.com" });
     const res = await GET(req);
@@ -64,9 +64,14 @@ describe("GET /api/user/subscription — SECURITY", () => {
     const user = buildUser({ id: "u1" });
     prismaMock.user.findUnique.mockResolvedValue(user);
     prismaMock.subscription.findFirst.mockResolvedValue(null);
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue({
-      subscriberCode: "SECRET_SUB_CODE",
-    });
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([
+      {
+        provider: "hotmart",
+        externalCustomerId: "SECRET_SUB_CODE",
+        externalReference: "SECRET_SUB_CODE",
+        linkedAt: new Date(),
+      },
+    ]);
 
     const req = makeReq({ userId: "u1" });
     const res = await GET(req);
@@ -112,7 +117,7 @@ describe("GET /api/user/subscription — Functional", () => {
 
     prismaMock.user.findUnique.mockResolvedValue(user);
     prismaMock.subscription.findFirst.mockResolvedValue(sub);
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([]);
 
     const req = makeReq({ userId: "u1" });
     const res = await GET(req);
@@ -126,7 +131,7 @@ describe("GET /api/user/subscription — Functional", () => {
   it("returns null subscription when user has none", async () => {
     prismaMock.user.findUnique.mockResolvedValue(buildUser({ id: "u1" }));
     prismaMock.subscription.findFirst.mockResolvedValue(null);
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([]);
 
     const req = makeReq({ userId: "u1" });
     const res = await GET(req);
@@ -138,7 +143,7 @@ describe("GET /api/user/subscription — Functional", () => {
   it("maps subscription statuses correctly", async () => {
     const user = buildUser({ id: "u1" });
     prismaMock.user.findUnique.mockResolvedValue(user);
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([]);
 
     prismaMock.subscription.findFirst.mockResolvedValue(
       buildSubscription({

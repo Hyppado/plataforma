@@ -1,8 +1,9 @@
 /**
- * Admin API client for Hotmart integration and quota management.
+ * Admin API client for billing integration and quota management.
  *
  * Calls internal API endpoints that query real DB data.
  * No mock data — all values come from Prisma queries.
+ * Provider-agnostic: supports Hotmart, Stripe, manual, invite, etc.
  */
 
 import type {

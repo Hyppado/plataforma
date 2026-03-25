@@ -90,11 +90,10 @@ describe("processErasure()", () => {
     prismaMock.collection.deleteMany.mockResolvedValue({ count: 2 });
     prismaMock.savedItem.deleteMany.mockResolvedValue({ count: 3 });
     prismaMock.note.deleteMany.mockResolvedValue({ count: 2 });
-    prismaMock.hotmartIdentity.findUnique.mockResolvedValue({
-      id: "ident-1",
-      userId: "user-1",
-    });
-    prismaMock.hotmartIdentity.update.mockResolvedValue({});
+    prismaMock.externalAccountLink.findMany.mockResolvedValue([
+      { id: "ident-1", userId: "user-1", provider: "hotmart" },
+    ]);
+    prismaMock.externalAccountLink.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.usageEvent.deleteMany.mockResolvedValue({ count: 10 });
     prismaMock.usagePeriod.deleteMany.mockResolvedValue({ count: 1 });
     prismaMock.user.update.mockResolvedValue({});
@@ -159,11 +158,11 @@ describe("processErasure()", () => {
     expect(prismaMock.note.deleteMany).toHaveBeenCalled();
   });
 
-  it("anonymizes HotmartIdentity buyerEmail", async () => {
+  it("anonymizes ExternalAccountLink externalEmail", async () => {
     await processErasure("req-1", "admin-1");
-    expect(prismaMock.hotmartIdentity.update).toHaveBeenCalledWith(
+    expect(prismaMock.externalAccountLink.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ buyerEmail: null }),
+        data: expect.objectContaining({ externalEmail: null, isActive: false }),
       }),
     );
   });
