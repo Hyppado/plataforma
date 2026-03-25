@@ -1,13 +1,11 @@
 /**
  * prisma/seed.ts
  *
- * Seed inicial: cria planos padrão, settings de configuração e usuário admin.
- * Nada é hardcoded no código — tudo é configurável via env vars ou admin UI.
+ * Seed inicial: cria planos padrão e settings de configuração.
  * Se a API Hotmart estiver disponível, sincroniza offers e cupons.
  */
 
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -153,56 +151,12 @@ async function seedPlans() {
   console.log("✅ Planos base criados.");
 }
 
-async function seedAdmin() {
-  // Só executa se SEED_ADMIN_EMAIL estiver explicitamente definido.
-  // Isso evita criação acidental em produção — defina as vars apenas em dev/preview.
-  if (!process.env.SEED_ADMIN_EMAIL) {
-    console.log("⚠️  SEED_ADMIN_EMAIL não definido — pulando seed de admin.");
-    return;
-  }
-
-  const email = process.env.SEED_ADMIN_EMAIL.toLowerCase().trim();
-  const password = process.env.SEED_ADMIN_PASSWORD ?? "Admin123!";
-  const name = process.env.SEED_ADMIN_NAME ?? "Admin";
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-
-  if (existing) {
-    // Garante que o usuário é ADMIN e ACTIVE — sem alterar a senha se já existe
-    if (existing.role !== "ADMIN" || existing.status !== "ACTIVE") {
-      await prisma.user.update({
-        where: { email },
-        data: { role: "ADMIN", status: "ACTIVE" },
-      });
-      console.log(`✅ Admin promovido: ${email}`);
-    } else {
-      console.log(`✅ Admin já existe: ${email}`);
-    }
-    return;
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  await prisma.user.create({
-    data: {
-      email,
-      name,
-      passwordHash,
-      role: "ADMIN",
-      status: "ACTIVE",
-    },
-  });
-
-  console.log(`✅ Admin criado: ${email}`);
-}
-
 async function main() {
   console.log("🌱 Iniciando seed...\n");
 
   await seedSettings();
   await seedPlans();
   await seedRegions();
-  await seedAdmin();
 
   // Tenta sincronizar dados reais via API Hotmart
   const hasApiCreds =
