@@ -14,6 +14,7 @@ import {
 } from "@tests/helpers/factories";
 
 import { resolveUserAccess, hasAccess } from "@/lib/access/resolver";
+import { getQuotaLimits } from "@/lib/usage/quota";
 
 describe("resolveUserAccess()", () => {
   beforeEach(() => {
@@ -134,6 +135,44 @@ describe("resolveUserAccess()", () => {
     // Grant should not even be checked
     const result = await resolveUserAccess("user-1");
     expect(result.status).toBe("SUSPENDED");
+  });
+
+  // -----------------------------------------------------------------------
+  // C5 regression: quotas come from unified getQuotaLimits()
+  // -----------------------------------------------------------------------
+  it("quotas from subscription match getQuotaLimits() output (unified source)", async () => {
+    const plan = buildPlan({ transcriptsPerMonth: 42, scriptsPerMonth: 7 });
+    prismaMock.user.findUnique.mockResolvedValue(buildUser());
+    prismaMock.accessGrant.findFirst.mockResolvedValue(null);
+    prismaMock.subscription.findFirst.mockResolvedValue(
+      buildSubscription({ status: "ACTIVE", plan }),
+    );
+
+    const result = await resolveUserAccess("user-1");
+    const expected = getQuotaLimits(plan as any);
+    expect(result.quotas).toEqual(expected);
+  });
+
+  it("quotas from AccessGrant match getQuotaLimits() output (unified source)", async () => {
+    const plan = buildPlan({ transcriptsPerMonth: 100, scriptsPerMonth: 25 });
+    const grant = buildAccessGrant({ plan });
+    prismaMock.user.findUnique.mockResolvedValue(buildUser());
+    prismaMock.accessGrant.findFirst.mockResolvedValue(grant);
+
+    const result = await resolveUserAccess("user-1");
+    const expected = getQuotaLimits(plan as any);
+    expect(result.quotas).toEqual(expected);
+  });
+
+  it("AccessGrant without plan returns null quotas", async () => {
+    const grant = buildAccessGrant({ plan: null, planId: null });
+    prismaMock.user.findUnique.mockResolvedValue(buildUser());
+    prismaMock.accessGrant.findFirst.mockResolvedValue(grant);
+
+    const result = await resolveUserAccess("user-1");
+    expect(result.status).toBe("FULL_ACCESS");
+    expect(result.source).toBe("manual_grant");
+    expect(result.quotas).toBeNull();
   });
 });
 

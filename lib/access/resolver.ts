@@ -12,6 +12,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Plan } from "@prisma/client";
+import { getQuotaLimits, type QuotaLimits } from "@/lib/usage/quota";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,14 +33,7 @@ export interface AccessResolution {
   expiresAt: Date | null;
   reason: string;
   /** Quota limits derived from the resolved plan */
-  quotas: {
-    transcriptsPerMonth: number;
-    scriptsPerMonth: number;
-    insightTokensMonthlyMax: number;
-    scriptTokensMonthlyMax: number;
-    insightMaxOutputTokens: number;
-    scriptMaxOutputTokens: number;
-  } | null;
+  quotas: QuotaLimits | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,7 +109,7 @@ export async function resolveUserAccess(
       plan: grant.plan,
       expiresAt: grant.expiresAt,
       reason: `Acesso concedido manualmente: ${grant.reason}`,
-      quotas: grant.plan ? extractQuotas(grant.plan) : null,
+      quotas: grant.plan ? getQuotaLimits(grant.plan) : null,
     };
   }
 
@@ -136,7 +130,7 @@ export async function resolveUserAccess(
       plan: subscription.plan,
       expiresAt: subscription.nextChargeAt,
       reason: `Assinatura ativa: ${subscription.plan.name}`,
-      quotas: extractQuotas(subscription.plan),
+      quotas: getQuotaLimits(subscription.plan),
     };
   }
 
@@ -147,27 +141,12 @@ export async function resolveUserAccess(
       plan: subscription.plan,
       expiresAt: subscription.nextChargeAt,
       reason: `Pagamento em atraso: ${subscription.plan.name}`,
-      quotas: extractQuotas(subscription.plan),
+      quotas: getQuotaLimits(subscription.plan),
     };
   }
 
   // 5. No access
   return NO_ACCESS;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function extractQuotas(plan: Plan) {
-  return {
-    transcriptsPerMonth: plan.transcriptsPerMonth,
-    scriptsPerMonth: plan.scriptsPerMonth,
-    insightTokensMonthlyMax: plan.insightTokensMonthlyMax,
-    scriptTokensMonthlyMax: plan.scriptTokensMonthlyMax,
-    insightMaxOutputTokens: plan.insightMaxOutputTokens,
-    scriptMaxOutputTokens: plan.scriptMaxOutputTokens,
-  };
 }
 
 /**

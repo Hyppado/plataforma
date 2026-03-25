@@ -2,7 +2,8 @@
  * Tests: lib/usage/ — quota enforcement, consumption, periods
  *
  * Priority: #2 (Business rules — usage limits)
- * Coverage: period bounds, quota limits, assertion logic, idempotent consumption
+ * Coverage: period bounds, quota limits, assertion logic, idempotent consumption,
+ *           getUserActivePlan with AccessGrant priority
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prismaMock } from "@tests/helpers/prisma-mock";
@@ -10,11 +11,13 @@ import {
   buildPlan,
   buildUsagePeriod,
   buildUsageEvent,
+  buildAccessGrant,
+  buildSubscription,
 } from "@tests/helpers/factories";
 
 // Must import after prisma mock is set up
 import { getPeriodBounds } from "@/lib/usage/period";
-import { getQuotaLimits } from "@/lib/usage/quota";
+import { getQuotaLimits, getUserActivePlan } from "@/lib/usage/quota";
 import { QuotaExceededError } from "@/lib/usage/enforce";
 
 // ---------------------------------------------------------------------------
@@ -83,6 +86,66 @@ describe("getQuotaLimits()", () => {
     expect(limits.scriptsPerMonth).toBe(0);
     expect(limits.insightTokensMonthlyMax).toBe(0);
     expect(limits.scriptTokensMonthlyMax).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getUserActivePlan — AccessGrant + Subscription priority
+// ---------------------------------------------------------------------------
+describe("getUserActivePlan()", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns plan from AccessGrant when grant exists (highest priority)", async () => {
+    const grantPlan = buildPlan({ name: "Grant Plan", transcriptsPerMonth: 200 });
+    const grant = buildAccessGrant({ plan: grantPlan, planId: grantPlan.id });
+    prismaMock.accessGrant.findFirst.mockResolvedValue(grant);
+    // Subscription should NOT be checked
+    prismaMock.subscription.findFirst.mockResolvedValue(null);
+
+    const plan = await getUserActivePlan("user-1");
+    expect(plan).not.toBeNull();
+    expect(plan!.name).toBe("Grant Plan");
+    expect(plan!.transcriptsPerMonth).toBe(200);
+    // Subscription.findFirst should not have been called since grant was found
+    expect(prismaMock.accessGrant.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to subscription when no AccessGrant exists", async () => {
+    prismaMock.accessGrant.findFirst.mockResolvedValue(null);
+    const subPlan = buildPlan({ name: "Sub Plan", scriptsPerMonth: 50 });
+    prismaMock.subscription.findFirst.mockResolvedValue(
+      buildSubscription({ status: "ACTIVE", plan: subPlan }),
+    );
+
+    const plan = await getUserActivePlan("user-1");
+    expect(plan).not.toBeNull();
+    expect(plan!.name).toBe("Sub Plan");
+    expect(plan!.scriptsPerMonth).toBe(50);
+  });
+
+  it("returns null when neither grant nor subscription exists", async () => {
+    prismaMock.accessGrant.findFirst.mockResolvedValue(null);
+    prismaMock.subscription.findFirst.mockResolvedValue(null);
+
+    const plan = await getUserActivePlan("user-1");
+    expect(plan).toBeNull();
+  });
+
+  it("prefers AccessGrant plan over Subscription plan", async () => {
+    const grantPlan = buildPlan({ name: "Admin Override", transcriptsPerMonth: 999 });
+    const grant = buildAccessGrant({ plan: grantPlan, planId: grantPlan.id });
+    prismaMock.accessGrant.findFirst.mockResolvedValue(grant);
+
+    const subPlan = buildPlan({ name: "Regular Sub", transcriptsPerMonth: 10 });
+    prismaMock.subscription.findFirst.mockResolvedValue(
+      buildSubscription({ status: "ACTIVE", plan: subPlan }),
+    );
+
+    const plan = await getUserActivePlan("user-1");
+    expect(plan!.name).toBe("Admin Override");
+    expect(plan!.transcriptsPerMonth).toBe(999);
   });
 });
 

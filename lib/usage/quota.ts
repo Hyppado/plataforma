@@ -11,15 +11,42 @@ export interface QuotaLimits {
 }
 
 /**
- * Returns the active Plan for the given user, or null when the user has no
- * active subscription.
+ * Returns the effective Plan for the given user, considering all access
+ * sources in priority order:
+ *
+ *   1. Active AccessGrant with a linked plan (admin override)
+ *   2. Active Subscription with a linked plan
+ *   3. null (no plan / no quota limits)
+ *
+ * This mirrors the priority chain in `lib/access/resolver.ts` so that
+ * quota enforcement stays consistent with the access decision.
  */
 export async function getUserActivePlan(userId: string): Promise<Plan | null> {
+  // 1. Check AccessGrant first (admin override, highest priority)
+  const now = new Date();
+  const grant = await prisma.accessGrant.findFirst({
+    where: {
+      userId,
+      isActive: true,
+      planId: { not: null },
+      startsAt: { lte: now },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    include: { plan: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (grant?.plan) {
+    return grant.plan;
+  }
+
+  // 2. Fall back to active subscription
   const subscription = await prisma.subscription.findFirst({
     where: { userId, status: "ACTIVE" },
     orderBy: { startedAt: "desc" },
     include: { plan: true },
   });
+
   return subscription?.plan ?? null;
 }
 
