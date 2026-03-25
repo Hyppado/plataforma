@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mockAuthenticatedAdmin } from "@tests/helpers/auth";
 import { GET } from "@/app/api/admin/subscribers/route";
 import { hotmartRequest } from "@/lib/hotmart/client";
 
@@ -31,6 +32,7 @@ const mockItem = (overrides: Record<string, unknown> = {}) => ({
 describe("GET /api/admin/subscribers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthenticatedAdmin();
     process.env.HOTMART_PRODUCT_ID = "7420891";
   });
 

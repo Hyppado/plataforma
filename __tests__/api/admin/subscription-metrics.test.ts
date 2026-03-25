@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mockAuthenticatedAdmin } from "@tests/helpers/auth";
 import { GET } from "@/app/api/admin/subscription-metrics/route";
 import { hotmartRequest } from "@/lib/hotmart/client";
 
@@ -15,6 +16,7 @@ const apiResponse = (count: number) => ({
 describe("GET /api/admin/subscription-metrics", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthenticatedAdmin();
     process.env.HOTMART_PRODUCT_ID = "7420891";
   });
 
