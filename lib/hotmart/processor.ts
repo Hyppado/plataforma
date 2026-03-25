@@ -26,6 +26,7 @@
 
 import prisma from "../prisma";
 import type { HotmartWebhookFields } from "./webhook";
+import { createNotificationIfNeeded } from "../admin/notifications";
 
 // ---------------------------------------------------------------------------
 // Tabelas de eventos
@@ -298,9 +299,19 @@ export async function processHotmartEvent(
           processingStatus: "FAILED",
           processedAt: new Date(),
           errorMessage: message.slice(0, 1000),
+          retryCount: { increment: 1 },
         },
       })
       .catch(() => {});
+
+    // Notifica admin sobre falha de processamento
+    await createNotificationIfNeeded({
+      eventType: "PROCESSING_FAILED",
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      reason: message.slice(0, 200),
+      eventId: webhookEventId,
+      metadata: { eventType: fields.eventType, webhookEventId },
+    }).catch(() => {});
   }
 }
 
@@ -406,7 +417,25 @@ async function _processEvent(
       },
     });
 
-    // 5. Auto-suspensão em CHARGEBACK (proteção contra fraude)
+    // 5. Notificação admin (cancelamentos, chargebacks, atrasos, etc.)
+    await createNotificationIfNeeded({
+      eventType,
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      transactionId: fields.transactionId,
+      planCode: fields.planCode,
+      userId: identity.userId,
+      subscriptionId,
+      eventId: webhookEventId,
+      metadata: {
+        eventType,
+        recurrenceNumber: fields.recurrenceNumber,
+        amountCents: fields.amountCents,
+      },
+    }).catch((err) => {
+      console.warn("[Hotmart Processor] Falha ao criar notificação:", err);
+    });
+
+    // 6. Auto-suspensão em CHARGEBACK (proteção contra fraude)
     if (eventType === "PURCHASE_CHARGEBACK") {
       await prisma.user.update({
         where: { id: identity.userId },
@@ -444,6 +473,21 @@ async function _processEvent(
         },
       },
     });
+
+    // Notifica admin sobre identidade não resolvida
+    await createNotificationIfNeeded({
+      eventType: "IDENTITY_UNRESOLVED",
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      reason: !identity ? "identity_not_found" : "plan_not_found",
+      eventId: webhookEventId,
+      metadata: {
+        eventType,
+        buyerEmail: fields.buyerEmail,
+        subscriberCode: fields.subscriberCode,
+        productId: fields.productId,
+        planCode: fields.planCode,
+      },
+    }).catch(() => {});
   }
 
   await markProcessed(webhookEventId);

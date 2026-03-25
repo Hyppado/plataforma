@@ -12,6 +12,11 @@ import type { HotmartWebhookFields } from "@/lib/hotmart/webhook";
 
 vi.mock("@/lib/prisma");
 
+// Mock notification service (processor now calls createNotificationIfNeeded)
+vi.mock("@/lib/admin/notifications", () => ({
+  createNotificationIfNeeded: vi.fn().mockResolvedValue(null),
+}));
+
 // Use fake timers to skip retry delays
 vi.useFakeTimers();
 
