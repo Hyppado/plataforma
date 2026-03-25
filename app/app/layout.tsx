@@ -26,6 +26,7 @@ import {
   Person,
   TrendingUp,
   AdminPanelSettingsOutlined,
+  SettingsOutlined,
   Logout,
   BookmarkBorder,
   Whatshot,
@@ -536,6 +537,62 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       fontSize: "0.75rem",
                       fontWeight: isActive("/app/admin") ? 600 : 500,
                       color: isActive("/app/admin")
+                        ? "#2DD4FF"
+                        : "rgba(255,255,255,0.75)",
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton
+                  component={Link}
+                  href="/app/config"
+                  onClick={() => setMobileOpen(false)}
+                  sx={{
+                    borderRadius: 2,
+                    minHeight: 32,
+                    px: 1,
+                    py: 0.35,
+                    position: "relative",
+                    background: isActive("/app/config")
+                      ? "rgba(45, 212, 255, 0.08)"
+                      : "transparent",
+                    "&:hover": {
+                      background: isActive("/app/config")
+                        ? "rgba(45, 212, 255, 0.12)"
+                        : "rgba(255,255,255,0.03)",
+                    },
+                    "&::before": isActive("/app/config")
+                      ? {
+                          content: '""',
+                          position: "absolute",
+                          left: 0,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          width: 3,
+                          height: 14,
+                          borderRadius: "0 4px 4px 0",
+                          background: "#2DD4FF",
+                        }
+                      : {},
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 24 }}>
+                    <SettingsOutlined
+                      sx={{
+                        fontSize: 15,
+                        color: isActive("/app/config")
+                          ? "#2DD4FF"
+                          : "rgba(255,255,255,0.5)",
+                      }}
+                    />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="Configuração"
+                    primaryTypographyProps={{
+                      fontSize: "0.75rem",
+                      fontWeight: isActive("/app/config") ? 600 : 500,
+                      color: isActive("/app/config")
                         ? "#2DD4FF"
                         : "rgba(255,255,255,0.75)",
                     }}

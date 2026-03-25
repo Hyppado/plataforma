@@ -24,42 +24,18 @@ import {
   Tab,
   LinearProgress,
   Tooltip,
-  IconButton,
   Stack,
 } from "@mui/material";
 import {
-  Check as CheckIcon,
-  Restore as RestoreIcon,
-  Save as SaveIcon,
   PersonOutlined,
-  SubtitlesOutlined,
-  TerminalOutlined,
-  CodeOutlined,
   ConfirmationNumberOutlined,
-  SupportAgentOutlined,
-  Email as EmailIcon,
-  SettingsOutlined,
   TrendingUpOutlined,
   AttachMoneyOutlined,
 } from "@mui/icons-material";
-import type {
-  PromptConfig,
-  Subscriber,
-  SubscriptionMetrics,
-  QuotaPolicy,
-  QuotaUsage,
-} from "@/lib/types/admin";
+import type { Subscriber, SubscriptionMetrics } from "@/lib/types/admin";
 import {
   getSubscribers,
   getSubscriptionMetrics,
-} from "@/lib/admin/admin-client";
-import {
-  getQuotaPolicy,
-  getPromptConfig,
-  updateQuotaPolicy,
-  updatePromptConfig,
-  PROMPT_VARIABLES,
-  getDefaultPromptConfig,
 } from "@/lib/admin/admin-client";
 
 // Helper to display value or "—" if null/undefined
@@ -77,19 +53,6 @@ function formatCurrency(cents: number): string {
   });
 }
 
-// Format usage with max
-function formatUsage(
-  used: number | null | undefined,
-  max: number | null | undefined,
-): string {
-  const usedStr =
-    used !== null && used !== undefined ? used.toLocaleString("pt-BR") : "—";
-  const maxStr =
-    max !== null && max !== undefined ? max.toLocaleString("pt-BR") : "—";
-  return `${usedStr} / ${maxStr}`;
-}
-
-// Card style
 const cardStyle = {
   background: "rgba(10, 15, 24, 0.8)",
   border: "1px solid rgba(255,255,255,0.06)",
@@ -100,7 +63,6 @@ export default function AdminPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  // Role guard — redirect non-admins immediately
   useEffect(() => {
     if (status === "loading") return;
     if (!session || session.user?.role !== "ADMIN") {
@@ -111,57 +73,30 @@ export default function AdminPage() {
   if (status === "loading" || !session || session.user?.role !== "ADMIN") {
     return null;
   }
-  // Data state
+
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [totalSubscribers, setTotalSubscribers] = useState(0);
   const [metrics, setMetrics] = useState<SubscriptionMetrics | null>(null);
-  const [quotaPolicy, setQuotaPolicyState] = useState<QuotaPolicy | null>(null);
-  const [quotaUsage, setQuotaUsage] = useState<QuotaUsage>({});
   const [loading, setLoading] = useState(true);
-  // UI state
   const [subscriberTab, setSubscriberTab] = useState(0);
   const [subscriberSearch, setSubscriberSearch] = useState("");
-  const [promptTab, setPromptTab] = useState(0);
-  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null);
-  const [savedPrompt, setSavedPrompt] = useState(false);
-  const [limitsSaved, setLimitsSaved] = useState(false);
 
-  // Editable limits
-  const [transcriptsLimit, setTranscriptsLimit] = useState("40");
-  const [scriptsLimit, setScriptsLimit] = useState("70");
-
-  // Support config
-  const supportEmail = "contato@hyppado.com";
-
-
-  // Load data from API
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [policy, prompt, subsData, metricsData, usageData] = await Promise.all([
-        getQuotaPolicy(),
-        getPromptConfig(),
-        getSubscribers(
-          subscriberTab === 0
-            ? "active"
-            : subscriberTab === 1
-              ? "canceled"
-              : "past_due",
-          1,
-          100,
-          subscriberSearch || undefined
-        ),
+      const statusFilter =
+        subscriberTab === 0
+          ? "active"
+          : subscriberTab === 1
+            ? "canceled"
+            : "past_due";
+      const [subsData, metricsData] = await Promise.all([
+        getSubscribers(statusFilter, 1, 100, subscriberSearch || undefined),
         getSubscriptionMetrics(),
-        fetch("/api/admin/quota-usage").then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
-      setQuotaPolicyState(policy);
-      setTranscriptsLimit(policy.transcriptsPerMonth.toString());
-      setScriptsLimit(policy.scriptsPerMonth.toString());
-      setPromptConfig(prompt);
       setSubscribers(subsData.subscribers);
       setTotalSubscribers(subsData.pagination.total);
       setMetrics(metricsData);
-      if (usageData) setQuotaUsage(usageData);
     } catch (error) {
       console.error("Failed to load admin data:", error);
     } finally {
@@ -173,79 +108,15 @@ export default function AdminPage() {
     loadData();
   }, [loadData]);
 
-  // Save limits to API
-  const saveLimits = useCallback(async () => {
-    if (!quotaPolicy) return;
-    const newPolicy: QuotaPolicy = {
-      ...quotaPolicy,
-      transcriptsPerMonth: parseInt(transcriptsLimit) || 40,
-      scriptsPerMonth: parseInt(scriptsLimit) || 70,
-    };
-    await updateQuotaPolicy(newPolicy);
-    setQuotaPolicyState(newPolicy);
-    setLimitsSaved(true);
-    setTimeout(() => setLimitsSaved(false), 2000);
-    window.dispatchEvent(new Event("quota-policy-changed"));
-  }, [quotaPolicy, transcriptsLimit, scriptsLimit]);
-
-  // Update prompt template
-  const updatePromptTemplate = useCallback(
-    (type: "insight" | "script", template: string) => {
-      setPromptConfig((prev) =>
-        prev
-          ? {
-              ...prev,
-              [type]: { ...prev[type], template },
-            }
-          : prev
-      );
-      setSavedPrompt(false);
-    },
-    [],
-  );
-
-  // Restore defaults
-  const restoreDefaults = useCallback((type: "insight" | "script") => {
-    const defaults = getDefaultPromptConfig();
-    setPromptConfig((prev) =>
-      prev
-        ? {
-            ...prev,
-            [type]: defaults[type],
-          }
-        : prev
-    );
-    setSavedPrompt(false);
-  }, []);
-
-  // Save prompts to API
-  const savePrompt = useCallback(async () => {
-    if (!promptConfig) return;
-    await updatePromptConfig(promptConfig);
-    setSavedPrompt(true);
-    setTimeout(() => setSavedPrompt(false), 2000);
-  }, [promptConfig]);
-
   return (
     <Box>
-      {/* Page Header */}
-      <Box
-        sx={{
-          mb: 4,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
+      <Box sx={{ mb: 4, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <Box>
-          <Typography
-            variant="h4"
-            sx={{ fontWeight: 700, color: "#fff", mb: 1 }}
-          >
+          <Typography variant="h4" sx={{ fontWeight: 700, color: "#fff", mb: 1 }}>
             Admin
           </Typography>
           <Typography sx={{ color: "rgba(255,255,255,0.6)" }}>
-            Gerenciamento de assinantes, quotas e configurações
+            Assinantes, métricas e operações
           </Typography>
         </Box>
       </Box>
@@ -253,7 +124,7 @@ export default function AdminPage() {
       {loading && <LinearProgress sx={{ mb: 3 }} />}
 
       <Grid container spacing={3}>
-        {/* ==================== SECTION A: Subscription Metrics ==================== */}
+        {/* ==================== Subscription Metrics ==================== */}
         <Grid item xs={12} md={4}>
           <Card sx={cardStyle}>
             <CardHeader
@@ -267,75 +138,44 @@ export default function AdminPage() {
               <Stack spacing={2}>
                 <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                   <Box>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                    >
+                    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                       Ativos
                     </Typography>
-                    <Typography
-                      variant="h4"
-                      sx={{ color: "#81C784", fontWeight: 700 }}
-                    >
+                    <Typography variant="h4" sx={{ color: "#81C784", fontWeight: 700 }}>
                       {displayValue(metrics?.activeSubscribers)}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: "right" }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                    >
+                    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                       Cancelados
                     </Typography>
-                    <Typography
-                      variant="h4"
-                      sx={{ color: "#FFB74D", fontWeight: 700 }}
-                    >
+                    <Typography variant="h4" sx={{ color: "#FFB74D", fontWeight: 700 }}>
                       {displayValue(metrics?.canceledSubscribers)}
                     </Typography>
                   </Box>
                 </Box>
-
                 <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
-
                 <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                   <Box>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                    >
+                    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                       Inadimplentes
                     </Typography>
-                    <Typography
-                      variant="h5"
-                      sx={{ color: "#EF5350", fontWeight: 600 }}
-                    >
+                    <Typography variant="h5" sx={{ color: "#EF5350", fontWeight: 600 }}>
                       {displayValue(metrics?.pastDueSubscribers)}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: "right" }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                    >
+                    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                       Total Geral
                     </Typography>
-                    <Typography
-                      variant="h5"
-                      sx={{ color: "#fff", fontWeight: 600 }}
-                    >
+                    <Typography variant="h5" sx={{ color: "#fff", fontWeight: 600 }}>
                       {displayValue(metrics?.totalSubscribers)}
                     </Typography>
                   </Box>
                 </Box>
-
                 {metrics?.lastSyncAt && (
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "rgba(255,255,255,0.4)" }}
-                  >
-                    Último webhook:{" "}
-                    {new Date(metrics.lastSyncAt).toLocaleString("pt-BR")}
+                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.4)" }}>
+                    Último webhook: {new Date(metrics.lastSyncAt).toLocaleString("pt-BR")}
                   </Typography>
                 )}
               </Stack>
@@ -343,7 +183,7 @@ export default function AdminPage() {
           </Card>
         </Grid>
 
-        {/* ==================== SECTION A2: Monthly Stats ==================== */}
+        {/* ==================== Monthly Stats ==================== */}
         <Grid item xs={12} md={4}>
           <Card sx={cardStyle}>
             <CardHeader
@@ -356,30 +196,18 @@ export default function AdminPage() {
             <CardContent>
               <Stack spacing={2.5}>
                 <Box>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                  >
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                     Novos Assinantes
                   </Typography>
-                  <Typography
-                    variant="h4"
-                    sx={{ color: "#81C784", fontWeight: 700 }}
-                  >
+                  <Typography variant="h4" sx={{ color: "#81C784", fontWeight: 700 }}>
                     {displayValue(metrics?.newThisMonth)}
                   </Typography>
                 </Box>
                 <Box>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                  >
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                     Cancelamentos no Mês
                   </Typography>
-                  <Typography
-                    variant="h4"
-                    sx={{ color: "#FFB74D", fontWeight: 700 }}
-                  >
+                  <Typography variant="h4" sx={{ color: "#FFB74D", fontWeight: 700 }}>
                     {displayValue(metrics?.cancelledThisMonth)}
                   </Typography>
                 </Box>
@@ -388,7 +216,7 @@ export default function AdminPage() {
           </Card>
         </Grid>
 
-        {/* ==================== SECTION A3: Revenue ==================== */}
+        {/* ==================== Revenue ==================== */}
         <Grid item xs={12} md={4}>
           <Card sx={cardStyle}>
             <CardHeader
@@ -401,19 +229,11 @@ export default function AdminPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Box>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                  >
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}>
                     Total Recebido
                   </Typography>
-                  <Typography
-                    variant="h3"
-                    sx={{ color: "#81C784", fontWeight: 700 }}
-                  >
-                    {metrics
-                      ? formatCurrency(metrics.revenueThisMonthCents)
-                      : "—"}
+                  <Typography variant="h3" sx={{ color: "#81C784", fontWeight: 700 }}>
+                    {metrics ? formatCurrency(metrics.revenueThisMonthCents) : "—"}
                   </Typography>
                 </Box>
               </Stack>
@@ -421,176 +241,7 @@ export default function AdminPage() {
           </Card>
         </Grid>
 
-        {/* ==================== SECTION B: Limits & Credits (Editable) ==================== */}
-        <Grid item xs={12} md={6} lg={4}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<SettingsOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Limites & Créditos"
-              subheader="Configuração de quotas mensais"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-              action={
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={limitsSaved ? <CheckIcon /> : <SaveIcon />}
-                  onClick={saveLimits}
-                  sx={{
-                    background: limitsSaved
-                      ? "rgba(76, 175, 80, 0.2)"
-                      : "linear-gradient(135deg, #2DD4FF, #7B61FF)",
-                    color: limitsSaved ? "#81C784" : "#fff",
-                    fontWeight: 600,
-                    minWidth: 80,
-                  }}
-                >
-                  {limitsSaved ? "Salvo!" : "Salvar"}
-                </Button>
-              }
-            />
-            <CardContent>
-              <Stack spacing={2.5}>
-                {/* Transcripts limit */}
-                <Box>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                    sx={{ mb: 1 }}
-                  >
-                    <SubtitlesOutlined
-                      sx={{ fontSize: 18, color: "#2DD4FF" }}
-                    />
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.7)" }}
-                    >
-                      Transcrições / mês
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <TextField
-                      value={transcriptsLimit}
-                      onChange={(e) => setTranscriptsLimit(e.target.value)}
-                      size="small"
-                      type="number"
-                      sx={{
-                        width: 100,
-                        "& .MuiOutlinedInput-root": {
-                          background: "rgba(0,0,0,0.2)",
-                        },
-                      }}
-                    />
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)" }}
-                    >
-                      Uso:{" "}
-                      {formatUsage(
-                        quotaUsage.transcriptsUsed,
-                        parseInt(transcriptsLimit) ||
-                          quotaPolicy.transcriptsPerMonth,
-                      )}
-                    </Typography>
-                  </Stack>
-                  <LinearProgress
-                    variant="determinate"
-                    value={
-                      quotaUsage.transcriptsUsed != null
-                        ? Math.min(
-                            (quotaUsage.transcriptsUsed /
-                              (parseInt(transcriptsLimit) || 40)) *
-                              100,
-                            100,
-                          )
-                        : 0
-                    }
-                    sx={{
-                      mt: 1,
-                      height: 6,
-                      borderRadius: 3,
-                      background: "rgba(255,255,255,0.1)",
-                      "& .MuiLinearProgress-bar": {
-                        background: "linear-gradient(90deg, #2DD4FF, #7B61FF)",
-                        borderRadius: 3,
-                      },
-                    }}
-                  />
-                </Box>
-
-                <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
-
-                {/* Scripts limit */}
-                <Box>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                    sx={{ mb: 1 }}
-                  >
-                    <TerminalOutlined sx={{ fontSize: 18, color: "#CE93D8" }} />
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.7)" }}
-                    >
-                      Roteiros (Scripts) / mês
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <TextField
-                      value={scriptsLimit}
-                      onChange={(e) => setScriptsLimit(e.target.value)}
-                      size="small"
-                      type="number"
-                      sx={{
-                        width: 100,
-                        "& .MuiOutlinedInput-root": {
-                          background: "rgba(0,0,0,0.2)",
-                        },
-                      }}
-                    />
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)" }}
-                    >
-                      Uso:{" "}
-                      {formatUsage(
-                        quotaUsage.scriptsUsed,
-                        parseInt(scriptsLimit) || quotaPolicy.scriptsPerMonth,
-                      )}
-                    </Typography>
-                  </Stack>
-                  <LinearProgress
-                    variant="determinate"
-                    value={
-                      quotaUsage.scriptsUsed != null
-                        ? Math.min(
-                            (quotaUsage.scriptsUsed /
-                              (parseInt(scriptsLimit) || 70)) *
-                              100,
-                            100,
-                          )
-                        : 0
-                    }
-                    sx={{
-                      mt: 1,
-                      height: 6,
-                      borderRadius: 3,
-                      background: "rgba(255,255,255,0.1)",
-                      "& .MuiLinearProgress-bar": {
-                        background: "linear-gradient(90deg, #7B61FF, #F472B6)",
-                        borderRadius: 3,
-                      },
-                    }}
-                  />
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* ==================== SECTION C: Coupons (Coming Soon) ==================== */}
+        {/* ==================== Coupons (Coming Soon) ==================== */}
         <Grid item xs={12} md={6} lg={4}>
           <Card sx={cardStyle}>
             <CardHeader
@@ -608,11 +259,7 @@ export default function AdminPage() {
                   disabled
                   fullWidth
                   size="small"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      background: "rgba(0,0,0,0.2)",
-                    },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { background: "rgba(0,0,0,0.2)" } }}
                 />
                 <TextField
                   label="Desconto (%)"
@@ -621,19 +268,12 @@ export default function AdminPage() {
                   fullWidth
                   size="small"
                   type="number"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      background: "rgba(0,0,0,0.2)",
-                    },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { background: "rgba(0,0,0,0.2)" } }}
                 />
                 <Button
                   variant="contained"
                   disabled
-                  sx={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.3)",
-                  }}
+                  sx={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)" }}
                 >
                   Em breve
                 </Button>
@@ -642,7 +282,7 @@ export default function AdminPage() {
           </Card>
         </Grid>
 
-        {/* ==================== SECTION D: Subscribers Table ==================== */}
+        {/* ==================== Subscribers Table ==================== */}
         <Grid item xs={12}>
           <Card sx={cardStyle}>
             <CardHeader
@@ -663,10 +303,7 @@ export default function AdminPage() {
                       background: "rgba(0,0,0,0.2)",
                       "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
                     },
-                    "& .MuiOutlinedInput-input": {
-                      color: "#fff",
-                      fontSize: "0.85rem",
-                    },
+                    "& .MuiOutlinedInput-input": { color: "#fff", fontSize: "0.85rem" },
                   }}
                 />
               }
@@ -685,26 +322,15 @@ export default function AdminPage() {
                 }}
               >
                 <Tab label={`Ativos (${metrics?.activeSubscribers ?? "—"})`} />
-                <Tab
-                  label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`}
-                />
-                <Tab
-                  label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`}
-                />
+                <Tab label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`} />
+                <Tab label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`} />
               </Tabs>
 
               <TableContainer>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {[
-                        "Nome",
-                        "Email",
-                        "Plano",
-                        "Status",
-                        "Último Pgto",
-                        "Desde",
-                      ].map((h) => (
+                      {["Nome", "Email", "Plano", "Status", "Último Pgto", "Desde"].map((h) => (
                         <TableCell
                           key={h}
                           sx={{
@@ -738,42 +364,22 @@ export default function AdminPage() {
                     ) : (
                       subscribers.map((sub) => (
                         <TableRow key={sub.id}>
-                          <TableCell
-                            sx={{
-                              color: "rgba(255,255,255,0.8)",
-                              borderColor: "rgba(255,255,255,0.06)",
-                            }}
-                          >
+                          <TableCell sx={{ color: "rgba(255,255,255,0.8)", borderColor: "rgba(255,255,255,0.06)" }}>
                             {sub.name ?? "—"}
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "rgba(255,255,255,0.6)",
-                              borderColor: "rgba(255,255,255,0.06)",
-                            }}
-                          >
+                          <TableCell sx={{ color: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.06)" }}>
                             {sub.email ?? "—"}
                           </TableCell>
-                          <TableCell
-                            sx={{ borderColor: "rgba(255,255,255,0.06)" }}
-                          >
-                            <Tooltip
-                              title={`${sub.plan.code} — ${sub.plan.displayPrice ?? ""}`}
-                            >
+                          <TableCell sx={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                            <Tooltip title={`${sub.plan.code} — ${sub.plan.displayPrice ?? ""}`}>
                               <Chip
                                 label={sub.plan.name}
                                 size="small"
-                                sx={{
-                                  background: "rgba(45, 212, 255, 0.1)",
-                                  color: "#2DD4FF",
-                                  fontSize: "0.75rem",
-                                }}
+                                sx={{ background: "rgba(45, 212, 255, 0.1)", color: "#2DD4FF", fontSize: "0.75rem" }}
                               />
                             </Tooltip>
                           </TableCell>
-                          <TableCell
-                            sx={{ borderColor: "rgba(255,255,255,0.06)" }}
-                          >
+                          <TableCell sx={{ borderColor: "rgba(255,255,255,0.06)" }}>
                             <Chip
                               label={
                                 sub.status === "ACTIVE"
@@ -802,44 +408,26 @@ export default function AdminPage() {
                               }}
                             />
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "rgba(255,255,255,0.6)",
-                              borderColor: "rgba(255,255,255,0.06)",
-                            }}
-                          >
+                          <TableCell sx={{ color: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.06)" }}>
                             {sub.lastPaymentAt
-                              ? new Date(sub.lastPaymentAt).toLocaleDateString(
-                                  "pt-BR",
-                                )
+                              ? new Date(sub.lastPaymentAt).toLocaleDateString("pt-BR")
                               : "—"}
                             {sub.lastPaymentAmount != null && (
                               <Typography
                                 variant="caption"
-                                sx={{
-                                  display: "block",
-                                  color: "rgba(255,255,255,0.4)",
-                                }}
+                                sx={{ display: "block", color: "rgba(255,255,255,0.4)" }}
                               >
                                 {formatCurrency(sub.lastPaymentAmount)}
                               </Typography>
                             )}
                           </TableCell>
                           <TableCell
-                            sx={{
-                              color: "rgba(255,255,255,0.5)",
-                              borderColor: "rgba(255,255,255,0.06)",
-                              fontSize: "0.8rem",
-                            }}
+                            sx={{ color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.06)", fontSize: "0.8rem" }}
                           >
                             {sub.startedAt
-                              ? new Date(sub.startedAt).toLocaleDateString(
-                                  "pt-BR",
-                                )
+                              ? new Date(sub.startedAt).toLocaleDateString("pt-BR")
                               : sub.createdAt
-                                ? new Date(sub.createdAt).toLocaleDateString(
-                                    "pt-BR",
-                                  )
+                                ? new Date(sub.createdAt).toLocaleDateString("pt-BR")
                                 : "—"}
                           </TableCell>
                         </TableRow>
@@ -848,167 +436,6 @@ export default function AdminPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* ==================== SECTION E: Support ==================== */}
-        <Grid item xs={12} md={6}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<SupportAgentOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Suporte"
-              subheader="Canais de atendimento"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-            />
-            <CardContent>
-              <Stack spacing={2}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    p: 2,
-                    background: "rgba(0,0,0,0.2)",
-                    borderRadius: 2,
-                  }}
-                >
-                  <EmailIcon sx={{ color: "#2DD4FF" }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                    >
-                      Email de Suporte
-                    </Typography>
-                    <Typography sx={{ color: "#fff", fontWeight: 500 }}>
-                      {supportEmail}
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    href={`mailto:${supportEmail}`}
-                    sx={{
-                      borderColor: "#2DD4FF",
-                      color: "#2DD4FF",
-                      "&:hover": {
-                        borderColor: "#2DD4FF",
-                        background: "rgba(45, 212, 255, 0.1)",
-                      },
-                    }}
-                  >
-                    Enviar Email
-                  </Button>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* ==================== SECTION F: Prompt Configuration ==================== */}
-        <Grid item xs={12} md={6}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<CodeOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Configuração de Prompts"
-              subheader="Templates para geração de conteúdo"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-              action={
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Restaurar padrões">
-                    <IconButton
-                      onClick={() =>
-                        restoreDefaults(promptTab === 0 ? "insight" : "script")
-                      }
-                      size="small"
-                      sx={{ color: "rgba(255,255,255,0.5)" }}
-                    >
-                      <RestoreIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={savedPrompt ? <CheckIcon /> : <SaveIcon />}
-                    onClick={savePrompt}
-                    sx={{
-                      background: savedPrompt
-                        ? "rgba(76, 175, 80, 0.2)"
-                        : "linear-gradient(135deg, #2DD4FF, #7B61FF)",
-                      color: savedPrompt ? "#81C784" : "#fff",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {savedPrompt ? "Salvo!" : "Salvar"}
-                  </Button>
-                </Stack>
-              }
-            />
-            <CardContent>
-              <Tabs
-                value={promptTab}
-                onChange={(_, v) => setPromptTab(v)}
-                sx={{
-                  mb: 2,
-                  "& .MuiTab-root": {
-                    color: "rgba(255,255,255,0.5)",
-                    "&.Mui-selected": { color: "#2DD4FF" },
-                  },
-                  "& .MuiTabs-indicator": { background: "#2DD4FF" },
-                }}
-              >
-                <Tab label="Insight" />
-                <Tab label="Script" />
-              </Tabs>
-
-              {/* Variables Reference */}
-              <Box sx={{ mb: 2 }}>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "rgba(255,255,255,0.4)" }}
-                >
-                  Variáveis:{" "}
-                  {PROMPT_VARIABLES.map((v) => v.variable).join(", ")}
-                </Typography>
-              </Box>
-
-              {/* Template Editor */}
-              <TextField
-                multiline
-                rows={6}
-                fullWidth
-                value={
-                  promptConfig
-                    ? promptTab === 0
-                      ? promptConfig.insight.template
-                      : promptConfig.script.template
-                    : ""
-                }
-                onChange={(e) =>
-                  updatePromptTemplate(
-                    promptTab === 0 ? "insight" : "script",
-                    e.target.value,
-                  )
-                }
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    fontFamily: "monospace",
-                    fontSize: "0.8rem",
-                    background: "rgba(0,0,0,0.3)",
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(255,255,255,0.2)",
-                    },
-                    "&.Mui-focused fieldset": { borderColor: "#2DD4FF" },
-                  },
-                  "& .MuiOutlinedInput-input": {
-                    color: "rgba(255,255,255,0.85)",
-                  },
-                }}
-              />
             </CardContent>
           </Card>
         </Grid>
