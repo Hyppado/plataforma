@@ -73,12 +73,30 @@ const theme = createTheme({
   },
 });
 
+const IS_DEV_MODE = process.env.NEXT_PUBLIC_ADMIN_MODE === "true";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDevLogin = async () => {
+    setLoading(true);
+    setError(null);
+    const result = await signIn("credentials", {
+      email: "admin@hyppado.com",
+      password: "__DEV_BYPASS__",
+      redirect: false,
+    });
+    if (result?.error) {
+      setError("Bypass falhou. Verifique se o admin existe no DB.");
+      setLoading(false);
+    } else {
+      window.location.href = "/admin";
+    }
+  };
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -302,6 +320,31 @@ export default function LoginPage() {
                 "Entrar"
               )}
             </Button>
+
+            {/* DEV: bypass login — visível só quando NEXT_PUBLIC_ADMIN_MODE=true */}
+            {IS_DEV_MODE && (
+              <Button
+                type="button"
+                onClick={handleDevLogin}
+                variant="outlined"
+                fullWidth
+                disabled={loading}
+                sx={{
+                  mt: 1.5,
+                  height: 44,
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  borderColor: "rgba(255,200,60,0.5)",
+                  color: "rgba(255,200,60,0.9)",
+                  "&:hover": {
+                    borderColor: "rgba(255,200,60,0.9)",
+                    background: "rgba(255,200,60,0.06)",
+                  },
+                }}
+              >
+                ⚙ Entrar como Admin (dev)
+              </Button>
+            )}
 
             {/* 7) Não tem assinatura? Assinar */}
             <Typography
