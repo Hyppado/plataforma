@@ -10,6 +10,24 @@
 import { vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 
+/**
+ * Deep-mocked PrismaClient type.
+ * Every model delegate method becomes a Vitest Mock so that
+ * .mockResolvedValue(), .mock.calls, etc. are recognised by TS.
+ */
+type MockDelegate<T> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [K in keyof T]: T[K] extends (...args: any[]) => any
+    ? ReturnType<typeof vi.fn> & T[K]
+    : T[K];
+};
+
+type MockPrismaClient = {
+  [K in keyof PrismaClient]: PrismaClient[K] extends object
+    ? MockDelegate<PrismaClient[K]>
+    : PrismaClient[K];
+};
+
 // Creates a deeply nested mock proxy that returns vi.fn() for any property access
 function createPrismaMock(): PrismaClient {
   const handler: ProxyHandler<Record<string, unknown>> = {
@@ -58,7 +76,7 @@ function createPrismaMock(): PrismaClient {
   ) as unknown as PrismaClient;
 }
 
-export const prismaMock = createPrismaMock();
+export const prismaMock = createPrismaMock() as unknown as MockPrismaClient;
 
 // Auto-mock the prisma singleton module
 vi.mock("@/lib/prisma", () => ({
