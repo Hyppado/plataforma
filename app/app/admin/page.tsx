@@ -54,16 +54,13 @@ import {
   getSubscriptionMetrics,
 } from "@/lib/admin/admin-client";
 import {
-  getEffectiveQuotaPolicy,
-  setQuotaPolicy,
-  DEFAULT_QUOTA_POLICY,
-} from "@/lib/admin/quota-storage";
-import {
+  getQuotaPolicy,
+  getPromptConfig,
+  updateQuotaPolicy,
+  updatePromptConfig,
   PROMPT_VARIABLES,
   getDefaultPromptConfig,
-  savePromptConfigLocally,
-  loadPromptConfigLocally,
-} from "@/lib/admin/prompt-config";
+} from "@/lib/admin/admin-client";
 
 // Helper to display value or "—" if null/undefined
 function displayValue(value: number | string | null | undefined): string {
@@ -118,18 +115,15 @@ export default function AdminPage() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [totalSubscribers, setTotalSubscribers] = useState(0);
   const [metrics, setMetrics] = useState<SubscriptionMetrics | null>(null);
-  const [quotaPolicy, setQuotaPolicyState] =
-    useState<QuotaPolicy>(DEFAULT_QUOTA_POLICY);
+  const [quotaPolicy, setQuotaPolicyState] = useState<QuotaPolicy | null>(null);
   const [quotaUsage, setQuotaUsage] = useState<QuotaUsage>({});
   const [loading, setLoading] = useState(true);
   // UI state
   const [subscriberTab, setSubscriberTab] = useState(0);
   const [subscriberSearch, setSubscriberSearch] = useState("");
   const [promptTab, setPromptTab] = useState(0);
-  const [promptConfig, setPromptConfig] = useState<PromptConfig>(
-    getDefaultPromptConfig(),
-  );
-  const [savedLocally, setSavedLocally] = useState(false);
+  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null);
+  const [savedPrompt, setSavedPrompt] = useState(false);
   const [limitsSaved, setLimitsSaved] = useState(false);
 
   // Editable limits
@@ -139,30 +133,31 @@ export default function AdminPage() {
   // Support config
   const supportEmail = "contato@hyppado.com";
 
-  // Load data
+
+  // Load data from API
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const storedPolicy = getEffectiveQuotaPolicy();
-      setQuotaPolicyState(storedPolicy);
-      setTranscriptsLimit(storedPolicy.transcriptsPerMonth.toString());
-      setScriptsLimit(storedPolicy.scriptsPerMonth.toString());
-
-      const statusFilter =
-        subscriberTab === 0
-          ? "active"
-          : subscriberTab === 1
-            ? "canceled"
-            : "past_due";
-
-      const [subsData, metricsData, usageData] = await Promise.all([
-        getSubscribers(statusFilter, 1, 100, subscriberSearch || undefined),
+      const [policy, prompt, subsData, metricsData, usageData] = await Promise.all([
+        getQuotaPolicy(),
+        getPromptConfig(),
+        getSubscribers(
+          subscriberTab === 0
+            ? "active"
+            : subscriberTab === 1
+              ? "canceled"
+              : "past_due",
+          1,
+          100,
+          subscriberSearch || undefined
+        ),
         getSubscriptionMetrics(),
-        fetch("/api/admin/quota-usage")
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null),
+        fetch("/api/admin/quota-usage").then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
-
+      setQuotaPolicyState(policy);
+      setTranscriptsLimit(policy.transcriptsPerMonth.toString());
+      setScriptsLimit(policy.scriptsPerMonth.toString());
+      setPromptConfig(prompt);
       setSubscribers(subsData.subscribers);
       setTotalSubscribers(subsData.pagination.total);
       setMetrics(metricsData);
@@ -178,19 +173,15 @@ export default function AdminPage() {
     loadData();
   }, [loadData]);
 
-  // Load prompt config from localStorage on mount
-  useEffect(() => {
-    setPromptConfig(loadPromptConfigLocally());
-  }, []);
-
-  // Save limits to localStorage
-  const saveLimits = useCallback(() => {
+  // Save limits to API
+  const saveLimits = useCallback(async () => {
+    if (!quotaPolicy) return;
     const newPolicy: QuotaPolicy = {
       ...quotaPolicy,
       transcriptsPerMonth: parseInt(transcriptsLimit) || 40,
       scriptsPerMonth: parseInt(scriptsLimit) || 70,
     };
-    setQuotaPolicy(newPolicy);
+    await updateQuotaPolicy(newPolicy);
     setQuotaPolicyState(newPolicy);
     setLimitsSaved(true);
     setTimeout(() => setLimitsSaved(false), 2000);
@@ -200,11 +191,15 @@ export default function AdminPage() {
   // Update prompt template
   const updatePromptTemplate = useCallback(
     (type: "insight" | "script", template: string) => {
-      setPromptConfig((prev) => ({
-        ...prev,
-        [type]: { ...prev[type], template },
-      }));
-      setSavedLocally(false);
+      setPromptConfig((prev) =>
+        prev
+          ? {
+              ...prev,
+              [type]: { ...prev[type], template },
+            }
+          : prev
+      );
+      setSavedPrompt(false);
     },
     [],
   );
@@ -212,18 +207,23 @@ export default function AdminPage() {
   // Restore defaults
   const restoreDefaults = useCallback((type: "insight" | "script") => {
     const defaults = getDefaultPromptConfig();
-    setPromptConfig((prev) => ({
-      ...prev,
-      [type]: defaults[type],
-    }));
-    setSavedLocally(false);
+    setPromptConfig((prev) =>
+      prev
+        ? {
+            ...prev,
+            [type]: defaults[type],
+          }
+        : prev
+    );
+    setSavedPrompt(false);
   }, []);
 
-  // Save prompts locally
-  const saveLocally = useCallback(() => {
-    savePromptConfigLocally(promptConfig);
-    setSavedLocally(true);
-    setTimeout(() => setSavedLocally(false), 2000);
+  // Save prompts to API
+  const savePrompt = useCallback(async () => {
+    if (!promptConfig) return;
+    await updatePromptConfig(promptConfig);
+    setSavedPrompt(true);
+    setTimeout(() => setSavedPrompt(false), 2000);
   }, [promptConfig]);
 
   return (
@@ -932,17 +932,17 @@ export default function AdminPage() {
                   <Button
                     variant="contained"
                     size="small"
-                    startIcon={savedLocally ? <CheckIcon /> : <SaveIcon />}
-                    onClick={saveLocally}
+                    startIcon={savedPrompt ? <CheckIcon /> : <SaveIcon />}
+                    onClick={savePrompt}
                     sx={{
-                      background: savedLocally
+                      background: savedPrompt
                         ? "rgba(76, 175, 80, 0.2)"
                         : "linear-gradient(135deg, #2DD4FF, #7B61FF)",
-                      color: savedLocally ? "#81C784" : "#fff",
+                      color: savedPrompt ? "#81C784" : "#fff",
                       fontWeight: 600,
                     }}
                   >
-                    {savedLocally ? "Salvo!" : "Salvar"}
+                    {savedPrompt ? "Salvo!" : "Salvar"}
                   </Button>
                 </Stack>
               }
@@ -981,9 +981,11 @@ export default function AdminPage() {
                 rows={6}
                 fullWidth
                 value={
-                  promptTab === 0
-                    ? promptConfig.insight.template
-                    : promptConfig.script.template
+                  promptConfig
+                    ? promptTab === 0
+                      ? promptConfig.insight.template
+                      : promptConfig.script.template
+                    : ""
                 }
                 onChange={(e) =>
                   updatePromptTemplate(

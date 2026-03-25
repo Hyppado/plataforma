@@ -1,3 +1,11 @@
+/** Update quota policy via API. */
+export async function updateQuotaPolicy(policy: QuotaPolicy): Promise<void> {
+  await fetch("/api/admin/quota-policy", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(policy),
+  });
+}
 /**
  * Admin API client for billing integration and quota management.
  *
@@ -229,49 +237,31 @@ export async function createHotmartCoupon(
 
 // ==================== LOCAL STORAGE HELPERS ====================
 
-const QUOTA_POLICY_KEY = "hyppado_quota_policy";
-const SUPPORT_CONFIG_KEY = "hyppado_support_config";
 
-export interface SupportConfig {
-  email?: string;
-}
+// ==================== PROMPT CONFIG API ====================
 
-/** Save quota policy to localStorage */
-export function saveQuotaPolicyLocally(policy: QuotaPolicy): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(QUOTA_POLICY_KEY, JSON.stringify(policy));
-  }
-}
+import type { PromptConfig } from "@/lib/types/admin";
 
-/** Load quota policy from localStorage */
-export function loadQuotaPolicyLocally(): QuotaPolicy | null {
-  if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem(QUOTA_POLICY_KEY);
-  if (!stored) return null;
+/** Get prompt config from API (DB-backed). */
+export async function getPromptConfig(): Promise<PromptConfig> {
   try {
-    return JSON.parse(stored) as QuotaPolicy;
+    const res = await fetch("/api/admin/prompt-config");
+    if (!res.ok) throw new Error("Failed to fetch prompt config");
+    return await res.json();
   } catch {
-    return null;
+    // Fallback to default (should match backend default)
+    const { getDefaultPromptConfig } = await import("@/lib/admin/prompt-config");
+    return getDefaultPromptConfig();
   }
 }
 
-/** Save support config locally */
-export function saveSupportConfigLocally(config: SupportConfig): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(SUPPORT_CONFIG_KEY, JSON.stringify(config));
-  }
-}
-
-/** Load support config from localStorage */
-export function loadSupportConfigLocally(): SupportConfig {
-  if (typeof window === "undefined") return {};
-  const stored = localStorage.getItem(SUPPORT_CONFIG_KEY);
-  if (!stored) return {};
-  try {
-    return JSON.parse(stored) as SupportConfig;
-  } catch {
-    return {};
-  }
+/** Update prompt config via API. */
+export async function updatePromptConfig(config: PromptConfig): Promise<void> {
+  await fetch("/api/admin/prompt-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
 }
 
 // ==================== ADMIN MODE CHECK ====================

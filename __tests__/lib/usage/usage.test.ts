@@ -98,7 +98,10 @@ describe("getUserActivePlan()", () => {
   });
 
   it("returns plan from AccessGrant when grant exists (highest priority)", async () => {
-    const grantPlan = buildPlan({ name: "Grant Plan", transcriptsPerMonth: 200 });
+    const grantPlan = buildPlan({
+      name: "Grant Plan",
+      transcriptsPerMonth: 200,
+    });
     const grant = buildAccessGrant({ plan: grantPlan, planId: grantPlan.id });
     prismaMock.accessGrant.findFirst.mockResolvedValue(grant);
     // Subscription should NOT be checked
@@ -134,7 +137,10 @@ describe("getUserActivePlan()", () => {
   });
 
   it("prefers AccessGrant plan over Subscription plan", async () => {
-    const grantPlan = buildPlan({ name: "Admin Override", transcriptsPerMonth: 999 });
+    const grantPlan = buildPlan({
+      name: "Admin Override",
+      transcriptsPerMonth: 999,
+    });
     const grant = buildAccessGrant({ plan: grantPlan, planId: grantPlan.id });
     prismaMock.accessGrant.findFirst.mockResolvedValue(grant);
 
