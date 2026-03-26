@@ -18,7 +18,7 @@ test.describe("Login form — structure and labels", () => {
   });
 
   test("renders the password input with correct label", async ({ page }) => {
-    const label = page.getByText(/senha/i);
+    const label = page.getByText("Senha", { exact: true });
     await expect(label).toBeVisible();
   });
 
