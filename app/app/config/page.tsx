@@ -42,7 +42,7 @@ export default function ConfigPage() {
   const [limitsSaved, setLimitsSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transcriptsLimit, setTranscriptsLimit] = useState("40");
-  const [scriptsLimit, setScriptsLimit] = useState("70");\n
+  const [scriptsLimit, setScriptsLimit] = useState("70");
 
   const loadData = useCallback(async () => {
     setLoading(true);
