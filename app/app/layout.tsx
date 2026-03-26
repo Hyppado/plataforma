@@ -31,7 +31,6 @@ import {
   BookmarkBorder,
   Whatshot,
   FiberNew,
-  CardMembership,
   HelpOutline,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
@@ -66,9 +65,8 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    label: "CONTA",
+    label: "",
     items: [
-      { label: "Assinatura", icon: CardMembership, href: "/app/assinatura" },
       { label: "Suporte", icon: HelpOutline, href: "/app/suporte" },
     ],
   },
@@ -302,10 +300,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {NAV_SECTIONS.map((section, sectionIndex) => (
           <Box
-            key={section.label}
+            key={section.label || `section-${sectionIndex}`}
             sx={{ mb: sectionIndex < NAV_SECTIONS.length - 1 ? 0.9 : 0 }}
           >
             {/* Section Label */}
+            {section.label && (
             <Typography
               sx={{
                 fontSize: "0.55rem",
@@ -319,6 +318,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               {section.label}
             </Typography>
+            )}
 
             {/* Section Items */}
             <List

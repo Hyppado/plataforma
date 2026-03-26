@@ -6,15 +6,9 @@ import { useSession } from "next-auth/react";
 import {
   Box,
   Typography,
-  Card,
-  CardHeader,
-  CardContent,
   Grid,
-  Button,
   LinearProgress,
-  Stack,
 } from "@mui/material";
-import { SupportAgentOutlined, Email as EmailIcon } from "@mui/icons-material";
 import {
   getQuotaPolicy,
   getPromptConfig,
@@ -48,8 +42,7 @@ export default function ConfigPage() {
   const [limitsSaved, setLimitsSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transcriptsLimit, setTranscriptsLimit] = useState("40");
-  const [scriptsLimit, setScriptsLimit] = useState("70");
-  const supportEmail = "contato@hyppado.com";
+  const [scriptsLimit, setScriptsLimit] = useState("70");\n
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -147,61 +140,6 @@ export default function ConfigPage() {
           onScriptsLimitChange={setScriptsLimit}
           onSave={saveLimits}
         />
-
-        {/* Support — small enough to stay inline */}
-        <Grid item xs={12} md={6}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<SupportAgentOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Suporte"
-              subheader="Canais de atendimento"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-            />
-            <CardContent>
-              <Stack spacing={2}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    p: 2,
-                    background: "rgba(0,0,0,0.2)",
-                    borderRadius: 2,
-                  }}
-                >
-                  <EmailIcon sx={{ color: "#2DD4FF" }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
-                    >
-                      Email de Suporte
-                    </Typography>
-                    <Typography sx={{ color: "#fff", fontWeight: 500 }}>
-                      {supportEmail}
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    href={`mailto:${supportEmail}`}
-                    sx={{
-                      borderColor: "#2DD4FF",
-                      color: "#2DD4FF",
-                      "&:hover": {
-                        borderColor: "#2DD4FF",
-                        background: "rgba(45, 212, 255, 0.1)",
-                      },
-                    }}
-                  >
-                    Enviar Email
-                  </Button>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
 
         <PromptsSection
           promptConfig={promptConfig}
