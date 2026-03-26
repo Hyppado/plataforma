@@ -263,15 +263,3 @@ export async function updatePromptConfig(config: PromptConfig): Promise<void> {
     body: JSON.stringify(config),
   });
 }
-
-// ==================== ADMIN MODE CHECK ====================
-
-/**
- * @deprecated A função isAdminMode() usa NEXT_PUBLIC_ADMIN_MODE cheé uma
- * variável de ambiente pública. A verificação de admin deve ser feita via
- * session.user.role === "ADMIN" (server-side) ou pelo helper requireAdmin()
- * em lib/auth.ts. Esta função será removida numa versão futura.
- */
-export function isAdminMode(): boolean {
-  return process.env.NEXT_PUBLIC_ADMIN_MODE === "true";
-}
