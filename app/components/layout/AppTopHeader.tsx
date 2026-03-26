@@ -13,6 +13,7 @@ import {
 import { KeyboardArrowDown } from "@mui/icons-material";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { REGION_FLAGS, getStoredRegion, setStoredRegion } from "@/lib/region";
+import { HeaderQuota } from "./HeaderQuota";
 
 /**
  * AppTopHeader — header global das páginas /dashboard/*
@@ -86,8 +87,13 @@ export function AppTopHeader() {
         borderBottom: "1px solid rgba(255,255,255,0.05)",
       }}
     >
-      {/* Left side — espaço para breadcrumbs futuros */}
+      {/* Left side — push items to the right */}
       <Box sx={{ flex: 1 }} />
+
+      {/* Quota usage */}
+      <Box sx={{ display: { xs: "none", sm: "block" }, mr: 1.5 }}>
+        <HeaderQuota />
+      </Box>
 
       {/* Country Selector */}
       <ButtonBase

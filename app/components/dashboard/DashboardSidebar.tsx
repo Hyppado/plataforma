@@ -26,7 +26,6 @@ import {
   HelpOutline,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
-import { SidebarQuota } from "./SidebarQuota";
 import type { SvgIconComponent } from "@mui/icons-material";
 
 /* ============================================
@@ -170,8 +169,6 @@ export function DashboardSidebar({ onNavigate }: DashboardSidebarProps) {
             </List>
           </Box>
         ))}
-
-        <SidebarQuota />
       </Box>
 
       {/* Bottom actions */}
