@@ -39,7 +39,7 @@ export default function LoginPage() {
       setError("Bypass falhou. Verifique se o admin existe no DB.");
       setLoading(false);
     } else {
-      window.location.href = "/admin";
+      window.location.href = "/app/admin";
     }
   };
 
