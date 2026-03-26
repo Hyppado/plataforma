@@ -324,6 +324,7 @@ export function HeroSection() {
                 <Button
                   variant="contained"
                   size="large"
+                  href="/login"
                   sx={{
                     px: 4.5,
                     py: 1.5,

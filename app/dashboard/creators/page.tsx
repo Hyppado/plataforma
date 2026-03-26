@@ -51,7 +51,7 @@ function CreatorsContent() {
     params.set("sort", overrides.sort ?? sort);
     const q = overrides.q ?? searchQuery;
     if (q) params.set("q", q);
-    router.push(`/app/creators?${params.toString()}`);
+    router.push(`/dashboard/creators?${params.toString()}`);
   };
 
   return (

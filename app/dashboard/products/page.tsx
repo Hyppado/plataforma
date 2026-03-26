@@ -95,7 +95,7 @@ function ProductsContent() {
     if (q) params.set("q", q);
     const cat = overrides.category ?? categoryFilter;
     if (cat) params.set("category", cat);
-    router.push(`/app/products?${params.toString()}`);
+    router.push(`/dashboard/products?${params.toString()}`);
   };
 
   const getCategoryName = () => {

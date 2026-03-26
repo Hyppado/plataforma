@@ -90,7 +90,7 @@ function VideosContent() {
     if (q) params.set("q", q);
     const cat = overrides.category ?? categoryFilter;
     if (cat) params.set("category", cat);
-    router.push(`/app/videos?${params.toString()}`);
+    router.push(`/dashboard/videos?${params.toString()}`);
   };
 
   const getCategoryName = () => {

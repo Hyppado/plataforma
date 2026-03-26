@@ -119,7 +119,7 @@ function TrendsContent() {
     params.set("range", range);
     if (searchQuery) params.set("q", searchQuery);
     if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/trends?${params.toString()}`);
+    router.push(`/dashboard/trends?${params.toString()}`);
   };
 
   const handleSearchChange = (query: string) => {
@@ -127,7 +127,7 @@ function TrendsContent() {
     params.set("range", timeRange);
     if (query) params.set("q", query);
     if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/trends?${params.toString()}`);
+    router.push(`/dashboard/trends?${params.toString()}`);
   };
 
   const handleCategoryChange = (category: string) => {
@@ -135,7 +135,7 @@ function TrendsContent() {
     params.set("range", timeRange);
     if (searchQuery) params.set("q", searchQuery);
     if (category) params.set("category", category);
-    router.push(`/app/trends?${params.toString()}`);
+    router.push(`/dashboard/trends?${params.toString()}`);
   };
 
   // Get category name for display

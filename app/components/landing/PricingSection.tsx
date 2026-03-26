@@ -267,10 +267,7 @@ export function PricingSection({ plans }: PricingSectionProps) {
                   <Button
                     variant={plan.highlight ? "contained" : "outlined"}
                     fullWidth
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                    }}
+                    href="/login"
                     sx={{
                       py: 1.5,
                       fontSize: "0.95rem",
