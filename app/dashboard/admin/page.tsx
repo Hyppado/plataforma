@@ -67,7 +67,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (status === "loading") return;
     if (!session || session.user?.role !== "ADMIN") {
-      router.replace("/app/videos");
+      router.replace("/dashboard/videos");
       return;
     }
     loadData();

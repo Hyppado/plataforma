@@ -8,14 +8,14 @@ export default withAuth(
 
     // Admin routes (UI and API) require ADMIN role
     if (
-      (pathname.startsWith("/app/admin") ||
+      (pathname.startsWith("/dashboard/admin") ||
         pathname.startsWith("/api/admin")) &&
       token?.role !== "ADMIN"
     ) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-      return NextResponse.redirect(new URL("/app/videos", req.url));
+      return NextResponse.redirect(new URL("/dashboard/videos", req.url));
     }
 
     // Block soft-deleted users (LGPD)
@@ -39,5 +39,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/app/:path*", "/api/admin/:path*"],
+  matcher: ["/dashboard/:path*", "/api/admin/:path*"],
 };

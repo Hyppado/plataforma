@@ -13,8 +13,8 @@ import { describe, it, expect } from "vitest";
 import { config } from "@/middleware";
 
 describe("middleware config", () => {
-  it("protects /app/* routes", () => {
-    expect(config.matcher).toContain("/app/:path*");
+  it("protects /dashboard/* routes", () => {
+    expect(config.matcher).toContain("/dashboard/:path*");
   });
 
   it("protects /api/admin/* routes", () => {

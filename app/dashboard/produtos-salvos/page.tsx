@@ -116,7 +116,7 @@ export default function ProdutosSalvosPage() {
               </Typography>
               <Button
                 component={Link}
-                href="/app/products"
+                href="/dashboard/products"
                 variant="outlined"
                 startIcon={<ShoppingBag />}
                 sx={{

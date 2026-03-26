@@ -40,7 +40,7 @@ Não introduza complexidade sem necessidade.
 
 - `app/`: páginas, layouts e route handlers do App Router
 - `app/api/`: rotas de API
-- `app/app/`: área autenticada
+- `app/dashboard/`: área autenticada (/dashboard/*)
 - `app/components/`: componentes de UI
 - `lib/`: lógica de negócio, integrações, auth, acesso, quotas e serviços
 - `prisma/`: schema e seed
@@ -87,7 +87,7 @@ Não introduza complexidade sem necessidade.
 
 ## Auth e acesso
 
-- O middleware protege `/app/*` e `/api/admin/*`.
+- O middleware protege `/dashboard/*` e `/api/admin/*`.
 - Rotas admin exigem role de admin no servidor.
 - O controle de acesso é calculado em runtime.
 - A cadeia de acesso atual é:

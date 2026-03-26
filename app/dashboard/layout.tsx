@@ -43,10 +43,10 @@ const NAV_SECTIONS = [
   {
     label: "EXPLORAR",
     items: [
-      { label: "Vídeos em Alta", icon: VideoLibrary, href: "/app/videos" },
-      { label: "Produtos Hype", icon: Whatshot, href: "/app/products" },
-      { label: "Novos Produtos", icon: FiberNew, href: "/app/trends" },
-      { label: "Creators", icon: Person, href: "/app/creators" },
+      { label: "Vídeos em Alta", icon: VideoLibrary, href: "/dashboard/videos" },
+      { label: "Produtos Hype", icon: Whatshot, href: "/dashboard/products" },
+      { label: "Novos Produtos", icon: FiberNew, href: "/dashboard/trends" },
+      { label: "Creators", icon: Person, href: "/dashboard/creators" },
     ],
   },
   {
@@ -55,18 +55,18 @@ const NAV_SECTIONS = [
       {
         label: "Vídeos salvos",
         icon: BookmarkBorder,
-        href: "/app/videos-salvos",
+        href: "/dashboard/videos-salvos",
       },
       {
         label: "Produtos salvos",
         icon: Inventory2,
-        href: "/app/produtos-salvos",
+        href: "/dashboard/produtos-salvos",
       },
     ],
   },
   {
     label: "",
-    items: [{ label: "Suporte", icon: HelpOutline, href: "/app/suporte" }],
+    items: [{ label: "Suporte", icon: HelpOutline, href: "/dashboard/suporte" }],
   },
 ];
 
@@ -230,7 +230,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Check if current path matches nav item
   const isActive = (href: string) => {
-    if (href === "/app/videos" && pathname === "/app") return true;
+    if (href === "/dashboard/videos" && pathname === "/dashboard") return true;
     return pathname === href || pathname?.startsWith(href + "/");
   };
 
@@ -273,7 +273,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }}
         >
           <BrandLogo
-            href="/app/videos"
+            href="/dashboard/videos"
             mode="dark"
             variant="full"
             size="lg"
@@ -410,7 +410,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <ListItem disablePadding>
                 <ListItemButton
                   component={Link}
-                  href="/app/admin"
+                  href="/dashboard/admin"
                   onClick={() => setMobileOpen(false)}
                   sx={{
                     borderRadius: 2,
@@ -418,15 +418,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     px: 1,
                     py: 0.35,
                     position: "relative",
-                    background: isActive("/app/admin")
+                    background: isActive("/dashboard/admin")
                       ? "rgba(45, 212, 255, 0.08)"
                       : "transparent",
                     "&:hover": {
-                      background: isActive("/app/admin")
+                      background: isActive("/dashboard/admin")
                         ? "rgba(45, 212, 255, 0.12)"
                         : "rgba(255,255,255,0.03)",
                     },
-                    "&::before": isActive("/app/admin")
+                    "&::before": isActive("/dashboard/admin")
                       ? {
                           content: '""',
                           position: "absolute",
@@ -445,7 +445,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <AdminPanelSettingsOutlined
                       sx={{
                         fontSize: 15,
-                        color: isActive("/app/admin")
+                        color: isActive("/dashboard/admin")
                           ? "#2DD4FF"
                           : "rgba(255,255,255,0.5)",
                       }}
@@ -455,8 +455,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     primary="Admin"
                     primaryTypographyProps={{
                       fontSize: "0.75rem",
-                      fontWeight: isActive("/app/admin") ? 600 : 500,
-                      color: isActive("/app/admin")
+                      fontWeight: isActive("/dashboard/admin") ? 600 : 500,
+                      color: isActive("/dashboard/admin")
                         ? "#2DD4FF"
                         : "rgba(255,255,255,0.75)",
                     }}
@@ -466,7 +466,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <ListItem disablePadding>
                 <ListItemButton
                   component={Link}
-                  href="/app/config"
+                  href="/dashboard/config"
                   onClick={() => setMobileOpen(false)}
                   sx={{
                     borderRadius: 2,
@@ -474,15 +474,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     px: 1,
                     py: 0.35,
                     position: "relative",
-                    background: isActive("/app/config")
+                    background: isActive("/dashboard/config")
                       ? "rgba(45, 212, 255, 0.08)"
                       : "transparent",
                     "&:hover": {
-                      background: isActive("/app/config")
+                      background: isActive("/dashboard/config")
                         ? "rgba(45, 212, 255, 0.12)"
                         : "rgba(255,255,255,0.03)",
                     },
-                    "&::before": isActive("/app/config")
+                    "&::before": isActive("/dashboard/config")
                       ? {
                           content: '""',
                           position: "absolute",
@@ -501,7 +501,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <SettingsOutlined
                       sx={{
                         fontSize: 15,
-                        color: isActive("/app/config")
+                        color: isActive("/dashboard/config")
                           ? "#2DD4FF"
                           : "rgba(255,255,255,0.5)",
                       }}
@@ -511,8 +511,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     primary="Configuração"
                     primaryTypographyProps={{
                       fontSize: "0.75rem",
-                      fontWeight: isActive("/app/config") ? 600 : 500,
-                      color: isActive("/app/config")
+                      fontWeight: isActive("/dashboard/config") ? 600 : 500,
+                      color: isActive("/dashboard/config")
                         ? "#2DD4FF"
                         : "rgba(255,255,255,0.75)",
                     }}
@@ -642,7 +642,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </IconButton>
                 <Box sx={{ ml: 2, display: "flex", alignItems: "center" }}>
                   <BrandLogo
-                    href="/app/videos"
+                    href="/dashboard/videos"
                     mode="dark"
                     variant="full"
                     size="sm"

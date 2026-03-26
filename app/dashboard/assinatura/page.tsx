@@ -795,7 +795,7 @@ export default function AssinaturaPage() {
                   {/* CTA */}
                   <Button
                     component={Link}
-                    href="/app/suporte"
+                    href="/dashboard/suporte"
                     variant="outlined"
                     fullWidth
                     sx={{

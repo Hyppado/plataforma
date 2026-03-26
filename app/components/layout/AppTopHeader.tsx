@@ -15,7 +15,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { REGION_FLAGS, getStoredRegion, setStoredRegion } from "@/lib/region";
 
 /**
- * AppTopHeader — header global das páginas /app/*
+ * AppTopHeader — header global das páginas /dashboard/*
  *
  * Mostra o seletor de país no canto direito.
  * A região selecionada é persistida em localStorage (padrão: BR).

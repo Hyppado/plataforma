@@ -116,7 +116,7 @@ export default function VideosSalvosPage() {
               </Typography>
               <Button
                 component={Link}
-                href="/app/videos"
+                href="/dashboard/videos"
                 variant="outlined"
                 startIcon={<VideoLibrary />}
                 sx={{
