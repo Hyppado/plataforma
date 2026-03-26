@@ -248,6 +248,13 @@ Quando precisar escolher o que preservar e o que melhorar, a ordem é:
 6. organização e componentização
 7. melhorias cosméticas
 
+## Validação obrigatória antes de marcar tarefa como concluída
+
+- Nunca declarar uma tarefa como feita sem antes rodar `npm run build` e confirmar exit code 0.
+- Nunca declarar uma tarefa como feita sem antes rodar `npx vitest run` e confirmar que todos os testes passam.
+- Se o build ou os testes quebrarem, corrigir antes de commitar ou reportar ao usuário.
+- Isso vale para qualquer mudança: refatoração, remoção de arquivos, nova feature, fix, etc.
+
 ## Como responder mudanças neste projeto
 
 Ao implementar algo:
