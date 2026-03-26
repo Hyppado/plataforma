@@ -41,7 +41,7 @@ function ProductsContent() {
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
   const rankingCycleLabel: Record<1 | 2 | 3, string> = {
-    1: "di\u00e1rio",
+    1: "diário",
     2: "semanal",
     3: "mensal",
   };
@@ -137,7 +137,7 @@ function ProductsContent() {
             }}
           >
             {items.length > 0
-              ? `${filteredItems.length} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} \u2022 Mostrando ${displayedProducts.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+              ? `${filteredItems.length} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${displayedProducts.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` • dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
               : "Explorando os produtos mais vendidos"}
           </Typography>
         </Box>

@@ -37,7 +37,7 @@ function VideosContent() {
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
   const rankingCycleLabel: Record<1 | 2 | 3, string> = {
-    1: "di\u00e1rio",
+    1: "diário",
     2: "semanal",
     3: "mensal",
   };
@@ -127,7 +127,7 @@ function VideosContent() {
               lineHeight: 1.3,
             }}
           >
-            V\u00eddeos em Alta
+            Vídeos em Alta
           </Typography>
           <Typography
             sx={{
@@ -137,8 +137,8 @@ function VideosContent() {
             }}
           >
             {items.length > 0
-              ? `${filteredItems.length} v\u00eddeos${getCategoryName() ? ` em ${getCategoryName()}` : ""} \u2022 Mostrando ${displayedVideos.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
-              : "Explorando os v\u00eddeos mais performáticos"}
+              ? `${filteredItems.length} vídeos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${displayedVideos.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` • dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+              : "Explorando os vídeos mais performáticos"}
           </Typography>
         </Box>
         <DashboardHeader
@@ -273,7 +273,7 @@ function VideosContent() {
             }}
           >
             <Typography sx={{ fontSize: "0.95rem" }}>
-              Nenhum v\u00eddeo encontrado
+              Nenhum vídeo encontrado
             </Typography>
           </Box>
         )}

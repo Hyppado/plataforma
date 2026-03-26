@@ -24,7 +24,7 @@ function CreatorsContent() {
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
   const rankingCycleLabel: Record<1 | 2 | 3, string> = {
-    1: "di\u00e1rio",
+    1: "diário",
     2: "semanal",
     3: "mensal",
   };
@@ -85,7 +85,7 @@ function CreatorsContent() {
             }}
           >
             {creators.length > 0
-              ? `${creators.length} creators \u2022 Top vendedores${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+              ? `${creators.length} creators • Top vendedores${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` • dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
               : "Top criadores no TikTok Shop"}
           </Typography>
         </Box>
