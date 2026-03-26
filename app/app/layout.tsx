@@ -17,7 +17,7 @@ import {
   ListItemText,
   Typography,
 } from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import {
   Menu as MenuIcon,
   Close as CloseIcon,
@@ -37,85 +37,7 @@ import {
 import { BrandLogo } from "@/app/components/BrandLogo";
 import { useQuotaUsage, formatQuotaDisplay } from "@/lib/admin/useQuotaUsage";
 import { AppTopHeader } from "@/app/components/layout/AppTopHeader";
-
-// Hyppado dark theme (navy #06080F + accent #2DD4FF)
-const theme = createTheme({
-  palette: {
-    mode: "dark",
-    background: {
-      default: "#06080F",
-      paper: "#0A0F18",
-    },
-    primary: {
-      main: "#2DD4FF",
-    },
-    text: {
-      primary: "#ffffff",
-      secondary: "rgba(255,255,255,0.7)",
-    },
-  },
-  typography: {
-    fontFamily: "Inter, sans-serif",
-    fontSize: 13,
-    h1: {
-      fontSize: "1.25rem",
-      fontWeight: 700,
-      lineHeight: 1.3,
-    },
-    h2: {
-      fontSize: "1.1rem",
-      fontWeight: 600,
-      lineHeight: 1.3,
-    },
-    body1: {
-      fontSize: "0.8125rem",
-      lineHeight: 1.4,
-    },
-    body2: {
-      fontSize: "0.75rem",
-      lineHeight: 1.35,
-    },
-  },
-  components: {
-    MuiInputBase: {
-      styleOverrides: {
-        root: {
-          fontSize: "0.8125rem",
-        },
-        input: {
-          padding: "6px 8px",
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-          fontSize: "0.8125rem",
-        },
-        sizeSmall: {
-          padding: "4px 10px",
-          fontSize: "0.75rem",
-        },
-      },
-    },
-    MuiIconButton: {
-      styleOverrides: {
-        root: {
-          padding: "6px",
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          fontSize: "0.6875rem",
-          height: "22px",
-        },
-      },
-    },
-  },
-});
+import { appTheme } from "@/app/theme";
 
 // Sidebar navigation items organized in sections
 const NAV_SECTIONS = [
@@ -635,7 +557,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={appTheme}>
       <Box
         className="app-shell"
         sx={{

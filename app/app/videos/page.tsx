@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
-import { VideoCardPro } from "@/app/components/cards/VideoCardPro";
+import { VideoCard } from "@/app/components/cards/VideoCard";
 import type { VideoDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { ExpandMore } from "@mui/icons-material";
@@ -334,7 +334,7 @@ function VideosContent() {
         <Grid container spacing={{ xs: 2, md: 2.5 }}>
           {videos.map((video, idx) => (
             <Grid item xs={6} sm={6} md={6} lg={3} key={video.id}>
-              <VideoCardPro video={video} rank={idx + 1} />
+              <VideoCard video={video} rank={idx + 1} />
             </Grid>
           ))}
 
@@ -342,7 +342,7 @@ function VideosContent() {
           {loading &&
             Array.from({ length: 12 }).map((_, idx) => (
               <Grid item xs={6} sm={6} md={6} lg={3} key={`skeleton-${idx}`}>
-                <VideoCardPro isLoading />
+                <VideoCard isLoading />
               </Grid>
             ))}
         </Grid>

@@ -3,7 +3,7 @@
 import { Box, Container, Typography, Grid, Button } from "@mui/material";
 import { BookmarkBorder, VideoLibrary } from "@mui/icons-material";
 import Link from "next/link";
-import { VideoCardPro } from "@/app/components/cards/VideoCardPro";
+import { VideoCard } from "@/app/components/cards/VideoCard";
 import { useSavedVideos } from "@/lib/storage/saved";
 
 export default function VideosSalvosPage() {
@@ -143,7 +143,7 @@ export default function VideosSalvosPage() {
         <Grid container spacing={{ xs: 2, md: 2.5 }}>
           {videos.map((video) => (
             <Grid item xs={6} sm={6} md={6} lg={3} key={video.id}>
-              <VideoCardPro video={video} />
+              <VideoCard video={video} />
             </Grid>
           ))}
         </Grid>

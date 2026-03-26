@@ -166,17 +166,13 @@ function RankBadge({ rank }: RankBadgeProps) {
 // Mock products for fallback when video has no product
 // REMOVED — all product data comes from DB via EchoTik cron
 
-interface VideoCardProProps {
+interface VideoCardProps {
   video?: VideoDTO;
   rank?: number;
   isLoading?: boolean;
 }
 
-export function VideoCardPro({
-  video,
-  rank,
-  isLoading = false,
-}: VideoCardProProps) {
+export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const savedVideos = useSavedVideos();
   const savedProducts = useSavedProducts();
 

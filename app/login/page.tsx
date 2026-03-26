@@ -13,65 +13,10 @@ import {
   IconButton,
   CircularProgress,
 } from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { Logo } from "@/app/components/ui/Logo";
-
-// Hyppado dark theme (navy #06080F + accent #2DD4FF) — zero green/pink
-const theme = createTheme({
-  palette: {
-    mode: "dark",
-    background: {
-      default: "#06080F",
-      paper: "#0A0F18",
-    },
-    primary: {
-      main: "#2DD4FF",
-    },
-    text: {
-      primary: "#ffffff",
-      secondary: "rgba(255,255,255,0.7)",
-    },
-  },
-  typography: {
-    fontFamily: "Inter, sans-serif",
-  },
-  components: {
-    MuiOutlinedInput: {
-      styleOverrides: {
-        root: {
-          borderRadius: 10,
-          backgroundColor: "rgba(255,255,255,0.04)",
-          "&:hover .MuiOutlinedInput-notchedOutline": {
-            borderColor: "rgba(45,212,255,0.4)",
-          },
-          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-            borderColor: "#2DD4FF",
-            borderWidth: 2,
-          },
-          "&.Mui-error .MuiOutlinedInput-notchedOutline": {
-            borderColor: "#ef4444",
-          },
-        },
-        notchedOutline: {
-          borderColor: "rgba(255,255,255,0.12)",
-        },
-        input: {
-          padding: "14px 16px",
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-          borderRadius: 10,
-          fontWeight: 600,
-        },
-      },
-    },
-  },
-});
+import { appTheme } from "@/app/theme";
 
 const IS_DEV_MODE = process.env.NEXT_PUBLIC_ADMIN_MODE === "true";
 
@@ -119,7 +64,7 @@ export default function LoginPage() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={appTheme}>
       <Box
         sx={{
           minHeight: "100vh",
