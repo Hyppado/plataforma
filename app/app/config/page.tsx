@@ -14,10 +14,7 @@ import {
   LinearProgress,
   Stack,
 } from "@mui/material";
-import {
-  SupportAgentOutlined,
-  Email as EmailIcon,
-} from "@mui/icons-material";
+import { SupportAgentOutlined, Email as EmailIcon } from "@mui/icons-material";
 import {
   getQuotaPolicy,
   getPromptConfig,
@@ -41,17 +38,6 @@ const cardStyle = {
 export default function ConfigPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-
-  useEffect(() => {
-    if (status === "loading") return;
-    if (!session || session.user?.role !== "ADMIN") {
-      router.replace("/app/videos");
-    }
-  }, [session, status, router]);
-
-  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
-    return null;
-  }
 
   // Data state
   const [quotaPolicy, setQuotaPolicyState] = useState<QuotaPolicy | null>(null);
@@ -88,8 +74,17 @@ export default function ConfigPage() {
   }, []);
 
   useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user?.role !== "ADMIN") {
+      router.replace("/app/videos");
+      return;
+    }
     loadData();
-  }, [loadData]);
+  }, [session, status, router, loadData]);
+
+  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
+    return null;
+  }
 
   const saveLimits = useCallback(async () => {
     if (!quotaPolicy) return;
@@ -108,9 +103,7 @@ export default function ConfigPage() {
   const updatePromptTemplate = useCallback(
     (type: "insight" | "script", template: string) => {
       setPromptConfig((prev) =>
-        prev
-          ? { ...prev, [type]: { ...prev[type], template } }
-          : prev,
+        prev ? { ...prev, [type]: { ...prev[type], template } } : prev,
       );
       setSavedPrompt(false);
     },

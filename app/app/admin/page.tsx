@@ -34,17 +34,6 @@ export default function AdminPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  useEffect(() => {
-    if (status === "loading") return;
-    if (!session || session.user?.role !== "ADMIN") {
-      router.replace("/app/videos");
-    }
-  }, [session, status, router]);
-
-  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
-    return null;
-  }
-
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [totalSubscribers, setTotalSubscribers] = useState(0);
   const [metrics, setMetrics] = useState<SubscriptionMetrics | null>(null);
@@ -76,8 +65,17 @@ export default function AdminPage() {
   }, [subscriberTab, subscriberSearch]);
 
   useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user?.role !== "ADMIN") {
+      router.replace("/app/videos");
+      return;
+    }
     loadData();
-  }, [loadData]);
+  }, [session, status, router, loadData]);
+
+  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
+    return null;
+  }
 
   return (
     <Box>
