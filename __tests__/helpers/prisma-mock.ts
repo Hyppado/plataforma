@@ -23,9 +23,11 @@ type MockDelegate<T> = {
 };
 
 type MockPrismaClient = {
-  [K in keyof PrismaClient]: PrismaClient[K] extends object
-    ? MockDelegate<PrismaClient[K]>
-    : PrismaClient[K];
+  [K in keyof PrismaClient]: K extends `$${string}`
+    ? ReturnType<typeof vi.fn>
+    : PrismaClient[K] extends object
+      ? MockDelegate<PrismaClient[K]>
+      : PrismaClient[K];
 };
 
 // Creates a deeply nested mock proxy that returns vi.fn() for any property access
