@@ -3,13 +3,17 @@
  *
  * Retorna as regiões/países ativos no banco de dados.
  * Usado pelo AppTopHeader para popular o seletor de país.
- * Rota pública — não requer autenticação.
+ * Requer autenticação — disponível apenas para usuários com sessão ativa.
  */
 
 import { NextResponse } from "next/server";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const rows = await prisma.region.findMany({
       where: { isActive: true },

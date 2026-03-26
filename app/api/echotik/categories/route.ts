@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Category } from "@/lib/categories";
 
@@ -16,6 +17,9 @@ export const dynamic = "force-dynamic";
  */
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const url = new URL(request.url);
     const levelParam = url.searchParams.get("level");

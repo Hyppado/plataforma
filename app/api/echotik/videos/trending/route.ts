@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export const dynamic = "force-dynamic";
  *   - order:    asc | desc — default: desc
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
 

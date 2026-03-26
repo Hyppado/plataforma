@@ -21,7 +21,7 @@ describe("middleware config", () => {
     expect(config.matcher).toContain("/api/admin/:path*");
   });
 
-  it("does NOT protect /api/trending/* (public)", () => {
+  it("does NOT protect /api/trending/* via middleware (auth enforced in-handler)", () => {
     const matchers = config.matcher as string[];
     const protectsTrending = matchers.some((m) => m.includes("/api/trending"));
     expect(protectsTrending).toBe(false);

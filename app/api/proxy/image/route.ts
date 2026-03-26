@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { echotikRequest } from "@/lib/echotik/client";
 
 /** Host do CDN EchoTik que requer URLs assinadas */
@@ -21,6 +22,9 @@ const SIGNED_URL_TTL_MS = 12 * 60 * 60 * 1000;
  * Modo 2 (videoId): Busca thumbnail via TikTok oEmbed (legacy)
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   const { searchParams } = new URL(request.url);
 
   // --- Mode 1: EchoTik cover image proxy via ?url= ---
@@ -150,7 +154,6 @@ function buildImageResponse(upstream: Response): NextResponse {
     headers: {
       "Content-Type": contentType,
       "Cache-Control": "public, max-age=43200", // 12h (dentro da validade da URL assinada)
-      "Access-Control-Allow-Origin": "*",
     },
   });
 }

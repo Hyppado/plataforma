@@ -108,6 +108,74 @@ describe("Auth bypass prevention", () => {
     const res = await GET(req);
     expect(res.status).toBe(401);
   });
+
+  // Trending routes — previously unprotected, now require auth
+  it("trending/videos rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/trending/videos/route");
+    const req = makeGetRequest("/api/trending/videos") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("trending/products rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/trending/products/route");
+    const req = makeGetRequest("/api/trending/products") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("trending/creators rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/trending/creators/route");
+    const req = makeGetRequest("/api/trending/creators") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  // Echotik routes — require auth
+  it("echotik/categories rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/echotik/categories/route");
+    const req = makeGetRequest("/api/echotik/categories") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("echotik/products/new rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/echotik/products/new/route");
+    const req = makeGetRequest("/api/echotik/products/new") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("echotik/videos/trending rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/echotik/videos/trending/route");
+    const req = makeGetRequest("/api/echotik/videos/trending") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  // Proxy and regions — require auth
+  it("proxy/image rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/proxy/image/route");
+    const req = makeGetRequest("/api/proxy/image", {
+      url: "https://echosell-images.tos-ap-southeast-1.volces.com/test.jpg",
+    }) as any;
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("regions rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const { GET } = await import("@/app/api/regions/route");
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
 });
 
 // ---------------------------------------------------------------------------

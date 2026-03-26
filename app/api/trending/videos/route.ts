@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { VIDEO_RANK_FIELDS, videoSortToField } from "@/lib/echotik/rankFields";
 import {
@@ -30,6 +31,9 @@ function extractProductIds(extra: Record<string, unknown> | null): string[] {
  * Returns empty array when DB is empty (cron hasn't run yet).
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const range = (searchParams.get("range") || "7d") as
