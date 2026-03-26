@@ -203,16 +203,20 @@ export async function saveRawResponse(
 // Active regions
 // ---------------------------------------------------------------------------
 
+/**
+ * Returns the list of active regions from the database.
+ * The Region table is the single source of truth — manage regions there.
+ * Falls back to ["BR", "US", "JP"] only if the table is empty (e.g. local dev
+ * before running `prisma db seed`).
+ */
 export async function getConfiguredRegions(): Promise<string[]> {
   const rows = await prisma.region.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
   });
   if (rows.length > 0) return rows.map((r) => r.code);
-  return (process.env.ECHOTIK_REGIONS || "BR")
-    .split(",")
-    .map((r) => r.trim().toUpperCase())
-    .filter(Boolean);
+  // Fallback for empty DB (local dev only — run `npx prisma db seed` to fix)
+  return ["BR", "US", "JP"];
 }
 
 // ---------------------------------------------------------------------------

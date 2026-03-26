@@ -13,6 +13,7 @@ async function seedRegions() {
   const REGION_NAMES: Record<string, string> = {
     BR: "Brasil",
     US: "United States",
+    JP: "Japan",
     MX: "México",
     GB: "United Kingdom",
     CA: "Canada",
@@ -27,19 +28,17 @@ async function seedRegions() {
     FR: "France",
     ES: "Spain",
     IT: "Italy",
-    UK: "United Kingdom",
   };
 
-  const codes = (process.env.ECHOTIK_REGIONS || "BR")
-    .split(",")
-    .map((r) => r.trim().toUpperCase())
-    .filter(Boolean);
+  // Default active regions — edit in the database (Region table) to add/remove.
+  // Do NOT use env vars; the DB is the single source of truth for regions.
+  const DEFAULT_REGIONS = ["BR", "US", "JP"];
 
-  for (let i = 0; i < codes.length; i++) {
-    const code = codes[i];
+  for (let i = 0; i < DEFAULT_REGIONS.length; i++) {
+    const code = DEFAULT_REGIONS[i];
     await prisma.region.upsert({
       where: { code },
-      update: {}, // não sobrescreve se admin já editou
+      update: {}, // nunca sobrescreve se admin já editou o banco
       create: {
         code,
         name: REGION_NAMES[code] ?? code,
@@ -49,7 +48,7 @@ async function seedRegions() {
     });
   }
 
-  console.log(`✅ Regiões seedadas: [${codes.join(", ")}]`);
+  console.log(`✅ Regiões seedadas: [${DEFAULT_REGIONS.join(", ")}]`);
 }
 
 async function seedSettings() {
