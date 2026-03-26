@@ -1,0 +1,181 @@
+# .github/workflows/ci.yml
+#
+# CI pipeline for Hyppado.
+#
+# Jobs (in dependency order):
+#   1. typecheck   — tsc --noEmit, fast structural check
+#   2. unit-tests  — vitest (node) + vitest (jsdom component tests)
+#   3. build       — next build (validates SSR, app router and API routes)
+#   4. e2e-smoke   — Playwright smoke tests against `next dev`
+#
+# Secrets required in GitHub repo settings:
+#   DATABASE_URL, NEXTAUTH_SECRET, HOTMART_CLIENTE_ID, HOTMART_CLIENT_SECRET,
+#   HOTMART_BASIC, HOTMART_WEBHOOK_SECRET, ECHOTIK_BASE_URL,
+#   ECHOTIK_USERNAME, ECHOTIK_PASSWORD
+#
+# Optional:  CRON_SECRET (if cron routes require it)
+#
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # 1. Type checking
+  # ──────────────────────────────────────────────────────────
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/hyppado_ci' }}
+
+      - name: Run tsc
+        run: npx tsc --noEmit
+
+  # ──────────────────────────────────────────────────────────
+  # 2. Unit & component tests
+  # ──────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit & Component Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/hyppado_ci"
+
+      - name: Run unit tests (node env)
+        run: npm run test
+
+      - name: Run component tests (jsdom env)
+        run: npm run test:components
+
+  # ──────────────────────────────────────────────────────────
+  # 3. Production build
+  # ──────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [typecheck, unit-tests]
+    env:
+      # These values are fake but structurally valid — enough for `next build`
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/hyppado_ci' }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-secret-at-least-32-chars-long!!' }}
+      NEXTAUTH_URL: "http://localhost:3000"
+      HOTMART_CLIENTE_ID: ${{ secrets.HOTMART_CLIENTE_ID || 'ci-id' }}
+      HOTMART_CLIENT_SECRET: ${{ secrets.HOTMART_CLIENT_SECRET || 'ci-secret' }}
+      HOTMART_BASIC: ${{ secrets.HOTMART_BASIC || 'Y2ktaWQ6Y2ktc2VjcmV0' }}
+      HOTMART_WEBHOOK_SECRET: ${{ secrets.HOTMART_WEBHOOK_SECRET || 'ci-webhook-secret' }}
+      ECHOTIK_BASE_URL: ${{ secrets.ECHOTIK_BASE_URL || 'https://echotik.test.local' }}
+      ECHOTIK_USERNAME: ${{ secrets.ECHOTIK_USERNAME || 'ci-user' }}
+      ECHOTIK_PASSWORD: ${{ secrets.ECHOTIK_PASSWORD || 'ci-pass' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET || 'ci-cron-secret' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+
+  # ──────────────────────────────────────────────────────────
+  # 4. E2E smoke tests
+  # ──────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    env:
+      CI: "true"
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/hyppado_ci' }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-secret-at-least-32-chars-long!!' }}
+      NEXTAUTH_URL: "http://localhost:3001"
+      HOTMART_CLIENTE_ID: ${{ secrets.HOTMART_CLIENTE_ID || 'ci-id' }}
+      HOTMART_CLIENT_SECRET: ${{ secrets.HOTMART_CLIENT_SECRET || 'ci-secret' }}
+      HOTMART_BASIC: ${{ secrets.HOTMART_BASIC || 'Y2ktaWQ6Y2ktc2VjcmV0' }}
+      HOTMART_WEBHOOK_SECRET: ${{ secrets.HOTMART_WEBHOOK_SECRET || 'ci-webhook-secret' }}
+      ECHOTIK_BASE_URL: ${{ secrets.ECHOTIK_BASE_URL || 'https://echotik.test.local' }}
+      ECHOTIK_USERNAME: ${{ secrets.ECHOTIK_USERNAME || 'ci-user' }}
+      ECHOTIK_PASSWORD: ${{ secrets.ECHOTIK_PASSWORD || 'ci-pass' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET || 'ci-cron-secret' }}
+      PORT: "3001"
+      PLAYWRIGHT_BASE_URL: "http://localhost:3001"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E smoke tests
+        run: npm run test:e2e -- --project=chromium
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: e2e/.artifacts/
+          retention-days: 7

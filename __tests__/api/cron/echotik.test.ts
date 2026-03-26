@@ -156,7 +156,7 @@ describe("GET /api/cron/echotik — route", () => {
 
   it("SECURITY: rejects requests without auth in production", async () => {
     process.env.CRON_SECRET = "";
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
 
     // Need to re-import for NODE_ENV change to take effect
     vi.resetModules();
@@ -166,7 +166,7 @@ describe("GET /api/cron/echotik — route", () => {
     expect(res.status).toBe(500);
 
     // Reset
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
   });
 });
 
