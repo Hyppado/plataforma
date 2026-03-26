@@ -1,0 +1,21 @@
+feat: adopt SWR for trending pages with server-side pagination
+
+- Add SWR dependency and shared hooks infrastructure:
+  - lib/swr/fetcher.ts: generic JSON fetcher + URL builder
+  - lib/swr/useTrending.ts: typed hooks for videos/products/creators
+  - lib/swr/useCategories.ts: cached categories hook (10min dedup)
+
+- Add server-side pagination to all trending API routes:
+  - Replace limit param with page + pageSize (max 100)
+  - Add Prisma count() for total, skip/take for pagination
+  - Response includes total, page, pageSize, hasMore
+
+- Migrate all 3 trending pages from manual fetch to SWR:
+  - Videos: useTrendingVideos + useCategories, client-side category filter
+  - Products: useTrendingProducts + useCategories, client-side category filter
+  - Creators: useTrendingCreators, simplified (no categories)
+  - Remove ~15 manual useState/useEffect/useCallback per page
+  - 30s dedup prevents redundant API calls
+  - keepPreviousData avoids flash on filter change
+
+All 292 tests passing.

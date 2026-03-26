@@ -66,9 +66,7 @@ const NAV_SECTIONS = [
   },
   {
     label: "",
-    items: [
-      { label: "Suporte", icon: HelpOutline, href: "/app/suporte" },
-    ],
+    items: [{ label: "Suporte", icon: HelpOutline, href: "/app/suporte" }],
   },
 ];
 
@@ -305,19 +303,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             {/* Section Label */}
             {section.label && (
-            <Typography
-              sx={{
-                fontSize: "0.55rem",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.35)",
-                px: 1,
-                mb: 0.3,
-              }}
-            >
-              {section.label}
-            </Typography>
+              <Typography
+                sx={{
+                  fontSize: "0.55rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.35)",
+                  px: 1,
+                  mb: 0.3,
+                }}
+              >
+                {section.label}
+              </Typography>
             )}
 
             {/* Section Items */}

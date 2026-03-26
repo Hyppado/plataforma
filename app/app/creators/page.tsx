@@ -1,28 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography } from "@mui/material";
 import { CreatorTable } from "@/app/components/dashboard/DataTable";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
-import type { CreatorDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
-
 import { getStoredRegion } from "@/lib/region";
 import { CREATOR_RANK_FIELDS } from "@/lib/echotik/rankFields";
+import { useTrendingCreators } from "@/lib/swr/useTrending";
 
 function CreatorsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [creators, setCreators] = useState<CreatorDTO[]>([]);
-  const [allCreators, setAllCreators] = useState<CreatorDTO[]>([]);
-  const [availableRegions, setAvailableRegions] = useState<string[]>(["US"]);
-  const [effectiveRankingCycle, setEffectiveRankingCycle] = useState<
-    1 | 2 | 3 | null
-  >(null);
 
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
@@ -39,45 +29,20 @@ function CreatorsContent() {
     3: "mensal",
   };
 
-  const fetchData = useCallback(
-    async (signal?: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({
-          range: timeRange,
-          region: regionFilter,
-          sort,
-        });
-        if (searchQuery) params.set("search", searchQuery);
-        const res = await fetch(`/api/trending/creators?${params}`, { signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const items: CreatorDTO[] = json?.data?.items ?? [];
-        setAllCreators(items);
-        setCreators(items);
-        setEffectiveRankingCycle(
-          (json?.data?.effectiveRankingCycle as 1 | 2 | 3 | undefined) ?? null,
-        );
-        if (json?.data?.availableRegions?.length > 0) {
-          setAvailableRegions(json.data.availableRegions);
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        console.error("Failed to fetch creators:", err);
-        setError("Erro ao carregar creators. Tente novamente.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [timeRange, searchQuery, regionFilter, sort],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
-  }, [fetchData]);
+  const {
+    items: creators,
+    effectiveRankingCycle,
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  } = useTrendingCreators({
+    range: timeRange,
+    region: regionFilter,
+    sort,
+    search: searchQuery || undefined,
+    pageSize: 100,
+  });
 
   const updateUrl = (overrides: Record<string, string>) => {
     const params = new URLSearchParams();
@@ -119,7 +84,7 @@ function CreatorsContent() {
               lineHeight: 1.3,
             }}
           >
-            {allCreators.length > 0
+            {creators.length > 0
               ? `${creators.length} creators \u2022 Top vendedores${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
               : "Top criadores no TikTok Shop"}
           </Typography>
@@ -129,8 +94,8 @@ function CreatorsContent() {
           onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
           searchQuery={searchQuery}
           onSearchChange={(q: string) => updateUrl({ q })}
-          onRefresh={() => fetchData()}
-          loading={loading}
+          onRefresh={() => mutate()}
+          loading={isLoading || isValidating}
         />
         {/* Sort chips */}
         <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
@@ -189,7 +154,7 @@ function CreatorsContent() {
         )}
         <CreatorTable
           creators={creators}
-          loading={loading}
+          loading={isLoading}
           title="Top Creators"
         />
       </Box>

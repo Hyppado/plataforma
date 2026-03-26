@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
@@ -9,30 +9,21 @@ import type { ProductDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { ExpandMore } from "@mui/icons-material";
 import {
-  fetchCategories,
   pickCategoryByHash,
   matchesCategory,
   ALL_CATEGORY_ID,
-  type Category,
 } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
 import { PRODUCT_RANK_FIELDS } from "@/lib/echotik/rankFields";
+import { useTrendingProducts } from "@/lib/swr/useTrending";
+import { useCategories } from "@/lib/swr/useCategories";
+
+const PAGE_SIZE = 24;
 
 function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [products, setProducts] = useState<ProductDTO[]>([]);
-  const [allProducts, setAllProducts] = useState<ProductDTO[]>([]);
-  const [page, setPage] = useState(1);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [availableRegions, setAvailableRegions] = useState<string[]>(["US"]);
-  const [effectiveRankingCycle, setEffectiveRankingCycle] = useState<
-    1 | 2 | 3 | null
-  >(null);
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
@@ -41,7 +32,11 @@ function ProductsContent() {
     searchParams.get("region") || getStoredRegion()
   ).toUpperCase();
   const sort = searchParams.get("sort") || "sales";
-  const pageSize = 24;
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [timeRange, searchQuery, categoryFilter, regionFilter, sort]);
 
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
@@ -51,10 +46,24 @@ function ProductsContent() {
     3: "mensal",
   };
 
-  useEffect(() => {
-    fetchCategories().then(setCategories);
-  }, []);
+  const { categories } = useCategories();
 
+  const {
+    items,
+    effectiveRankingCycle,
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  } = useTrendingProducts({
+    range: timeRange,
+    region: regionFilter,
+    sort,
+    search: searchQuery || undefined,
+    pageSize: 100,
+  });
+
+  // Client-side category filtering
   const getProductCategoryId = useCallback(
     (product: ProductDTO): string => {
       if (product.category) return product.category;
@@ -63,74 +72,18 @@ function ProductsContent() {
     [categories],
   );
 
-  const filterByCategory = useCallback(
-    (items: ProductDTO[]): ProductDTO[] => {
-      if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
-      return items.filter((p) =>
-        matchesCategory(getProductCategoryId(p), categoryFilter, categories),
-      );
-    },
-    [categoryFilter, categories, getProductCategoryId],
-  );
+  const filteredItems = useMemo(() => {
+    if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
+    return items.filter((p) =>
+      matchesCategory(getProductCategoryId(p), categoryFilter, categories),
+    );
+  }, [items, categoryFilter, categories, getProductCategoryId]);
 
-  const fetchData = useCallback(
-    async (signal?: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      setPage(1);
-      try {
-        const params = new URLSearchParams({
-          range: timeRange,
-          region: regionFilter,
-          sort,
-        });
-        if (searchQuery) params.set("search", searchQuery);
-        const res = await fetch(`/api/trending/products?${params}`, { signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const items: ProductDTO[] = json?.data?.items ?? [];
-        setAllProducts(items);
-        setEffectiveRankingCycle(
-          (json?.data?.effectiveRankingCycle as 1 | 2 | 3 | undefined) ?? null,
-        );
-        if (json?.data?.availableRegions?.length > 0) {
-          setAvailableRegions(json.data.availableRegions);
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        console.error("Failed to fetch products:", err);
-        setError("Erro ao carregar produtos. Tente novamente.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [timeRange, searchQuery, regionFilter, sort],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
-  }, [fetchData]);
-
-  useEffect(() => {
-    const filtered = filterByCategory(allProducts);
-    setProducts(filtered.slice(0, pageSize));
-    setPage(1);
-  }, [allProducts, filterByCategory, pageSize]);
+  const displayedProducts = filteredItems.slice(0, displayCount);
+  const hasMore = displayedProducts.length < filteredItems.length;
 
   const handleLoadMore = () => {
-    setLoadingMore(true);
-    const nextPage = page + 1;
-    const start = nextPage * pageSize;
-    const end = start + pageSize;
-    const filtered = filterByCategory(allProducts);
-    const moreProducts = filtered.slice(start, end);
-    setTimeout(() => {
-      setProducts((prev) => [...prev, ...moreProducts]);
-      setPage(nextPage);
-      setLoadingMore(false);
-    }, 300);
+    setDisplayCount((prev) => prev + PAGE_SIZE);
   };
 
   const updateUrl = (overrides: Record<string, string>) => {
@@ -144,13 +97,6 @@ function ProductsContent() {
     if (cat) params.set("category", cat);
     router.push(`/app/products?${params.toString()}`);
   };
-
-  const handleViewDetails = (product: ProductDTO) => {
-    console.log("View details for", product.id);
-  };
-
-  const filteredTotal = filterByCategory(allProducts).length;
-  const hasMore = products.length < filteredTotal;
 
   const getCategoryName = () => {
     if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return "";
@@ -190,8 +136,8 @@ function ProductsContent() {
               lineHeight: 1.3,
             }}
           >
-            {allProducts.length > 0
-              ? `${filteredTotal} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} \u2022 Mostrando ${products.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+            {items.length > 0
+              ? `${filteredItems.length} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} \u2022 Mostrando ${displayedProducts.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
               : "Explorando os produtos mais vendidos"}
           </Typography>
         </Box>
@@ -200,8 +146,8 @@ function ProductsContent() {
           onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
           searchQuery={searchQuery}
           onSearchChange={(q: string) => updateUrl({ q })}
-          onRefresh={() => fetchData()}
-          loading={loading}
+          onRefresh={() => mutate()}
+          loading={isLoading || isValidating}
           category={categoryFilter}
           onCategoryChange={(c: string) => updateUrl({ category: c })}
           categories={categories}
@@ -263,15 +209,12 @@ function ProductsContent() {
         )}
 
         <Grid container spacing={{ xs: 2, md: 2.5 }}>
-          {products.map((product) => (
+          {displayedProducts.map((product) => (
             <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
-              <ProductCard
-                product={product}
-                onViewDetails={handleViewDetails}
-              />
+              <ProductCard product={product} />
             </Grid>
           ))}
-          {loading &&
+          {isLoading &&
             Array.from({ length: 12 }).map((_, idx) => (
               <Grid item xs={6} sm={6} md={4} lg={2.4} key={`skeleton-${idx}`}>
                 <ProductCard isLoading />
@@ -279,7 +222,7 @@ function ProductsContent() {
             ))}
         </Grid>
 
-        {!loading && hasMore && products.length > 0 && (
+        {!isLoading && hasMore && displayedProducts.length > 0 && (
           <Box
             sx={{
               display: "flex",
@@ -291,11 +234,8 @@ function ProductsContent() {
             <Button
               variant="outlined"
               size="large"
-              endIcon={
-                loadingMore ? <CircularProgress size={16} /> : <ExpandMore />
-              }
+              endIcon={<ExpandMore />}
               onClick={handleLoadMore}
-              disabled={loadingMore}
               sx={{
                 px: 4,
                 py: 1.25,
@@ -312,12 +252,12 @@ function ProductsContent() {
                 },
               }}
             >
-              {loadingMore ? "Carregando..." : "Carregar mais"}
+              Carregar mais
             </Button>
           </Box>
         )}
 
-        {!loading && products.length === 0 && (
+        {!isLoading && displayedProducts.length === 0 && (
           <Box
             sx={{
               textAlign: "center",

@@ -37,9 +37,10 @@ export async function GET(request: NextRequest) {
       | "7d"
       | "30d"
       | "90d";
-    const limit = Math.min(
-      parseInt(searchParams.get("limit") || "100", 10),
-      1000,
+    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+    const pageSize = Math.min(
+      Math.max(parseInt(searchParams.get("pageSize") || "24", 10), 1),
+      100,
     );
     const search = searchParams.get("search") || undefined;
     const region = (searchParams.get("region") || "US").toUpperCase();
@@ -60,7 +61,15 @@ export async function GET(request: NextRequest) {
     if (!latest) {
       return NextResponse.json({
         success: true,
-        data: { items: [], total: 0, range, availableRegions },
+        data: {
+          items: [],
+          total: 0,
+          page,
+          pageSize,
+          hasMore: false,
+          range,
+          availableRegions,
+        },
       });
     }
 
@@ -79,11 +88,15 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const rows = await prisma.echotikVideoTrendDaily.findMany({
-      where,
-      orderBy: { rankPosition: "asc" },
-      take: limit,
-    });
+    const [rows, total] = await Promise.all([
+      prisma.echotikVideoTrendDaily.findMany({
+        where,
+        orderBy: { rankPosition: "asc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.echotikVideoTrendDaily.count({ where }),
+    ]);
 
     // Collect all product IDs from video extras for batch lookup
     const productIdSet = new Set<string>();
@@ -194,7 +207,10 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         items,
-        total: items.length,
+        total,
+        page,
+        pageSize,
+        hasMore: page * pageSize < total,
         range,
         availableRegions,
         effectiveRankingCycle: rankingCycle,

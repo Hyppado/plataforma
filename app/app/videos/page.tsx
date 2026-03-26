@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
@@ -8,32 +8,19 @@ import { VideoCard } from "@/app/components/cards/VideoCard";
 import type { VideoDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { ExpandMore } from "@mui/icons-material";
-import {
-  fetchCategories,
-  matchesCategory,
-  ALL_CATEGORY_ID,
-  type Category,
-} from "@/lib/categories";
+import { matchesCategory, ALL_CATEGORY_ID } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
 import { VIDEO_RANK_FIELDS } from "@/lib/echotik/rankFields";
+import { useTrendingVideos } from "@/lib/swr/useTrending";
+import { useCategories } from "@/lib/swr/useCategories";
+
+const PAGE_SIZE = 24;
 
 function VideosContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [videos, setVideos] = useState<VideoDTO[]>([]);
-  const [allVideos, setAllVideos] = useState<VideoDTO[]>([]);
-  const [page, setPage] = useState(1);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [availableRegions, setAvailableRegions] = useState<string[]>(["US"]);
-  const [effectiveRankingCycle, setEffectiveRankingCycle] = useState<
-    1 | 2 | 3 | null
-  >(null);
-
-  // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
   const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
@@ -41,23 +28,38 @@ function VideosContent() {
     searchParams.get("region") || getStoredRegion()
   ).toUpperCase();
   const sort = searchParams.get("sort") || "sales";
-  const pageSize = 24; // Carregar 24 por vez
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [timeRange, searchQuery, categoryFilter, regionFilter, sort]);
 
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
-
   const rankingCycleLabel: Record<1 | 2 | 3, string> = {
-    1: "diário",
+    1: "di\u00e1rio",
     2: "semanal",
     3: "mensal",
   };
 
-  // Load categories on mount
-  useEffect(() => {
-    fetchCategories().then(setCategories);
-  }, []);
+  const { categories } = useCategories();
 
-  // Helper to get category ID for a video
+  const {
+    items,
+    effectiveRankingCycle,
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  } = useTrendingVideos({
+    range: timeRange,
+    region: regionFilter,
+    sort,
+    search: searchQuery || undefined,
+    pageSize: 100,
+  });
+
+  // Client-side category filtering
   const getVideoCategoryId = useCallback(
     (video: VideoDTO): string | undefined => {
       return video.categoryId ?? video.product?.category;
@@ -65,154 +67,32 @@ function VideosContent() {
     [],
   );
 
-  // Filter videos by category (pure derivation, not a dependency of fetch)
-  const filterByCategory = useCallback(
-    (items: VideoDTO[]): VideoDTO[] => {
-      if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
-      return items.filter((v) =>
-        matchesCategory(getVideoCategoryId(v), categoryFilter, categories),
-      );
-    },
-    [categoryFilter, categories, getVideoCategoryId],
-  );
+  const filteredItems = useMemo(() => {
+    if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
+    return items.filter((v) =>
+      matchesCategory(getVideoCategoryId(v), categoryFilter, categories),
+    );
+  }, [items, categoryFilter, categories, getVideoCategoryId]);
 
-  const fetchData = useCallback(
-    async (signal?: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      setPage(1);
-
-      try {
-        const params = new URLSearchParams({
-          range: timeRange,
-          region: regionFilter,
-          sort,
-        });
-        if (searchQuery) params.set("search", searchQuery);
-
-        const res = await fetch(`/api/trending/videos?${params}`, { signal });
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const json = await res.json();
-
-        const items: VideoDTO[] = json?.data?.items ?? [];
-        setAllVideos(items);
-        setEffectiveRankingCycle(
-          (json?.data?.effectiveRankingCycle as 1 | 2 | 3 | undefined) ?? null,
-        );
-
-        if (json?.data?.availableRegions?.length > 0) {
-          setAvailableRegions(json.data.availableRegions);
-        }
-
-        if (json?.data?.error) {
-          console.warn("Videos API returned error:", json.data.error);
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        console.error("Failed to fetch videos:", err);
-        setError("Erro ao carregar vídeos. Tente novamente.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [timeRange, searchQuery, regionFilter, sort],
-  );
-
-  // Fetch only when query params change (not when categories change)
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
-  }, [fetchData]);
-
-  // Re-apply category filter whenever allVideos or filter criteria change
-  useEffect(() => {
-    const filtered = filterByCategory(allVideos);
-    setVideos(filtered.slice(0, pageSize));
-    setPage(1);
-  }, [allVideos, filterByCategory, pageSize]);
+  const displayedVideos = filteredItems.slice(0, displayCount);
+  const hasMore = displayedVideos.length < filteredItems.length;
 
   const handleLoadMore = () => {
-    setLoadingMore(true);
-    const nextPage = page + 1;
-    const start = nextPage * pageSize;
-    const end = start + pageSize;
-
-    // Apply category filter for load more
-    const filtered = filterByCategory(allVideos);
-    const moreVideos = filtered.slice(start, end);
-
-    setTimeout(() => {
-      setVideos((prev) => [...prev, ...moreVideos]);
-      setPage(nextPage);
-      setLoadingMore(false);
-    }, 300);
+    setDisplayCount((prev) => prev + PAGE_SIZE);
   };
 
-  const handleTimeRangeChange = (range: TimeRange) => {
+  const updateUrl = (overrides: Record<string, string>) => {
     const params = new URLSearchParams();
-    params.set("range", range);
-    params.set("region", regionFilter);
-    params.set("sort", sort);
-    if (searchQuery) params.set("q", searchQuery);
-    if (categoryFilter) params.set("category", categoryFilter);
+    params.set("range", overrides.range ?? timeRange);
+    params.set("region", overrides.region ?? regionFilter);
+    params.set("sort", overrides.sort ?? sort);
+    const q = overrides.q ?? searchQuery;
+    if (q) params.set("q", q);
+    const cat = overrides.category ?? categoryFilter;
+    if (cat) params.set("category", cat);
     router.push(`/app/videos?${params.toString()}`);
   };
 
-  const handleSearchChange = (query: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    params.set("region", regionFilter);
-    params.set("sort", sort);
-    if (query) params.set("q", query);
-    if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/videos?${params.toString()}`);
-  };
-
-  const handleCategoryChange = (category: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    params.set("region", regionFilter);
-    params.set("sort", sort);
-    if (searchQuery) params.set("q", searchQuery);
-    if (category) params.set("category", category);
-    router.push(`/app/videos?${params.toString()}`);
-  };
-
-  const handleRegionChange = (region: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    params.set("region", region);
-    params.set("sort", sort);
-    if (searchQuery) params.set("q", searchQuery);
-    if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/videos?${params.toString()}`);
-  };
-
-  const handleSortChange = (newSort: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    params.set("region", regionFilter);
-    params.set("sort", newSort);
-    if (searchQuery) params.set("q", searchQuery);
-    if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/app/videos?${params.toString()}`);
-  };
-
-  const handleInsightClick = (video: VideoDTO) => {
-    console.log("Insight clicked for", video.id);
-    // TODO: Implementar modal de insight
-  };
-
-  // Calculate hasMore based on filtered data
-  const filteredTotal = filterByCategory(allVideos).length;
-  const hasMore = videos.length < filteredTotal;
-
-  // Get category name for display (preferir PT)
   const getCategoryName = () => {
     if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return "";
     const cat = categories.find(
@@ -247,7 +127,7 @@ function VideosContent() {
               lineHeight: 1.3,
             }}
           >
-            Vídeos em Alta
+            V\u00eddeos em Alta
           </Typography>
           <Typography
             sx={{
@@ -256,20 +136,20 @@ function VideosContent() {
               lineHeight: 1.3,
             }}
           >
-            {allVideos.length > 0
-              ? `${filteredTotal} vídeos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${videos.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` • dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
-              : "Explorando os vídeos mais performáticos"}
+            {items.length > 0
+              ? `${filteredItems.length} v\u00eddeos${getCategoryName() ? ` em ${getCategoryName()}` : ""} \u2022 Mostrando ${displayedVideos.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` \u2022 dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+              : "Explorando os v\u00eddeos mais performáticos"}
           </Typography>
         </Box>
         <DashboardHeader
           timeRange={timeRange}
-          onTimeRangeChange={handleTimeRangeChange}
+          onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
           searchQuery={searchQuery}
-          onSearchChange={handleSearchChange}
-          onRefresh={() => fetchData()}
-          loading={loading}
+          onSearchChange={(q: string) => updateUrl({ q })}
+          onRefresh={() => mutate()}
+          loading={isLoading || isValidating}
           category={categoryFilter}
-          onCategoryChange={handleCategoryChange}
+          onCategoryChange={(c: string) => updateUrl({ category: c })}
           categories={categories}
         />
         {/* Sort chips */}
@@ -280,7 +160,7 @@ function VideosContent() {
               <Box
                 key={rf.key}
                 component="button"
-                onClick={() => handleSortChange(rf.key)}
+                onClick={() => updateUrl({ sort: rf.key })}
                 sx={{
                   px: 1.5,
                   py: 0.5,
@@ -332,14 +212,14 @@ function VideosContent() {
 
         {/* Video Grid */}
         <Grid container spacing={{ xs: 2, md: 2.5 }}>
-          {videos.map((video, idx) => (
+          {displayedVideos.map((video, idx) => (
             <Grid item xs={6} sm={6} md={6} lg={3} key={video.id}>
               <VideoCard video={video} rank={idx + 1} />
             </Grid>
           ))}
 
           {/* Loading skeletons */}
-          {loading &&
+          {isLoading &&
             Array.from({ length: 12 }).map((_, idx) => (
               <Grid item xs={6} sm={6} md={6} lg={3} key={`skeleton-${idx}`}>
                 <VideoCard isLoading />
@@ -348,7 +228,7 @@ function VideosContent() {
         </Grid>
 
         {/* Load More Button */}
-        {!loading && hasMore && videos.length > 0 && (
+        {!isLoading && hasMore && displayedVideos.length > 0 && (
           <Box
             sx={{
               display: "flex",
@@ -360,11 +240,8 @@ function VideosContent() {
             <Button
               variant="outlined"
               size="large"
-              endIcon={
-                loadingMore ? <CircularProgress size={16} /> : <ExpandMore />
-              }
+              endIcon={<ExpandMore />}
               onClick={handleLoadMore}
-              disabled={loadingMore}
               sx={{
                 px: 4,
                 py: 1.25,
@@ -381,13 +258,13 @@ function VideosContent() {
                 },
               }}
             >
-              {loadingMore ? "Carregando..." : "Carregar mais"}
+              Carregar mais
             </Button>
           </Box>
         )}
 
         {/* Empty State */}
-        {!loading && videos.length === 0 && (
+        {!isLoading && displayedVideos.length === 0 && (
           <Box
             sx={{
               textAlign: "center",
@@ -396,7 +273,7 @@ function VideosContent() {
             }}
           >
             <Typography sx={{ fontSize: "0.95rem" }}>
-              Nenhum vídeo encontrado
+              Nenhum v\u00eddeo encontrado
             </Typography>
           </Box>
         )}
