@@ -8,6 +8,7 @@
  */
 
 import prisma from "../prisma";
+import type { Prisma } from "@prisma/client";
 import type { NotificationSeverity } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -168,7 +169,7 @@ export async function createNotificationIfNeeded(
       userId: ctx.userId ?? undefined,
       subscriptionId: ctx.subscriptionId ?? undefined,
       eventId: ctx.eventId ?? undefined,
-      metadata: ctx.metadata ?? undefined,
+      metadata: (ctx.metadata as Prisma.InputJsonValue) ?? undefined,
     },
   });
 
@@ -202,7 +203,7 @@ export async function createDirectNotification(
       userId: overrides?.userId,
       subscriptionId: overrides?.subscriptionId,
       eventId: overrides?.eventId,
-      metadata: overrides?.metadata ?? undefined,
+      metadata: (overrides?.metadata as Prisma.InputJsonValue) ?? undefined,
     },
   });
   return notification.id;

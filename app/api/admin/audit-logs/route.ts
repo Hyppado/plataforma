@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   if (entityType) where.entityType = entityType;
   if (actorId) where.actorId = actorId;
   if (from || to) {
-    where.createdAt = {
+    where.occurredAt = {
       ...(from ? { gte: new Date(from) } : {}),
       ...(to ? { lte: new Date(to) } : {}),
     };
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   const [items, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { occurredAt: "desc" },
       skip,
       take: limit,
       include: {

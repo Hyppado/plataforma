@@ -30,7 +30,7 @@ describe("GET /api/admin/audit-logs", () => {
         action: "WEBHOOK_PURCHASE_APPROVED",
         entityType: "Subscription",
         entityId: "sub-1",
-        createdAt: new Date(),
+        occurredAt: new Date(),
       },
     ];
 
@@ -92,7 +92,7 @@ describe("GET /api/admin/audit-logs", () => {
     expect(prismaMock.auditLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          createdAt: {
+          occurredAt: {
             gte: expect.any(Date),
             lte: expect.any(Date),
           },
