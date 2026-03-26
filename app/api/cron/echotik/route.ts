@@ -18,11 +18,21 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runEchotikCron } from "@/lib/echotik/cron";
+import type { CronTask } from "@/lib/echotik/cron";
 import { createLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // segundos (Vercel Pro)
+export const maxDuration = 60;
+
+const VALID_TASKS = new Set<CronTask>([
+  "categories",
+  "videos",
+  "products",
+  "creators",
+  "details",
+  "auto",
+]);
 
 export async function GET(request: NextRequest) {
   const log = createLogger("cron/echotik");
@@ -51,16 +61,32 @@ export async function GET(request: NextRequest) {
   }
 
   // -----------------------------------------------------------------------
-  // 2. Executar cron
+  // 2. Parse params
+  // -----------------------------------------------------------------------
+  const force = request.nextUrl.searchParams.get("force") === "true";
+  const taskParam = request.nextUrl.searchParams.get("task") ?? "auto";
+
+  if (!VALID_TASKS.has(taskParam as CronTask)) {
+    return NextResponse.json(
+      { ok: false, error: `Invalid task: ${taskParam}` },
+      { status: 400 },
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // 3. Executar tarefa
   // -----------------------------------------------------------------------
   try {
-    const force = request.nextUrl.searchParams.get("force") === "true";
-    const result = await runEchotikCron(force);
+    const result = await runEchotikCron({
+      task: taskParam as CronTask,
+      force,
+    });
 
     return NextResponse.json({
       ok: result.status !== "FAILED",
       runId: result.runId,
       status: result.status,
+      task: taskParam,
       stats: result.stats,
       ...(result.error ? { error: result.error } : {}),
     });

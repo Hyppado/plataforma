@@ -5,5 +5,6 @@
  * "@/lib/echotik/cron" continue to work unchanged.
  */
 
-export { runEchotikCron } from "./orchestrator";
+export { runEchotikCron, detectNextTask } from "./orchestrator";
+export type { CronTask, CronOptions } from "./orchestrator";
 export type { CronResult, CronStats } from "./types";

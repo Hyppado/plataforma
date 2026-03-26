@@ -148,7 +148,10 @@ describe("GET /api/cron/echotik — route", () => {
       { authorization: "Bearer test-cron-secret" },
     );
     await GET(req);
-    expect(runEchotikCron).toHaveBeenCalledWith(true);
+    expect(runEchotikCron).toHaveBeenCalledWith({
+      task: "auto",
+      force: true,
+    });
   });
 
   it("SECURITY: rejects requests without auth in production", async () => {

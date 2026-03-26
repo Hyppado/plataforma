@@ -1,13 +1,17 @@
 /**
  * lib/echotik/cron/orchestrator.ts — Main cron entrypoint
  *
- * Coordinates all sync tasks with smart scheduling, structured logging,
- * and correlation tracking via a single runId/correlationId.
+ * Runs ONE task per invocation to stay within Vercel's 60s function limit.
+ * In "auto" mode, picks the next task that needs syncing based on shouldSkip().
+ * The Vercel cron is scheduled every 15 min so all tasks complete within ~1h.
+ *
+ * Task priority: categories → videos → products → creators → details
  */
 
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import type { CronResult } from "./types";
+import type { Logger } from "@/lib/logger";
+import type { CronResult, CronStats } from "./types";
 import {
   CATEGORIES_INTERVAL_HOURS,
   VIDEO_TREND_INTERVAL_HOURS,
@@ -23,243 +27,276 @@ import {
 } from "./syncProducts";
 import { syncCreatorRanklist } from "./syncCreators";
 
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+export type CronTask =
+  | "categories"
+  | "videos"
+  | "products"
+  | "creators"
+  | "details"
+  | "auto";
+
+export interface CronOptions {
+  /** Which task to run (default: "auto" — picks the next needed one) */
+  task?: CronTask;
+  /** If true, ignores shouldSkip intervals */
+  force?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Task detection — which task needs to run next?
+// ---------------------------------------------------------------------------
+
+/** Returns the first task that needs syncing, or null if everything is fresh. */
+export async function detectNextTask(force: boolean): Promise<CronTask | null> {
+  if (
+    force ||
+    !(await shouldSkip("echotik:categories", CATEGORIES_INTERVAL_HOURS))
+  ) {
+    return "categories";
+  }
+  if (
+    force ||
+    !(await shouldSkip("echotik:videos", VIDEO_TREND_INTERVAL_HOURS))
+  ) {
+    return "videos";
+  }
+  if (
+    force ||
+    !(await shouldSkip("echotik:products", PRODUCT_TREND_INTERVAL_HOURS))
+  ) {
+    return "products";
+  }
+  if (
+    force ||
+    !(await shouldSkip("echotik:creators", CREATOR_TREND_INTERVAL_HOURS))
+  ) {
+    return "creators";
+  }
+  // Details are always worth trying (cheap if nothing is missing)
+  return "details";
+}
+
+// ---------------------------------------------------------------------------
+// Individual task runners
+// ---------------------------------------------------------------------------
+
+async function runCategories(
+  runId: string,
+  log: Logger,
+): Promise<Partial<CronStats>> {
+  const synced = await syncAllCategories(runId, log);
+  await prisma.ingestionRun.create({
+    data: {
+      source: "echotik:categories",
+      status: "SUCCESS",
+      endedAt: new Date(),
+    },
+  });
+  return { categoriesSynced: synced };
+}
+
+async function runVideos(
+  runId: string,
+  log: Logger,
+): Promise<Partial<CronStats>> {
+  const synced = await syncVideoRanklist(runId, log);
+  await prisma.ingestionRun.create({
+    data: {
+      source: "echotik:videos",
+      status: "SUCCESS",
+      endedAt: new Date(),
+    },
+  });
+  return { videosSynced: synced };
+}
+
+async function runProducts(
+  runId: string,
+  log: Logger,
+): Promise<Partial<CronStats>> {
+  const synced = await syncProductRanklist(runId, log);
+  await prisma.ingestionRun.create({
+    data: {
+      source: "echotik:products",
+      status: "SUCCESS",
+      endedAt: new Date(),
+    },
+  });
+  return { productsSynced: synced };
+}
+
+async function runCreators(
+  runId: string,
+  log: Logger,
+): Promise<Partial<CronStats>> {
+  const synced = await syncCreatorRanklist(runId, log);
+  await prisma.ingestionRun.create({
+    data: {
+      source: "echotik:creators",
+      status: "SUCCESS",
+      endedAt: new Date(),
+    },
+  });
+  return { creatorsSynced: synced };
+}
+
+async function runDetails(log: Logger): Promise<Partial<CronStats>> {
+  const [videoDetails, ranklistDetails] = await Promise.all([
+    syncVideoProductDetails(log),
+    syncRanklistProductDetails(log),
+  ]);
+  return { productDetailsEnriched: videoDetails + ranklistDetails };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function emptyStats(): CronStats {
+  return {
+    categoriesSynced: 0,
+    videosSynced: 0,
+    productsSynced: 0,
+    creatorsSynced: 0,
+    productDetailsEnriched: 0,
+    categoriesSkipped: true,
+    videosSkipped: true,
+    productsSkipped: true,
+    creatorsSkipped: true,
+    durationMs: 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main entrypoint
+// ---------------------------------------------------------------------------
+
 /**
- * Executa o cron de ingestão EchoTik com smart scheduling.
+ * Executa o cron de ingestão EchoTik.
  *
- * @param force — se true, ignora intervalos e força todas as tarefas
- * @returns CronResult com runId, status e stats
+ * Cada invocação roda **uma** tarefa para caber em 60s do Vercel.
+ * No modo "auto" (padrão), escolhe a tarefa mais urgente.
  */
-export async function runEchotikCron(force = false): Promise<CronResult> {
+export async function runEchotikCron(
+  opts: CronOptions = {},
+): Promise<CronResult> {
+  const { task: requestedTask = "auto", force = false } = opts;
   const start = Date.now();
   const log = createLogger("echotik-cron");
 
-  log.info("Cron started", { force, correlationId: log.correlationId });
+  // Resolve which task to run
+  const task =
+    requestedTask === "auto" ? await detectNextTask(force) : requestedTask;
 
-  // Determine what needs to run
-  const skipCategories =
-    !force &&
-    (await shouldSkip("echotik:categories", CATEGORIES_INTERVAL_HOURS));
-  const skipVideos =
-    !force && (await shouldSkip("echotik:videos", VIDEO_TREND_INTERVAL_HOURS));
-  const skipProducts =
-    !force &&
-    (await shouldSkip("echotik:products", PRODUCT_TREND_INTERVAL_HOURS));
-  const skipCreators =
-    !force &&
-    (await shouldSkip("echotik:creators", CREATOR_TREND_INTERVAL_HOURS));
+  log.info("Cron started", {
+    requestedTask,
+    resolvedTask: task ?? "none",
+    force,
+    correlationId: log.correlationId,
+  });
 
-  // If everything up-to-date, try enriching product details only
-  if (skipCategories && skipVideos && skipProducts && skipCreators) {
-    let productDetailsEnriched = 0;
-    try {
-      const [videoDetails, ranklistDetails] = await Promise.all([
-        syncVideoProductDetails(log),
-        syncRanklistProductDetails(log),
-      ]);
-      productDetailsEnriched = videoDetails + ranklistDetails;
-    } catch (err) {
-      log.error("Product detail enrichment failed (skip path)", {
-        error: (err as Error).message,
-      });
-    }
-
-    if (productDetailsEnriched === 0) {
-      log.info("Everything up-to-date, nothing to sync");
-      return {
-        runId: "",
-        status: "SKIPPED",
-        stats: {
-          categoriesSynced: 0,
-          videosSynced: 0,
-          productsSynced: 0,
-          creatorsSynced: 0,
-          productDetailsEnriched: 0,
-          categoriesSkipped: true,
-          videosSkipped: true,
-          productsSkipped: true,
-          creatorsSkipped: true,
-          durationMs: Date.now() - start,
-        },
-      };
-    }
-
-    log.info("Product details enriched (tasks skipped)", {
-      productDetailsEnriched,
-    });
+  // Nothing to do
+  if (!task) {
+    log.info("Everything up-to-date, nothing to sync");
     return {
       runId: "",
-      status: "SUCCESS",
-      stats: {
-        categoriesSynced: 0,
-        videosSynced: 0,
-        productsSynced: 0,
-        creatorsSynced: 0,
-        productDetailsEnriched,
-        categoriesSkipped: true,
-        videosSkipped: true,
-        productsSkipped: true,
-        creatorsSkipped: true,
-        durationMs: Date.now() - start,
-      },
+      status: "SKIPPED",
+      stats: { ...emptyStats(), durationMs: Date.now() - start },
     };
   }
 
-  // Create IngestionRun record
+  // Product details don't need an IngestionRun record
+  if (task === "details") {
+    try {
+      const partial = await runDetails(log);
+      const stats = {
+        ...emptyStats(),
+        ...partial,
+        durationMs: Date.now() - start,
+      };
+      log.info("Details enrichment done", {
+        enriched: stats.productDetailsEnriched,
+      });
+      return {
+        runId: "",
+        status: stats.productDetailsEnriched > 0 ? "SUCCESS" : "SKIPPED",
+        stats,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("Details enrichment failed", { error: errorMessage });
+      return {
+        runId: "",
+        status: "FAILED",
+        stats: { ...emptyStats(), durationMs: Date.now() - start },
+        error: errorMessage,
+      };
+    }
+  }
+
+  // Create IngestionRun record for the task
   const run = await prisma.ingestionRun.create({
-    data: { source: "echotik", status: "RUNNING" },
+    data: { source: `echotik:run:${task}`, status: "RUNNING" },
   });
-
-  const runLog = log.child({ runId: run.id });
-
-  let categoriesSynced = 0;
-  let videosSynced = 0;
-  let productsSynced = 0;
-  let creatorsSynced = 0;
-  let productDetailsEnriched = 0;
+  const runLog = log.child({ runId: run.id, task });
 
   try {
-    // 1. Categories (L1 daily, L2/L3 weekly)
-    if (!skipCategories) {
-      categoriesSynced = await syncAllCategories(run.id, runLog);
-      await prisma.ingestionRun.create({
-        data: {
-          source: "echotik:categories",
-          status: "SUCCESS",
-          endedAt: new Date(),
-        },
-      });
-    } else {
-      runLog.info("Categories: skip (recently synced)");
+    let partial: Partial<CronStats> = {};
+
+    switch (task) {
+      case "categories":
+        partial = await runCategories(run.id, runLog);
+        break;
+      case "videos":
+        partial = await runVideos(run.id, runLog);
+        break;
+      case "products":
+        partial = await runProducts(run.id, runLog);
+        break;
+      case "creators":
+        partial = await runCreators(run.id, runLog);
+        break;
     }
 
-    // 2. Video ranklist
-    if (!skipVideos) {
-      videosSynced = await syncVideoRanklist(run.id, runLog);
-      await prisma.ingestionRun.create({
-        data: {
-          source: "echotik:videos",
-          status: "SUCCESS",
-          endedAt: new Date(),
-        },
-      });
-    } else {
-      runLog.info("Videos: skip (recently synced)");
-    }
-
-    // 2b. Product detail enrichment (video + ranklist)
-    try {
-      const [videoDetails, ranklistDetails] = await Promise.all([
-        syncVideoProductDetails(runLog),
-        syncRanklistProductDetails(runLog),
-      ]);
-      productDetailsEnriched = videoDetails + ranklistDetails;
-      runLog.info("Product details enriched", {
-        total: productDetailsEnriched,
-        video: videoDetails,
-        ranklist: ranklistDetails,
-      });
-    } catch (err) {
-      runLog.error("Product detail enrichment failed (non-fatal)", {
-        error: (err as Error).message,
-      });
-    }
-
-    // 3. Product ranklist
-    if (!skipProducts) {
-      productsSynced = await syncProductRanklist(run.id, runLog);
-      await prisma.ingestionRun.create({
-        data: {
-          source: "echotik:products",
-          status: "SUCCESS",
-          endedAt: new Date(),
-        },
-      });
-    } else {
-      runLog.info("Products: skip (recently synced)");
-    }
-
-    // 4. Creator ranklist
-    if (!skipCreators) {
-      creatorsSynced = await syncCreatorRanklist(run.id, runLog);
-      await prisma.ingestionRun.create({
-        data: {
-          source: "echotik:creators",
-          status: "SUCCESS",
-          endedAt: new Date(),
-        },
-      });
-    } else {
-      runLog.info("Creators: skip (recently synced)");
-    }
-
-    // Finalize
-    const durationMs = Date.now() - start;
-    const stats = {
-      categoriesSynced,
-      videosSynced,
-      productsSynced,
-      creatorsSynced,
-      productDetailsEnriched,
-      categoriesSkipped: skipCategories,
-      videosSkipped: skipVideos,
-      productsSkipped: skipProducts,
-      creatorsSkipped: skipCreators,
-      durationMs,
+    const stats: CronStats = {
+      ...emptyStats(),
+      ...partial,
+      [`${task}Skipped`]: false,
+      durationMs: Date.now() - start,
     };
 
     await prisma.ingestionRun.update({
       where: { id: run.id },
-      data: {
-        status: "SUCCESS",
-        endedAt: new Date(),
-        statsJson: stats,
-      },
+      data: { status: "SUCCESS", endedAt: new Date(), statsJson: stats as any },
     });
 
-    runLog.info("Cron completed", {
-      durationMs,
-      categories: skipCategories ? "skip" : categoriesSynced,
-      videos: skipVideos ? "skip" : videosSynced,
-      products: skipProducts ? "skip" : productsSynced,
-      creators: skipCreators ? "skip" : creatorsSynced,
-      details: productDetailsEnriched,
+    runLog.info("Task completed", {
+      task,
+      durationMs: stats.durationMs,
+      ...partial,
     });
 
     return { runId: run.id, status: "SUCCESS", stats };
   } catch (error) {
     const durationMs = Date.now() - start;
     const errorMessage = error instanceof Error ? error.message : String(error);
-
-    const stats = {
-      categoriesSynced,
-      videosSynced,
-      productsSynced,
-      creatorsSynced,
-      productDetailsEnriched,
-      categoriesSkipped: skipCategories,
-      videosSkipped: skipVideos,
-      productsSkipped: skipProducts,
-      creatorsSkipped: skipCreators,
-      durationMs,
-    };
+    const stats = { ...emptyStats(), durationMs };
 
     await prisma.ingestionRun.update({
       where: { id: run.id },
       data: {
         status: "FAILED",
         endedAt: new Date(),
-        statsJson: stats,
+        statsJson: stats as any,
         errorMessage,
       },
     });
 
-    runLog.error("Cron failed", { durationMs, error: errorMessage });
-
-    return {
-      runId: run.id,
-      status: "FAILED",
-      stats,
-      error: errorMessage,
-    };
+    runLog.error("Task failed", { task, durationMs, error: errorMessage });
+    return { runId: run.id, status: "FAILED", stats, error: errorMessage };
   }
 }
