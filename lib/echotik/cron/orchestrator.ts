@@ -1,11 +1,16 @@
 /**
  * lib/echotik/cron/orchestrator.ts — Main cron entrypoint
  *
- * Runs ONE task per invocation to stay within Vercel's 60s function limit.
- * In "auto" mode, picks the next task that needs syncing based on shouldSkip().
- * The Vercel cron is scheduled every 15 min so all tasks complete within ~1h.
+ * Runs ONE task for ONE region per invocation to stay within Vercel's 60s limit.
  *
- * Task priority: categories → videos → products → creators → details
+ * Budget per invocation: 1 region × 3 cycles × 2 fields × 10 pages ≈ 40s.
+ *
+ * shouldSkip keys are region-scoped: "echotik:videos:BR", "echotik:videos:US"…
+ * In "auto" mode, the orchestrator iterates task × region to find the first
+ * combo that needs syncing. The Vercel cron runs every 15 min so with 4 regions
+ * × 4 task types = 16 combos, the full cycle completes within ~4h daily.
+ *
+ * Priority: categories (once, no region) → videos:*, products:*, creators:* → details
  */
 
 import { prisma } from "@/lib/prisma";
@@ -18,7 +23,7 @@ import {
   PRODUCT_TREND_INTERVAL_HOURS,
   CREATOR_TREND_INTERVAL_HOURS,
 } from "./types";
-import { shouldSkip } from "./helpers";
+import { shouldSkip, getConfiguredRegions } from "./helpers";
 import { syncAllCategories } from "./syncCategories";
 import { syncVideoRanklist, syncVideoProductDetails } from "./syncVideos";
 import {
@@ -42,42 +47,79 @@ export type CronTask =
 export interface CronOptions {
   /** Which task to run (default: "auto" — picks the next needed one) */
   task?: CronTask;
+  /** Region for ranklist tasks — required when task != auto/categories/details */
+  region?: string;
   /** If true, ignores shouldSkip intervals */
   force?: boolean;
 }
 
+export interface TaskSelection {
+  task: CronTask;
+  region: string | null;
+}
+
 // ---------------------------------------------------------------------------
-// Task detection — which task needs to run next?
+// Task detection — which (task, region) combo needs to run next?
 // ---------------------------------------------------------------------------
 
-/** Returns the first task that needs syncing, or null if everything is fresh. */
-export async function detectNextTask(force: boolean): Promise<CronTask | null> {
+/**
+ * Returns the next {task, region} combo that needs syncing, or null if
+ * everything is fresh.
+ */
+export async function detectNextTask(
+  force: boolean,
+): Promise<TaskSelection | null> {
+  // 1. Categories (region-agnostic, runs once per interval)
   if (
     force ||
     !(await shouldSkip("echotik:categories", CATEGORIES_INTERVAL_HOURS))
   ) {
-    return "categories";
+    return { task: "categories", region: null };
   }
-  if (
-    force ||
-    !(await shouldSkip("echotik:videos", VIDEO_TREND_INTERVAL_HOURS))
-  ) {
-    return "videos";
+
+  const regions = await getConfiguredRegions();
+
+  // 2. Videos — per region
+  for (const region of regions) {
+    if (
+      force ||
+      !(await shouldSkip(
+        `echotik:videos:${region}`,
+        VIDEO_TREND_INTERVAL_HOURS,
+      ))
+    ) {
+      return { task: "videos", region };
+    }
   }
-  if (
-    force ||
-    !(await shouldSkip("echotik:products", PRODUCT_TREND_INTERVAL_HOURS))
-  ) {
-    return "products";
+
+  // 3. Products — per region
+  for (const region of regions) {
+    if (
+      force ||
+      !(await shouldSkip(
+        `echotik:products:${region}`,
+        PRODUCT_TREND_INTERVAL_HOURS,
+      ))
+    ) {
+      return { task: "products", region };
+    }
   }
-  if (
-    force ||
-    !(await shouldSkip("echotik:creators", CREATOR_TREND_INTERVAL_HOURS))
-  ) {
-    return "creators";
+
+  // 4. Creators — per region
+  for (const region of regions) {
+    if (
+      force ||
+      !(await shouldSkip(
+        `echotik:creators:${region}`,
+        CREATOR_TREND_INTERVAL_HOURS,
+      ))
+    ) {
+      return { task: "creators", region };
+    }
   }
-  // Details are always worth trying (cheap if nothing is missing)
-  return "details";
+
+  // 5. Details (always worth trying — cheap when nothing is missing)
+  return { task: "details", region: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -101,12 +143,13 @@ async function runCategories(
 
 async function runVideos(
   runId: string,
+  region: string,
   log: Logger,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncVideoRanklist(runId, log);
+  const synced = await syncVideoRanklist(runId, region, log);
   await prisma.ingestionRun.create({
     data: {
-      source: "echotik:videos",
+      source: `echotik:videos:${region}`,
       status: "SUCCESS",
       endedAt: new Date(),
     },
@@ -116,12 +159,13 @@ async function runVideos(
 
 async function runProducts(
   runId: string,
+  region: string,
   log: Logger,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncProductRanklist(runId, log);
+  const synced = await syncProductRanklist(runId, region, log);
   await prisma.ingestionRun.create({
     data: {
-      source: "echotik:products",
+      source: `echotik:products:${region}`,
       status: "SUCCESS",
       endedAt: new Date(),
     },
@@ -131,12 +175,13 @@ async function runProducts(
 
 async function runCreators(
   runId: string,
+  region: string,
   log: Logger,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncCreatorRanklist(runId, log);
+  const synced = await syncCreatorRanklist(runId, region, log);
   await prisma.ingestionRun.create({
     data: {
-      source: "echotik:creators",
+      source: `echotik:creators:${region}`,
       status: "SUCCESS",
       endedAt: new Date(),
     },
@@ -178,29 +223,68 @@ function emptyStats(): CronStats {
 /**
  * Executa o cron de ingestão EchoTik.
  *
- * Cada invocação roda **uma** tarefa para caber em 60s do Vercel.
- * No modo "auto" (padrão), escolhe a tarefa mais urgente.
+ * Cada invocação roda UMA tarefa para UMA região para caber em 60s.
+ * No modo "auto" (padrão), escolhe a próxima tarefa+região pendente.
  */
 export async function runEchotikCron(
   opts: CronOptions = {},
 ): Promise<CronResult> {
-  const { task: requestedTask = "auto", force = false } = opts;
+  const {
+    task: requestedTask = "auto",
+    region: requestedRegion,
+    force = false,
+  } = opts;
   const start = Date.now();
   const log = createLogger("echotik-cron");
 
-  // Resolve which task to run
-  const task =
-    requestedTask === "auto" ? await detectNextTask(force) : requestedTask;
+  // Resolve which (task, region) to run
+  let selection: TaskSelection | null;
+  if (requestedTask === "auto") {
+    selection = await detectNextTask(force);
+  } else if (
+    requestedRegion === undefined &&
+    (requestedTask === "videos" ||
+      requestedTask === "products" ||
+      requestedTask === "creators")
+  ) {
+    // Explicit ranklist task but no region provided: auto-pick the first region
+    // needing sync (or the first region if force=true).
+    const regions = await getConfiguredRegions();
+    const intervalMap: Record<string, number> = {
+      videos: VIDEO_TREND_INTERVAL_HOURS,
+      products: PRODUCT_TREND_INTERVAL_HOURS,
+      creators: CREATOR_TREND_INTERVAL_HOURS,
+    };
+    const interval = intervalMap[requestedTask];
+    let pickedRegion = regions[0] ?? null;
+    if (!force) {
+      for (const r of regions) {
+        if (!(await shouldSkip(`echotik:${requestedTask}:${r}`, interval))) {
+          pickedRegion = r;
+          break;
+        }
+      }
+    }
+    selection = pickedRegion
+      ? { task: requestedTask, region: pickedRegion }
+      : null;
+  } else {
+    selection = {
+      task: requestedTask,
+      region: requestedRegion ?? null,
+    };
+  }
 
   log.info("Cron started", {
     requestedTask,
-    resolvedTask: task ?? "none",
+    requestedRegion: requestedRegion ?? "auto",
+    resolvedTask: selection?.task ?? "none",
+    resolvedRegion: selection?.region ?? "n/a",
     force,
     correlationId: log.correlationId,
   });
 
-  // Nothing to do
-  if (!task) {
+  if (!selection) {
     log.info("Everything up-to-date, nothing to sync");
     return {
       runId: "",
@@ -208,6 +292,8 @@ export async function runEchotikCron(
       stats: { ...emptyStats(), durationMs: Date.now() - start },
     };
   }
+
+  const { task, region } = selection;
 
   // Product details don't need an IngestionRun record
   if (task === "details") {
@@ -238,11 +324,18 @@ export async function runEchotikCron(
     }
   }
 
-  // Create IngestionRun record for the task
+  // Create IngestionRun record
+  const runSource = region
+    ? `echotik:run:${task}:${region}`
+    : `echotik:run:${task}`;
   const run = await prisma.ingestionRun.create({
-    data: { source: `echotik:run:${task}`, status: "RUNNING" },
+    data: { source: runSource, status: "RUNNING" },
   });
-  const runLog = log.child({ runId: run.id, task });
+  const runLog = log.child({
+    runId: run.id,
+    task,
+    region: region ?? undefined,
+  });
 
   try {
     let partial: Partial<CronStats> = {};
@@ -252,13 +345,16 @@ export async function runEchotikCron(
         partial = await runCategories(run.id, runLog);
         break;
       case "videos":
-        partial = await runVideos(run.id, runLog);
+        if (!region) throw new Error("videos task requires a region");
+        partial = await runVideos(run.id, region, runLog);
         break;
       case "products":
-        partial = await runProducts(run.id, runLog);
+        if (!region) throw new Error("products task requires a region");
+        partial = await runProducts(run.id, region, runLog);
         break;
       case "creators":
-        partial = await runCreators(run.id, runLog);
+        if (!region) throw new Error("creators task requires a region");
+        partial = await runCreators(run.id, region, runLog);
         break;
     }
 
@@ -276,6 +372,7 @@ export async function runEchotikCron(
 
     runLog.info("Task completed", {
       task,
+      region: region ?? undefined,
       durationMs: stats.durationMs,
       ...partial,
     });
@@ -296,7 +393,12 @@ export async function runEchotikCron(
       },
     });
 
-    runLog.error("Task failed", { task, durationMs, error: errorMessage });
+    runLog.error("Task failed", {
+      task,
+      region: region ?? undefined,
+      durationMs,
+      error: errorMessage,
+    });
     return { runId: run.id, status: "FAILED", stats, error: errorMessage };
   }
 }

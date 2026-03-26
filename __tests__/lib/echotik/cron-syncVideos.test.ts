@@ -249,24 +249,18 @@ describe("syncVideoRanklistForRegion()", () => {
 describe("syncVideoRanklist()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Returns BR only
-    prismaMock.region.findMany.mockResolvedValue([
-      { code: "BR", sortOrder: 1 },
-    ]);
   });
 
-  it("iterates all regions × cycles × fields", async () => {
-    // With 1 region, 3 cycles, 1 field = 3 iterations
-    // Each iteration: date check + page 1 + page 2 (empty)
+  it("iterates cycles × fields for given region", async () => {
+    // 3 cycles × 1 field = 3 iterations for region BR
     echotikRequestMock.mockResolvedValue(apiEmpty()); // default: no data
 
-    const count = await syncVideoRanklist("run-1", stubLog());
+    const count = await syncVideoRanklist("run-1", "BR", stubLog());
 
-    // 3 cycles × candidate dates (2 for daily, 3 for weekly, 3 for monthly) = checks
     expect(count).toBe(0);
   });
 
-  it("aggregates total across all iterations", async () => {
+  it("aggregates total across all cycle iterations", async () => {
     echotikRequestMock
       .mockResolvedValueOnce(apiOk([videoItem("v1")])) // cycle 1 date check
       .mockResolvedValueOnce(apiOk([videoItem("v1")])) // cycle 1 page 1
@@ -278,7 +272,7 @@ describe("syncVideoRanklist()", () => {
       .mockResolvedValueOnce(apiOk([videoItem("v3")])) // cycle 3 page 1
       .mockResolvedValueOnce(apiEmpty()); // cycle 3 page 2
 
-    const count = await syncVideoRanklist("run-1", stubLog());
+    const count = await syncVideoRanklist("run-1", "BR", stubLog());
     expect(count).toBe(3);
   });
 });

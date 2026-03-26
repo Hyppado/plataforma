@@ -5,7 +5,9 @@
  * Valida CRON_SECRET e dispara a ingestão EchoTik com smart scheduling.
  *
  * Query params:
- *   ?force=true  — ignora intervalos e força todas as tarefas (útil em testes)
+ *   ?force=true          — ignora intervalos e força todas as tarefas (útil em testes)
+ *   ?task=videos         — executa apenas esta tarefa
+ *   ?region=BR           — região alvo para tarefas de ranklist (ex: BR, US, MX, GB)
  *
  * Headers esperados (Vercel Cron envia automaticamente):
  *   Authorization: Bearer <CRON_SECRET>
@@ -65,6 +67,7 @@ export async function GET(request: NextRequest) {
   // -----------------------------------------------------------------------
   const force = request.nextUrl.searchParams.get("force") === "true";
   const taskParam = request.nextUrl.searchParams.get("task") ?? "auto";
+  const regionParam = request.nextUrl.searchParams.get("region") ?? undefined;
 
   if (!VALID_TASKS.has(taskParam as CronTask)) {
     return NextResponse.json(
@@ -79,6 +82,7 @@ export async function GET(request: NextRequest) {
   try {
     const result = await runEchotikCron({
       task: taskParam as CronTask,
+      region: regionParam,
       force,
     });
 
@@ -87,6 +91,7 @@ export async function GET(request: NextRequest) {
       runId: result.runId,
       status: result.status,
       task: taskParam,
+      region: regionParam ?? null,
       stats: result.stats,
       ...(result.error ? { error: result.error } : {}),
     });

@@ -1,9 +1,10 @@
 /**
  * Tests: lib/echotik/cron/orchestrator.ts
  *
- * Full coverage: detectNextTask, runEchotikCron (all task types)
- * Covers: auto task selection, explicit tasks, force mode, skipped state,
- * SUCCESS and FAILED outcomes, details-only path, IngestionRun lifecycle.
+ * Full coverage: detectNextTask, runEchotikCron (all task types, all regions)
+ * Covers: auto task selection with region detection, explicit tasks (with and
+ * without region), force mode, skipped state, SUCCESS and FAILED outcomes,
+ * details-only path, IngestionRun lifecycle, region-scoped shouldSkip keys.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -19,6 +20,9 @@ const prismaMock = vi.hoisted(() => ({
 }));
 
 const shouldSkipMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
+const getConfiguredRegionsMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(["BR", "US"]),
+);
 const syncAllCategoriesMock = vi.hoisted(() => vi.fn().mockResolvedValue(10));
 const syncVideoRanklistMock = vi.hoisted(() => vi.fn().mockResolvedValue(50));
 const syncProductRanklistMock = vi.hoisted(() => vi.fn().mockResolvedValue(30));
@@ -55,6 +59,7 @@ vi.mock("@/lib/logger", () => ({
 
 vi.mock("@/lib/echotik/cron/helpers", () => ({
   shouldSkip: shouldSkipMock,
+  getConfiguredRegions: getConfiguredRegionsMock,
 }));
 
 vi.mock("@/lib/echotik/cron/syncCategories", () => ({
@@ -81,63 +86,88 @@ import {
 } from "@/lib/echotik/cron/orchestrator";
 
 // ---------------------------------------------------------------------------
-// detectNextTask
+// detectNextTask — now returns { task, region } | null
 // ---------------------------------------------------------------------------
 describe("detectNextTask()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: nothing is fresh → categories first
     shouldSkipMock.mockResolvedValue(false);
+    getConfiguredRegionsMock.mockResolvedValue(["BR", "US"]);
   });
 
-  it("returns 'categories' when nothing has been synced", async () => {
-    const task = await detectNextTask(false);
-    expect(task).toBe("categories");
+  it("returns { task: 'categories', region: null } when nothing synced", async () => {
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "categories", region: null });
   });
 
-  it("returns 'videos' when categories are fresh", async () => {
+  it("returns videos:BR when categories are fresh", async () => {
+    shouldSkipMock
+      .mockResolvedValueOnce(true) // echotik:categories → skip
+      .mockResolvedValueOnce(false); // echotik:videos:BR → needs sync
+
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "videos", region: "BR" });
+  });
+
+  it("returns videos:US when BR videos are fresh but US is not", async () => {
     shouldSkipMock
       .mockResolvedValueOnce(true) // categories
-      .mockResolvedValueOnce(false); // videos
+      .mockResolvedValueOnce(true) // videos:BR
+      .mockResolvedValueOnce(false); // videos:US
 
-    const task = await detectNextTask(false);
-    expect(task).toBe("videos");
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "videos", region: "US" });
   });
 
-  it("returns 'products' when categories and videos are fresh", async () => {
+  it("returns products:BR when all videos are fresh", async () => {
     shouldSkipMock
       .mockResolvedValueOnce(true) // categories
-      .mockResolvedValueOnce(true) // videos
-      .mockResolvedValueOnce(false); // products
+      .mockResolvedValueOnce(true) // videos:BR
+      .mockResolvedValueOnce(true) // videos:US
+      .mockResolvedValueOnce(false); // products:BR
 
-    const task = await detectNextTask(false);
-    expect(task).toBe("products");
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "products", region: "BR" });
   });
 
-  it("returns 'creators' when categories, videos, products are fresh", async () => {
+  it("returns creators:BR when categories, videos, products are all fresh", async () => {
     shouldSkipMock
       .mockResolvedValueOnce(true) // categories
-      .mockResolvedValueOnce(true) // videos
-      .mockResolvedValueOnce(true) // products
-      .mockResolvedValueOnce(false); // creators
+      .mockResolvedValueOnce(true) // videos:BR
+      .mockResolvedValueOnce(true) // videos:US
+      .mockResolvedValueOnce(true) // products:BR
+      .mockResolvedValueOnce(true) // products:US
+      .mockResolvedValueOnce(false); // creators:BR
 
-    const task = await detectNextTask(false);
-    expect(task).toBe("creators");
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "creators", region: "BR" });
   });
 
-  it("returns 'details' when all main tasks are fresh", async () => {
+  it("returns { task: 'details', region: null } when all main tasks are fresh", async () => {
     shouldSkipMock.mockResolvedValue(true);
 
-    const task = await detectNextTask(false);
-    expect(task).toBe("details");
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "details", region: null });
   });
 
-  it("returns 'categories' when force=true regardless of shouldSkip", async () => {
+  it("returns categories when force=true regardless of shouldSkip", async () => {
     shouldSkipMock.mockResolvedValue(true);
 
-    const task = await detectNextTask(true);
-    expect(task).toBe("categories");
-    // shouldSkip should not be called when force=true
+    const sel = await detectNextTask(true);
+    expect(sel).toEqual({ task: "categories", region: null });
+    // shouldSkip is not called when force=true
     expect(shouldSkipMock).not.toHaveBeenCalled();
+  });
+
+  it("uses getConfiguredRegions to determine region order", async () => {
+    getConfiguredRegionsMock.mockResolvedValueOnce(["MX", "GB"]);
+    shouldSkipMock
+      .mockResolvedValueOnce(true) // categories
+      .mockResolvedValueOnce(false); // videos:MX
+
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "videos", region: "MX" });
   });
 });
 
@@ -148,16 +178,17 @@ describe("runEchotikCron() — auto mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     shouldSkipMock.mockResolvedValue(false);
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-auto" });
   });
 
-  it("picks the first needed task and runs it", async () => {
+  it("picks categories (first needed) and runs it alone", async () => {
     const result = await runEchotikCron({ task: "auto" });
 
     expect(result.status).toBe("SUCCESS");
     expect(result.stats.categoriesSynced).toBe(10);
     expect(syncAllCategoriesMock).toHaveBeenCalledTimes(1);
-    // Should NOT run videos/products/creators in the same call
+    // ONE task per invocation — no other tasks
     expect(syncVideoRanklistMock).not.toHaveBeenCalled();
     expect(syncProductRanklistMock).not.toHaveBeenCalled();
     expect(syncCreatorRanklistMock).not.toHaveBeenCalled();
@@ -169,6 +200,22 @@ describe("runEchotikCron() — auto mode", () => {
     expect(result.status).toBe("SUCCESS");
     expect(syncAllCategoriesMock).toHaveBeenCalledTimes(1);
   });
+
+  it("picks videos:BR when categories are fresh", async () => {
+    shouldSkipMock
+      .mockResolvedValueOnce(true) // categories
+      .mockResolvedValueOnce(false); // videos:BR
+
+    const result = await runEchotikCron({ task: "auto" });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.stats.videosSynced).toBe(50);
+    expect(syncVideoRanklistMock).toHaveBeenCalledWith(
+      expect.any(String),
+      "BR",
+      expect.anything(),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -177,6 +224,8 @@ describe("runEchotikCron() — auto mode", () => {
 describe("runEchotikCron() — explicit tasks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    shouldSkipMock.mockResolvedValue(false); // BR not fresh → pick BR
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-explicit" });
   });
 
@@ -189,28 +238,74 @@ describe("runEchotikCron() — explicit tasks", () => {
     expect(result.runId).toBe("run-explicit");
   });
 
-  it("runs videos when task=videos", async () => {
+  it("runs videos with explicit region when task=videos&region=BR", async () => {
+    const result = await runEchotikCron({ task: "videos", region: "BR" });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.stats.videosSynced).toBe(50);
+    expect(syncVideoRanklistMock).toHaveBeenCalledWith(
+      "run-explicit",
+      "BR",
+      expect.anything(),
+    );
+  });
+
+  it("auto-picks region when task=videos&region omitted", async () => {
     const result = await runEchotikCron({ task: "videos" });
 
     expect(result.status).toBe("SUCCESS");
     expect(result.stats.videosSynced).toBe(50);
-    expect(syncVideoRanklistMock).toHaveBeenCalledTimes(1);
+    expect(syncVideoRanklistMock).toHaveBeenCalledWith(
+      "run-explicit",
+      "BR",
+      expect.anything(),
+    );
   });
 
-  it("runs products when task=products", async () => {
-    const result = await runEchotikCron({ task: "products" });
+  it("runs products with explicit region when task=products&region=BR", async () => {
+    const result = await runEchotikCron({ task: "products", region: "BR" });
 
     expect(result.status).toBe("SUCCESS");
     expect(result.stats.productsSynced).toBe(30);
-    expect(syncProductRanklistMock).toHaveBeenCalledTimes(1);
+    expect(syncProductRanklistMock).toHaveBeenCalledWith(
+      "run-explicit",
+      "BR",
+      expect.anything(),
+    );
   });
 
-  it("runs creators when task=creators", async () => {
-    const result = await runEchotikCron({ task: "creators" });
+  it("auto-picks region when task=products&region omitted", async () => {
+    const result = await runEchotikCron({ task: "products" });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(syncProductRanklistMock).toHaveBeenCalledWith(
+      "run-explicit",
+      "BR",
+      expect.anything(),
+    );
+  });
+
+  it("runs creators with explicit region when task=creators&region=BR", async () => {
+    const result = await runEchotikCron({ task: "creators", region: "BR" });
 
     expect(result.status).toBe("SUCCESS");
     expect(result.stats.creatorsSynced).toBe(20);
-    expect(syncCreatorRanklistMock).toHaveBeenCalledTimes(1);
+    expect(syncCreatorRanklistMock).toHaveBeenCalledWith(
+      "run-explicit",
+      "BR",
+      expect.anything(),
+    );
+  });
+
+  it("auto-picks region when task=creators&region omitted", async () => {
+    const result = await runEchotikCron({ task: "creators" });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(syncCreatorRanklistMock).toHaveBeenCalledWith(
+      "run-explicit",
+      "BR",
+      expect.anything(),
+    );
   });
 
   it("runs details (video + ranklist) when task=details", async () => {
@@ -220,8 +315,52 @@ describe("runEchotikCron() — explicit tasks", () => {
     expect(result.stats.productDetailsEnriched).toBe(8); // 5 + 3
     expect(syncVideoProductDetailsMock).toHaveBeenCalledTimes(1);
     expect(syncRanklistProductDetailsMock).toHaveBeenCalledTimes(1);
-    // Details don't create IngestionRun
+    // Details don't create IngestionRun records
     expect(prismaMock.ingestionRun.create).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runEchotikCron — region-scoped markers
+// ---------------------------------------------------------------------------
+describe("runEchotikCron() — region-scoped IngestionRun markers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    shouldSkipMock.mockResolvedValue(false);
+    prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-markers" });
+  });
+
+  it("markers categories task as echotik:categories", async () => {
+    await runEchotikCron({ task: "categories" });
+
+    const markerCall = prismaMock.ingestionRun.create.mock.calls[1][0];
+    expect(markerCall.data.source).toBe("echotik:categories");
+    expect(markerCall.data.status).toBe("SUCCESS");
+  });
+
+  it("marks videos task as echotik:videos:BR", async () => {
+    await runEchotikCron({ task: "videos", region: "BR" });
+
+    const markerCall = prismaMock.ingestionRun.create.mock.calls[1][0];
+    expect(markerCall.data.source).toBe("echotik:videos:BR");
+    expect(markerCall.data.status).toBe("SUCCESS");
+  });
+
+  it("marks products task as echotik:products:US", async () => {
+    await runEchotikCron({ task: "products", region: "US" });
+
+    const markerCall = prismaMock.ingestionRun.create.mock.calls[1][0];
+    expect(markerCall.data.source).toBe("echotik:products:US");
+    expect(markerCall.data.status).toBe("SUCCESS");
+  });
+
+  it("marks creators task as echotik:creators:MX", async () => {
+    await runEchotikCron({ task: "creators", region: "MX" });
+
+    const markerCall = prismaMock.ingestionRun.create.mock.calls[1][0];
+    expect(markerCall.data.source).toBe("echotik:creators:MX");
+    expect(markerCall.data.status).toBe("SUCCESS");
   });
 });
 
@@ -231,6 +370,7 @@ describe("runEchotikCron() — explicit tasks", () => {
 describe("runEchotikCron() — SKIPPED state", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
   });
 
   it("returns SKIPPED when details have nothing to enrich", async () => {
@@ -250,19 +390,20 @@ describe("runEchotikCron() — SKIPPED state", () => {
 describe("runEchotikCron() — error handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    shouldSkipMock.mockResolvedValue(false);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-fail" });
   });
 
   it("returns FAILED and saves error when task throws", async () => {
     syncVideoRanklistMock.mockRejectedValueOnce(new Error("API down"));
 
-    const result = await runEchotikCron({ task: "videos" });
+    const result = await runEchotikCron({ task: "videos", region: "BR" });
 
     expect(result.status).toBe("FAILED");
     expect(result.error).toBe("API down");
     expect(result.runId).toBe("run-fail");
 
-    // IngestionRun updated to FAILED
     expect(prismaMock.ingestionRun.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "run-fail" },
@@ -293,18 +434,6 @@ describe("runEchotikCron() — error handling", () => {
     expect(result.status).toBe("FAILED");
     expect(result.error).toBe("string error");
   });
-
-  it("creates IngestionRun markers for successful tasks", async () => {
-    syncAllCategoriesMock.mockResolvedValueOnce(5);
-
-    await runEchotikCron({ task: "categories" });
-
-    // Should create: run record + echotik:categories marker
-    expect(prismaMock.ingestionRun.create).toHaveBeenCalledTimes(2);
-    const markerCall = prismaMock.ingestionRun.create.mock.calls[1][0];
-    expect(markerCall.data.source).toBe("echotik:categories");
-    expect(markerCall.data.status).toBe("SUCCESS");
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -314,14 +443,14 @@ describe("runEchotikCron() — force mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     shouldSkipMock.mockResolvedValue(true);
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-force" });
   });
 
-  it("force=true overrides shouldSkip in auto mode", async () => {
+  it("force=true overrides shouldSkip in auto mode — runs categories first", async () => {
     const result = await runEchotikCron({ task: "auto", force: true });
 
     expect(result.status).toBe("SUCCESS");
-    // Should pick categories (first in priority)
     expect(syncAllCategoriesMock).toHaveBeenCalledTimes(1);
   });
 });
@@ -332,6 +461,8 @@ describe("runEchotikCron() — force mode", () => {
 describe("runEchotikCron() — stats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    shouldSkipMock.mockResolvedValue(false);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-stats" });
   });
 
@@ -342,11 +473,10 @@ describe("runEchotikCron() — stats", () => {
     expect(typeof result.stats.durationMs).toBe("number");
   });
 
-  it("marks the executed task as not skipped", async () => {
-    const result = await runEchotikCron({ task: "videos" });
+  it("marks the executed task as not skipped, others remain skipped", async () => {
+    const result = await runEchotikCron({ task: "videos", region: "BR" });
 
     expect(result.stats.videosSkipped).toBe(false);
-    // Other tasks should remain skipped=true since they weren't run
     expect(result.stats.categoriesSkipped).toBe(true);
     expect(result.stats.productsSkipped).toBe(true);
     expect(result.stats.creatorsSkipped).toBe(true);

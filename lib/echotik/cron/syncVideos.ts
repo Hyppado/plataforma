@@ -181,29 +181,27 @@ export async function syncVideoRanklistForRegion(
 }
 
 // ---------------------------------------------------------------------------
-// Sync videos across all regions / cycles / fields
+// Sync videos for a single region across all cycles / fields
 // ---------------------------------------------------------------------------
 
 export async function syncVideoRanklist(
   runId: string,
+  region: string,
   log: Logger,
 ): Promise<number> {
-  const regions = await getConfiguredRegions();
-  log.info("Syncing videos", { regions });
+  log.info("Syncing videos", { region });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
-  for (const region of regions) {
-    for (const rankingCycle of rankingCycles) {
-      for (const { field } of VIDEO_RANK_FIELDS) {
-        const count = await syncVideoRanklistForRegion(
-          runId,
-          region,
-          rankingCycle,
-          field,
-          log,
-        );
-        total += count;
-      }
+  for (const rankingCycle of rankingCycles) {
+    for (const { field } of VIDEO_RANK_FIELDS) {
+      const count = await syncVideoRanklistForRegion(
+        runId,
+        region,
+        rankingCycle,
+        field,
+        log,
+      );
+      total += count;
     }
   }
   return total;

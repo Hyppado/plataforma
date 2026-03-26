@@ -189,29 +189,27 @@ export async function syncCreatorRanklistForRegion(
 }
 
 // ---------------------------------------------------------------------------
-// Sync creators across all regions / cycles / fields
+// Sync creators for a single region across all cycles / fields
 // ---------------------------------------------------------------------------
 
 export async function syncCreatorRanklist(
   runId: string,
+  region: string,
   log: Logger,
 ): Promise<number> {
-  const regions = await getConfiguredRegions();
-  log.info("Syncing creators", { regions });
+  log.info("Syncing creators", { region });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
-  for (const region of regions) {
-    for (const rankingCycle of rankingCycles) {
-      for (const { field } of CREATOR_RANK_FIELDS) {
-        const count = await syncCreatorRanklistForRegion(
-          runId,
-          region,
-          rankingCycle,
-          field,
-          log,
-        );
-        total += count;
-      }
+  for (const rankingCycle of rankingCycles) {
+    for (const { field } of CREATOR_RANK_FIELDS) {
+      const count = await syncCreatorRanklistForRegion(
+        runId,
+        region,
+        rankingCycle,
+        field,
+        log,
+      );
+      total += count;
     }
   }
   return total;

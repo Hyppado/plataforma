@@ -267,14 +267,10 @@ describe("syncCreatorRanklistForRegion()", () => {
 describe("syncCreatorRanklist()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaMock.region.findMany.mockResolvedValue([
-      { code: "MX", sortOrder: 1 },
-    ]);
   });
 
-  it("iterates regions × cycles × fields and aggregates totals", async () => {
-    // 1 region × 3 cycles × 1 field = 3 iterations
-    // Each finds data on first date check
+  it("iterates cycles × fields and aggregates totals", async () => {
+    // 3 cycles × 1 field = 3 iterations for region MX
     echotikRequestMock
       // Cycle 1
       .mockResolvedValueOnce(apiOk([creatorItem("c1")])) // date check
@@ -289,14 +285,14 @@ describe("syncCreatorRanklist()", () => {
       .mockResolvedValueOnce(apiOk([creatorItem("c3")])) // page 1
       .mockResolvedValueOnce(apiEmpty());
 
-    const count = await syncCreatorRanklist("run-1", stubLog());
+    const count = await syncCreatorRanklist("run-1", "MX", stubLog());
     expect(count).toBe(3);
   });
 
-  it("returns 0 when all regions have no data", async () => {
+  it("returns 0 when region has no data", async () => {
     echotikRequestMock.mockResolvedValue(apiEmpty());
 
-    const count = await syncCreatorRanklist("run-1", stubLog());
+    const count = await syncCreatorRanklist("run-1", "MX", stubLog());
     expect(count).toBe(0);
   });
 });

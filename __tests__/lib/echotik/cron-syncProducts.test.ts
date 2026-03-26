@@ -234,17 +234,14 @@ describe("syncProductRanklistForRegion()", () => {
 describe("syncProductRanklist()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaMock.region.findMany.mockResolvedValue([
-      { code: "US", sortOrder: 1 },
-    ]);
   });
 
-  it("iterates regions × cycles × fields", async () => {
+  it("iterates cycles × fields for given region", async () => {
     echotikRequestMock.mockResolvedValue(apiEmpty());
 
-    const count = await syncProductRanklist("run-1", stubLog());
+    const count = await syncProductRanklist("run-1", "US", stubLog());
     expect(count).toBe(0);
-    // 1 region × 3 cycles × 1 field = 3 iterations, each trying candidate dates
+    // 3 cycles × 1 field = 3 iterations, each trying candidate dates
     expect(echotikRequestMock).toHaveBeenCalled();
   });
 });

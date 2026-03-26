@@ -183,29 +183,27 @@ export async function syncProductRanklistForRegion(
 }
 
 // ---------------------------------------------------------------------------
-// Sync products across all regions / cycles / fields
+// Sync products for a single region across all cycles / fields
 // ---------------------------------------------------------------------------
 
 export async function syncProductRanklist(
   runId: string,
+  region: string,
   log: Logger,
 ): Promise<number> {
-  const regions = await getConfiguredRegions();
-  log.info("Syncing products", { regions });
+  log.info("Syncing products", { region });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
-  for (const region of regions) {
-    for (const rankingCycle of rankingCycles) {
-      for (const { field } of PRODUCT_RANK_FIELDS) {
-        const count = await syncProductRanklistForRegion(
-          runId,
-          region,
-          rankingCycle,
-          field,
-          log,
-        );
-        total += count;
-      }
+  for (const rankingCycle of rankingCycles) {
+    for (const { field } of PRODUCT_RANK_FIELDS) {
+      const count = await syncProductRanklistForRegion(
+        runId,
+        region,
+        rankingCycle,
+        field,
+        log,
+      );
+      total += count;
     }
   }
   return total;

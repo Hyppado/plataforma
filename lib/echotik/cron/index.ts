@@ -6,5 +6,5 @@
  */
 
 export { runEchotikCron, detectNextTask } from "./orchestrator";
-export type { CronTask, CronOptions } from "./orchestrator";
+export type { CronTask, CronOptions, TaskSelection } from "./orchestrator";
 export type { CronResult, CronStats } from "./types";
