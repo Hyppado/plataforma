@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { Category } from "@/lib/categories";
 
+export const dynamic = "force-dynamic";
+
 /**
  * API Route: GET /api/echotik/categories
  *
