@@ -12,7 +12,7 @@
 /// <reference types="@testing-library/jest-dom" />
 
 import "@testing-library/jest-dom/vitest";
-import { vi, afterEach } from "vitest";
+import { vi, beforeEach, afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------

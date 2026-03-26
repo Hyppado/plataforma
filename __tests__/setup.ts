@@ -11,7 +11,7 @@ import { vi, beforeEach, afterEach } from "vitest";
 // ---------------------------------------------------------------------------
 // Safe environment defaults — prevent accidental real API calls
 // ---------------------------------------------------------------------------
-process.env.NODE_ENV = "test";
+vi.stubEnv("NODE_ENV", "test");
 process.env.NEXTAUTH_SECRET = "test-secret-32-chars-minimum-ok";
 process.env.CRON_SECRET = "test-cron-secret";
 process.env.HOTMART_CLIENTE_ID = "test-client-id";

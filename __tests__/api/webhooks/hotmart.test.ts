@@ -111,7 +111,7 @@ describe("POST /api/webhooks/hotmart", () => {
   // -----------------------------------------------------------------------
   it("returns 200 for duplicate event (unique constraint)", async () => {
     // Simulate Prisma unique constraint error
-    const prisma = (await import("../../../../lib/prisma")).default;
+    const prisma = (await import("../../../lib/prisma")).default;
     vi.mocked(prisma.hotmartWebhookEvent.create).mockRejectedValue(
       Object.assign(new Error("unique"), { code: "P2002" }),
     );
@@ -127,7 +127,7 @@ describe("POST /api/webhooks/hotmart", () => {
   // Successful processing
   // -----------------------------------------------------------------------
   it("persists event and returns 200 for valid payload", async () => {
-    const prisma = (await import("../../../../lib/prisma")).default;
+    const prisma = (await import("../../../lib/prisma")).default;
     vi.mocked(prisma.hotmartWebhookEvent.create).mockResolvedValue({
       id: "event-1",
     } as any);
@@ -143,7 +143,7 @@ describe("POST /api/webhooks/hotmart", () => {
   // Security: secrets not leaked
   // -----------------------------------------------------------------------
   it("SECURITY: does not include secrets in response body", async () => {
-    const prisma = (await import("../../../../lib/prisma")).default;
+    const prisma = (await import("../../../lib/prisma")).default;
     vi.mocked(prisma.hotmartWebhookEvent.create).mockResolvedValue({
       id: "event-1",
     } as any);

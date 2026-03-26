@@ -11,7 +11,7 @@ describe("createLogger()", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
     process.env.LOG_FORMAT = "text"; // force readable format
     delete process.env.LOG_LEVEL;
     const mod = await import("@/lib/logger");
@@ -99,7 +99,7 @@ describe("createLogger() — JSON mode", () => {
   beforeEach(async () => {
     vi.resetModules();
     process.env.LOG_FORMAT = "json";
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
   });
 
   afterEach(() => {
