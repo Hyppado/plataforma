@@ -4,7 +4,7 @@
 
 Hyppado é um SaaS de inteligência para TikTok Shop.
 O produto ajuda usuários a encontrar vídeos, produtos e creators em alta, com recortes por região e período.
-O acesso é autenticado e parte da experiência depende de assinatura/controle de acesso via Hotmart. :contentReference[oaicite:2]{index=2}
+O acesso é autenticado e parte da experiência depende de assinatura/controle de acesso via Hotmart.
 
 ## Objetivo destas instruções
 
@@ -23,30 +23,121 @@ Não introduza complexidade sem necessidade.
   - `security:`
   - `refactor:`
   - `test:`
-  - `chore:` :contentReference[oaicite:3]{index=3}
+  - `chore:`
 
 ## Stack
 
-- Next.js 14 com App Router
-- MUI v5
-- Prisma 5
+- Next.js 14.1.0 com App Router
+- MUI v5 (emotion/styled, dark-first)
+- Prisma 5.22.0
 - PostgreSQL com Neon em produção
-- NextAuth 4
-- Vitest
-- Deploy na Vercel
-- Integrações principais: Echotik e Hotmart :contentReference[oaicite:4]{index=4}
+- NextAuth 4.24.13
+- SWR 2.4.1 (data fetching no cliente)
+- Vitest 4.1.0 + Testing Library + Playwright 1.58.2
+- Deploy na Vercel (funções com limite de 60s)
+- Integrações principais: Echotik e Hotmart
 
 ## Estrutura atual do projeto
 
-- `app/`: páginas, layouts e route handlers do App Router
-- `app/api/`: rotas de API
-- `app/dashboard/`: área autenticada (/dashboard/\*)
-- `app/components/`: componentes de UI
-- `lib/`: lógica de negócio, integrações, auth, acesso, quotas e serviços
-- `prisma/`: schema e seed
-- `__tests__/`: testes automatizados
-- `middleware.ts`: proteção de rotas
-- `docs/`: documentação auxiliar :contentReference[oaicite:5]{index=5}
+```
+app/
+  api/             → route handlers (finos — lógica vai para lib/)
+    admin/         → rotas administrativas protegidas
+    auth/          → NextAuth handlers
+    cron/          → endpoints de cron (echotik, hotmart reconcile)
+    echotik/       → endpoints de dados Echotik
+    me/            → perfil do usuário autenticado
+    proxy/         → proxy de imagens externas
+    regions/       → CRUD de regiões ativas
+    trending/      → dados trending
+    usage/         → quotas do usuário
+    user/          → dados do usuário
+    webhooks/      → webhooks externos (Hotmart)
+  components/
+    BrandLogo.tsx  → componente de logo responsivo (usa next/image)
+    admin/         → componentes da área admin
+    cards/         → cards de vídeo, produto, creator, rank
+    dashboard/     → componentes do dashboard autenticado
+    filters/       → CategoryFilter, TimeRangeSelect etc.
+    landing/       → componentes da landing page
+    layout/        → layout compartilhado (sidebar, header)
+    ui/            → primitivos reutilizáveis (Logo, etc.)
+    videos/        → componentes específicos de vídeos
+  dashboard/       → páginas autenticadas (/dashboard/*)
+  login/           → página de login
+  theme.ts         → MUI theme centralizado
+lib/
+  access/          → controle de acesso (AccessGrant, assinatura)
+  admin/           → serviços administrativos
+    admin-client.ts
+    config.ts
+    notifications.ts
+    prompt-config.ts
+    useQuotaUsage.ts
+  auth.ts          → configuração NextAuth + callbacks
+  categories.ts    → mapeamento de categorias
+  echotik/
+    client.ts      → HTTP client para API Echotik
+    cron/          → módulos do cron de ingestão
+      orchestrator.ts  → detectNextTask() → {task, region} | null
+      helpers.ts       → getConfiguredRegions() lê tabela Region do DB
+      syncVideos.ts    → syncVideoRanklist(runId, region, log)
+      syncProducts.ts  → syncProductRanklist(runId, region, log)
+      syncCreators.ts  → syncCreatorRanklist(runId, region, log)
+      syncCategories.ts
+      index.ts
+      types.ts
+    dates.ts / products.ts / rankFields.ts / trending.ts
+  filters/         → utilitários de filtro compartilhados
+  format.ts        → formatadores de número, data, moeda
+  hotmart/
+    client.ts / config.ts / oauth.ts
+    processor.ts   → processamento de webhooks
+    reconcile.ts   → reconciliação de assinaturas
+    sync.ts / webhook.ts
+  lgpd/            → consentimento e dados pessoais
+  logger.ts        → createLogger(source, correlationId) → Logger estruturado
+  prisma.ts        → singleton PrismaClient (SEMPRE usar este)
+  region.ts        → helpers de região
+  settings.ts      → configurações persistidas em banco
+  storage/         → armazenamento de arquivos
+  swr/
+    fetcher.ts     → fetcher padrão para SWR
+    useCategories.ts
+    useTrending.ts
+  types/
+    admin.ts       → tipos da área admin
+    dto.ts         → DTOs compartilhados
+    echotik.ts     → tipos da API Echotik
+  usage/           → lógica de quotas e limites por plano
+prisma/
+  schema.prisma    → schema Prisma (inclui modelo Region)
+  seed.ts          → seed com regiões padrão BR, US, JP
+__tests__/
+  api/             → testes de route handlers
+  components/      → testes RTL de componentes (jsdom)
+    setup.tsx      → setup: jest-dom, mocks MUI/Next/auth
+    CategoryFilter.test.tsx
+    LoginPage.test.tsx
+    Logo.test.tsx
+    RankBadge.test.tsx
+    TimeRangeSelect.test.tsx
+    VideoCardSkeleton.test.tsx
+  lib/             → testes de lógica de negócio
+  middleware.test.ts
+  security.test.ts
+  setup.ts
+e2e/
+  smoke.spec.ts    → smoke tests: rotas públicas + redirect de auth
+  login.spec.ts    → testes de interação do formulário de login
+middleware.ts      → proteção de rotas /dashboard/* e /api/admin/*
+playwright.config.ts
+vitest.config.ts              → config node (testes de lib/api)
+vitest.component.config.ts    → config jsdom (testes de componentes React)
+.github/
+  workflows/
+    ci.yml         → CI: typecheck → unit+component → build → e2e-smoke
+```
 
 ## Regras obrigatórias de código
 
@@ -54,14 +145,10 @@ Não introduza complexidade sem necessidade.
 - Nunca criar `new PrismaClient()` em handlers, páginas ou serviços novos.
 - Toda rota admin deve ter proteção server-side.
 - Toda rota de API deve tratar erro com resposta JSON consistente.
-- O idioma do código deve ser inglês:
-  - variáveis
-  - funções
-  - tipos
-  - nomes internos
+- O idioma do código deve ser inglês: variáveis, funções, tipos, nomes internos.
 - Texto de interface pode permanecer em português.
 - Não usar `any` em tipos de domínio quando houver alternativa tipada.
-- Preferir DTOs e tipos já existentes em `lib/types/`. :contentReference[oaicite:6]{index=6}
+- Preferir DTOs e tipos já existentes em `lib/types/`.
 
 ## Regras para API routes
 
@@ -70,33 +157,30 @@ Não introduza complexidade sem necessidade.
 - API route não deve concentrar regra de negócio complexa.
 - Sempre usar `try/catch`.
 - Respostas de erro devem seguir padrão JSON com campo `error`.
-- Não duplicar validação de regra de negócio na rota se ela já existir no serviço. :contentReference[oaicite:7]{index=7}
+- Não duplicar validação de regra de negócio na rota se ela já existir no serviço.
 
 ## Arquitetura — onde colocar cada coisa
 
 - Lógica de negócio: `lib/<domínio>/`
-  - exemplos: `lib/hotmart/`, `lib/usage/`, `lib/access/`, `lib/echotik/`
 - Integrações externas: dentro do domínio correspondente em `lib/`
 - Route handlers: `app/api/<domínio>/`
 - Componentes visuais: `app/components/<categoria>/`
-- Hooks compartilhados: `lib/hooks/`
-- Tipos compartilhados:
-  - `lib/types/dto.ts`
-  - `lib/types/admin.ts`
-- Configuração persistida em banco: `lib/settings.ts` e rotas/serviços correlatos :contentReference[oaicite:8]{index=8}
+- Hooks SWR compartilhados: `lib/swr/`
+- Tipos compartilhados: `lib/types/dto.ts`, `lib/types/admin.ts`, `lib/types/echotik.ts`
+- Configuração persistida em banco: `lib/settings.ts` e serviços correlatos
 
 ## Auth e acesso
 
 - O middleware protege `/dashboard/*` e `/api/admin/*`.
 - Rotas admin exigem role de admin no servidor.
 - O controle de acesso é calculado em runtime.
-- A cadeia de acesso atual é:
+- Cadeia de acesso atual:
   1. status do usuário bloqueia acesso se suspenso/deletado
   2. `AccessGrant` pode conceder override
   3. assinatura ativa concede acesso
   4. fallback sem acesso
 - Não persistir estado derivado de acesso se ele puder ser resolvido corretamente em runtime.
-- Não criar bypass novo de autorização fora do padrão existente. :contentReference[oaicite:9]{index=9}
+- Não criar bypass novo de autorização fora do padrão existente.
 
 ## Quotas e uso
 
@@ -104,141 +188,165 @@ Não introduza complexidade sem necessidade.
 - Não duplicar lógica de plano para limites.
 - Não reimplementar cálculo de quotas em componentes, páginas ou handlers.
 - Consumo de quota deve continuar idempotente.
-- Se precisar alterar limites por plano, centralizar no ponto correto do domínio de usage. :contentReference[oaicite:10]{index=10}
+- Se precisar alterar limites por plano, centralizar no ponto correto do domínio de usage.
 
-## Integração com Echotik
+## Integração com Echotik — cron e ingestão
 
-- O client principal fica em `lib/echotik/client.ts`.
-- A ingestão principal roda via cron.
-- O cron atual existe, mas é grande demais; portanto, novas mudanças devem evitar aumentar acoplamento.
-- Não misturar regra de ingestão, transformação, persistência e observabilidade no mesmo bloco quando for refatorar.
-- Se adicionar comportamento novo, preferir extrair módulos em vez de crescer `cron.ts`. :contentReference[oaicite:11]{index=11}
+O cron foi refatorado para arquitetura modular e region-scoped para respeitar o limite de 60s da Vercel.
+
+- **Client HTTP**: `lib/echotik/client.ts`
+- **Orquestrador**: `lib/echotik/cron/orchestrator.ts`
+  - `detectNextTask(force?)` → `{ task, region } | null`
+  - Itera: categories → videos por região → products por região → creators por região → details
+  - Chaves de skip no formato `echotik:videos:BR`, `echotik:products:US`, etc.
+- **Sync functions**: cada uma recebe `(runId, region, log)` — uma região por invocação
+  - `syncVideoRanklist(runId, region, log)` em `syncVideos.ts`
+  - `syncProductRanklist(runId, region, log)` em `syncProducts.ts`
+  - `syncCreatorRanklist(runId, region, log)` em `syncCreators.ts`
+- **Regiões**: lidas exclusivamente da tabela `Region` do banco (`isActive=true`, `orderBy sortOrder`).
+  Fallback `["BR", "US", "JP"]` se o banco retornar vazio.
+  **Nunca usar variável de ambiente** para regiões.
+- **Seed padrão**: `prisma/seed.ts` sobe BR, US, JP.
+- Endpoint: `app/api/cron/echotik/route.ts` — aceita `?task=&region=&force=`
+- Não misturar ingestão, transformação, persistência e observabilidade no mesmo bloco.
+- Se adicionar comportamento novo, criar módulo separado em `lib/echotik/cron/`.
 
 ## Integração com Hotmart
 
-- Webhooks ficam em `/api/webhooks/hotmart`.
-- O processamento fica em `lib/hotmart/processor.ts`.
-- Reconciliação roda por cron dedicado.
-- Notificações administrativas automáticas já existem.
-- Novas mudanças em Hotmart devem preservar:
-  - retry
-  - auditabilidade
-  - separação entre recepção do webhook e processamento
-  - compatibilidade com fluxo atual de assinaturas e reconciliação. :contentReference[oaicite:12]{index=12}
+- Webhooks: `/api/webhooks/hotmart` → `lib/hotmart/processor.ts`
+- Reconciliação: cron dedicado → `lib/hotmart/reconcile.ts`
+- Notificações administrativas: `lib/admin/notifications.ts`
+- Novas mudanças devem preservar: retry, auditabilidade, separação recepção/processamento,
+  compatibilidade com fluxo atual de assinaturas e reconciliação.
+
+## Logs e observabilidade
+
+- Usar `createLogger(source, correlationId)` de `lib/logger.ts` — retorna `Logger` estruturado.
+- Nunca usar `console.log` como debugging solto.
+- Registrar apenas eventos operacionais realmente significativos.
+- Preservar auditabilidade das ações admin e eventos relevantes.
+- Não vazar segredos, tokens ou payloads sensíveis nos logs.
+- Em cron e integrações, passar o `logger` criado no início da invocação por toda a cadeia.
 
 ## Admin
 
 - A área admin deve continuar protegida no servidor.
-- Admin é área operacional, não lugar para lógica solta de frontend.
-- Novas funcionalidades administrativas devem preferir:
-  - serviços em `lib/admin/` ou domínio correspondente
-  - route handlers finos
-  - tipagem forte
-  - logs/auditoria quando fizer sentido
+- Serviços em `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `prompt-config.ts`, `useQuotaUsage.ts`.
 - Não colocar segredo administrativo no frontend.
-- Não usar `localStorage` ou `sessionStorage` para armazenar segredo, token privilegiado ou credencial sensível.
+- Não usar `localStorage` ou `sessionStorage` para armazenar segredo ou credencial sensível.
 
 ## Frontend e componentes
 
-- O frontend atual tem páginas e componentes muito grandes; não repetir esse padrão. :contentReference[oaicite:13]{index=13}
 - Não criar componente novo com centenas de linhas se ele puder ser dividido.
-- Preferir componentização por responsabilidade.
+- Preferir componentização por responsabilidade (seção, card, tabela, diálogo, hook, helper).
 - Extrair partes reutilizáveis quando houver duplicação real.
 - Não deixar lógica de negócio complexa dentro de componente visual.
-- Se um componente crescer demais, quebrar por:
-  - seção
-  - card
-  - tabela
-  - diálogo
-  - hook
-  - helper de transformação
+- **Logo**: usar `app/components/ui/Logo.tsx` (`Box component="img"`) para contextos simples
+  ou `app/components/BrandLogo.tsx` (`next/image` com `fill`) para headers responsivos.
+  Não criar novo componente de logo.
 
 ## Temas, design tokens e UI
 
-- O projeto já usa MUI com `sx` como abordagem principal.
-- Não criar novo `createTheme()` sem necessidade real.
-- Não criar mais objetos `UI = { ... }` espalhados com tokens inline.
-- Reutilizar o padrão existente e preparar o terreno para futura consolidação de theme/tokens.
-- Manter coerência visual dark-first já existente. :contentReference[oaicite:14]{index=14}
+- MUI com `sx` como abordagem principal.
+- Theme centralizado em `app/theme.ts` — não criar novo `createTheme()`.
+- Não criar objetos `UI = { ... }` espalhados com tokens inline.
+- Manter coerência visual dark-first já existente.
 
 ## Data fetching no frontend
 
-- Hoje o projeto usa `fetch()` nativo e padrão manual de `useEffect` + `useState`.
-- Não introduzir biblioteca nova de dados sem motivo claro e sem alinhar com a arquitetura.
-- Se precisar mexer em fetching:
-  - manter tratamento de erro
-  - manter loading state
-  - evitar duplicação
-  - considerar cache/dedup como melhoria arquitetural futura, não gambiarra local
-- Não fazer fetch do próprio servidor via HTTP quando estiver em código server-side; chamar o serviço diretamente. :contentReference[oaicite:15]{index=15}
+- O projeto usa **SWR** (`swr` 2.4.1) como padrão de data fetching no cliente.
+- Hooks SWR ficam em `lib/swr/`: `fetcher.ts`, `useCategories.ts`, `useTrending.ts`.
+- Não usar `useEffect` + `fetch` manual para novos dados — preferir SWR.
+- Manter tratamento de erro e loading state.
+- Não fazer fetch do próprio servidor via HTTP em contexto server-side; chamar o serviço diretamente.
 
 ## localStorage e persistência no cliente
 
-- `localStorage` só pode ser usado para comportamento realmente local do usuário, como itens salvos no cliente, se já fizer parte do fluxo.
-- Não usar `localStorage` para:
-  - segredos
-  - credenciais
-  - configurações críticas de sistema
-  - estado que precisa ser persistido no backend
-- Configuração que seja do sistema ou admin deve persistir no servidor, não apenas no navegador. :contentReference[oaicite:16]{index=16}
+- `localStorage` só pode ser usado para comportamento realmente local do usuário.
+- Não usar para segredos, credenciais, configurações de sistema ou estado que precisa persistir no backend.
+- Configuração de sistema ou admin deve persistir no servidor via `lib/settings.ts`.
 
 ## Testes
 
-- O projeto já possui suíte de testes relevante em Vitest, com 281 testes passando e thresholds por módulo. :contentReference[oaicite:17]{index=17}
+### Counts atuais (referência — março 2026)
+- **407 testes unitários** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **46 testes de componentes** (vitest, jsdom env, `__tests__/components/`)
+- **Total: 453 testes**, todos passando
+
+### Configs de vitest
+- `vitest.config.ts` — ambiente `node`, inclui `**/*.test.ts` (unitários)
+- `vitest.component.config.ts` — ambiente `jsdom`, inclui `__tests__/components/**/*.test.{ts,tsx}`
+
+### Scripts de teste
+```
+npm run test                → vitest run (node)
+npm run test:components     → vitest run --config vitest.component.config.ts (jsdom)
+npm run test:all            → test + test:components
+npm run test:e2e            → playwright test
+npm run test:e2e:ui         → playwright test --ui
+npm run test:coverage       → vitest run --coverage
+```
+
+### Regras
 - Novas mudanças em backend, auth, acesso, usage, Hotmart, admin e cron devem vir com testes.
-- Novos testes devem ficar em `__tests__/` espelhando a estrutura de `lib/` ou `app/api/`.
-- Usar o padrão atual com `prismaMock` quando aplicável.
+- Novos testes unitários: `__tests__/` espelhando estrutura de `lib/` ou `app/api/`, usar `prismaMock`.
+- Novos testes de componentes: `__tests__/components/`, importar setup via `vitest.component.config.ts`.
 - Não criar teste decorativo; testar regra real.
-- Priorizar:
-  - autenticação/autorização
-  - acesso
-  - quotas
-  - webhooks
-  - integrações
-  - cron
-  - admin
 - Se alterar regra de negócio crítica, atualizar ou criar teste antes de refatorar.
 
-## Logs e observabilidade
+### Setup RTL (`__tests__/components/setup.tsx`)
+Já configura: jest-dom matchers, mocks de `matchMedia`, `ResizeObserver`, `IntersectionObserver`,
+`next/navigation`, `next/link`, `next/image` (com `priority → loading`), `next-auth/react`.
 
-- `console.log` não deve ser usado como debugging solto.
-- Só usar logs para eventos operacionais realmente significativos.
-- Preservar auditabilidade das ações admin e eventos relevantes.
-- Não vazar segredos, tokens ou payloads sensíveis nos logs.
-- Quando tocar em observabilidade, preferir estrutura que facilite correlação e leitura, sem poluir código. :contentReference[oaicite:18]{index=18}
+### E2E (Playwright)
+- Specs em `e2e/`: `smoke.spec.ts` (rotas públicas + redirect de auth), `login.spec.ts` (formulário).
+- Config em `playwright.config.ts`: usa `webServer` para subir `next dev` automaticamente com env vars dummy.
+- Browsers instalados: Chromium. CI usa `workers: 1` e `retries: 2`.
+
+## CI — GitHub Actions
+
+Pipeline em `.github/workflows/ci.yml`, roda em push/PR para `develop` e `main`.
+
+Jobs em ordem de dependência:
+1. **typecheck** — `npx tsc --noEmit` + `prisma generate`
+2. **unit-tests** — `npm run test` + `npm run test:components`
+3. **build** — `npm run build`
+4. **e2e-smoke** — `playwright test --project=chromium` (depende de build)
+
+Artifacts de falha do Playwright são enviados para `e2e/.artifacts/` (retenção 7 dias).
 
 ## Segurança
 
 - Não confiar em checagem apenas de frontend.
 - Toda autorização relevante deve existir no servidor.
 - Não expor secrets em código cliente.
-- Não criar bypass novo fora do padrão de ambiente já existente.
 - Validar entradas e payloads em rotas sensíveis.
-- Em integrações e cron, falhar com segurança e registrar o suficiente para diagnóstico.
-- Em webhooks, preservar o comportamento do sistema atual quando ele já for deliberado para evitar reentrega indevida. :contentReference[oaicite:19]{index=19}
+- Em cron e integrações, falhar com segurança e registrar o suficiente para diagnóstico.
+- Em webhooks, preservar comportamento atual para evitar reentrega indevida.
 
 ## Regras de organização
 
 - Não deixar arquivo crescer sem controle.
 - Não introduzir duplicação funcional.
-- Não criar diretórios, helpers ou serviços “cenográficos”.
-- Se algo parecer temporário, documentar ou remover; não deixar resíduo ambíguo.
-- Se encontrar código morto, só remover após validar impacto.
+- Não criar diretórios, helpers ou serviços cenográficos.
 - Mudanças devem ser incrementais e seguras.
+- Se encontrar código morto, só remover após validar impacto.
 
 ## Anti-patterns que não podem ser repetidos
 
-- Não criar mais objetos inline de design tokens tipo `UI = { ... }`.
+- Não criar objetos inline de design tokens tipo `UI = { ... }`.
 - Não criar novos themes divergentes.
 - Não criar componentes monolíticos com 500+ linhas.
 - Não duplicar lógica de quotas.
 - Não fazer fetch do próprio servidor por HTTP em contexto server-side.
 - Não deixar configuração importante só em `localStorage`.
-- Não aumentar arquivos já monolíticos sem extrair responsabilidade antes. :contentReference[oaicite:20]{index=20}
+- Não aumentar arquivos já monolíticos sem extrair responsabilidade antes.
+- Não usar `ECHOTIK_REGIONS` env var — regiões vêm do banco.
+- Não usar `console.log` — usar `createLogger`.
+- Não chamar `new PrismaClient()` fora de `lib/prisma.ts`.
+- Não usar `useEffect` + `fetch` manual para novos dados no cliente — usar SWR.
 
 ## Prioridades de manutenção ao mexer no projeto
-
-Quando precisar escolher o que preservar e o que melhorar, a ordem é:
 
 1. segurança
 2. compatibilidade funcional
@@ -250,19 +358,19 @@ Quando precisar escolher o que preservar e o que melhorar, a ordem é:
 
 ## Validação obrigatória antes de marcar tarefa como concluída
 
-- Nunca declarar uma tarefa como feita sem antes rodar `npm run build` e confirmar exit code 0.
-- Nunca declarar uma tarefa como feita sem antes rodar `npx vitest run` e confirmar que todos os testes passam.
-- Se o build ou os testes quebrarem, corrigir antes de commitar ou reportar ao usuário.
-- Isso vale para qualquer mudança: refatoração, remoção de arquivos, nova feature, fix, etc.
+- Rodar `npm run build` e confirmar exit code 0.
+- Rodar `npm run test:all` e confirmar que todos os 453 testes passam.
+- Se o build ou os testes quebrarem, corrigir antes de commitar.
+- Isso vale para qualquer mudança: refatoração, remoção de arquivos, nova feature, fix.
 
 ## Como responder mudanças neste projeto
 
 Ao implementar algo:
 
-- primeiro entender como a área já funciona
-- depois apontar impacto
-- depois aplicar mudança mínima segura
-- só então sugerir refatoração maior, se necessário
+1. entender como a área já funciona
+2. apontar impacto
+3. aplicar mudança mínima segura
+4. sugerir refatoração maior só se necessário
 
 Ao criar código:
 
@@ -270,17 +378,10 @@ Ao criar código:
 - preservar convenções existentes
 - não reinventar fluxo já consolidado
 - evitar abstração excessiva
-- evitar mock/fachada que pareça pronto sem estar pronto
 
 ## Quando refatorar
 
-Refatorar quando houver:
-
-- duplicação real
-- risco de bug
-- acoplamento excessivo
-- arquivo muito grande
-- baixa testabilidade
-- regra duplicada em mais de um lugar
+Refatorar quando houver duplicação real, risco de bug, acoplamento excessivo,
+arquivo muito grande, baixa testabilidade ou regra duplicada em mais de um lugar.
 
 Não refatorar só por estética se isso aumentar risco sem ganho real.
