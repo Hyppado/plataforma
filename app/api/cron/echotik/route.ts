@@ -18,12 +18,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runEchotikCron } from "@/lib/echotik/cron";
+import { createLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // segundos (Vercel Pro)
 
 export async function GET(request: NextRequest) {
+  const log = createLogger("cron/echotik");
+
   // -----------------------------------------------------------------------
   // 1. Validar CRON_SECRET
   // -----------------------------------------------------------------------
@@ -40,8 +43,7 @@ export async function GET(request: NextRequest) {
       );
     }
   } else if (process.env.NODE_ENV === "production") {
-    // Em produção CRON_SECRET é obrigatório
-    console.error("[cron/echotik] CRON_SECRET não definido em produção");
+    log.error("CRON_SECRET not configured in production");
     return NextResponse.json(
       { ok: false, error: "CRON_SECRET not configured" },
       { status: 500 },
@@ -63,7 +65,9 @@ export async function GET(request: NextRequest) {
       ...(result.error ? { error: result.error } : {}),
     });
   } catch (error) {
-    console.error("[cron/echotik] Erro não tratado:", error);
+    log.error("Unhandled error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
 
     return NextResponse.json(
       {
