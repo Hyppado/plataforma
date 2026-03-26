@@ -1,9 +1,11 @@
 // DTO types for Hyppado trending data
 
-export type TimeRange = "1d" | "7d" | "30d" | "90d";
+// TimeRange is defined in lib/filters/timeRange.ts — re-exported here for
+// backward compatibility with imports from lib/types/dto.ts.
+export type { TimeRange } from "@/lib/filters/timeRange";
 
 export interface DateRangeParams {
-  range?: TimeRange;
+  range?: "1d" | "7d" | "30d" | "90d";
   start?: string; // ISO date
   end?: string; // ISO date
 }
@@ -74,7 +76,7 @@ export interface CreatorDTO {
   liveGmvBRL: number; // GMV ao vivo (R$)
   videoCount: number; // Número de vídeos
   videoGmvBRL: number; // GMV por vídeo (R$)
-  views: number; // Visualizações
+  likes: number; // Total de curtidas (diggCount da API Echotik; API não fornece views para influencers)
   debutDate: string; // Data de estreia do criador
   sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok

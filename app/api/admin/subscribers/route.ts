@@ -1,137 +1,123 @@
 import { NextResponse } from "next/server";
-import { hotmartRequest } from "@/lib/hotmart/client";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 
 /**
  * GET /api/admin/subscribers
- * Busca assinantes direto da API da Hotmart (sem cache de DB).
- * Webhooks continuam sendo o canal para receber eventos em tempo real.
+ * Lista assinantes a partir do banco de dados local (Subscription + User).
+ * Independente de provider externo (Hotmart, Stripe, etc).
  *
  * Query params:
- *   status=active|canceled|past_due|inactive
- *   search=<termo>       busca local por nome/email
+ *   status=active|canceled|past_due|pending|expired
+ *   search=<termo>       busca por nome ou email
  *   limit=50             itens por página (max 200)
- *   page_token=<token>   paginação cursor da Hotmart
+ *   page=1               número da página
+ *   source=hotmart|manual|invite  (opcional) filtra por origem
  */
-
-interface HotmartSubscriptionsResponse {
-  items?: HotmartItem[];
-  page_info?: {
-    results_per_page?: number;
-    total_results?: number;
-    next_page_token?: string;
-  };
-}
-
-interface HotmartItem {
-  subscriber_code?: string;
-  subscription_id?: number;
-  status?: string;
-  accession_date?: number;
-  end_date?: number;
-  plan?: { name?: string; id?: number; recurrency_period?: number };
-  product?: { name?: string; id?: number };
-  price?: { currency_code?: string; value?: number };
-  subscriber?: { name?: string; email?: string; ucode?: string };
-  date_next_charge?: number;
-  transaction?: string;
-}
 
 const STATUS_MAP: Record<string, string> = {
   ACTIVE: "ACTIVE",
-  CANCELED: "CANCELLED_BY_CUSTOMER",
-  CANCELLED: "CANCELLED_BY_CUSTOMER",
-  PAST_DUE: "OVERDUE",
-  INACTIVE: "INACTIVE",
+  CANCELED: "CANCELLED",
+  CANCELLED: "CANCELLED",
+  PAST_DUE: "PAST_DUE",
+  PENDING: "PENDING",
   EXPIRED: "EXPIRED",
 };
 
 export async function GET(request: Request) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status")?.toUpperCase();
   const search = url.searchParams.get("search");
-  const pageToken = url.searchParams.get("page_token");
+  const source = url.searchParams.get("source");
+  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1"));
   const limit = Math.min(
     200,
     Math.max(1, parseInt(url.searchParams.get("limit") ?? "50")),
   );
 
   try {
-    const productId = process.env.HOTMART_PRODUCT_ID;
-
-    if (!productId) {
-      return NextResponse.json(
-        { error: "HOTMART_PRODUCT_ID não configurado" },
-        { status: 400 },
-      );
-    }
-
-    const params: Record<string, string | number> = {
-      product_id: productId,
-      max_results: limit,
-    };
+    // Build where clause
+    const where: Record<string, unknown> = {};
 
     if (statusFilter && STATUS_MAP[statusFilter]) {
-      params.status = STATUS_MAP[statusFilter];
+      where.status = STATUS_MAP[statusFilter];
     }
 
-    if (pageToken) {
-      params.page_token = pageToken;
+    if (source) {
+      where.source = source;
     }
 
-    const data = await hotmartRequest<HotmartSubscriptionsResponse>(
-      "/payments/api/v1/subscriptions",
-      { params },
-    );
-
-    let items = data.items ?? [];
-
-    // Filtro de texto local (API não suporta busca textual)
     if (search) {
       const q = search.toLowerCase();
-      items = items.filter(
-        (item) =>
-          (item.subscriber?.name?.toLowerCase() ?? "").includes(q) ||
-          (item.subscriber?.email?.toLowerCase() ?? "").includes(q),
-      );
+      where.user = {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
+        ],
+      };
     }
 
-    const subscribers = items.map((item) => ({
-      id: String(item.subscription_id ?? item.subscriber_code),
-      name: item.subscriber?.name ?? null,
-      email: item.subscriber?.email ?? null,
-      status: item.status ?? "UNKNOWN",
+    const [subscriptions, total] = await Promise.all([
+      prisma.subscription.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          plan: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              displayPrice: true,
+              periodicity: true,
+            },
+          },
+          hotmart: { select: { subscriberCode: true, externalStatus: true } },
+          charges: {
+            orderBy: { paidAt: "desc" },
+            take: 1,
+            select: { paidAt: true, amountCents: true, currency: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.subscription.count({ where }),
+    ]);
+
+    const subscribers = subscriptions.map((sub) => ({
+      id: sub.id,
+      name: sub.user.name ?? null,
+      email: sub.user.email ?? null,
+      status: sub.status,
       plan: {
-        id: String(item.plan?.id ?? ""),
-        code: String(item.plan?.id ?? ""),
-        name: item.plan?.name ?? null,
-        displayPrice: item.price?.value
-          ? `${item.price.currency_code} ${item.price.value.toFixed(2)}`
-          : null,
-        periodicity:
-          (item.plan?.recurrency_period ?? 30) >= 360 ? "ANNUAL" : "MONTHLY",
+        id: sub.plan.id,
+        code: sub.plan.code,
+        name: sub.plan.name,
+        displayPrice: sub.plan.displayPrice ?? null,
+        periodicity: sub.plan.periodicity ?? null,
       },
-      subscriberCode: item.subscriber_code ?? null,
-      hotmartStatus: item.status ?? null,
-      startedAt: item.accession_date
-        ? new Date(item.accession_date).toISOString()
-        : null,
-      cancelledAt: item.end_date ? new Date(item.end_date).toISOString() : null,
-      lastPaymentAt: null,
-      lastPaymentAmount: item.price?.value
-        ? Math.round(item.price.value * 100)
-        : null,
-      lastPaymentCurrency: item.price?.currency_code ?? "BRL",
-      createdAt: item.accession_date
-        ? new Date(item.accession_date).toISOString()
-        : new Date().toISOString(),
+      source: sub.source,
+      subscriberCode: sub.hotmart?.subscriberCode ?? null,
+      hotmartStatus: sub.hotmart?.externalStatus ?? null,
+      startedAt: sub.startedAt?.toISOString() ?? null,
+      cancelledAt: sub.cancelledAt?.toISOString() ?? null,
+      lastPaymentAt: sub.charges[0]?.paidAt?.toISOString() ?? null,
+      lastPaymentAmount: sub.charges[0]?.amountCents ?? null,
+      lastPaymentCurrency: sub.charges[0]?.currency ?? "BRL",
+      createdAt: sub.createdAt.toISOString(),
     }));
 
     return NextResponse.json({
       subscribers,
       pagination: {
+        page,
         limit,
-        total: subscribers.length,
-        nextPageToken: data.page_info?.next_page_token ?? null,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {

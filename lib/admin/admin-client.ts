@@ -1,8 +1,17 @@
+/** Update quota policy via API. */
+export async function updateQuotaPolicy(policy: QuotaPolicy): Promise<void> {
+  await fetch("/api/admin/quota-policy", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(policy),
+  });
+}
 /**
- * Admin API client for Hotmart integration and quota management.
+ * Admin API client for billing integration and quota management.
  *
  * Calls internal API endpoints that query real DB data.
  * No mock data — all values come from Prisma queries.
+ * Provider-agnostic: supports Hotmart, Stripe, manual, invite, etc.
  */
 
 import type {
@@ -117,6 +126,10 @@ export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
 
 /**
  * Trigger Hotmart sync (plans + coupons + subscribers).
+ *
+ * A autenticação é feita via sessão NextAuth (cookie httpOnly enviado
+ * automaticamente pelo browser). Nenhum segredo é armazenado ou transmitido
+ * pelo frontend.
  */
 export async function triggerHotmartSync(): Promise<{
   success: boolean;
@@ -124,13 +137,9 @@ export async function triggerHotmartSync(): Promise<{
   data?: unknown;
 }> {
   try {
-    const adminSecret = getAdminSecret();
     const res = await fetch("/api/admin/sync-hotmart", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(adminSecret ? { Authorization: `Bearer ${adminSecret}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await res.json();
     if (!res.ok) {
@@ -140,15 +149,6 @@ export async function triggerHotmartSync(): Promise<{
   } catch (err) {
     return { success: false, message: String(err) };
   }
-}
-
-function getAdminSecret(): string | null {
-  // In client-side context, we can't access server env vars directly
-  // The admin page should have stored this or it's passed via header
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("hyppado_admin_secret");
-  }
-  return process.env.ADMIN_SECRET ?? null;
 }
 
 /**
@@ -237,57 +237,29 @@ export async function createHotmartCoupon(
 
 // ==================== LOCAL STORAGE HELPERS ====================
 
-const QUOTA_POLICY_KEY = "hyppado_quota_policy";
-const SUPPORT_CONFIG_KEY = "hyppado_support_config";
 
-export interface SupportConfig {
-  email?: string;
-}
+// ==================== PROMPT CONFIG API ====================
 
-/** Save quota policy to localStorage */
-export function saveQuotaPolicyLocally(policy: QuotaPolicy): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(QUOTA_POLICY_KEY, JSON.stringify(policy));
-  }
-}
+import type { PromptConfig } from "@/lib/types/admin";
 
-/** Load quota policy from localStorage */
-export function loadQuotaPolicyLocally(): QuotaPolicy | null {
-  if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem(QUOTA_POLICY_KEY);
-  if (!stored) return null;
+/** Get prompt config from API (DB-backed). */
+export async function getPromptConfig(): Promise<PromptConfig> {
   try {
-    return JSON.parse(stored) as QuotaPolicy;
+    const res = await fetch("/api/admin/prompt-config");
+    if (!res.ok) throw new Error("Failed to fetch prompt config");
+    return await res.json();
   } catch {
-    return null;
+    // Fallback to default (should match backend default)
+    const { getDefaultPromptConfig } = await import("@/lib/admin/prompt-config");
+    return getDefaultPromptConfig();
   }
 }
 
-/** Save support config locally */
-export function saveSupportConfigLocally(config: SupportConfig): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(SUPPORT_CONFIG_KEY, JSON.stringify(config));
-  }
-}
-
-/** Load support config from localStorage */
-export function loadSupportConfigLocally(): SupportConfig {
-  if (typeof window === "undefined") return {};
-  const stored = localStorage.getItem(SUPPORT_CONFIG_KEY);
-  if (!stored) return {};
-  try {
-    return JSON.parse(stored) as SupportConfig;
-  } catch {
-    return {};
-  }
-}
-
-// ==================== ADMIN MODE CHECK ====================
-
-/**
- * Check if admin mode is enabled.
- * Uses NEXT_PUBLIC_ADMIN_MODE env var.
- */
-export function isAdminMode(): boolean {
-  return process.env.NEXT_PUBLIC_ADMIN_MODE === "true";
+/** Update prompt config via API. */
+export async function updatePromptConfig(config: PromptConfig): Promise<void> {
+  await fetch("/api/admin/prompt-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
 }

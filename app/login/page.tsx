@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import {
   Box,
   Container,
@@ -12,76 +13,32 @@ import {
   IconButton,
   CircularProgress,
 } from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { Logo } from "@/app/components/ui/Logo";
-
-// Hyppado dark theme (navy #06080F + accent #2DD4FF) — zero green/pink
-const theme = createTheme({
-  palette: {
-    mode: "dark",
-    background: {
-      default: "#06080F",
-      paper: "#0A0F18",
-    },
-    primary: {
-      main: "#2DD4FF",
-    },
-    text: {
-      primary: "#ffffff",
-      secondary: "rgba(255,255,255,0.7)",
-    },
-  },
-  typography: {
-    fontFamily: "Inter, sans-serif",
-  },
-  components: {
-    MuiOutlinedInput: {
-      styleOverrides: {
-        root: {
-          borderRadius: 10,
-          backgroundColor: "rgba(255,255,255,0.04)",
-          "&:hover .MuiOutlinedInput-notchedOutline": {
-            borderColor: "rgba(45,212,255,0.4)",
-          },
-          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-            borderColor: "#2DD4FF",
-            borderWidth: 2,
-          },
-          "&.Mui-error .MuiOutlinedInput-notchedOutline": {
-            borderColor: "#ef4444",
-          },
-        },
-        notchedOutline: {
-          borderColor: "rgba(255,255,255,0.12)",
-        },
-        input: {
-          padding: "14px 16px",
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-          borderRadius: 10,
-          fontWeight: 600,
-        },
-      },
-    },
-  },
-});
+import { appTheme } from "@/app/theme";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setLoading(true);
-    // Redirect to dashboard
-    window.location.href = "/app";
+    setError(null);
+    const result = await signIn("credentials", {
+      email: email.trim().toLowerCase(),
+      password,
+      redirect: false,
+    });
+    if (result?.error) {
+      setError("Email ou senha incorretos.");
+      setLoading(false);
+    } else {
+      window.location.href = "/dashboard";
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -89,7 +46,7 @@ export default function LoginPage() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={appTheme}>
       <Box
         sx={{
           minHeight: "100vh",
@@ -227,6 +184,22 @@ export default function LoginPage() {
             </Box>
 
             {/* 5) Link Esqueceu sua senha? alinhado à direita */}
+            {error && (
+              <Box
+                sx={{
+                  mb: 2,
+                  p: 1.5,
+                  borderRadius: 2,
+                  background: "rgba(239,68,68,0.1)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  color: "#ef4444",
+                  fontSize: "0.8rem",
+                  textAlign: "center",
+                }}
+              >
+                {error}
+              </Box>
+            )}
             <Box sx={{ textAlign: "right", mb: 3 }}>
               <Link
                 href="/recuperar"

@@ -23,6 +23,7 @@ import {
   buildIdempotencyKey,
 } from "../../../../lib/hotmart/webhook";
 import { processHotmartEvent } from "../../../../lib/hotmart/processor";
+import { createNotificationIfNeeded } from "../../../../lib/admin/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       "[Hotmart Webhook] Assinatura inválida:",
       (err as Error).message,
     );
+
+    // Notifica admin sobre tentativa com HOTTOK inválido
+    waitUntil(
+      createNotificationIfNeeded({
+        eventType: "WEBHOOK_INVALID",
+        reason: req.headers.get("x-forwarded-for") ?? "IP desconhecido",
+        metadata: { error: (err as Error).message },
+      }).catch(() => {}),
+    );
+
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

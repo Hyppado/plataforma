@@ -62,7 +62,20 @@ export default function GlobalError({
                 fontSize: "16px",
               }}
             >
-              {error.message || "Ocorreu um erro inesperado"}
+              Ocorreu um erro inesperado. Tente novamente ou entre em contato
+              com o suporte.
+              {error.digest && (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "8px",
+                    fontSize: "12px",
+                    opacity: 0.5,
+                  }}
+                >
+                  Ref: {error.digest}
+                </span>
+              )}
             </p>
             <button
               onClick={reset}

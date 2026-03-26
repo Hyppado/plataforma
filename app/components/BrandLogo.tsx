@@ -100,7 +100,7 @@ function getLogoSrc(variant: BrandLogoVariant, mode: "dark" | "light"): string {
  * <BrandLogo variant="mark" disableLink />
  *
  * // Sidebar (larger)
- * <BrandLogo size="lg" href="/app/videos" />
+ * <BrandLogo size="lg" href="/dashboard/videos" />
  *
  * // Light background
  * <BrandLogo mode="light" />

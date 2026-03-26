@@ -1,72 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import type { NoteDTO } from "@/lib/types/dto";
 
-// Mock notes (in production, use Prisma)
-const mockNotes: NoteDTO[] = [
-  {
-    id: "note-1",
-    type: "video",
-    externalId: "vid-0-como-usar-o-produto",
-    content:
-      "Boa estrutura de hook nos primeiros 3s. Testar com produto similar.",
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "note-2",
-    type: "product",
-    externalId: "prod-0-serum-vitamina-c",
-    content: "Margem boa. Verificar fornecedor nacional. Preço competitivo.",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "note-3",
-    type: "creator",
-    externalId: "creator-0-mariabela",
-    content: "Engajamento alto. Considerar para parceria. Taxa ~15%.",
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "note-4",
-    type: "video",
-    externalId: "vid-3-antes-e-depois",
-    content: "Formato UGC funciona bem. Criar versão com nosso produto.",
-    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "note-5",
-    type: "product",
-    externalId: "prod-1-fone-bluetooth",
-    content: "Categoria saturada. Focar em diferenciais. Unboxing experience.",
-    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "5", 10);
+    const limit = Math.min(
+      parseInt(searchParams.get("limit") || "20", 10),
+      100,
+    );
     const type = searchParams.get("type") || undefined;
     const externalId = searchParams.get("externalId") || undefined;
 
-    let notes = [...mockNotes];
+    const where = {
+      userId: auth.userId,
+      ...(type ? { type } : {}),
+      ...(externalId ? { externalId } : {}),
+    };
 
-    if (type) {
-      notes = notes.filter((note) => note.type === type);
-    }
+    const [items, total] = await prisma.$transaction([
+      prisma.note.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.note.count({ where }),
+    ]);
 
-    if (externalId) {
-      notes = notes.filter((note) => note.externalId === externalId);
-    }
+    const dtos: NoteDTO[] = items.map((n) => ({
+      id: n.id,
+      type: n.type as NoteDTO["type"],
+      externalId: n.externalId,
+      content: n.content,
+      createdAt: n.createdAt.toISOString(),
+    }));
 
-    const limitedNotes = notes.slice(0, limit);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        items: limitedNotes,
-        total: notes.length,
-      },
-    });
+    return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
     console.error("Error fetching notes:", error);
     return NextResponse.json(
@@ -77,6 +50,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const body = await request.json();
     const { type, externalId, content } = body;
@@ -88,23 +64,71 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In production, create in Prisma
-    const newNote: NoteDTO = {
-      id: `note-${Date.now()}`,
-      type,
-      externalId,
-      content,
-      createdAt: new Date().toISOString(),
+    const existing = await prisma.note.findFirst({
+      where: { userId: auth.userId, type, externalId },
+    });
+
+    let note;
+    if (existing) {
+      note = await prisma.note.update({
+        where: { id: existing.id },
+        data: { content },
+      });
+    } else {
+      note = await prisma.note.create({
+        data: { userId: auth.userId, type, externalId, content },
+      });
+    }
+
+    const dto: NoteDTO = {
+      id: note.id,
+      type: note.type as NoteDTO["type"],
+      externalId: note.externalId,
+      content: note.content,
+      createdAt: note.createdAt.toISOString(),
     };
 
-    return NextResponse.json({
-      success: true,
-      data: newNote,
-    });
+    return NextResponse.json({ success: true, data: dto });
   } catch (error) {
-    console.error("Error creating note:", error);
+    console.error("Error creating/updating note:", error);
     return NextResponse.json(
       { success: false, error: "Failed to create note" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: "Missing note ID" },
+        { status: 400 },
+      );
+    }
+
+    const deleted = await prisma.note.deleteMany({
+      where: { id, userId: auth.userId },
+    });
+
+    if (deleted.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Note not found" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ success: true, data: { deleted: id } });
+  } catch (error) {
+    console.error("Error deleting note:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete note" },
       { status: 500 },
     );
   }

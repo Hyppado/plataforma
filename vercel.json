@@ -11,7 +11,11 @@
   "crons": [
     {
       "path": "/api/cron/echotik",
-      "schedule": "0 3 * * *"
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/hotmart-reconcile",
+      "schedule": "0 6 * * *"
     }
   ]
 }

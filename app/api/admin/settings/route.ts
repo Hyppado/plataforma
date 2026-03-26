@@ -7,28 +7,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin, isAuthed } from "@/lib/auth";
 import { getAllSettings, upsertSetting } from "@/lib/settings";
 
-function isAuthorized(req: NextRequest): boolean {
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret) return process.env.NODE_ENV !== "production";
-  const auth = req.headers.get("authorization") ?? "";
-  return auth === `Bearer ${adminSecret}`;
-}
-
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const settings = await getAllSettings();
   return NextResponse.json({ settings });
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
   const body = await req.json();
   const { key, value, label, group, type } = body;

@@ -12,32 +12,51 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// AUTH / USERS
+// AUTH / USERS — Domínio 1: Identidade do Sistema
 // ---------------------------------------------------------------------------
+// O User é a entidade principal e autônoma do sistema.
+// Nenhum campo de billing externo (Hotmart ou outro) é obrigatório aqui.
+// Vínculos comerciais ficam em ExternalAccountLink (Domínio 2).
 
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
   name          String?
+  passwordHash  String?                       // bcrypt hash da senha
   role          UserRole  @default(USER)
   status        UserStatus @default(ACTIVE)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
 
+  // LGPD
+  lgpdConsentAt      DateTime?                // último consentimento LGPD
+  lgpdConsentVersion String?                  // versão do termo aceito
+  deletedAt          DateTime?                // soft delete para LGPD (anonimização)
+
   savedItems    SavedItem[]
   collections   Collection[]
   notes         Note[]
   alerts        Alert[]
 
-  // Hotmart / subscriptions
-  hotmartIdentity   HotmartIdentity?
+  // Subscriptions (generic — origin-agnostic)
   subscriptions     Subscription[]
   auditLogs         AuditLog[]
 
   // Usage tracking
   usagePeriods      UsagePeriod[]
   usageEvents       UsageEvent[]
+
+  // IAM / access
+  accessGrants      AccessGrant[]
+  consentRecords    ConsentRecord[]
+  erasureRequests   DataErasureRequest[]
+
+  // External account links (Hotmart, future providers)
+  externalAccounts  ExternalAccountLink[]
+
+  // Admin notifications referencing this user
+  adminNotifications AdminNotification[]
 }
 
 enum UserRole {
@@ -80,12 +99,14 @@ model Plan {
   insightMaxOutputTokens    Int  @default(800)
   scriptMaxOutputTokens     Int  @default(1500)
 
-  // Hotmart product/offer mappings
+  // Hotmart product/offer mappings (legacy — use PlanExternalMapping for new providers)
   hotmartProductId    String?
   hotmartPlanCode     String?  // hotmart plan_name or code
   hotmartOfferCode    String?  // hotmart offer_code
 
   subscriptions       Subscription[]
+  accessGrants        AccessGrant[]
+  externalMappings    PlanExternalMapping[]
 
   @@index([isActive, sortOrder])
 }
@@ -93,6 +114,30 @@ model Plan {
 enum PlanPeriod {
   MONTHLY
   ANNUAL
+}
+
+// ---------------------------------------------------------------------------
+// PLAN ↔ EXTERNAL PROVIDER MAPPING
+// ---------------------------------------------------------------------------
+// Mapeia planos internos a identificadores de provedores externos.
+// Permite múltiplos provedores sem poluir a tabela Plan.
+
+model PlanExternalMapping {
+  id            String   @id @default(uuid())
+  planId        String
+  provider      String   // "hotmart", "stripe", etc.
+  externalId    String   // productId, priceId, etc.
+  externalCode  String?  // planCode, offerCode, etc.
+  externalMeta  Json?    // dados extras do provider
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  plan          Plan     @relation(fields: [planId], references: [id])
+
+  @@unique([provider, externalId])
+  @@index([planId])
+  @@index([provider, isActive])
 }
 
 // ---------------------------------------------------------------------------
@@ -121,14 +166,18 @@ model Coupon {
 }
 
 // ---------------------------------------------------------------------------
-// SUBSCRIPTIONS
+// SUBSCRIPTIONS — Origin-agnostic
 // ---------------------------------------------------------------------------
+// Uma Subscription pertence a um User e referencia um Plan.
+// O campo `source` indica a origem (hotmart, manual, invite, etc).
+// O detalhamento da origem fica em HotmartSubscription (ou futuro StripeSubscription).
 
 model Subscription {
   id              String             @id @default(uuid())
   userId          String
   planId          String
   status          SubscriptionStatus @default(PENDING)
+  source          String             @default("hotmart") // "hotmart" | "manual" | "invite" | "stripe"
   startedAt       DateTime?
   renewedAt       DateTime?
   nextChargeAt    DateTime?
@@ -141,6 +190,7 @@ model Subscription {
   plan            Plan               @relation(fields: [planId], references: [id])
   hotmart         HotmartSubscription?
   charges         SubscriptionCharge[]
+  notifications   AdminNotification[]
 
   @@index([userId])
   @@index([status])
@@ -154,7 +204,8 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
-// Mapeamento Hotmart → Subscription interna
+// Mapeamento Hotmart → Subscription interna (Domínio 2: dados do provider)
+// Esta tabela é específica do Hotmart e não define identidade do usuário.
 model HotmartSubscription {
   id                     String    @id @default(uuid())
   subscriptionId         String    @unique
@@ -202,21 +253,34 @@ enum ChargeStatus {
 }
 
 // ---------------------------------------------------------------------------
-// HOTMART IDENTITY  (liga email/subscriberCode ao User interno)
+// EXTERNAL ACCOUNT LINKS — Domínio 2: Vínculos Comerciais/Externos
 // ---------------------------------------------------------------------------
+// Cada registro vincula um User a uma identidade em um provedor externo.
+// Um User pode ter 0, 1 ou N vínculos externos.
+// Um vínculo pode ser Hotmart, Stripe, ou qualquer futuro provider.
+// A existência do User é independente de qualquer vínculo externo.
 
-model HotmartIdentity {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  subscriberCode  String?  @unique
-  buyerEmail      String?  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model ExternalAccountLink {
+  id                  String   @id @default(uuid())
+  userId              String
+  provider            String   // "hotmart", "stripe", etc.
+  externalCustomerId  String?  // subscriberCode, stripeCustomerId, etc.
+  externalReference   String?  // ucode, buyerRef, etc.
+  externalEmail       String?  // email no provedor (pode diferir do email do sistema)
+  linkedAt            DateTime @default(now())
+  linkConfidence      String   @default("auto_email") // "auto_email" | "manual" | "admin" | "reconciliation"
+  linkMethod          String   @default("webhook")    // "webhook" | "sync" | "manual" | "invite"
+  isActive            Boolean  @default(true)
+  metadata            Json?    // dados extras específicos do provider
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  user            User     @relation(fields: [userId], references: [id])
+  user                User     @relation(fields: [userId], references: [id])
 
-  @@index([buyerEmail])
-  @@index([subscriberCode])
+  @@unique([provider, externalCustomerId])
+  @@unique([provider, externalEmail])
+  @@index([userId])
+  @@index([provider, isActive])
 }
 
 // ---------------------------------------------------------------------------
@@ -267,11 +331,15 @@ model HotmartWebhookEvent {
 
   // Processamento
   processingStatus        WebhookStatus       @default(RECEIVED)
+  retryCount              Int                 @default(0)
   receivedAt              DateTime            @default(now())
   processedAt             DateTime?
   errorMessage            String?
 
+  notifications           AdminNotification[]
+
   @@index([eventType, receivedAt])
+  @@index([processingStatus, retryCount])
   @@index([subscriberCode])
   @@index([transactionId])
   @@index([buyerEmail])
@@ -305,6 +373,107 @@ model AuditLog {
 
   @@index([userId])
   @@index([action, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// ACCESS GRANTS (override manual de acesso por admin)
+// ---------------------------------------------------------------------------
+
+model AccessGrant {
+  id          String    @id @default(uuid())
+  userId      String
+  grantedBy   String                          // admin user_id
+  reason      String                          // motivo do acesso concedido
+  planId      String?                         // plano de referência (quotas)
+  startsAt    DateTime  @default(now())
+  expiresAt   DateTime?                       // null = permanente
+  isActive    Boolean   @default(true)
+  revokedAt   DateTime?
+  revokedBy   String?                         // admin que revogou
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id])
+  plan        Plan?     @relation(fields: [planId], references: [id])
+
+  @@index([userId, isActive])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// LGPD — Consent Records (append-only)
+// ---------------------------------------------------------------------------
+
+model ConsentRecord {
+  id            String   @id @default(uuid())
+  userId        String
+  consentType   String                         // "terms_of_use", "privacy_policy", "marketing_email"
+  version       String                         // versão do documento aceito
+  granted       Boolean  @default(true)        // true=consentiu, false=revogou
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())       // imutável (append-only)
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, consentType])
+}
+
+// ---------------------------------------------------------------------------
+// LGPD — Data Erasure Requests
+// ---------------------------------------------------------------------------
+
+model DataErasureRequest {
+  id              String        @id @default(uuid())
+  userId          String
+  status          ErasureStatus @default(PENDING)
+  requestedAt     DateTime      @default(now())
+  processedAt     DateTime?
+  processedBy     String?                       // admin user_id
+  notes           String?
+  anonymizedFields Json?                        // campos anonimizados
+  createdAt       DateTime      @default(now())
+
+  user            User          @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([userId])
+}
+
+enum ErasureStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// INVITATIONS
+// ---------------------------------------------------------------------------
+
+model Invitation {
+  id          String           @id @default(uuid())
+  email       String
+  invitedBy   String                              // admin user_id
+  planId      String?                              // plano pré-atribuído
+  role        UserRole         @default(USER)
+  status      InvitationStatus @default(PENDING)
+  token       String           @unique             // token seguro para aceitar
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  userId      String?                              // preenchido quando aceito
+  createdAt   DateTime         @default(now())
+
+  @@index([email])
+  @@index([token])
+  @@index([status])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
 }
 
 model SavedItem {
@@ -640,4 +809,55 @@ model Region {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─── Notificações Admin ─────────────────────────────────────────────────────
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  HIGH
+  CRITICAL
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+/// Notificações para o painel admin
+/// Geradas automaticamente por eventos de webhook, falhas de processamento,
+/// reconciliação e ações que requerem atenção do admin.
+model AdminNotification {
+  id              String                @id @default(cuid())
+
+  type            String                // ex: "SUBSCRIPTION_CANCELED", "CHARGEBACK", "WEBHOOK_INVALID", "PROCESSING_FAILED"
+  severity        NotificationSeverity  @default(WARNING)
+  title           String
+  message         String
+  status          NotificationStatus    @default(UNREAD)
+  metadata        Json?                 // dados extras (eventType original, valores, etc)
+
+  // Relações opcionais — contextualizam a notificação
+  userId          String?
+  user            User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  subscriptionId  String?
+  subscription    Subscription?         @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  eventId         String?
+  event           HotmartWebhookEvent?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  // Resolução
+  resolvedAt      DateTime?
+  resolvedBy      String?               // admin userId que resolveu
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([status, severity])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([type, userId, createdAt])    // dedup index
 }

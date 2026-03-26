@@ -9,10 +9,9 @@
  *   GET /payments/api/v1/coupons?productId={id}
  */
 
-import { PrismaClient, PlanPeriod } from "@prisma/client";
+import { PlanPeriod } from "@prisma/client";
 import { hotmartRequest } from "./client";
-
-const prisma = new PrismaClient();
+import prisma from "../prisma";
 
 // ---------------------------------------------------------------------------
 // Tipos da API Hotmart

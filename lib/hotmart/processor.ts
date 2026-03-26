@@ -26,6 +26,7 @@
 
 import prisma from "../prisma";
 import type { HotmartWebhookFields } from "./webhook";
+import { createNotificationIfNeeded } from "../admin/notifications";
 
 // ---------------------------------------------------------------------------
 // Tabelas de eventos
@@ -95,29 +96,35 @@ async function resolvePlan(fields: HotmartWebhookFields) {
 }
 
 // ---------------------------------------------------------------------------
-// Resolve/cria identidade Hotmart → User interno
+// Resolve/cria vínculo externo Hotmart → User interno
 // ---------------------------------------------------------------------------
+// O User é a entidade principal. Hotmart é apenas uma origem externa.
+// Se o email já existe no sistema, vincula. Caso contrário, cria User novo.
 
 async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
   const email = fields.buyerEmail ?? fields.subscriberEmail;
   const { subscriberCode } = fields;
   if (!email && !subscriberCode) return null;
 
-  const orConditions: { buyerEmail?: string; subscriberCode?: string }[] = [];
-  if (email) orConditions.push({ buyerEmail: email });
-  if (subscriberCode) orConditions.push({ subscriberCode });
+  // Busca vínculo existente por email ou subscriberCode
+  const orConditions: {
+    externalEmail?: string;
+    externalCustomerId?: string;
+  }[] = [];
+  if (email) orConditions.push({ externalEmail: email });
+  if (subscriberCode) orConditions.push({ externalCustomerId: subscriberCode });
 
-  const existing = await prisma.hotmartIdentity.findFirst({
-    where: { OR: orConditions },
+  const existing = await prisma.externalAccountLink.findFirst({
+    where: { provider: "hotmart", OR: orConditions },
     include: { user: true },
   });
 
   if (existing) {
-    // Persiste subscriberCode se chegou agora
-    if (subscriberCode && !existing.subscriberCode) {
-      await prisma.hotmartIdentity.update({
+    // Atualiza subscriberCode se chegou agora
+    if (subscriberCode && !existing.externalCustomerId) {
+      await prisma.externalAccountLink.update({
         where: { id: existing.id },
-        data: { subscriberCode },
+        data: { externalCustomerId: subscriberCode },
       });
     }
     return existing;
@@ -125,6 +132,7 @@ async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
 
   if (!email) return null;
 
+  // Busca ou cria User pelo email (User é independente do Hotmart)
   const user = await prisma.user.upsert({
     where: { email },
     update: {},
@@ -136,8 +144,15 @@ async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
     },
   });
 
-  return prisma.hotmartIdentity.create({
-    data: { userId: user.id, buyerEmail: email, subscriberCode },
+  return prisma.externalAccountLink.create({
+    data: {
+      userId: user.id,
+      provider: "hotmart",
+      externalCustomerId: subscriberCode ?? undefined,
+      externalEmail: email,
+      linkConfidence: "auto_email",
+      linkMethod: "webhook",
+    },
     include: { user: true },
   });
 }
@@ -284,9 +299,19 @@ export async function processHotmartEvent(
           processingStatus: "FAILED",
           processedAt: new Date(),
           errorMessage: message.slice(0, 1000),
+          retryCount: { increment: 1 },
         },
       })
       .catch(() => {});
+
+    // Notifica admin sobre falha de processamento
+    await createNotificationIfNeeded({
+      eventType: "PROCESSING_FAILED",
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      reason: message.slice(0, 200),
+      eventId: webhookEventId,
+      metadata: { eventType: fields.eventType, webhookEventId },
+    }).catch(() => {});
   }
 }
 
@@ -391,6 +416,46 @@ async function _processEvent(
         },
       },
     });
+
+    // 5. Notificação admin (cancelamentos, chargebacks, atrasos, etc.)
+    await createNotificationIfNeeded({
+      eventType,
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      transactionId: fields.transactionId,
+      planCode: fields.planCode,
+      userId: identity.userId,
+      subscriptionId,
+      eventId: webhookEventId,
+      metadata: {
+        eventType,
+        recurrenceNumber: fields.recurrenceNumber,
+        amountCents: fields.amountCents,
+      },
+    }).catch((err) => {
+      console.warn("[Hotmart Processor] Falha ao criar notificação:", err);
+    });
+
+    // 6. Auto-suspensão em CHARGEBACK (proteção contra fraude)
+    if (eventType === "PURCHASE_CHARGEBACK") {
+      await prisma.user.update({
+        where: { id: identity.userId },
+        data: { status: "SUSPENDED" },
+      });
+      await prisma.auditLog.create({
+        data: {
+          userId: identity.userId,
+          actorId: "system",
+          action: "AUTO_SUSPENSION_CHARGEBACK",
+          entityType: "User",
+          entityId: identity.userId,
+          after: {
+            reason: "Chargeback detectado — conta suspensa automaticamente",
+            transactionId: fields.transactionId,
+            webhookEventId,
+          },
+        },
+      });
+    }
   } else {
     // Sem identidade ou plano resolvido — loga para investigação
     await prisma.auditLog.create({
@@ -408,6 +473,21 @@ async function _processEvent(
         },
       },
     });
+
+    // Notifica admin sobre identidade não resolvida
+    await createNotificationIfNeeded({
+      eventType: "IDENTITY_UNRESOLVED",
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      reason: !identity ? "identity_not_found" : "plan_not_found",
+      eventId: webhookEventId,
+      metadata: {
+        eventType,
+        buyerEmail: fields.buyerEmail,
+        subscriberCode: fields.subscriberCode,
+        productId: fields.productId,
+        planCode: fields.planCode,
+      },
+    }).catch(() => {});
   }
 
   await markProcessed(webhookEventId);

@@ -1,10 +1,11 @@
 /**
- * Admin types for Hotmart billing integration and token quotas.
+ * Admin types for billing integration and token quotas.
+ * Provider-agnostic: supports Hotmart, Stripe, manual, invite, etc.
  */
 
 // ==================== SUBSCRIBER TYPES (real data from DB) ====================
 
-/** Subscriber status mapped from Hotmart */
+/** Subscriber status (provider-agnostic) */
 export type SubscriberStatus =
   | "ACTIVE"
   | "CANCELED"
@@ -21,14 +22,18 @@ export interface SubscriberPlan {
   periodicity?: string | null;
 }
 
-/** Subscriber record — real data from Subscription + User + HotmartSubscription */
+/** Subscriber record — real data from Subscription + User (provider-agnostic) */
 export interface Subscriber {
   id: string;
   name?: string | null;
   email?: string | null;
   status: SubscriberStatus;
   plan: SubscriberPlan;
+  /** Origin: "hotmart" | "manual" | "invite" | "stripe" */
+  source?: string;
+  /** External subscriber code (e.g. Hotmart subscriberCode), if any */
   subscriberCode?: string | null;
+  /** External provider status, if any */
   hotmartStatus?: string | null;
   startedAt?: string | null;
   cancelledAt?: string | null;

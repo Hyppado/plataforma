@@ -1,10 +1,6 @@
 /**
  * Prompt configuration for LLM generation.
- * FRONT-END ONLY - templates and settings for Product Insights and Scripts.
- *
- * These templates are used when generating:
- * - Product Insights: Analysis of a product's potential based on data
- * - Product Scripts: Video script suggestions for TikTok creators
+ * Deprecated: All prompt config is now managed server-side via API.
  */
 
 import type { ModelSettings, PromptConfig } from "@/lib/types/admin";
@@ -191,31 +187,4 @@ export function getDefaultPromptConfig(): PromptConfig {
  */
 export const PROMPT_CONFIG_STORAGE_KEY = "hyppado_prompt_config";
 
-/**
- * Save prompt config to localStorage.
- */
-export function savePromptConfigLocally(config: PromptConfig): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(PROMPT_CONFIG_STORAGE_KEY, JSON.stringify(config));
-  }
-}
-
-/**
- * Load prompt config from localStorage, falling back to defaults.
- */
-export function loadPromptConfigLocally(): PromptConfig {
-  if (typeof window === "undefined") {
-    return getDefaultPromptConfig();
-  }
-
-  const stored = localStorage.getItem(PROMPT_CONFIG_STORAGE_KEY);
-  if (!stored) {
-    return getDefaultPromptConfig();
-  }
-
-  try {
-    return JSON.parse(stored) as PromptConfig;
-  } catch {
-    return getDefaultPromptConfig();
-  }
-}
+// Deprecated: All prompt config is now managed server-side via API.

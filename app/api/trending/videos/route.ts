@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VIDEO_RANK_FIELDS, videoSortToField } from "@/lib/echotik/rankFields";
+import {
+  rangeToCycles,
+  resolveCycleAndDate,
+  getAvailableRegions,
+} from "@/lib/echotik/trending";
 import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 
 export const dynamic = "force-dynamic";
@@ -32,52 +37,45 @@ export async function GET(request: NextRequest) {
       | "7d"
       | "30d"
       | "90d";
-    const limit = Math.min(
-      parseInt(searchParams.get("limit") || "50", 10),
-      200,
+    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+    const pageSize = Math.min(
+      Math.max(parseInt(searchParams.get("pageSize") || "24", 10), 1),
+      100,
     );
     const search = searchParams.get("search") || undefined;
     const region = (searchParams.get("region") || "US").toUpperCase();
     const sort = searchParams.get("sort") || "sales";
     const rankField = videoSortToField(sort);
 
-    const requestedRankingCycle = range === "1d" ? 1 : range === "7d" ? 2 : 3;
-    const cycleCandidates: Array<1 | 2 | 3> =
-      range === "1d" ? [1] : range === "7d" ? [2, 1] : [3, 2, 1];
+    const { candidates } = rangeToCycles(range);
 
-    // Find the most recent snapshot for the best available cycle
-    let latest: { date: Date } | null = null;
-    let rankingCycle = requestedRankingCycle;
-    for (const cycle of cycleCandidates) {
-      const candidate = await prisma.echotikVideoTrendDaily.findFirst({
-        where: { country: region, rankingCycle: cycle, rankField },
-        orderBy: { date: "desc" },
-        select: { date: true },
-      });
-      if (candidate) {
-        latest = candidate;
-        rankingCycle = cycle;
-        break;
-      }
-    }
-
-    // Available regions (for frontend filter population)
-    const availableRegionsRaw = await prisma.echotikVideoTrendDaily.findMany({
-      distinct: ["country"],
-      select: { country: true },
+    const { latest, rankingCycle } = await resolveCycleAndDate({
+      model: "video",
+      region,
+      rankField,
+      candidates,
     });
-    const availableRegions = availableRegionsRaw.map((r) => r.country).sort();
+
+    const availableRegions = await getAvailableRegions("video");
 
     if (!latest) {
       return NextResponse.json({
         success: true,
-        data: { items: [], total: 0, range, availableRegions },
+        data: {
+          items: [],
+          total: 0,
+          page,
+          pageSize,
+          hasMore: false,
+          range,
+          availableRegions,
+        },
       });
     }
 
     // Build where clause
     const where: Record<string, unknown> = {
-      date: latest.date,
+      date: latest,
       country: region,
       rankingCycle,
       rankField,
@@ -90,11 +88,15 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const rows = await prisma.echotikVideoTrendDaily.findMany({
-      where,
-      orderBy: { rankPosition: "asc" },
-      take: limit,
-    });
+    const [rows, total] = await Promise.all([
+      prisma.echotikVideoTrendDaily.findMany({
+        where,
+        orderBy: { rankPosition: "asc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.echotikVideoTrendDaily.count({ where }),
+    ]);
 
     // Collect all product IDs from video extras for batch lookup
     const productIdSet = new Set<string>();
@@ -205,7 +207,10 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         items,
-        total: items.length,
+        total,
+        page,
+        pageSize,
+        hasMore: page * pageSize < total,
         range,
         availableRegions,
         effectiveRankingCycle: rankingCycle,
@@ -215,9 +220,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching videos:", error);
-    return NextResponse.json({
-      success: true,
-      data: { items: [], total: 0, range: "7d", error: "Failed to load" },
-    });
+    return NextResponse.json(
+      { success: false, error: "Failed to load videos" },
+      { status: 500 },
+    );
   }
 }

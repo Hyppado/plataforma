@@ -66,7 +66,7 @@ function getLogoSrc(variant: LogoVariant, mode: "dark" | "light"): string {
  * - Dark UI (sidebar, app shell): <Logo mode="dark" />
  * - Light UI (if any): <Logo mode="light" />
  * - Icon only: <Logo variant="mark" />
- * - With link: <Logo href="/app/videos" />
+ * - With link: <Logo href="/dashboard/videos" />
  * - Responsive: <Logo responsiveHeight={{ xs: 24, sm: 28, md: 32, lg: 36 }} />
  */
 export function Logo({

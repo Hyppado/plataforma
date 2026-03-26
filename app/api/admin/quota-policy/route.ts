@@ -1,20 +1,68 @@
-import { NextResponse } from "next/server";
+/**
+ * app/api/admin/quota-policy/route.ts
+ *
+ * GET  — read current quota policy from DB (falls back to defaults)
+ * PUT  — update quota policy in DB
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin, isAuthed } from "@/lib/auth";
+import { getQuotaPolicyFromDB, saveQuotaPolicyToDB } from "@/lib/admin/config";
 import type { QuotaPolicy } from "@/lib/types/admin";
 
-/**
- * GET /api/admin/quota-policy
- * Returns quota policy defaults.
- */
 export async function GET() {
-  // Always return default policy (localStorage override happens client-side)
-  const defaultPolicy: QuotaPolicy = {
-    transcriptsPerMonth: 40,
-    scriptsPerMonth: 70,
-    insightTokensPerMonth: 50_000,
-    scriptTokensPerMonth: 20_000,
-    insightMaxOutputTokens: 800,
-    scriptMaxOutputTokens: 1500,
-  };
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
 
-  return NextResponse.json(defaultPolicy);
+  try {
+    const policy = await getQuotaPolicyFromDB();
+    return NextResponse.json(policy);
+  } catch (error) {
+    console.error("[admin/quota-policy] GET error:", error);
+    return NextResponse.json(
+      { error: "Failed to load quota policy" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
+  try {
+    const body = (await req.json()) as Partial<QuotaPolicy>;
+
+    // Validate required numeric fields
+    const requiredFields: (keyof QuotaPolicy)[] = [
+      "transcriptsPerMonth",
+      "scriptsPerMonth",
+      "insightTokensPerMonth",
+      "scriptTokensPerMonth",
+      "insightMaxOutputTokens",
+      "scriptMaxOutputTokens",
+    ];
+
+    for (const field of requiredFields) {
+      if (body[field] !== undefined && typeof body[field] !== "number") {
+        return NextResponse.json(
+          { error: `${field} must be a number` },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Merge with current to allow partial updates
+    const current = await getQuotaPolicyFromDB();
+    const updated: QuotaPolicy = { ...current, ...body };
+
+    await saveQuotaPolicyToDB(updated);
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("[admin/quota-policy] PUT error:", error);
+    return NextResponse.json(
+      { error: "Failed to save quota policy" },
+      { status: 500 },
+    );
+  }
 }

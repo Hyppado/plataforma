@@ -38,11 +38,11 @@
 /                       → Landing page (público)
 /login                  → Autenticação
 /app                    → Dashboard principal (home pós-login)
-/app/videos             → Lista completa de vídeos com filtros
-/app/produtos           → Lista completa de produtos com filtros
-/app/creators           → Lista completa de creators com filtros
-/app/tendencias         → Análise de tendências e gráficos (futuro)
-/app/settings           → Configurações da conta (futuro)
+/dashboard/videos             → Lista completa de vídeos com filtros
+/dashboard/produtos           → Lista completa de produtos com filtros
+/dashboard/creators           → Lista completa de creators com filtros
+/dashboard/tendencias         → Análise de tendências e gráficos (futuro)
+/dashboard/settings           → Configurações da conta (futuro)
 ```
 
 ### Estrutura de Pastas
@@ -276,7 +276,7 @@ interface CategoryDTO {
 ```
 /app
 ├── api/                  # API Routes (Next.js Route Handlers)
-├── app/                  # Rotas autenticadas (/app/*)
+├── dashboard/            # Rotas autenticadas (/dashboard/*)
 ├── components/
 │   ├── ui/               # Primitivos reutilizáveis
 │   │   └── Skeleton.tsx

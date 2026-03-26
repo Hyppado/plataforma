@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PRODUCT_RANK_FIELDS, productSortToField } from "@/lib/echotik/rankFields";
+import {
+  PRODUCT_RANK_FIELDS,
+  productSortToField,
+} from "@/lib/echotik/rankFields";
+import {
+  proxyIfEchotikCdn,
+  rangeToCycles,
+  resolveCycleAndDate,
+  getAvailableRegions,
+} from "@/lib/echotik/trending";
 import type { ProductDTO } from "@/lib/types/dto";
-
-const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
-
-/** Wraps echosell-images URLs through the image proxy */
-function proxyIfEchotikCdn(url: string | null): string {
-  if (!url) return "";
-  try {
-    if (new URL(url).hostname === ECHOTIK_CDN) {
-      return `/api/proxy/image?url=${encodeURIComponent(url)}`;
-    }
-  } catch {}
-  return url;
-}
 
 export const dynamic = "force-dynamic";
 
@@ -32,52 +28,45 @@ export async function GET(request: NextRequest) {
       | "7d"
       | "30d"
       | "90d";
-    const limit = Math.min(
-      parseInt(searchParams.get("limit") || "100", 10),
-      200,
+    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+    const pageSize = Math.min(
+      Math.max(parseInt(searchParams.get("pageSize") || "24", 10), 1),
+      100,
     );
     const search = searchParams.get("search") || undefined;
     const region = (searchParams.get("region") || "US").toUpperCase();
     const sort = searchParams.get("sort") || "sales";
     const rankField = productSortToField(sort);
 
-    const requestedRankingCycle = range === "1d" ? 1 : range === "7d" ? 2 : 3;
-    const cycleCandidates: Array<1 | 2 | 3> =
-      range === "1d" ? [1] : range === "7d" ? [2, 1] : [3, 2, 1];
+    const { candidates } = rangeToCycles(range);
 
-    // Find the most recent snapshot for the best available cycle
-    let latest: { date: Date } | null = null;
-    let rankingCycle = requestedRankingCycle;
-    for (const cycle of cycleCandidates) {
-      const candidate = await prisma.echotikProductTrendDaily.findFirst({
-        where: { country: region, rankingCycle: cycle, rankField },
-        orderBy: { date: "desc" },
-        select: { date: true },
-      });
-      if (candidate) {
-        latest = candidate;
-        rankingCycle = cycle;
-        break;
-      }
-    }
-
-    // Available regions
-    const availableRegionsRaw = await prisma.echotikProductTrendDaily.findMany({
-      distinct: ["country"],
-      select: { country: true },
+    const { latest, rankingCycle } = await resolveCycleAndDate({
+      model: "product",
+      region,
+      rankField,
+      candidates,
     });
-    const availableRegions = availableRegionsRaw.map((r) => r.country).sort();
+
+    const availableRegions = await getAvailableRegions("product");
 
     if (!latest) {
       return NextResponse.json({
         success: true,
-        data: { items: [], total: 0, range, availableRegions },
+        data: {
+          items: [],
+          total: 0,
+          page,
+          pageSize,
+          hasMore: false,
+          range,
+          availableRegions,
+        },
       });
     }
 
     // Build where clause
     const where: Record<string, unknown> = {
-      date: latest.date,
+      date: latest,
       country: region,
       rankingCycle,
       rankField,
@@ -87,11 +76,15 @@ export async function GET(request: NextRequest) {
       where.OR = [{ productName: { contains: q, mode: "insensitive" } }];
     }
 
-    const rows = await prisma.echotikProductTrendDaily.findMany({
-      where,
-      orderBy: { rankPosition: "asc" },
-      take: limit,
-    });
+    const [rows, total] = await Promise.all([
+      prisma.echotikProductTrendDaily.findMany({
+        where,
+        orderBy: { rankPosition: "asc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.echotikProductTrendDaily.count({ where }),
+    ]);
 
     // Batch-fetch product detail images from cache
     const productIds = rows.map((r) => r.productExternalId);
@@ -130,7 +123,10 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         items,
-        total: items.length,
+        total,
+        page,
+        pageSize,
+        hasMore: page * pageSize < total,
         range,
         availableRegions,
         effectiveRankingCycle: rankingCycle,
@@ -140,9 +136,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching products:", error);
-    return NextResponse.json({
-      success: true,
-      data: { items: [], total: 0, error: String(error) },
-    });
+    return NextResponse.json(
+      { success: false, error: "Failed to load products" },
+      { status: 500 },
+    );
   }
 }

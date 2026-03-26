@@ -6,7 +6,17 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.test
+.env.test.local
+.env.prod
 
 # Build output
 out/
 .vercel
+
+# Test coverage
+coverage/
+
+# SQLite dev databases (if used locally)
+prisma/*.db
+prisma/*.db-journal

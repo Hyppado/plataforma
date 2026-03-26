@@ -1,150 +1,107 @@
+/**
+ * Tests: app/api/admin/subscription-metrics/route.ts
+ *
+ * Route now queries local DB instead of Hotmart API.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mockAuthenticatedAdmin } from "@tests/helpers/auth";
+import { prismaMock } from "@tests/helpers/prisma-mock";
 import { GET } from "@/app/api/admin/subscription-metrics/route";
-import { hotmartRequest } from "@/lib/hotmart/client";
 
-vi.mock("@/lib/hotmart/client", () => ({
-  hotmartRequest: vi.fn(),
-}));
-
-/** Resposta simulada da API Hotmart com N itens. */
-const apiResponse = (count: number) => ({
-  items: Array.from({ length: count }, (_, i) => ({ id: i })),
-  page_info: { total_results: count },
-});
+vi.mock("@/lib/prisma");
 
 describe("GET /api/admin/subscription-metrics", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.HOTMART_PRODUCT_ID = "7420891";
+    mockAuthenticatedAdmin();
   });
 
-  // ---------------------------------------------------------------------------
-  // Contagem de métricas
-  // ---------------------------------------------------------------------------
+  function setupCountMocks({
+    active = 5,
+    cancelled = 2,
+    pastDue = 1,
+    total = 10,
+    newMonth = 3,
+    cancelledMonth = 1,
+    revenueSum = 49900,
+  } = {}) {
+    prismaMock.subscription.count
+      .mockResolvedValueOnce(active)
+      .mockResolvedValueOnce(cancelled)
+      .mockResolvedValueOnce(pastDue)
+      .mockResolvedValueOnce(total)
+      .mockResolvedValueOnce(newMonth)
+      .mockResolvedValueOnce(cancelledMonth);
+
+    prismaMock.subscriptionCharge.aggregate.mockResolvedValue({
+      _sum: { amountCents: revenueSum },
+    });
+
+    prismaMock.subscription.findFirst.mockResolvedValue({
+      updatedAt: new Date("2024-06-15"),
+    });
+  }
 
   it("retorna contagens corretas para cada status", async () => {
-    // As 5 chamadas paralelas são feitas na ordem:
-    // ACTIVE → CANCELLED_BY_CUSTOMER → OVERDUE → INACTIVE → (sem status = total)
-    vi.mocked(hotmartRequest)
-      .mockResolvedValueOnce(apiResponse(5)) // ACTIVE
-      .mockResolvedValueOnce(apiResponse(2)) // CANCELLED_BY_CUSTOMER
-      .mockResolvedValueOnce(apiResponse(1)) // OVERDUE
-      .mockResolvedValueOnce(apiResponse(3)) // INACTIVE
-      .mockResolvedValueOnce(apiResponse(11)); // total
-
+    setupCountMocks({ active: 5, cancelled: 2, pastDue: 1, total: 10 });
     const res = await GET();
     const body = await res.json();
-
     expect(res.status).toBe(200);
     expect(body.activeSubscribers).toBe(5);
     expect(body.canceledSubscribers).toBe(2);
-    expect(body.totalSubscribers).toBe(11);
+    expect(body.pastDueSubscribers).toBe(1);
+    expect(body.totalSubscribers).toBe(10);
   });
 
-  it("soma OVERDUE + INACTIVE em pastDueSubscribers", async () => {
-    vi.mocked(hotmartRequest)
-      .mockResolvedValueOnce(apiResponse(0)) // ACTIVE
-      .mockResolvedValueOnce(apiResponse(0)) // CANCELLED_BY_CUSTOMER
-      .mockResolvedValueOnce(apiResponse(3)) // OVERDUE
-      .mockResolvedValueOnce(apiResponse(2)) // INACTIVE
-      .mockResolvedValueOnce(apiResponse(5)); // total
-
-    const res = await GET();
-    const { pastDueSubscribers } = await res.json();
-
-    expect(pastDueSubscribers).toBe(5); // 3 OVERDUE + 2 INACTIVE
+  it("retorna newThisMonth e cancelledThisMonth", async () => {
+    setupCountMocks({ newMonth: 4, cancelledMonth: 2 });
+    const { newThisMonth, cancelledThisMonth } = await (await GET()).json();
+    expect(newThisMonth).toBe(4);
+    expect(cancelledThisMonth).toBe(2);
   });
 
-  it("faz exatamente 5 chamadas à API Hotmart", async () => {
-    vi.mocked(hotmartRequest).mockResolvedValue(apiResponse(0));
-
-    await GET();
-
-    expect(hotmartRequest).toHaveBeenCalledTimes(5);
+  it("retorna revenueThisMonthCents da agregacao de charges", async () => {
+    setupCountMocks({ revenueSum: 99800 });
+    const { revenueThisMonthCents } = await (await GET()).json();
+    expect(revenueThisMonthCents).toBe(99800);
   });
 
-  it("busca por ACTIVE, CANCELLED_BY_CUSTOMER, OVERDUE, INACTIVE e sem status", async () => {
-    vi.mocked(hotmartRequest).mockResolvedValue(apiResponse(0));
-
-    await GET();
-
-    const statuses = vi
-      .mocked(hotmartRequest)
-      .mock.calls.map(
-        (c) => (c[1] as { params?: { status?: string } })?.params?.status,
-      );
-
-    expect(statuses).toContain("ACTIVE");
-    expect(statuses).toContain("CANCELLED_BY_CUSTOMER");
-    expect(statuses).toContain("OVERDUE");
-    expect(statuses).toContain("INACTIVE");
-    expect(statuses).toContain(undefined); // chamada sem status = total
-  });
-
-  // ---------------------------------------------------------------------------
-  // Campos estáticos e de período
-  // ---------------------------------------------------------------------------
-
-  it("retorna campos estáticos com valores padrão", async () => {
-    vi.mocked(hotmartRequest).mockResolvedValue(apiResponse(0));
-
-    const {
-      newThisMonth,
-      cancelledThisMonth,
-      revenueThisMonthCents,
-      lastSyncAt,
-    } = await (await GET()).json();
-
-    expect(newThisMonth).toBe(0);
-    expect(cancelledThisMonth).toBe(0);
+  it("retorna 0 quando nao ha cobranças no mes", async () => {
+    setupCountMocks();
+    prismaMock.subscriptionCharge.aggregate.mockResolvedValue({
+      _sum: { amountCents: null },
+    });
+    const { revenueThisMonthCents } = await (await GET()).json();
     expect(revenueThisMonthCents).toBe(0);
+  });
+
+  it("retorna periodLabel com ano atual", async () => {
+    setupCountMocks();
+    const { periodLabel } = await (await GET()).json();
+    const year = new Date().getFullYear().toString();
+    expect(periodLabel).toMatch(year);
+    expect(periodLabel).toMatch(/\d{4}$/);
+  });
+
+  it("retorna lastSyncAt quando ha subscriptions", async () => {
+    setupCountMocks();
+    const { lastSyncAt } = await (await GET()).json();
+    expect(lastSyncAt).toBe("2024-06-15T00:00:00.000Z");
+  });
+
+  it("retorna lastSyncAt null quando nao ha subscriptions", async () => {
+    setupCountMocks();
+    prismaMock.subscription.findFirst.mockResolvedValue(null);
+    const { lastSyncAt } = await (await GET()).json();
     expect(lastSyncAt).toBeNull();
   });
 
-  it("retorna periodLabel com mês e ano atuais em português", async () => {
-    vi.mocked(hotmartRequest).mockResolvedValue(apiResponse(0));
-
-    const { periodLabel } = await (await GET()).json();
-    const now = new Date();
-    const year = now.getFullYear().toString();
-
-    expect(periodLabel).toMatch(year);
-    // Verifica que é uma string não vazia com formato "Mês Ano"
-    expect(periodLabel).toMatch(/^[A-Za-zÀ-ú]+ \d{4}$/);
-  });
-
-  // ---------------------------------------------------------------------------
-  // Erros
-  // ---------------------------------------------------------------------------
-
-  it("retorna 400 quando HOTMART_PRODUCT_ID não está configurado", async () => {
-    delete process.env.HOTMART_PRODUCT_ID;
-
+  it("retorna 500 quando DB lanca erro", async () => {
+    prismaMock.subscription.count.mockRejectedValue(new Error("DB down"));
     const res = await GET();
     const body = await res.json();
-
-    expect(res.status).toBe(400);
-    expect(body.error).toMatch(/HOTMART_PRODUCT_ID/);
-  });
-
-  it("retorna 500 quando hotmartRequest lança erro", async () => {
-    vi.mocked(hotmartRequest).mockRejectedValue(new Error("API timeout"));
-
-    const res = await GET();
-    const body = await res.json();
-
     expect(res.status).toBe(500);
     expect(body.error).toBeTruthy();
-    expect(body.detail).toContain("API timeout");
-  });
-
-  it("retorna 500 mesmo quando apenas uma das chamadas falha", async () => {
-    vi.mocked(hotmartRequest)
-      .mockResolvedValueOnce(apiResponse(3)) // ACTIVE ok
-      .mockRejectedValueOnce(new Error("partial failure")); // CANCELLED falha
-
-    const res = await GET();
-
-    expect(res.status).toBe(500);
+    expect(body.detail).toContain("DB down");
   });
 });
