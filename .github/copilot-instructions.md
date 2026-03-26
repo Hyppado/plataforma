@@ -40,7 +40,7 @@ Não introduza complexidade sem necessidade.
 
 - `app/`: páginas, layouts e route handlers do App Router
 - `app/api/`: rotas de API
-- `app/dashboard/`: área autenticada (/dashboard/*)
+- `app/dashboard/`: área autenticada (/dashboard/\*)
 - `app/components/`: componentes de UI
 - `lib/`: lógica de negócio, integrações, auth, acesso, quotas e serviços
 - `prisma/`: schema e seed
