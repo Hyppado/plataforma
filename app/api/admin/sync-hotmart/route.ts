@@ -15,6 +15,9 @@ import { NextResponse } from "next/server";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncAll } from "@/lib/hotmart/sync";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/admin/sync-hotmart");
 
 export async function POST() {
   const auth = await requireAdmin();
@@ -45,7 +48,7 @@ export async function POST() {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[sync-hotmart] Erro durante sync:", message);
+    log.error("Sync failed", { error: message });
     return NextResponse.json(
       {
         success: false,

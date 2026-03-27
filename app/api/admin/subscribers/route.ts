@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/admin/subscribers");
 
 /**
  * GET /api/admin/subscribers
@@ -121,7 +124,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("[admin/subscribers] Erro:", error);
+    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Erro ao buscar assinantes", detail: String(error) },
       { status: 500 },

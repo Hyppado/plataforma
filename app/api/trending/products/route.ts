@@ -12,6 +12,9 @@ import {
   getAvailableRegions,
 } from "@/lib/echotik/trending";
 import type { ProductDTO } from "@/lib/types/dto";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/trending/products");
 
 export const dynamic = "force-dynamic";
 
@@ -139,7 +142,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching products:", error);
+    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { success: false, error: "Failed to load products" },
       { status: 500 },

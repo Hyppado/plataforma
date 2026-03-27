@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Category } from "@/lib/categories";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/echotik/categories");
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +62,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("[categories] Erro na rota:", error);
+    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
 
     return NextResponse.json(
       {

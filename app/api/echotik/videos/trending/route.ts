@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/echotik/videos/trending");
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +151,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("[api/echotik/videos/trending] Erro:", error);
+    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       {
         videos: [],

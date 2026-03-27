@@ -8,6 +8,10 @@
  * Veja: https://developers.hotmart.com/docs/pt-BR/sandbox/
  */
 
+import { createLogger } from "../logger";
+
+const log = createLogger("hotmart/config");
+
 function requireEnv(key: string): string {
   const value = process.env[key]?.trim();
   if (!value) {
@@ -29,9 +33,8 @@ export function getHotmartConfig() {
 
   if (sandbox) {
     // Emite aviso visível nos logs para evitar uso acidental em produção
-    console.warn(
-      "[Hotmart] ⚠️  SANDBOX MODE ATIVO — todas as chamadas apontam para " +
-        "https://sandbox.hotmart.com. Não use em produção.",
+    log.warn(
+      "SANDBOX MODE ACTIVE — all calls point to sandbox.hotmart.com. Do not use in production.",
     );
   }
 

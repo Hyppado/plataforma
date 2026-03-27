@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/admin/subscription-metrics");
 
 /**
  * GET /api/admin/subscription-metrics
@@ -78,7 +81,7 @@ export async function GET() {
       lastSyncAt: lastSync?.updatedAt?.toISOString() ?? null,
     });
   } catch (error) {
-    console.error("[admin/subscription-metrics] Erro:", error);
+    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Erro ao calcular métricas", detail: String(error) },
       { status: 500 },

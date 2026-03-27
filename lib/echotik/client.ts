@@ -27,6 +27,10 @@ export interface EchotikError extends Error {
   body?: string;
 }
 
+import { createLogger } from "../logger";
+
+const log = createLogger("echotik/client");
+
 // ---------------------------------------------------------------------------
 // Helpers internos
 // ---------------------------------------------------------------------------
@@ -153,9 +157,7 @@ export async function echotikRequest<T = unknown>(
     // Back-off exponencial antes de retry
     if (attempt < retries) {
       const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
-      console.warn(
-        `[echotik-client] Tentativa ${attempt}/${retries} falhou, retry em ${delay}ms…`,
-      );
+      log.warn("Retry failed, retrying", { attempt, retries, delayMs: delay });
       await sleep(delay);
     }
   }
