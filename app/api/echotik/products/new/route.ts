@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isAuthed } from "@/lib/auth";
 import { getNewProducts } from "@/lib/echotik/products";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,9 @@ export const dynamic = "force-dynamic";
  * As credenciais da Echotik ficam exclusivamente no servidor.
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
 

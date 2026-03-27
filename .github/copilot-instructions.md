@@ -171,14 +171,46 @@ vitest.component.config.ts    → config jsdom (testes de componentes React)
 
 ## Auth e acesso
 
-- O middleware protege `/dashboard/*` e `/api/admin/*`.
-- Rotas admin exigem role de admin no servidor.
-- O controle de acesso é calculado em runtime.
-- Cadeia de acesso atual:
-  1. status do usuário bloqueia acesso se suspenso/deletado
-  2. `AccessGrant` pode conceder override
-  3. assinatura ativa concede acesso
-  4. fallback sem acesso
+### Regra global — nada é público
+
+- **Toda rota em `app/api/**` exige autenticação server-side\*\*, sem exceção.
+- O padrão obrigatório para rotas privadas é:
+  ```ts
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth; // retorna 401
+  ```
+- Para rotas admin, usar `requireAdmin()` (retorna 401 se não autenticado, 403 se não for admin).
+- Não confiar no middleware sozinho: toda rota deve ter guard interno.
+- Não criar rota pública sem decisão formal e documentada.
+
+### Exceções legítimas à autenticação por sessão
+
+- **Webhooks externos** (ex: `/api/webhooks/hotmart`) — não usam sessão NextAuth.
+  Devem ter validação própria forte de assinatura/origem (HMAC ou header oficial).
+  Tratar todo input como não confiável. Aplicar idempotência.
+- **Cron routes** (`/api/cron/*`) — autenticadas por `CRON_SECRET` no header `Authorization: Bearer`.
+  Não aceitam sessão de usuário. Não expor para o browser.
+- **NextAuth handler** (`/api/auth/[...nextauth]`) — gerenciado pelo NextAuth internamente.
+
+### Helpers de auth (`lib/auth.ts`)
+
+- `requireAuth()` — retorna `{ session, userId, role }` ou `NextResponse 401`
+- `requireAdmin()` — retorna `{ session, userId, role }` ou `NextResponse 401/403`
+- `isAuthed(result)` — type guard para distinguir sucesso de resposta de erro
+
+### Middleware
+
+- O middleware (`middleware.ts`) protege `/dashboard/*` e `/api/admin/*` a nível de roteamento.
+- Para todas as outras rotas em `app/api/`, a autenticação é garantida pelo guard interno.
+- Os dois mecanismos são complementares — não substituem um ao outro.
+
+### Cadeia de acesso
+
+1. status do usuário bloqueia acesso se suspenso/deletado
+2. `AccessGrant` pode conceder override
+3. assinatura ativa concede acesso
+4. fallback sem acesso
+
 - Não persistir estado derivado de acesso se ele puder ser resolvido corretamente em runtime.
 - Não criar bypass novo de autorização fora do padrão existente.
 
@@ -269,15 +301,18 @@ O cron foi refatorado para arquitetura modular e region-scoped para respeitar o 
 ## Testes
 
 ### Counts atuais (referência — março 2026)
+
 - **407 testes unitários** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
 - **46 testes de componentes** (vitest, jsdom env, `__tests__/components/`)
 - **Total: 453 testes**, todos passando
 
 ### Configs de vitest
+
 - `vitest.config.ts` — ambiente `node`, inclui `**/*.test.ts` (unitários)
 - `vitest.component.config.ts` — ambiente `jsdom`, inclui `__tests__/components/**/*.test.{ts,tsx}`
 
 ### Scripts de teste
+
 ```
 npm run test                → vitest run (node)
 npm run test:components     → vitest run --config vitest.component.config.ts (jsdom)
@@ -288,6 +323,7 @@ npm run test:coverage       → vitest run --coverage
 ```
 
 ### Regras
+
 - Novas mudanças em backend, auth, acesso, usage, Hotmart, admin e cron devem vir com testes.
 - Novos testes unitários: `__tests__/` espelhando estrutura de `lib/` ou `app/api/`, usar `prismaMock`.
 - Novos testes de componentes: `__tests__/components/`, importar setup via `vitest.component.config.ts`.
@@ -295,10 +331,12 @@ npm run test:coverage       → vitest run --coverage
 - Se alterar regra de negócio crítica, atualizar ou criar teste antes de refatorar.
 
 ### Setup RTL (`__tests__/components/setup.tsx`)
+
 Já configura: jest-dom matchers, mocks de `matchMedia`, `ResizeObserver`, `IntersectionObserver`,
 `next/navigation`, `next/link`, `next/image` (com `priority → loading`), `next-auth/react`.
 
 ### E2E (Playwright)
+
 - Specs em `e2e/`: `smoke.spec.ts` (rotas públicas + redirect de auth), `login.spec.ts` (formulário).
 - Config em `playwright.config.ts`: usa `webServer` para subir `next dev` automaticamente com env vars dummy.
 - Browsers instalados: Chromium. CI usa `workers: 1` e `retries: 2`.
@@ -308,6 +346,7 @@ Já configura: jest-dom matchers, mocks de `matchMedia`, `ResizeObserver`, `Inte
 Pipeline em `.github/workflows/ci.yml`, roda em push/PR para `develop` e `main`.
 
 Jobs em ordem de dependência:
+
 1. **typecheck** — `npx tsc --noEmit` + `prisma generate`
 2. **unit-tests** — `npm run test` + `npm run test:components`
 3. **build** — `npm run build`
@@ -385,3 +424,14 @@ Refatorar quando houver duplicação real, risco de bug, acoplamento excessivo,
 arquivo muito grande, baixa testabilidade ou regra duplicada em mais de um lugar.
 
 Não refatorar só por estética se isso aumentar risco sem ganho real.
+
+- Nothing in this project is public. There are no public API routes.
+- Every route in `app/api/**` must require server-side authentication (session via NextAuth).
+- The mandatory pattern is `requireAuth()` / `isAuthed()` from `lib/auth.ts`.
+- Admin routes must use `requireAdmin()` — never just a frontend role check.
+- Do not create anonymous API routes. Not even "temporarily".
+- Do not rely on frontend checks for protected operations.
+- Do not rely on middleware alone — every route must have an internal auth guard.
+- The only valid exceptions are: webhooks (auth by HMAC/signature) and cron routes (auth by CRON_SECRET).
+- Webhooks must validate payload origin with HMAC or official header — token-compare alone is not enough.
+- Any new public-facing endpoint requires a formal, documented decision before creation.
