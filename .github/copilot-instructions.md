@@ -158,6 +158,7 @@ vitest.component.config.ts    → config jsdom (testes de componentes React)
 - Sempre usar `try/catch`.
 - Respostas de erro devem seguir padrão JSON com campo `error`.
 - Não duplicar validação de regra de negócio na rota se ela já existir no serviço.
+- Imports dentro de route handlers devem usar alias `@/` — nunca caminhos relativos (`../../../../lib/...`).
 
 ## Arquitetura — onde colocar cada coisa
 
@@ -251,6 +252,18 @@ O cron foi refatorado para arquitetura modular e region-scoped para respeitar o 
 - Novas mudanças devem preservar: retry, auditabilidade, separação recepção/processamento,
   compatibilidade com fluxo atual de assinaturas e reconciliação.
 
+### Validação do webhook Hotmart
+
+- O Hotmart usa token estático (`X-Hotmart-Hottok`) configurado no painel Developers → Webhooks.
+- A validação é feita em `lib/hotmart/webhook.ts` → `verifySignature(headers, rawBody)`.
+- **Regras obrigatórias**:
+  - Comparação sempre com `timingSafeEqual` (módulo `crypto`) — nunca `===` direto para secrets.
+  - **Fail closed**: se `HOTMART_WEBHOOK_SECRET` não estiver configurado, a requisição é **rejeitada**. Sem fallback permissivo em qualquer ambiente.
+  - Mensagem de erro **não deve revelar** nenhuma parte do secret (nem prefixo, nem tamanho).
+  - O parâmetro `rawBody: Buffer` é mantido na assinatura de `verifySignature` para suportar HMAC futuro se a Hotmart adotar.
+- Não alterar o comportamento de idempotência (chave SHA-256 determinística via `buildIdempotencyKey`).
+- Não processar o mesmo evento mais de uma vez — constraint `UNIQUE` no banco é a garantia.
+
 ## Logs e observabilidade
 
 - Usar `createLogger(source, correlationId)` de `lib/logger.ts` — retorna `Logger` estruturado.
@@ -302,9 +315,9 @@ O cron foi refatorado para arquitetura modular e region-scoped para respeitar o 
 
 ### Counts atuais (referência — março 2026)
 
-- **407 testes unitários** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **417 testes unitários** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
 - **46 testes de componentes** (vitest, jsdom env, `__tests__/components/`)
-- **Total: 453 testes**, todos passando
+- **Total: 463 testes**, todos passando
 
 ### Configs de vitest
 
@@ -362,6 +375,10 @@ Artifacts de falha do Playwright são enviados para `e2e/.artifacts/` (retençã
 - Validar entradas e payloads em rotas sensíveis.
 - Em cron e integrações, falhar com segurança e registrar o suficiente para diagnóstico.
 - Em webhooks, preservar comportamento atual para evitar reentrega indevida.
+- **Comparação de secrets**: sempre usar `timingSafeEqual` do módulo nativo `crypto` — nunca `===` ou `!==` direto.
+- **Fail closed**: serviços que dependem de secret configurado devem rejeitar a operação quando o secret está ausente, não aceitar permissivamente.
+- **Sem hint em erros**: mensagens de erro não devem revelar partes do secret (nem prefixo, nem tamanho, nem hash).
+- **Headers CORS**: não adicionar `Access-Control-Allow-Origin: *` em rotas autenticadas — a autenticação por sessão já é incompatível com wildcard.
 
 ## Regras de organização
 
@@ -384,6 +401,11 @@ Artifacts de falha do Playwright são enviados para `e2e/.artifacts/` (retençã
 - Não usar `console.log` — usar `createLogger`.
 - Não chamar `new PrismaClient()` fora de `lib/prisma.ts`.
 - Não usar `useEffect` + `fetch` manual para novos dados no cliente — usar SWR.
+- Não usar caminhos relativos (`../../../../lib/...`) em route handlers — usar alias `@/`.
+- Não comparar secrets com `===` ou `!==` — usar `timingSafeEqual` do módulo `crypto`.
+- Não criar rota de API sem guard interno de autenticação (`requireAuth` ou `requireAdmin`).
+- Não deixar secret ausente ser tratado como modo permissivo — falhar fechado.
+- Não adicionar `Access-Control-Allow-Origin: *` em rotas autenticadas.
 
 ## Prioridades de manutenção ao mexer no projeto
 
@@ -398,7 +420,7 @@ Artifacts de falha do Playwright são enviados para `e2e/.artifacts/` (retençã
 ## Validação obrigatória antes de marcar tarefa como concluída
 
 - Rodar `npm run build` e confirmar exit code 0.
-- Rodar `npm run test:all` e confirmar que todos os 453 testes passam.
+- Rodar `npm run test:all` e confirmar que todos os 463 testes passam.
 - Se o build ou os testes quebrarem, corrigir antes de commitar.
 - Isso vale para qualquer mudança: refatoração, remoção de arquivos, nova feature, fix.
 
@@ -433,5 +455,6 @@ Não refatorar só por estética se isso aumentar risco sem ganho real.
 - Do not rely on frontend checks for protected operations.
 - Do not rely on middleware alone — every route must have an internal auth guard.
 - The only valid exceptions are: webhooks (auth by HMAC/signature) and cron routes (auth by CRON_SECRET).
-- Webhooks must validate payload origin with HMAC or official header — token-compare alone is not enough.
+- Webhooks must validate payload origin with a strong mechanism — use `timingSafeEqual` for token comparison, never `===`.
+- Webhook validation must be fail closed: missing secret = reject, not accept.
 - Any new public-facing endpoint requires a formal, documented decision before creation.
