@@ -20,21 +20,12 @@ vi.mock("@/lib/prisma", () => {
   return { prisma: mock, default: mock };
 });
 
-vi.mock("../../../../lib/prisma", () => {
-  const mock = {
-    hotmartWebhookEvent: {
-      create: vi.fn(),
-    },
-  };
-  return { prisma: mock, default: mock };
-});
-
 vi.mock("@/lib/hotmart/processor", () => ({
   processHotmartEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../../../../lib/hotmart/processor", () => ({
-  processHotmartEvent: vi.fn().mockResolvedValue(undefined),
+vi.mock("@/lib/admin/notifications", () => ({
+  createNotificationIfNeeded: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -84,6 +75,18 @@ describe("POST /api/webhooks/hotmart", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildHotmartWebhookPayload()),
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(401);
+  });
+
+  it("SECURITY: rejects when HOTMART_WEBHOOK_SECRET is not configured (fail closed)", async () => {
+    delete process.env.HOTMART_WEBHOOK_SECRET;
+    delete process.env.HOTTOK;
+    const { POST } = await importRoute();
+    // Even a request matching the now-absent secret should be rejected
+    const req = makeWebhookRequest(buildHotmartWebhookPayload(), {
+      "x-hotmart-hottok": "any-token",
     });
     const res = await POST(req as any);
     expect(res.status).toBe(401);

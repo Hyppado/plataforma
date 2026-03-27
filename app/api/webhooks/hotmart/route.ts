@@ -3,29 +3,35 @@
  * Endpoint: POST /api/webhooks/hotmart
  *
  * Responsabilidades:
- *  1. Lê o body bruto (para futura validação de assinatura)
- *  2. Valida assinatura (placeholder)
+ *  1. Lê o body bruto — necessário para comparação de token e eventual HMAC
+ *  2. Valida assinatura via HOTMART_WEBHOOK_SECRET (timing-safe, fail closed)
  *  3. Extrai campos do payload
  *  4. Gera idempotencyKey determinística
  *  5. Persiste evento bruto na tabela HotmartWebhookEvent
  *     - Se UNIQUE constraint falhar → evento duplicado → retorna 200
  *  6. Chama processHotmartEvent em background (não bloqueia resposta)
  *  7. Retorna 200 rapidamente (Hotmart exige resposta < 5s)
+ *
+ * Autenticação: token estático X-Hotmart-Hottok (não usa sessão NextAuth).
+ * Exceção documentada: webhook externo autenticado por token compartilhado.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import prisma from "../../../../lib/prisma";
+import { prisma } from "@/lib/prisma";
+import { createLogger } from "@/lib/logger";
 import type { Prisma } from "@prisma/client";
 import {
   verifySignature,
   extractWebhookFields,
   buildIdempotencyKey,
-} from "../../../../lib/hotmart/webhook";
-import { processHotmartEvent } from "../../../../lib/hotmart/processor";
-import { createNotificationIfNeeded } from "../../../../lib/admin/notifications";
+} from "@/lib/hotmart/webhook";
+import { processHotmartEvent } from "@/lib/hotmart/processor";
+import { createNotificationIfNeeded } from "@/lib/admin/notifications";
 
 export const dynamic = "force-dynamic";
+
+const log = createLogger("webhooks/hotmart");
 
 // Hotmart precisa de resposta em < 5s. Persistimos o evento e processamos depois.
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -33,16 +39,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawBuffer = Buffer.from(await req.arrayBuffer());
   const rawText = rawBuffer.toString("utf-8");
 
-  // 2. Valida assinatura (placeholder — não lança por enquanto)
+  // 2. Valida assinatura — timing-safe, fail closed
   try {
     verifySignature(req.headers, rawBuffer);
   } catch (err) {
-    console.warn(
-      "[Hotmart Webhook] Assinatura inválida:",
-      (err as Error).message,
-    );
+    log.warn("Token inválido", { error: (err as Error).message });
 
-    // Notifica admin sobre tentativa com HOTTOK inválido
+    // Notifica admin sobre tentativa com token inválido
     waitUntil(
       createNotificationIfNeeded({
         eventType: "WEBHOOK_INVALID",
@@ -125,17 +128,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    console.error("[Hotmart Webhook] Erro ao salvar evento:", err);
+    log.error("Erro ao salvar evento", { error: String(err) });
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 
   // 7. Processa via waitUntil — garante execução após resposta no Vercel
   waitUntil(
     processHotmartEvent(eventId, fields).catch((err) => {
-      console.error(
-        `[Hotmart Webhook] Falha ao processar evento ${eventId}:`,
-        (err as Error).message,
-      );
+      log.error(`Falha ao processar evento ${eventId}`, {
+        error: (err as Error).message,
+      });
     }),
   );
 

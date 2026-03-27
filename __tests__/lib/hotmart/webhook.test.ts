@@ -27,14 +27,14 @@ describe("verifySignature()", () => {
   it("rejects invalid HOTTOK", () => {
     const headers = new Headers({ "x-hotmart-hottok": "wrong-token" });
     expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
-      "HOTTOK inválido",
+      "Token inválido",
     );
   });
 
   it("rejects missing HOTTOK header", () => {
     const headers = new Headers();
     expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
-      "HOTTOK inválido",
+      "Token inválido",
     );
   });
 
@@ -45,31 +45,41 @@ describe("verifySignature()", () => {
     expect(() => verifySignature(headers, Buffer.from(""))).not.toThrow();
   });
 
-  it("accepts all requests when no secret is configured (dev mode)", () => {
+  it("SECURITY: fails closed when no secret is configured", () => {
+    delete process.env.HOTMART_WEBHOOK_SECRET;
+    delete process.env.HOTTOK;
+    const headers = new Headers({ "x-hotmart-hottok": "any-token" });
+    // Must reject — fail closed, not permissive
+    expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
+      "HOTMART_WEBHOOK_SECRET não configurado",
+    );
+  });
+
+  it("SECURITY: rejects even empty header when no secret configured", () => {
     delete process.env.HOTMART_WEBHOOK_SECRET;
     delete process.env.HOTTOK;
     const headers = new Headers();
-    // Should not throw — permissive mode
-    expect(() => verifySignature(headers, Buffer.from(""))).not.toThrow();
+    expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
+      "HOTMART_WEBHOOK_SECRET não configurado",
+    );
   });
 
-  // SECURITY: This is a documented gap — secret should be required in production
-  it("SECURITY: without secret, any request is accepted (dev-only)", () => {
-    delete process.env.HOTMART_WEBHOOK_SECRET;
-    delete process.env.HOTTOK;
-    const headers = new Headers({ "x-hotmart-hottok": "malicious-token" });
-    expect(() => verifySignature(headers, Buffer.from(""))).not.toThrow();
+  it("SECURITY: rejects token with correct prefix but wrong suffix", () => {
+    // Regression: timing-safe comparison must not leak prefix match
+    const headers = new Headers({ "x-hotmart-hottok": "test-" });
+    expect(() => verifySignature(headers, Buffer.from(""))).toThrow();
   });
 
-  it("does not leak full secret in error message", () => {
+  it("does not leak secret in error message", () => {
     const headers = new Headers({ "x-hotmart-hottok": "wrong" });
     try {
       verifySignature(headers, Buffer.from(""));
     } catch (e) {
       const msg = (e as Error).message;
-      // Should only show first 4 chars of expected secret
-      expect(msg).toContain("test…");
+      // Must not contain any portion of the secret
       expect(msg).not.toContain("test-hottok-secret");
+      expect(msg).not.toContain("test-");
+      expect(msg).not.toContain("test");
     }
   });
 });
