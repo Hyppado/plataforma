@@ -151,7 +151,9 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         videos: [],

@@ -23,7 +23,9 @@ export async function GET() {
     const config = await getPromptConfigFromDB();
     return NextResponse.json(config);
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to load prompt config" },
       { status: 500 },
@@ -56,7 +58,9 @@ export async function PUT(req: NextRequest) {
     await savePromptConfigToDB(body);
     return NextResponse.json(body);
   } catch (error) {
-    log.error("PUT failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("PUT failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to save prompt config" },
       { status: 500 },

@@ -142,7 +142,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to load products" },
       { status: 500 },

@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to fetch collections" },
       { status: 500 },
@@ -73,7 +75,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: dto });
   } catch (error) {
-    log.error("POST failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("POST failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to create collection" },
       { status: 500 },
@@ -109,7 +113,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { deleted: id } });
   } catch (error) {
-    log.error("DELETE failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("DELETE failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to delete collection" },
       { status: 500 },

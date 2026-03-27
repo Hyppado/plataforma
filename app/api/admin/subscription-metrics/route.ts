@@ -81,7 +81,9 @@ export async function GET() {
       lastSyncAt: lastSync?.updatedAt?.toISOString() ?? null,
     });
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Erro ao calcular métricas", detail: String(error) },
       { status: 500 },

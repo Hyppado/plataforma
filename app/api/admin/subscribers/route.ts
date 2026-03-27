@@ -124,7 +124,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Erro ao buscar assinantes", detail: String(error) },
       { status: 500 },

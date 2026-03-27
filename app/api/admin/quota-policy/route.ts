@@ -21,7 +21,9 @@ export async function GET() {
     const policy = await getQuotaPolicyFromDB();
     return NextResponse.json(policy);
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to load quota policy" },
       { status: 500 },
@@ -62,7 +64,9 @@ export async function PUT(req: NextRequest) {
     await saveQuotaPolicyToDB(updated);
     return NextResponse.json(updated);
   } catch (error) {
-    log.error("PUT failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("PUT failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to save quota policy" },
       { status: 500 },

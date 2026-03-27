@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
-    log.error("GET failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to fetch notes" },
       { status: 500 },
@@ -93,7 +95,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: dto });
   } catch (error) {
-    log.error("POST/PATCH failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("POST/PATCH failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to create note" },
       { status: 500 },
@@ -129,7 +133,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { deleted: id } });
   } catch (error) {
-    log.error("DELETE failed", { error: error instanceof Error ? error.message : String(error) });
+    log.error("DELETE failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to delete note" },
       { status: 500 },

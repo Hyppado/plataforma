@@ -28,7 +28,9 @@ export async function GET() {
 
     return NextResponse.json({ regions }, { status: 200 });
   } catch (err) {
-    log.error("Failed to fetch regions, returning fallback", { error: err instanceof Error ? err.message : String(err) });
+    log.error("Failed to fetch regions, returning fallback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     // Fallback: devolve ao menos BR para não quebrar o header
     return NextResponse.json({ regions: ["BR"] }, { status: 200 });
   }

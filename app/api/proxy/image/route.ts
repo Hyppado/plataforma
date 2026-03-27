@@ -108,7 +108,9 @@ async function proxyEchotikImage(coverUrl: string) {
 
     return buildImageResponse(upstream);
   } catch (err) {
-    log.error("Upstream error", { error: err instanceof Error ? err.message : String(err) });
+    log.error("Upstream error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return new NextResponse("Upstream error", { status: 502 });
   }
 }
@@ -171,7 +173,10 @@ async function proxyTikTokOembed(videoId: string) {
     });
 
     if (!res.ok) {
-      log.warn("oEmbed returned non-OK status", { status: res.status, videoId });
+      log.warn("oEmbed returned non-OK status", {
+        status: res.status,
+        videoId,
+      });
       return new NextResponse(null, { status: 404 });
     }
 
@@ -191,7 +196,9 @@ async function proxyTikTokOembed(videoId: string) {
       },
     });
   } catch (err) {
-    log.error("oEmbed fetch error", { error: err instanceof Error ? err.message : String(err) });
+    log.error("oEmbed fetch error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return new NextResponse("Upstream error", { status: 502 });
   }
 }
