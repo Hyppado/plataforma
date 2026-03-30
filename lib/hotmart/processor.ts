@@ -27,6 +27,9 @@
 import prisma from "../prisma";
 import type { HotmartWebhookFields } from "./webhook";
 import { createNotificationIfNeeded } from "../admin/notifications";
+import { createLogger } from "../logger";
+
+const log = createLogger("hotmart/processor");
 
 // ---------------------------------------------------------------------------
 // Tabelas de eventos
@@ -256,10 +259,13 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
       lastErr = err instanceof Error ? err : new Error(String(err));
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt] ?? 5000;
-        console.warn(
-          `[Hotmart Processor] ${label} tentativa ${attempt + 1}/${MAX_RETRIES} falhou, retry em ${delay}ms:`,
-          lastErr.message,
-        );
+        log.warn("Retry failed, retrying", {
+          label,
+          attempt: attempt + 1,
+          maxRetries: MAX_RETRIES,
+          delayMs: delay,
+          error: lastErr.message,
+        });
         await new Promise((r) => setTimeout(r, delay));
       }
     }
@@ -290,7 +296,10 @@ export async function processHotmartEvent(
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[Hotmart Processor] Falha definitiva:", message);
+    log.error("Permanent failure processing event", {
+      eventId: webhookEventId,
+      error: message,
+    });
 
     await prisma.hotmartWebhookEvent
       .update({
@@ -432,7 +441,9 @@ async function _processEvent(
         amountCents: fields.amountCents,
       },
     }).catch((err) => {
-      console.warn("[Hotmart Processor] Falha ao criar notificação:", err);
+      log.warn("Failed to create notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 
     // 6. Auto-suspensão em CHARGEBACK (proteção contra fraude)

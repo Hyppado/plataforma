@@ -1,23 +1,23 @@
 # Copilot Instructions — Hyppado
 
-## Produto
+## Product
 
-Hyppado é um SaaS de inteligência para TikTok Shop.
-O produto ajuda usuários a encontrar vídeos, produtos e creators em alta, com recortes por região e período.
-O acesso é autenticado e parte da experiência depende de assinatura/controle de acesso via Hotmart.
+Hyppado is a TikTok Shop intelligence SaaS.
+It helps users discover trending videos, products, and creators, filtered by region and time period.
+Access is authenticated and part of the experience depends on subscription/access control via Hotmart.
 
-## Objetivo destas instruções
+## Purpose of These Instructions
 
-Estas instruções existem para manter consistência arquitetural, segurança, legibilidade e compatibilidade.
-Antes de propor mudanças, entenda como o projeto já funciona hoje e preserve as decisões que já estão corretas.
-Não introduza complexidade sem necessidade.
+These instructions exist to maintain architectural consistency, security, readability, and compatibility.
+Before proposing changes, understand how the project currently works and preserve decisions that are already correct.
+Do not introduce unnecessary complexity.
 
 ## Git Workflow
 
-- Trabalhar na branch `develop`.
-- Para produção, abrir PR de `develop` para `main`.
-- Não fazer push direto em `main`, exceto hotfix crítico.
-- Usar conventional commits:
+- Work on the `develop` branch.
+- For production, open a PR from `develop` to `main`.
+- Do not push directly to `main`, except for critical hotfixes.
+- Use conventional commits:
   - `feat:`
   - `fix:`
   - `security:`
@@ -27,60 +27,60 @@ Não introduza complexidade sem necessidade.
 
 ## Stack
 
-- Next.js 14.1.0 com App Router
+- Next.js 14.1.0 with App Router
 - MUI v5 (emotion/styled, dark-first)
 - Prisma 5.22.0
-- PostgreSQL com Neon em produção
+- PostgreSQL with Neon in production
 - NextAuth 4.24.13
-- SWR 2.4.1 (data fetching no cliente)
+- SWR 2.4.1 (client-side data fetching)
 - Vitest 4.1.0 + Testing Library + Playwright 1.58.2
-- Deploy na Vercel (funções com limite de 60s)
-- Integrações principais: Echotik e Hotmart
+- Deployed on Vercel (functions with 60s limit)
+- Main integrations: Echotik and Hotmart
 
-## Estrutura atual do projeto
+## Current Project Structure
 
 ```
 app/
-  api/             → route handlers (finos — lógica vai para lib/)
-    admin/         → rotas administrativas protegidas
+  api/             → route handlers (thin — logic goes to lib/)
+    admin/         → protected admin routes
     auth/          → NextAuth handlers
-    cron/          → endpoints de cron (echotik, hotmart reconcile)
-    echotik/       → endpoints de dados Echotik
-    me/            → perfil do usuário autenticado
-    proxy/         → proxy de imagens externas
-    regions/       → CRUD de regiões ativas
-    trending/      → dados trending
-    usage/         → quotas do usuário
-    user/          → dados do usuário
-    webhooks/      → webhooks externos (Hotmart)
+    cron/          → cron endpoints (echotik, hotmart reconcile)
+    echotik/       → Echotik data endpoints
+    me/            → authenticated user profile
+    proxy/         → external image proxy
+    regions/       → active regions
+    trending/      → trending data
+    usage/         → user quotas
+    user/          → user data
+    webhooks/      → external webhooks (Hotmart)
   components/
-    BrandLogo.tsx  → componente de logo responsivo (usa next/image)
-    admin/         → componentes da área admin
-    cards/         → cards de vídeo, produto, creator, rank
-    dashboard/     → componentes do dashboard autenticado
+    BrandLogo.tsx  → responsive logo component (uses next/image)
+    admin/         → admin area components
+    cards/         → video, product, creator, rank cards
+    dashboard/     → authenticated dashboard components
     filters/       → CategoryFilter, TimeRangeSelect etc.
-    landing/       → componentes da landing page
-    layout/        → layout compartilhado (sidebar, header)
-    ui/            → primitivos reutilizáveis (Logo, etc.)
-    videos/        → componentes específicos de vídeos
-  dashboard/       → páginas autenticadas (/dashboard/*)
-  login/           → página de login
-  theme.ts         → MUI theme centralizado
+    landing/       → landing page components
+    layout/        → shared layout (sidebar, header)
+    ui/            → reusable primitives (Logo, etc.)
+    videos/        → video-specific components
+  dashboard/       → authenticated pages (/dashboard/*)
+  login/           → login page
+  theme.ts         → centralized MUI theme
 lib/
-  access/          → controle de acesso (AccessGrant, assinatura)
-  admin/           → serviços administrativos
+  access/          → access control (AccessGrant, subscription)
+  admin/           → admin services
     admin-client.ts
     config.ts
     notifications.ts
     prompt-config.ts
     useQuotaUsage.ts
-  auth.ts          → configuração NextAuth + callbacks
-  categories.ts    → mapeamento de categorias
+  auth.ts          → NextAuth config + callbacks
+  categories.ts    → category mapping
   echotik/
-    client.ts      → HTTP client para API Echotik
-    cron/          → módulos do cron de ingestão
+    client.ts      → HTTP client for Echotik API
+    cron/          → ingestion cron modules
       orchestrator.ts  → detectNextTask() → {task, region} | null
-      helpers.ts       → getConfiguredRegions() lê tabela Region do DB
+      helpers.ts       → getConfiguredRegions() reads Region table from DB
       syncVideos.ts    → syncVideoRanklist(runId, region, log)
       syncProducts.ts  → syncProductRanklist(runId, region, log)
       syncCreators.ts  → syncCreatorRanklist(runId, region, log)
@@ -88,230 +88,243 @@ lib/
       index.ts
       types.ts
     dates.ts / products.ts / rankFields.ts / trending.ts
-  filters/         → utilitários de filtro compartilhados
-  format.ts        → formatadores de número, data, moeda
+  filters/         → shared filter utilities
+  format.ts        → number, date, currency formatters
   hotmart/
     client.ts / config.ts / oauth.ts
-    processor.ts   → processamento de webhooks
-    reconcile.ts   → reconciliação de assinaturas
+    processor.ts   → webhook event processing
+    reconcile.ts   → subscription reconciliation
     sync.ts / webhook.ts
-  lgpd/            → consentimento e dados pessoais
-  logger.ts        → createLogger(source, correlationId) → Logger estruturado
-  prisma.ts        → singleton PrismaClient (SEMPRE usar este)
-  region.ts        → helpers de região
-  settings.ts      → configurações persistidas em banco
-  storage/         → armazenamento de arquivos
+  lgpd/            → consent and personal data (GDPR)
+  logger.ts        → createLogger(source, correlationId) → structured Logger
+  prisma.ts        → PrismaClient singleton (ALWAYS use this)
+  region.ts        → region helpers
+  settings.ts      → database-backed configuration
+  storage/         → file storage
   swr/
-    fetcher.ts     → fetcher padrão para SWR
+    fetcher.ts     → default SWR fetcher
     useCategories.ts
     useTrending.ts
   types/
-    admin.ts       → tipos da área admin
-    dto.ts         → DTOs compartilhados
-    echotik.ts     → tipos da API Echotik
-  usage/           → lógica de quotas e limites por plano
+    admin.ts       → admin area types
+    dto.ts         → shared DTOs
+    echotik.ts     → Echotik API types
+  usage/           → quota and plan limit logic
 prisma/
-  schema.prisma    → schema Prisma (inclui modelo Region)
-  seed.ts          → seed com regiões padrão BR, US, JP
+  schema.prisma    → Prisma schema (includes Region model)
+  seed.ts          → seed with default regions BR, US, JP
 __tests__/
-  api/             → testes de route handlers
-  components/      → testes RTL de componentes (jsdom)
-    setup.tsx      → setup: jest-dom, mocks MUI/Next/auth
+  api/             → route handler tests
+  components/      → RTL component tests (jsdom)
+    setup.tsx      → setup: jest-dom, mocks for MUI/Next/auth
     CategoryFilter.test.tsx
     LoginPage.test.tsx
     Logo.test.tsx
     RankBadge.test.tsx
     TimeRangeSelect.test.tsx
     VideoCardSkeleton.test.tsx
-  lib/             → testes de lógica de negócio
+  lib/             → business logic tests
   middleware.test.ts
   security.test.ts
   setup.ts
 e2e/
-  smoke.spec.ts    → smoke tests: rotas públicas + redirect de auth
-  login.spec.ts    → testes de interação do formulário de login
-middleware.ts      → proteção de rotas /dashboard/* e /api/admin/*
+  smoke.spec.ts    → smoke tests: public routes + auth redirect
+  login.spec.ts    → login form interaction tests
+middleware.ts      → route protection for /dashboard/* and /api/admin/*
 playwright.config.ts
-vitest.config.ts              → config node (testes de lib/api)
-vitest.component.config.ts    → config jsdom (testes de componentes React)
+vitest.config.ts              → node config (lib/api tests)
+vitest.component.config.ts    → jsdom config (React component tests)
 .github/
   workflows/
     ci.yml         → CI: typecheck → unit+component → build → e2e-smoke
 ```
 
-## Regras obrigatórias de código
+## Mandatory Code Rules
 
-- Usar sempre o singleton Prisma de `lib/prisma.ts`.
-- Nunca criar `new PrismaClient()` em handlers, páginas ou serviços novos.
-- Toda rota admin deve ter proteção server-side.
-- Toda rota de API deve tratar erro com resposta JSON consistente.
-- O idioma do código deve ser inglês: variáveis, funções, tipos, nomes internos.
-- Texto de interface pode permanecer em português.
-- Não usar `any` em tipos de domínio quando houver alternativa tipada.
-- Preferir DTOs e tipos já existentes em `lib/types/`.
+- Always use the Prisma singleton from `lib/prisma.ts`.
+- Never create `new PrismaClient()` in handlers, pages, or new services.
+- Every admin route must have server-side protection.
+- Every API route must handle errors with a consistent JSON response.
+- Code language must be English: variables, functions, types, internal names.
+- UI text may remain in Portuguese.
+- Do not use `any` in domain types when a typed alternative exists.
+- Prefer existing DTOs and types from `lib/types/`.
 
-## Regras para API routes
+## API Route Rules
 
-- Route handlers devem ser finos.
-- A lógica de negócio deve ir para `lib/<domínio>/`.
-- API route não deve concentrar regra de negócio complexa.
-- Sempre usar `try/catch`.
-- Respostas de erro devem seguir padrão JSON com campo `error`.
-- Não duplicar validação de regra de negócio na rota se ela já existir no serviço.
+- Route handlers must be thin.
+- Business logic must go to `lib/<domain>/`.
+- API routes must not concentrate complex business logic.
+- Always use `try/catch`.
+- Error responses must follow the JSON pattern with an `error` field.
+- Do not duplicate business rule validation in the route if it already exists in the service.
+- Imports inside route handlers must use the `@/` alias — never relative paths (`../../../../lib/...`).
 
-## Arquitetura — onde colocar cada coisa
+## Architecture — Where Things Go
 
-- Lógica de negócio: `lib/<domínio>/`
-- Integrações externas: dentro do domínio correspondente em `lib/`
-- Route handlers: `app/api/<domínio>/`
-- Componentes visuais: `app/components/<categoria>/`
-- Hooks SWR compartilhados: `lib/swr/`
-- Tipos compartilhados: `lib/types/dto.ts`, `lib/types/admin.ts`, `lib/types/echotik.ts`
-- Configuração persistida em banco: `lib/settings.ts` e serviços correlatos
+- Business logic: `lib/<domain>/`
+- External integrations: inside the corresponding domain in `lib/`
+- Route handlers: `app/api/<domain>/`
+- Visual components: `app/components/<category>/`
+- Shared SWR hooks: `lib/swr/`
+- Shared types: `lib/types/dto.ts`, `lib/types/admin.ts`, `lib/types/echotik.ts`
+- Database-backed configuration: `lib/settings.ts` and related services
 
-## Auth e acesso
+## Auth and Access
 
-### Regra global — nada é público
+### Global Rule — Nothing Is Public
 
-- **Toda rota em `app/api/**` exige autenticação server-side\*\*, sem exceção.
-- O padrão obrigatório para rotas privadas é:
+- **Every route in `app/api/**` requires server-side authentication\*\*, without exception.
+- The mandatory pattern for private routes is:
   ```ts
   const auth = await requireAuth();
-  if (!isAuthed(auth)) return auth; // retorna 401
+  if (!isAuthed(auth)) return auth; // returns 401
   ```
-- Para rotas admin, usar `requireAdmin()` (retorna 401 se não autenticado, 403 se não for admin).
-- Não confiar no middleware sozinho: toda rota deve ter guard interno.
-- Não criar rota pública sem decisão formal e documentada.
+- For admin routes, use `requireAdmin()` (returns 401 if unauthenticated, 403 if not admin).
+- Do not rely on middleware alone: every route must have an internal guard.
+- Do not create a public route without a formal, documented decision.
 
-### Exceções legítimas à autenticação por sessão
+### Valid Exceptions to Session Authentication
 
-- **Webhooks externos** (ex: `/api/webhooks/hotmart`) — não usam sessão NextAuth.
-  Devem ter validação própria forte de assinatura/origem (HMAC ou header oficial).
-  Tratar todo input como não confiável. Aplicar idempotência.
-- **Cron routes** (`/api/cron/*`) — autenticadas por `CRON_SECRET` no header `Authorization: Bearer`.
-  Não aceitam sessão de usuário. Não expor para o browser.
-- **NextAuth handler** (`/api/auth/[...nextauth]`) — gerenciado pelo NextAuth internamente.
+- **External webhooks** (e.g. `/api/webhooks/hotmart`) — do not use NextAuth sessions.
+  Must have strong own signature/origin validation (HMAC or official header).
+  Treat all input as untrusted. Apply idempotency.
+- **Cron routes** (`/api/cron/*`) — authenticated by `CRON_SECRET` in the `Authorization: Bearer` header.
+  Do not accept user sessions. Do not expose to the browser.
+- **NextAuth handler** (`/api/auth/[...nextauth]`) — managed internally by NextAuth.
 
-### Helpers de auth (`lib/auth.ts`)
+### Auth Helpers (`lib/auth.ts`)
 
-- `requireAuth()` — retorna `{ session, userId, role }` ou `NextResponse 401`
-- `requireAdmin()` — retorna `{ session, userId, role }` ou `NextResponse 401/403`
-- `isAuthed(result)` — type guard para distinguir sucesso de resposta de erro
+- `requireAuth()` — returns `{ session, userId, role }` or `NextResponse 401`
+- `requireAdmin()` — returns `{ session, userId, role }` or `NextResponse 401/403`
+- `isAuthed(result)` — type guard to distinguish success from an error response
 
 ### Middleware
 
-- O middleware (`middleware.ts`) protege `/dashboard/*` e `/api/admin/*` a nível de roteamento.
-- Para todas as outras rotas em `app/api/`, a autenticação é garantida pelo guard interno.
-- Os dois mecanismos são complementares — não substituem um ao outro.
+- The middleware (`middleware.ts`) protects `/dashboard/*` and `/api/admin/*` at the routing level.
+- For all other routes in `app/api/`, authentication is enforced by the internal guard.
+- Both mechanisms are complementary — they do not replace each other.
 
-### Cadeia de acesso
+### Access Chain
 
-1. status do usuário bloqueia acesso se suspenso/deletado
-2. `AccessGrant` pode conceder override
-3. assinatura ativa concede acesso
-4. fallback sem acesso
+1. User status blocks access if suspended/deleted
+2. `AccessGrant` can grant an override
+3. Active subscription grants access
+4. Fallback: no access
 
-- Não persistir estado derivado de acesso se ele puder ser resolvido corretamente em runtime.
-- Não criar bypass novo de autorização fora do padrão existente.
+- Do not persist derived access state if it can be correctly resolved at runtime.
+- Do not create new authorization bypasses outside the existing pattern.
 
-## Quotas e uso
+## Quotas and Usage
 
-- Toda lógica de quotas deve passar por `lib/usage/`.
-- Não duplicar lógica de plano para limites.
-- Não reimplementar cálculo de quotas em componentes, páginas ou handlers.
-- Consumo de quota deve continuar idempotente.
-- Se precisar alterar limites por plano, centralizar no ponto correto do domínio de usage.
+- All quota logic must go through `lib/usage/`.
+- Do not duplicate plan limit logic.
+- Do not re-implement quota calculations in components, pages, or handlers.
+- Quota consumption must remain idempotent.
+- To change per-plan limits, centralize in the correct point of the usage domain.
 
-## Integração com Echotik — cron e ingestão
+## Echotik Integration — Cron and Ingestion
 
-O cron foi refatorado para arquitetura modular e region-scoped para respeitar o limite de 60s da Vercel.
+The cron was refactored to a modular, region-scoped architecture to respect the Vercel 60s limit.
 
-- **Client HTTP**: `lib/echotik/client.ts`
-- **Orquestrador**: `lib/echotik/cron/orchestrator.ts`
+- **HTTP Client**: `lib/echotik/client.ts`
+- **Orchestrator**: `lib/echotik/cron/orchestrator.ts`
   - `detectNextTask(force?)` → `{ task, region } | null`
-  - Itera: categories → videos por região → products por região → creators por região → details
-  - Chaves de skip no formato `echotik:videos:BR`, `echotik:products:US`, etc.
-- **Sync functions**: cada uma recebe `(runId, region, log)` — uma região por invocação
-  - `syncVideoRanklist(runId, region, log)` em `syncVideos.ts`
-  - `syncProductRanklist(runId, region, log)` em `syncProducts.ts`
-  - `syncCreatorRanklist(runId, region, log)` em `syncCreators.ts`
-- **Regiões**: lidas exclusivamente da tabela `Region` do banco (`isActive=true`, `orderBy sortOrder`).
-  Fallback `["BR", "US", "JP"]` se o banco retornar vazio.
-  **Nunca usar variável de ambiente** para regiões.
-- **Seed padrão**: `prisma/seed.ts` sobe BR, US, JP.
-- Endpoint: `app/api/cron/echotik/route.ts` — aceita `?task=&region=&force=`
-- Não misturar ingestão, transformação, persistência e observabilidade no mesmo bloco.
-- Se adicionar comportamento novo, criar módulo separado em `lib/echotik/cron/`.
+  - Iterates: categories → videos per region → products per region → creators per region → details
+  - Skip keys in the format `echotik:videos:BR`, `echotik:products:US`, etc.
+- **Sync functions**: each receives `(runId, region, log)` — one region per invocation
+  - `syncVideoRanklist(runId, region, log)` in `syncVideos.ts`
+  - `syncProductRanklist(runId, region, log)` in `syncProducts.ts`
+  - `syncCreatorRanklist(runId, region, log)` in `syncCreators.ts`
+- **Regions**: read exclusively from the `Region` table in the database (`isActive=true`, `orderBy sortOrder`).
+  Fallback to `["BR", "US", "JP"]` if the database returns empty.
+  **Never use environment variables** for regions.
+- **Default seed**: `prisma/seed.ts` seeds BR, US, JP.
+- Endpoint: `app/api/cron/echotik/route.ts` — accepts `?task=&region=&force=`
+- Do not mix ingestion, transformation, persistence, and observability in the same block.
+- If adding new behavior, create a separate module in `lib/echotik/cron/`.
 
-## Integração com Hotmart
+## Hotmart Integration
 
 - Webhooks: `/api/webhooks/hotmart` → `lib/hotmart/processor.ts`
-- Reconciliação: cron dedicado → `lib/hotmart/reconcile.ts`
-- Notificações administrativas: `lib/admin/notifications.ts`
-- Novas mudanças devem preservar: retry, auditabilidade, separação recepção/processamento,
-  compatibilidade com fluxo atual de assinaturas e reconciliação.
+- Reconciliation: dedicated cron → `lib/hotmart/reconcile.ts`
+- Admin notifications: `lib/admin/notifications.ts`
+- New changes must preserve: retry, auditability, separation of reception/processing,
+  compatibility with the current subscription and reconciliation flow.
 
-## Logs e observabilidade
+### Hotmart Webhook Validation
 
-- Usar `createLogger(source, correlationId)` de `lib/logger.ts` — retorna `Logger` estruturado.
-- Nunca usar `console.log` como debugging solto.
-- Registrar apenas eventos operacionais realmente significativos.
-- Preservar auditabilidade das ações admin e eventos relevantes.
-- Não vazar segredos, tokens ou payloads sensíveis nos logs.
-- Em cron e integrações, passar o `logger` criado no início da invocação por toda a cadeia.
+- Hotmart uses a static token (`X-Hotmart-Hottok`) configured in the Developers → Webhooks panel.
+- Validation is done in `lib/hotmart/webhook.ts` → `verifySignature(headers, rawBody)`.
+- **Mandatory rules**:
+  - Always compare with `timingSafeEqual` (native `crypto` module) — never `===` directly for secrets.
+  - **Fail closed**: if `HOTMART_WEBHOOK_SECRET` is not configured, the request is **rejected**. No permissive fallback in any environment.
+  - Error message **must not reveal** any part of the secret (not prefix, not length).
+  - The `rawBody: Buffer` parameter is kept in the `verifySignature` signature to support future HMAC if Hotmart adopts it.
+- Do not change the idempotency behavior (deterministic SHA-256 key via `buildIdempotencyKey`).
+- Do not process the same event more than once — the `UNIQUE` constraint in the database is the guarantee.
+
+## Logs and Observability
+
+- Use `createLogger(source, correlationId)` from `lib/logger.ts` — returns a structured `Logger`.
+- Never use `console.log` for loose debugging.
+- Log only genuinely significant operational events.
+- Preserve auditability of admin actions and relevant events.
+- Do not leak secrets, tokens, or sensitive payloads in logs.
+- In cron and integrations, pass the `logger` created at the start of the invocation throughout the chain.
 
 ## Admin
 
-- A área admin deve continuar protegida no servidor.
-- Serviços em `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `prompt-config.ts`, `useQuotaUsage.ts`.
-- Não colocar segredo administrativo no frontend.
-- Não usar `localStorage` ou `sessionStorage` para armazenar segredo ou credencial sensível.
+- The admin area must remain protected on the server.
+- Services in `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `prompt-config.ts`, `useQuotaUsage.ts`.
+- Do not put administrative secrets in the frontend.
+- Do not use `localStorage` or `sessionStorage` to store secrets or sensitive credentials.
 
-## Frontend e componentes
+## Frontend and Components
 
-- Não criar componente novo com centenas de linhas se ele puder ser dividido.
-- Preferir componentização por responsabilidade (seção, card, tabela, diálogo, hook, helper).
-- Extrair partes reutilizáveis quando houver duplicação real.
-- Não deixar lógica de negócio complexa dentro de componente visual.
-- **Logo**: usar `app/components/ui/Logo.tsx` (`Box component="img"`) para contextos simples
-  ou `app/components/BrandLogo.tsx` (`next/image` com `fill`) para headers responsivos.
-  Não criar novo componente de logo.
+- Do not create a new component with hundreds of lines if it can be split.
+- Prefer componentization by responsibility (section, card, table, dialog, hook, helper).
+- Extract reusable parts when there is real duplication.
+- Do not leave complex business logic inside visual components.
+- **Logo**: use `app/components/ui/Logo.tsx` (`Box component="img"`) for simple contexts
+  or `app/components/BrandLogo.tsx` (`next/image` with `fill`) for responsive headers.
+  Do not create a new logo component.
 
-## Temas, design tokens e UI
+## Themes, Design Tokens and UI
 
-- MUI com `sx` como abordagem principal.
-- Theme centralizado em `app/theme.ts` — não criar novo `createTheme()`.
-- Não criar objetos `UI = { ... }` espalhados com tokens inline.
-- Manter coerência visual dark-first já existente.
+- MUI with `sx` as the primary approach.
+- Theme centralized in `app/theme.ts` — do not create a new `createTheme()`.
+- Do not create scattered `UI = { ... }` objects with inline tokens.
+- Maintain the existing dark-first visual consistency.
 
-## Data fetching no frontend
+## Frontend Data Fetching
 
-- O projeto usa **SWR** (`swr` 2.4.1) como padrão de data fetching no cliente.
-- Hooks SWR ficam em `lib/swr/`: `fetcher.ts`, `useCategories.ts`, `useTrending.ts`.
-- Não usar `useEffect` + `fetch` manual para novos dados — preferir SWR.
-- Manter tratamento de erro e loading state.
-- Não fazer fetch do próprio servidor via HTTP em contexto server-side; chamar o serviço diretamente.
+- The project uses **SWR** (`swr` 2.4.1) as the standard client-side data fetching pattern.
+- SWR hooks live in `lib/swr/`: `fetcher.ts`, `useCategories.ts`, `useTrending.ts`.
+- Do not use `useEffect` + manual `fetch` for new data — prefer SWR.
+- Maintain error handling and loading state.
+- Do not fetch from the server itself via HTTP in server-side context; call the service directly.
 
-## localStorage e persistência no cliente
+## localStorage and Client Persistence
 
-- `localStorage` só pode ser usado para comportamento realmente local do usuário.
-- Não usar para segredos, credenciais, configurações de sistema ou estado que precisa persistir no backend.
-- Configuração de sistema ou admin deve persistir no servidor via `lib/settings.ts`.
+- `localStorage` may only be used for genuinely local user behavior.
+- Do not use it for secrets, credentials, system configuration, or state that needs to persist on the backend.
+- System or admin configuration must be persisted on the server via `lib/settings.ts`.
 
-## Testes
+## Tests
 
-### Counts atuais (referência — março 2026)
+### Current Counts (reference — March 2026)
 
-- **407 testes unitários** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
-- **46 testes de componentes** (vitest, jsdom env, `__tests__/components/`)
-- **Total: 453 testes**, todos passando
+- **417 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **46 component tests** (vitest, jsdom env, `__tests__/components/`)
+- **Total: 463 tests**, all passing
 
-### Configs de vitest
+### Vitest Configs
 
-- `vitest.config.ts` — ambiente `node`, inclui `**/*.test.ts` (unitários)
-- `vitest.component.config.ts` — ambiente `jsdom`, inclui `__tests__/components/**/*.test.{ts,tsx}`
+- `vitest.config.ts` — `node` environment, includes `**/*.test.ts` (unit tests)
+- `vitest.component.config.ts` — `jsdom` environment, includes `__tests__/components/**/*.test.{ts,tsx}`
 
-### Scripts de teste
+### Test Scripts
 
 ```
 npm run test                → vitest run (node)
@@ -322,108 +335,117 @@ npm run test:e2e:ui         → playwright test --ui
 npm run test:coverage       → vitest run --coverage
 ```
 
-### Regras
+### Rules
 
-- Novas mudanças em backend, auth, acesso, usage, Hotmart, admin e cron devem vir com testes.
-- Novos testes unitários: `__tests__/` espelhando estrutura de `lib/` ou `app/api/`, usar `prismaMock`.
-- Novos testes de componentes: `__tests__/components/`, importar setup via `vitest.component.config.ts`.
-- Não criar teste decorativo; testar regra real.
-- Se alterar regra de negócio crítica, atualizar ou criar teste antes de refatorar.
+- New changes to backend, auth, access, usage, Hotmart, admin, and cron must come with tests.
+- New unit tests: `__tests__/` mirroring the structure of `lib/` or `app/api/`, use `prismaMock`.
+- New component tests: `__tests__/components/`, import setup via `vitest.component.config.ts`.
+- Do not create decorative tests; test real rules.
+- If changing a critical business rule, update or create a test before refactoring.
 
-### Setup RTL (`__tests__/components/setup.tsx`)
+### RTL Setup (`__tests__/components/setup.tsx`)
 
-Já configura: jest-dom matchers, mocks de `matchMedia`, `ResizeObserver`, `IntersectionObserver`,
-`next/navigation`, `next/link`, `next/image` (com `priority → loading`), `next-auth/react`.
+Already configures: jest-dom matchers, mocks for `matchMedia`, `ResizeObserver`, `IntersectionObserver`,
+`next/navigation`, `next/link`, `next/image` (with `priority → loading`), `next-auth/react`.
 
 ### E2E (Playwright)
 
-- Specs em `e2e/`: `smoke.spec.ts` (rotas públicas + redirect de auth), `login.spec.ts` (formulário).
-- Config em `playwright.config.ts`: usa `webServer` para subir `next dev` automaticamente com env vars dummy.
-- Browsers instalados: Chromium. CI usa `workers: 1` e `retries: 2`.
+- Specs in `e2e/`: `smoke.spec.ts` (public routes + auth redirect), `login.spec.ts` (form interaction).
+- Config in `playwright.config.ts`: uses `webServer` to start `next dev` automatically with dummy env vars.
+- Installed browsers: Chromium. CI uses `workers: 1` and `retries: 2`.
 
 ## CI — GitHub Actions
 
-Pipeline em `.github/workflows/ci.yml`, roda em push/PR para `develop` e `main`.
+Pipeline in `.github/workflows/ci.yml`, runs on push/PR to `develop` and `main`.
 
-Jobs em ordem de dependência:
+Jobs in dependency order:
 
 1. **typecheck** — `npx tsc --noEmit` + `prisma generate`
 2. **unit-tests** — `npm run test` + `npm run test:components`
 3. **build** — `npm run build`
-4. **e2e-smoke** — `playwright test --project=chromium` (depende de build)
+4. **e2e-smoke** — `playwright test --project=chromium` (depends on build)
 
-Artifacts de falha do Playwright são enviados para `e2e/.artifacts/` (retenção 7 dias).
+Playwright failure artifacts are uploaded to `e2e/.artifacts/` (retention: 7 days).
 
-## Segurança
+## Security
 
-- Não confiar em checagem apenas de frontend.
-- Toda autorização relevante deve existir no servidor.
-- Não expor secrets em código cliente.
-- Validar entradas e payloads em rotas sensíveis.
-- Em cron e integrações, falhar com segurança e registrar o suficiente para diagnóstico.
-- Em webhooks, preservar comportamento atual para evitar reentrega indevida.
+- Do not rely on frontend-only checks.
+- All relevant authorization must exist on the server.
+- Do not expose secrets in client code.
+- Validate inputs and payloads on sensitive routes.
+- In cron and integrations, fail safely and log enough for diagnosis.
+- In webhooks, preserve current behavior to avoid undue redelivery.
+- **Secret comparison**: always use `timingSafeEqual` from the native `crypto` module — never `===` or `!==` directly.
+- **Fail closed**: services that depend on a configured secret must reject the operation when the secret is absent, not accept permissively.
+- **No hints in errors**: error messages must not reveal any part of the secret (not prefix, not length, not hash).
+- **CORS headers**: do not add `Access-Control-Allow-Origin: *` on authenticated routes — session-based authentication is already incompatible with wildcards.
 
-## Regras de organização
+## Organization Rules
 
-- Não deixar arquivo crescer sem controle.
-- Não introduzir duplicação funcional.
-- Não criar diretórios, helpers ou serviços cenográficos.
-- Mudanças devem ser incrementais e seguras.
-- Se encontrar código morto, só remover após validar impacto.
+- Do not let files grow without control.
+- Do not introduce functional duplication.
+- Do not create cosmetic directories, helpers, or services.
+- Changes must be incremental and safe.
+- If you find dead code, only remove it after validating the impact.
 
-## Anti-patterns que não podem ser repetidos
+## Anti-Patterns That Must Not Be Repeated
 
-- Não criar objetos inline de design tokens tipo `UI = { ... }`.
-- Não criar novos themes divergentes.
-- Não criar componentes monolíticos com 500+ linhas.
-- Não duplicar lógica de quotas.
-- Não fazer fetch do próprio servidor por HTTP em contexto server-side.
-- Não deixar configuração importante só em `localStorage`.
-- Não aumentar arquivos já monolíticos sem extrair responsabilidade antes.
-- Não usar `ECHOTIK_REGIONS` env var — regiões vêm do banco.
-- Não usar `console.log` — usar `createLogger`.
-- Não chamar `new PrismaClient()` fora de `lib/prisma.ts`.
-- Não usar `useEffect` + `fetch` manual para novos dados no cliente — usar SWR.
+- Do not create inline design token objects like `UI = { ... }`.
+- Do not create new divergent themes.
+- Do not create monolithic components with 500+ lines.
+- Do not duplicate quota logic.
+- Do not fetch from the server itself via HTTP in server-side context.
+- Do not leave important configuration only in `localStorage`.
+- Do not grow already-monolithic files without extracting responsibility first.
+- Do not use the `ECHOTIK_REGIONS` env var — regions come from the database.
+- Do not use `console.log` — use `createLogger`.
+- Do not call `new PrismaClient()` outside of `lib/prisma.ts`.
+- Do not use `useEffect` + manual `fetch` for new client-side data — use SWR.
+- Do not use relative paths (`../../../../lib/...`) in route handlers — use the `@/` alias.
+- Do not compare secrets with `===` or `!==` — use `timingSafeEqual` from the `crypto` module.
+- Do not create an API route without an internal auth guard (`requireAuth` or `requireAdmin`).
+- Do not treat a missing secret as permissive mode — fail closed.
+- Do not add `Access-Control-Allow-Origin: *` on authenticated routes.
 
-## Prioridades de manutenção ao mexer no projeto
+## Maintenance Priorities When Working on the Project
 
-1. segurança
-2. compatibilidade funcional
-3. regras de acesso e quotas
-4. integridade de Hotmart/Echotik/cron
-5. testes
-6. organização e componentização
-7. melhorias cosméticas
+1. security
+2. functional compatibility
+3. access and quota rules
+4. Hotmart/Echotik/cron integrity
+5. tests
+6. organization and componentization
+7. cosmetic improvements
 
-## Validação obrigatória antes de marcar tarefa como concluída
+## Mandatory Validation Before Marking a Task as Done
 
-- Rodar `npm run build` e confirmar exit code 0.
-- Rodar `npm run test:all` e confirmar que todos os 453 testes passam.
-- Se o build ou os testes quebrarem, corrigir antes de commitar.
-- Isso vale para qualquer mudança: refatoração, remoção de arquivos, nova feature, fix.
+- Run `npm run build` and confirm exit code 0.
+- Run `npm run test:all` and confirm that all 463 tests pass.
+- If the build or tests break, fix before committing.
+- This applies to any change: refactoring, file removal, new feature, fix.
 
-## Como responder mudanças neste projeto
+## How to Respond to Changes in This Project
 
-Ao implementar algo:
+When implementing something:
 
-1. entender como a área já funciona
-2. apontar impacto
-3. aplicar mudança mínima segura
-4. sugerir refatoração maior só se necessário
+1. understand how the area already works
+2. identify the impact
+3. apply the minimum safe change
+4. suggest larger refactoring only if necessary
 
-Ao criar código:
+When writing code:
 
-- preferir solução simples
-- preservar convenções existentes
-- não reinventar fluxo já consolidado
-- evitar abstração excessiva
+- prefer simple solutions
+- preserve existing conventions
+- do not reinvent an already-consolidated flow
+- avoid excessive abstraction
 
-## Quando refatorar
+## When to Refactor
 
-Refatorar quando houver duplicação real, risco de bug, acoplamento excessivo,
-arquivo muito grande, baixa testabilidade ou regra duplicada em mais de um lugar.
+Refactor when there is real duplication, bug risk, excessive coupling,
+a file that is too large, low testability, or a rule duplicated in more than one place.
 
-Não refatorar só por estética se isso aumentar risco sem ganho real.
+Do not refactor purely for aesthetics if it increases risk without real gain.
 
 - Nothing in this project is public. There are no public API routes.
 - Every route in `app/api/**` must require server-side authentication (session via NextAuth).
@@ -433,5 +455,6 @@ Não refatorar só por estética se isso aumentar risco sem ganho real.
 - Do not rely on frontend checks for protected operations.
 - Do not rely on middleware alone — every route must have an internal auth guard.
 - The only valid exceptions are: webhooks (auth by HMAC/signature) and cron routes (auth by CRON_SECRET).
-- Webhooks must validate payload origin with HMAC or official header — token-compare alone is not enough.
+- Webhooks must validate payload origin with a strong mechanism — use `timingSafeEqual` for token comparison, never `===`.
+- Webhook validation must be fail closed: missing secret = reject, not accept.
 - Any new public-facing endpoint requires a formal, documented decision before creation.

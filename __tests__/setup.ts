@@ -22,7 +22,7 @@ process.env.HOTMART_PRODUCT_ID = "7420891";
 process.env.ECHOTIK_BASE_URL = "https://test.echotik.local";
 process.env.ECHOTIK_USERNAME = "test-echotik-user";
 process.env.ECHOTIK_PASSWORD = "test-echotik-pass";
-process.env.ECHOTIK_REGIONS = "BR,US";
+// Regions come from the database (Region table), not from env vars.
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/test";
 
 // ---------------------------------------------------------------------------

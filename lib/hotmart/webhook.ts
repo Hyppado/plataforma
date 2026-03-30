@@ -24,7 +24,7 @@
  *   body.data.subscription.status                → ACTIVE/CANCELED/DELAYED/EXPIRED
  */
 
-import { createHash } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -65,28 +65,52 @@ export interface HotmartWebhookFields {
 }
 
 // ---------------------------------------------------------------------------
-// Validação de assinatura (placeholder)
+// Validação de assinatura — token estático com comparação timing-safe
 // ---------------------------------------------------------------------------
 
 /**
+ * Compara dois strings com tempo constante, prevenindo timing attacks.
+ * Rejeita imediatamente se os comprimentos forem diferentes (sem vazar timing).
+ */
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) {
+    // Executa comparação dummy para manter constância de tempo
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
+/**
  * Valida o token HOTTOK enviado pela Hotmart no header X-Hotmart-Hottok.
- * O token é um segredo estático configurado no painel Hotmart → Webhooks.
- * Variável de ambiente: HOTMART_WEBHOOK_SECRET (env var) ou HOTTOK.
  *
- * Lança Error se o token estiver configurado e não corresponder.
- * Se HOTMART_WEBHOOK_SECRET não estiver definido, aceita todos (modo dev).
+ * O Hotmart envia um token estático configurado no painel Developers → Webhooks.
+ * A validação usa comparação timing-safe para prevenir timing attacks.
+ *
+ * Variável de ambiente obrigatória: HOTMART_WEBHOOK_SECRET (ou HOTTOK legado).
+ * Se não configurado, a requisição É REJEITADA — fail closed em qualquer ambiente.
+ *
+ * Lança Error se: token ausente, incorreto, ou secret não configurado.
+ *
+ * @param headers — headers da requisição recebida
+ * @param _rawBody — corpo bruto (reservado para validação futura se Hotmart adotar HMAC)
  */
 export function verifySignature(headers: Headers, _rawBody: Buffer): void {
   const secret = process.env.HOTMART_WEBHOOK_SECRET ?? process.env.HOTTOK;
+
+  // Fail closed: sem secret configurado = rejeita tudo
   if (!secret) {
-    // Sem secret configurado → modo permissivo (desenvolvimento)
-    return;
-  }
-  const received = headers.get("x-hotmart-hottok");
-  if (received !== secret) {
     throw new Error(
-      `[Hotmart Webhook] HOTTOK inválido: esperado "${secret.substring(0, 4)}…", recebido "${(received ?? "").substring(0, 4)}…"`,
+      "[Hotmart Webhook] HOTMART_WEBHOOK_SECRET não configurado. Requisição rejeitada.",
     );
+  }
+
+  const received = headers.get("x-hotmart-hottok") ?? "";
+
+  if (!timingSafeStringEqual(received, secret)) {
+    throw new Error("[Hotmart Webhook] Token inválido.");
   }
 }
 

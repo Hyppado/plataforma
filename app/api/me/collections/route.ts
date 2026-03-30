@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/me/collections");
 import type { CollectionDTO } from "@/lib/types/dto";
 
 export async function GET(request: NextRequest) {
@@ -33,7 +36,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
-    console.error("Error fetching collections:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to fetch collections" },
       { status: 500 },
@@ -70,7 +75,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: dto });
   } catch (error) {
-    console.error("Error creating collection:", error);
+    log.error("POST failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to create collection" },
       { status: 500 },
@@ -106,7 +113,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { deleted: id } });
   } catch (error) {
-    console.error("Error deleting collection:", error);
+    log.error("DELETE failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to delete collection" },
       { status: 500 },

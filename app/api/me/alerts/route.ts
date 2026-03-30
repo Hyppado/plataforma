@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import type { AlertDTO } from "@/lib/types/dto";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/me/alerts");
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -46,7 +49,9 @@ export async function GET(request: NextRequest) {
       data: { items: dtos, total, unreadCount },
     });
   } catch (error) {
-    console.error("Error fetching alerts:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to fetch alerts" },
       { status: 500 },
@@ -83,7 +88,9 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { id, read } });
   } catch (error) {
-    console.error("Error updating alert:", error);
+    log.error("PATCH failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to update alert" },
       { status: 500 },

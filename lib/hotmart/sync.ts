@@ -12,6 +12,9 @@
 import { PlanPeriod } from "@prisma/client";
 import { hotmartRequest } from "./client";
 import prisma from "../prisma";
+import { createLogger } from "../logger";
+
+const log = createLogger("hotmart/sync");
 
 // ---------------------------------------------------------------------------
 // Tipos da API Hotmart
@@ -90,7 +93,7 @@ export interface SyncOffersResult {
 export async function syncHotmartOffers(
   productId: string,
 ): Promise<SyncOffersResult> {
-  console.log(`[sync] Buscando offers para produto ${productId}...`);
+  log.info("Fetching offers", { productId });
 
   let data: HotmartOffersResponse;
   try {
@@ -99,12 +102,15 @@ export async function syncHotmartOffers(
       { params: { productId } },
     );
   } catch (err) {
-    console.error("[sync] Erro ao buscar offers:", err);
+    log.error("Failed to fetch offers", {
+      productId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { upserted: [], skipped: [], raw: [] };
   }
 
   const offers = data?.items ?? [];
-  console.log(`[sync] ${offers.length} offer(s) encontrados.`);
+  log.info("Offers fetched", { productId, count: offers.length });
 
   const upserted: string[] = [];
   const skipped: string[] = [];
@@ -170,7 +176,7 @@ export interface SyncCouponsResult {
 export async function syncHotmartCoupons(
   productId: string,
 ): Promise<SyncCouponsResult> {
-  console.log(`[sync] Buscando cupons para produto ${productId}...`);
+  log.info("Fetching coupons", { productId });
 
   let data: HotmartCouponsResponse;
   try {
@@ -179,12 +185,15 @@ export async function syncHotmartCoupons(
       { params: { productId } },
     );
   } catch (err) {
-    console.error("[sync] Erro ao buscar cupons:", err);
+    log.error("Failed to fetch coupons", {
+      productId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { upserted: [], deactivated: [], raw: [] };
   }
 
   const coupons = data?.items ?? [];
-  console.log(`[sync] ${coupons.length} cupom(ns) encontrado(s).`);
+  log.info("Coupons fetched", { productId, count: coupons.length });
 
   const upserted: string[] = [];
   const deactivated: string[] = [];

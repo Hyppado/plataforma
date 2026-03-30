@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 import { getQuotaPolicyFromDB, saveQuotaPolicyToDB } from "@/lib/admin/config";
 import type { QuotaPolicy } from "@/lib/types/admin";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/admin/quota-policy");
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -18,7 +21,9 @@ export async function GET() {
     const policy = await getQuotaPolicyFromDB();
     return NextResponse.json(policy);
   } catch (error) {
-    console.error("[admin/quota-policy] GET error:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to load quota policy" },
       { status: 500 },
@@ -59,7 +64,9 @@ export async function PUT(req: NextRequest) {
     await saveQuotaPolicyToDB(updated);
     return NextResponse.json(updated);
   } catch (error) {
-    console.error("[admin/quota-policy] PUT error:", error);
+    log.error("PUT failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to save quota policy" },
       { status: 500 },

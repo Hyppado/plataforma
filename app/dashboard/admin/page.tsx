@@ -14,6 +14,8 @@ import {
   TextField,
   LinearProgress,
   Stack,
+  Tab,
+  Tabs,
 } from "@mui/material";
 import { ConfirmationNumberOutlined } from "@mui/icons-material";
 import type { Subscriber, SubscriptionMetrics } from "@/lib/types/admin";
@@ -23,6 +25,7 @@ import {
 } from "@/lib/admin/admin-client";
 import { MetricsCards } from "@/app/components/admin/MetricsCards";
 import { SubscribersTable } from "@/app/components/admin/SubscribersTable";
+import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 
 const cardStyle = {
   background: "rgba(10, 15, 24, 0.8)",
@@ -40,6 +43,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [subscriberTab, setSubscriberTab] = useState(0);
   const [subscriberSearch, setSubscriberSearch] = useState("");
+  const [activeTab, setActiveTab] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -100,74 +104,99 @@ export default function AdminPage() {
         </Box>
       </Box>
 
-      {loading && <LinearProgress sx={{ mb: 3 }} />}
+      {/* Main tabs */}
+      <Tabs
+        value={activeTab}
+        onChange={(_e, v: number) => setActiveTab(v)}
+        sx={{
+          mb: 3,
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          "& .MuiTab-root": { color: "rgba(255,255,255,0.5)", fontWeight: 600 },
+          "& .Mui-selected": { color: "#2DD4FF" },
+          "& .MuiTabs-indicator": { background: "#2DD4FF" },
+        }}
+      >
+        <Tab label="Visão Geral" />
+        <Tab label="Echotik" />
+      </Tabs>
 
-      <Grid container spacing={3}>
-        <MetricsCards metrics={metrics} />
+      {/* Tab 0 — Overview */}
+      {activeTab === 0 && (
+        <>
+          {loading && <LinearProgress sx={{ mb: 3 }} />}
+          <Grid container spacing={3}>
+            <MetricsCards metrics={metrics} />
 
-        {/* Coupons (Coming Soon) */}
-        <Grid item xs={12} md={6} lg={4}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<ConfirmationNumberOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Cupons"
-              subheader="Gerenciamento de cupons"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
+            {/* Coupons (Coming Soon) */}
+            <Grid item xs={12} md={6} lg={4}>
+              <Card sx={cardStyle}>
+                <CardHeader
+                  avatar={
+                    <ConfirmationNumberOutlined sx={{ color: "#2DD4FF" }} />
+                  }
+                  title="Cupons"
+                  subheader="Gerenciamento de cupons"
+                  titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
+                  subheaderTypographyProps={{ fontSize: "0.8rem" }}
+                />
+                <CardContent>
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Código do Cupom"
+                      placeholder="Ex: DESCONTO20"
+                      disabled
+                      fullWidth
+                      size="small"
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          background: "rgba(0,0,0,0.2)",
+                        },
+                      }}
+                    />
+                    <TextField
+                      label="Desconto (%)"
+                      placeholder="Ex: 20"
+                      disabled
+                      fullWidth
+                      size="small"
+                      type="number"
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          background: "rgba(0,0,0,0.2)",
+                        },
+                      }}
+                    />
+                    <Button
+                      variant="contained"
+                      disabled
+                      sx={{
+                        background: "rgba(255,255,255,0.1)",
+                        color: "rgba(255,255,255,0.3)",
+                      }}
+                    >
+                      Em breve
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <SubscribersTable
+              subscribers={subscribers}
+              totalSubscribers={totalSubscribers}
+              metrics={metrics}
+              loading={loading}
+              subscriberTab={subscriberTab}
+              subscriberSearch={subscriberSearch}
+              onTabChange={setSubscriberTab}
+              onSearchChange={setSubscriberSearch}
             />
-            <CardContent>
-              <Stack spacing={2}>
-                <TextField
-                  label="Código do Cupom"
-                  placeholder="Ex: DESCONTO20"
-                  disabled
-                  fullWidth
-                  size="small"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      background: "rgba(0,0,0,0.2)",
-                    },
-                  }}
-                />
-                <TextField
-                  label="Desconto (%)"
-                  placeholder="Ex: 20"
-                  disabled
-                  fullWidth
-                  size="small"
-                  type="number"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      background: "rgba(0,0,0,0.2)",
-                    },
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  disabled
-                  sx={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.3)",
-                  }}
-                >
-                  Em breve
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+          </Grid>
+        </>
+      )}
 
-        <SubscribersTable
-          subscribers={subscribers}
-          totalSubscribers={totalSubscribers}
-          metrics={metrics}
-          loading={loading}
-          subscriberTab={subscriberTab}
-          subscriberSearch={subscriberSearch}
-          onTabChange={setSubscriberTab}
-          onSearchChange={setSubscriberSearch}
-        />
-      </Grid>
+      {/* Tab 1 — Echotik */}
+      {activeTab === 1 && <EchotikTab />}
     </Box>
   );
 }

@@ -8,6 +8,9 @@ import {
   getAvailableRegions,
 } from "@/lib/echotik/trending";
 import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/trending/videos");
 
 export const dynamic = "force-dynamic";
 
@@ -223,7 +226,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching videos:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to load videos" },
       { status: 500 },

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertQuota, consumeUsage, QuotaExceededError } from "@/lib/usage";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import type { UsageEventType } from "@prisma/client";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/usage/consume");
 
 export const runtime = "nodejs";
 
@@ -100,7 +103,9 @@ export async function POST(req: NextRequest) {
         { status: 402 },
       );
     }
-    console.error("[POST /api/usage/consume]", err);
+    log.error("POST failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

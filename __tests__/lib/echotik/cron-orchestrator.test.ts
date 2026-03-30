@@ -80,6 +80,20 @@ vi.mock("@/lib/echotik/cron/syncCreators", () => ({
   syncCreatorRanklist: syncCreatorRanklistMock,
 }));
 
+const getEchotikConfigMock = vi.hoisted(() => vi.fn());
+
+const DEFAULT_ECHOTIK_CONFIG = {
+  intervals: { categories: 24, videos: 24, products: 24, creators: 24 },
+  pages: { videos: 10, products: 10, creators: 10 },
+  detail: { batchSize: 5, maxAgeDays: 7 },
+  enabledTasksRaw: "categories,videos,products,creators,details",
+  enabledTasks: ["categories", "videos", "products", "creators", "details"],
+};
+
+vi.mock("@/lib/echotik/cron/config", () => ({
+  getEchotikConfig: getEchotikConfigMock,
+}));
+
 import {
   runEchotikCron,
   detectNextTask,
@@ -94,6 +108,7 @@ describe("detectNextTask()", () => {
     // Default: nothing is fresh → categories first
     shouldSkipMock.mockResolvedValue(false);
     getConfiguredRegionsMock.mockResolvedValue(["BR", "US"]);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
   });
 
   it("returns { task: 'categories', region: null } when nothing synced", async () => {
@@ -179,6 +194,7 @@ describe("runEchotikCron() — auto mode", () => {
     vi.clearAllMocks();
     shouldSkipMock.mockResolvedValue(false);
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-auto" });
   });
 
@@ -214,6 +230,7 @@ describe("runEchotikCron() — auto mode", () => {
       expect.any(String),
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 });
@@ -226,6 +243,7 @@ describe("runEchotikCron() — explicit tasks", () => {
     vi.clearAllMocks();
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
     shouldSkipMock.mockResolvedValue(false); // BR not fresh → pick BR
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-explicit" });
   });
 
@@ -247,6 +265,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "run-explicit",
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 
@@ -259,6 +278,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "run-explicit",
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 
@@ -271,6 +291,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "run-explicit",
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 
@@ -282,6 +303,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "run-explicit",
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 
@@ -294,6 +316,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "run-explicit",
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 
@@ -305,6 +328,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "run-explicit",
       "BR",
       expect.anything(),
+      expect.any(Number),
     );
   });
 
@@ -328,6 +352,7 @@ describe("runEchotikCron() — region-scoped IngestionRun markers", () => {
     vi.clearAllMocks();
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
     shouldSkipMock.mockResolvedValue(false);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-markers" });
   });
 
@@ -371,6 +396,7 @@ describe("runEchotikCron() — SKIPPED state", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
   });
 
   it("returns SKIPPED when details have nothing to enrich", async () => {
@@ -392,6 +418,7 @@ describe("runEchotikCron() — error handling", () => {
     vi.clearAllMocks();
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
     shouldSkipMock.mockResolvedValue(false);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-fail" });
   });
 
@@ -444,6 +471,7 @@ describe("runEchotikCron() — force mode", () => {
     vi.clearAllMocks();
     shouldSkipMock.mockResolvedValue(true);
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-force" });
   });
 
@@ -463,6 +491,7 @@ describe("runEchotikCron() — stats", () => {
     vi.clearAllMocks();
     getConfiguredRegionsMock.mockResolvedValue(["BR"]);
     shouldSkipMock.mockResolvedValue(false);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
     prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-stats" });
   });
 

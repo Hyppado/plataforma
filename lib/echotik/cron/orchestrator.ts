@@ -17,13 +17,9 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import type { Logger } from "@/lib/logger";
 import type { CronResult, CronStats } from "./types";
-import {
-  CATEGORIES_INTERVAL_HOURS,
-  VIDEO_TREND_INTERVAL_HOURS,
-  PRODUCT_TREND_INTERVAL_HOURS,
-  CREATOR_TREND_INTERVAL_HOURS,
-} from "./types";
 import { shouldSkip, getConfiguredRegions } from "./helpers";
+import { getEchotikConfig } from "./config";
+import type { EchotikConfig } from "@/lib/types/echotik-admin";
 import { syncAllCategories } from "./syncCategories";
 import { syncVideoRanklist, syncVideoProductDetails } from "./syncVideos";
 import {
@@ -68,11 +64,20 @@ export interface TaskSelection {
  */
 export async function detectNextTask(
   force: boolean,
+  config?: EchotikConfig,
 ): Promise<TaskSelection | null> {
+  // Load config if not provided (allows caller to pass pre-loaded config)
+  const cfg = config ?? (await getEchotikConfig());
+
+  const categoriesInterval = cfg.intervals.categories;
+  const videosInterval = cfg.intervals.videos;
+  const productsInterval = cfg.intervals.products;
+  const creatorsInterval = cfg.intervals.creators;
+
   // 1. Categories (region-agnostic, runs once per interval)
   if (
-    force ||
-    !(await shouldSkip("echotik:categories", CATEGORIES_INTERVAL_HOURS))
+    cfg.enabledTasks.includes("categories") &&
+    (force || !(await shouldSkip("echotik:categories", categoriesInterval)))
   ) {
     return { task: "categories", region: null };
   }
@@ -80,41 +85,38 @@ export async function detectNextTask(
   const regions = await getConfiguredRegions();
 
   // 2. Videos — per region
-  for (const region of regions) {
-    if (
-      force ||
-      !(await shouldSkip(
-        `echotik:videos:${region}`,
-        VIDEO_TREND_INTERVAL_HOURS,
-      ))
-    ) {
-      return { task: "videos", region };
+  if (cfg.enabledTasks.includes("videos")) {
+    for (const region of regions) {
+      if (
+        force ||
+        !(await shouldSkip(`echotik:videos:${region}`, videosInterval))
+      ) {
+        return { task: "videos", region };
+      }
     }
   }
 
   // 3. Products — per region
-  for (const region of regions) {
-    if (
-      force ||
-      !(await shouldSkip(
-        `echotik:products:${region}`,
-        PRODUCT_TREND_INTERVAL_HOURS,
-      ))
-    ) {
-      return { task: "products", region };
+  if (cfg.enabledTasks.includes("products")) {
+    for (const region of regions) {
+      if (
+        force ||
+        !(await shouldSkip(`echotik:products:${region}`, productsInterval))
+      ) {
+        return { task: "products", region };
+      }
     }
   }
 
   // 4. Creators — per region
-  for (const region of regions) {
-    if (
-      force ||
-      !(await shouldSkip(
-        `echotik:creators:${region}`,
-        CREATOR_TREND_INTERVAL_HOURS,
-      ))
-    ) {
-      return { task: "creators", region };
+  if (cfg.enabledTasks.includes("creators")) {
+    for (const region of regions) {
+      if (
+        force ||
+        !(await shouldSkip(`echotik:creators:${region}`, creatorsInterval))
+      ) {
+        return { task: "creators", region };
+      }
     }
   }
 
@@ -145,8 +147,10 @@ async function runVideos(
   runId: string,
   region: string,
   log: Logger,
+  maxPages: number,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncVideoRanklist(runId, region, log);
+  const synced = await syncVideoRanklist(runId, region, log, maxPages);
+  const pagesProcessed = 3 * 2 * maxPages; // cycles × fields × pages
   await prisma.ingestionRun.create({
     data: {
       source: `echotik:videos:${region}`,
@@ -154,15 +158,17 @@ async function runVideos(
       endedAt: new Date(),
     },
   });
-  return { videosSynced: synced };
+  return { videosSynced: synced, pagesProcessed };
 }
 
 async function runProducts(
   runId: string,
   region: string,
   log: Logger,
+  maxPages: number,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncProductRanklist(runId, region, log);
+  const synced = await syncProductRanklist(runId, region, log, maxPages);
+  const pagesProcessed = 3 * 2 * maxPages;
   await prisma.ingestionRun.create({
     data: {
       source: `echotik:products:${region}`,
@@ -170,15 +176,17 @@ async function runProducts(
       endedAt: new Date(),
     },
   });
-  return { productsSynced: synced };
+  return { productsSynced: synced, pagesProcessed };
 }
 
 async function runCreators(
   runId: string,
   region: string,
   log: Logger,
+  maxPages: number,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncCreatorRanklist(runId, region, log);
+  const synced = await syncCreatorRanklist(runId, region, log, maxPages);
+  const pagesProcessed = 3 * 2 * maxPages;
   await prisma.ingestionRun.create({
     data: {
       source: `echotik:creators:${region}`,
@@ -186,7 +194,7 @@ async function runCreators(
       endedAt: new Date(),
     },
   });
-  return { creatorsSynced: synced };
+  return { creatorsSynced: synced, pagesProcessed };
 }
 
 async function runDetails(log: Logger): Promise<Partial<CronStats>> {
@@ -237,10 +245,13 @@ export async function runEchotikCron(
   const start = Date.now();
   const log = createLogger("echotik-cron");
 
+  // Load dynamic config once — all intervals/pages come from here
+  const config = await getEchotikConfig();
+
   // Resolve which (task, region) to run
   let selection: TaskSelection | null;
   if (requestedTask === "auto") {
-    selection = await detectNextTask(force);
+    selection = await detectNextTask(force, config);
   } else if (
     requestedRegion === undefined &&
     (requestedTask === "videos" ||
@@ -251,9 +262,9 @@ export async function runEchotikCron(
     // needing sync (or the first region if force=true).
     const regions = await getConfiguredRegions();
     const intervalMap: Record<string, number> = {
-      videos: VIDEO_TREND_INTERVAL_HOURS,
-      products: PRODUCT_TREND_INTERVAL_HOURS,
-      creators: CREATOR_TREND_INTERVAL_HOURS,
+      videos: config.intervals.videos,
+      products: config.intervals.products,
+      creators: config.intervals.creators,
     };
     const interval = intervalMap[requestedTask];
     let pickedRegion = regions[0] ?? null;
@@ -346,15 +357,25 @@ export async function runEchotikCron(
         break;
       case "videos":
         if (!region) throw new Error("videos task requires a region");
-        partial = await runVideos(run.id, region, runLog);
+        partial = await runVideos(run.id, region, runLog, config.pages.videos);
         break;
       case "products":
         if (!region) throw new Error("products task requires a region");
-        partial = await runProducts(run.id, region, runLog);
+        partial = await runProducts(
+          run.id,
+          region,
+          runLog,
+          config.pages.products,
+        );
         break;
       case "creators":
         if (!region) throw new Error("creators task requires a region");
-        partial = await runCreators(run.id, region, runLog);
+        partial = await runCreators(
+          run.id,
+          region,
+          runLog,
+          config.pages.creators,
+        );
         break;
     }
 

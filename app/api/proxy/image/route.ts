@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { echotikRequest } from "@/lib/echotik/client";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/proxy/image");
 
 /** Host do CDN EchoTik que requer URLs assinadas */
 const ECHOTIK_CDN_HOST = "echosell-images.tos-ap-southeast-1.volces.com";
@@ -105,7 +108,9 @@ async function proxyEchotikImage(coverUrl: string) {
 
     return buildImageResponse(upstream);
   } catch (err) {
-    console.error("[image-proxy] error:", err);
+    log.error("Upstream error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return new NextResponse("Upstream error", { status: 502 });
   }
 }
@@ -168,9 +173,10 @@ async function proxyTikTokOembed(videoId: string) {
     });
 
     if (!res.ok) {
-      console.warn(
-        `[image-proxy] oEmbed returned ${res.status} for videoId=${videoId}`,
-      );
+      log.warn("oEmbed returned non-OK status", {
+        status: res.status,
+        videoId,
+      });
       return new NextResponse(null, { status: 404 });
     }
 
@@ -190,7 +196,9 @@ async function proxyTikTokOembed(videoId: string) {
       },
     });
   } catch (err) {
-    console.error("[image-proxy] oEmbed fetch error:", err);
+    log.error("oEmbed fetch error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return new NextResponse("Upstream error", { status: 502 });
   }
 }

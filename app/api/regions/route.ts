@@ -9,6 +9,9 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/regions");
 
 export async function GET() {
   const auth = await requireAuth();
@@ -25,7 +28,9 @@ export async function GET() {
 
     return NextResponse.json({ regions }, { status: 200 });
   } catch (err) {
-    console.error("[api/regions] Erro ao buscar regiões:", err);
+    log.error("Failed to fetch regions, returning fallback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     // Fallback: devolve ao menos BR para não quebrar o header
     return NextResponse.json({ regions: ["BR"] }, { status: 200 });
   }

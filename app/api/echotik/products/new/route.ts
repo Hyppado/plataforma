@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { getNewProducts } from "@/lib/echotik/products";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/echotik/products/new");
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +73,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[api/echotik/products/new] Error:", message);
+    log.error("GET failed", { error: message });
 
     // Distinguir quota/rate-limit de erros genéricos
     const isQuota =

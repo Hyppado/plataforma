@@ -11,6 +11,9 @@ import {
   getPromptConfigFromDB,
   savePromptConfigToDB,
 } from "@/lib/admin/config";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/admin/prompt-config");
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -20,7 +23,9 @@ export async function GET() {
     const config = await getPromptConfigFromDB();
     return NextResponse.json(config);
   } catch (error) {
-    console.error("[admin/prompt-config] GET error:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to load prompt config" },
       { status: 500 },
@@ -53,7 +58,9 @@ export async function PUT(req: NextRequest) {
     await savePromptConfigToDB(body);
     return NextResponse.json(body);
   } catch (error) {
-    console.error("[admin/prompt-config] PUT error:", error);
+    log.error("PUT failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to save prompt config" },
       { status: 500 },

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/me/saved");
 import type { SavedItemDTO } from "@/lib/types/dto";
 
 export async function GET(request: NextRequest) {
@@ -40,7 +43,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
-    console.error("Error fetching saved items:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to fetch saved items" },
       { status: 500 },
@@ -88,7 +93,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: dto });
   } catch (error) {
-    console.error("Error saving item:", error);
+    log.error("POST failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to save item" },
       { status: 500 },
@@ -124,7 +131,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { deleted: id } });
   } catch (error) {
-    console.error("Error deleting item:", error);
+    log.error("DELETE failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to delete item" },
       { status: 500 },

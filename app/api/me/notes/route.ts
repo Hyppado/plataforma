@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/me/notes");
 import type { NoteDTO } from "@/lib/types/dto";
 
 export async function GET(request: NextRequest) {
@@ -41,7 +44,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { items: dtos, total } });
   } catch (error) {
-    console.error("Error fetching notes:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to fetch notes" },
       { status: 500 },
@@ -90,7 +95,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: dto });
   } catch (error) {
-    console.error("Error creating/updating note:", error);
+    log.error("POST/PATCH failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to create note" },
       { status: 500 },
@@ -126,7 +133,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { deleted: id } });
   } catch (error) {
-    console.error("Error deleting note:", error);
+    log.error("DELETE failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to delete note" },
       { status: 500 },

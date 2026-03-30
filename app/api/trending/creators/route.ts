@@ -12,6 +12,9 @@ import {
   getAvailableRegions,
 } from "@/lib/echotik/trending";
 import type { CreatorDTO } from "@/lib/types/dto";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api/trending/creators");
 
 export const dynamic = "force-dynamic";
 
@@ -132,7 +135,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching creators:", error);
+    log.error("GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { success: false, error: "Failed to load creators" },
       { status: 500 },
