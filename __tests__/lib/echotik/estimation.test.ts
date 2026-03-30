@@ -104,6 +104,23 @@ describe("estimateEchotikRequests()", () => {
     expect(result.requestsPerCronTick).toBe(maxPerInv);
   });
 
+  it("notes are in Portuguese", () => {
+    const result = estimateEchotikRequests(makeInput());
+    // All notes should contain Portuguese text, not English
+    const hasEnglish = result.notes.some(
+      (n) =>
+        n.includes("Detail enrichment is") ||
+        n.includes("Probe calls are") ||
+        n.includes("Cron runs every"),
+    );
+    expect(hasEnglish).toBe(false);
+    // Verify at least one Portuguese note exists
+    const hasPortuguese = result.notes.some(
+      (n) => n.includes("Enriquecimento") || n.includes("cron roda"),
+    );
+    expect(hasPortuguese).toBe(true);
+  });
+
   it("breakdown contains entries for all 5 task types", () => {
     const result = estimateEchotikRequests(makeInput());
     const entities = result.breakdown.map((e) => e.entity);

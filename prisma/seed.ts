@@ -30,25 +30,28 @@ async function seedRegions() {
     IT: "Italy",
   };
 
-  // Default active regions — edit in the database (Region table) to add/remove.
+  // All supported regions — the admin can toggle isActive via the admin panel.
   // Do NOT use env vars; the DB is the single source of truth for regions.
-  const DEFAULT_REGIONS = ["BR", "US", "JP"];
+  const DEFAULT_ACTIVE = new Set(["BR", "US", "JP"]);
+  const ALL_CODES = Object.keys(REGION_NAMES);
 
-  for (let i = 0; i < DEFAULT_REGIONS.length; i++) {
-    const code = DEFAULT_REGIONS[i];
+  for (let i = 0; i < ALL_CODES.length; i++) {
+    const code = ALL_CODES[i];
     await prisma.region.upsert({
       where: { code },
       update: {}, // nunca sobrescreve se admin já editou o banco
       create: {
         code,
         name: REGION_NAMES[code] ?? code,
-        isActive: true,
+        isActive: DEFAULT_ACTIVE.has(code),
         sortOrder: i,
       },
     });
   }
 
-  console.log(`✅ Regiões seedadas: [${DEFAULT_REGIONS.join(", ")}]`);
+  console.log(
+    `✅ Regiões seedadas: ${ALL_CODES.length} total (${Array.from(DEFAULT_ACTIVE).join(", ")} ativas)`,
+  );
 }
 
 async function seedSettings() {

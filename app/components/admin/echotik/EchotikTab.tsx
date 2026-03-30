@@ -6,6 +6,8 @@ import { Box, Grid, LinearProgress, Typography } from "@mui/material";
 import { HealthSection } from "./HealthSection";
 import { ConfigSection } from "./ConfigSection";
 import { EstimationSection } from "./EstimationSection";
+import { RegionSection } from "./RegionSection";
+import type { RegionData } from "./RegionSection";
 import type {
   EchotikConfig,
   EchotikHealthResponse,
@@ -14,6 +16,10 @@ import type {
 
 interface ConfigResponse {
   config: EchotikConfig;
+}
+
+interface RegionsResponse {
+  regions: RegionData[];
 }
 
 async function fetcher<T>(url: string): Promise<T> {
@@ -42,6 +48,11 @@ export function EchotikTab() {
     fetcher,
   );
 
+  const regionsSWR = useSWR<RegionsResponse>(
+    "/api/admin/echotik/regions",
+    fetcher,
+  );
+
   const isLoading =
     health.isLoading || configSWR.isLoading || estimateSWR.isLoading;
 
@@ -62,6 +73,27 @@ export function EchotikTab() {
     [configSWR, estimateSWR],
   );
 
+  const handleToggleRegion = useCallback(
+    async (code: string, isActive: boolean) => {
+      const res = await fetch("/api/admin/echotik/regions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, isActive }),
+      });
+      if (!res.ok) {
+        const body = (await res.json()) as { error?: string };
+        throw new Error(body.error ?? "Erro ao atualizar região");
+      }
+      // Revalidate regions, health, and estimation (region count affects estimation)
+      await Promise.all([
+        regionsSWR.mutate(),
+        health.mutate(),
+        estimateSWR.mutate(),
+      ]);
+    },
+    [regionsSWR, health, estimateSWR],
+  );
+
   return (
     <Box>
       <Box sx={{ mb: 3 }}>
@@ -80,6 +112,11 @@ export function EchotikTab() {
       {isLoading && <LinearProgress sx={{ mb: 2 }} />}
 
       <Grid container spacing={3}>
+        <RegionSection
+          regions={regionsSWR.data?.regions}
+          loading={regionsSWR.isLoading}
+          onToggle={handleToggleRegion}
+        />
         <HealthSection data={health.data} loading={health.isLoading} />
         <ConfigSection
           config={configSWR.data?.config}
