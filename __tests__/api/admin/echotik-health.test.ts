@@ -19,35 +19,58 @@ const getEchotikHealthMock = vi.hoisted(() => vi.fn());
 
 const MOCK_HEALTH: EchotikHealthResponse = {
   summary: {
-    total: 6,
+    totalCombinations: 6,
     healthy: 4,
     stale: 1,
     failing: 0,
     neverRun: 1,
     inactive: 0,
+    mostStale: null,
+    activeRegionsCount: 3,
   },
   tasks: [
     {
       source: "echotik:videos:BR",
       task: "videos",
       region: "BR",
+      regionName: "Brasil",
+      isRegionActive: true,
+      isTaskEnabled: true,
       status: "healthy",
       lastSuccessAt: new Date().toISOString(),
-      lastFailedAt: null,
+      lastFailureAt: null,
+      lastRunAt: new Date().toISOString(),
+      lastRunStatus: "SUCCESS",
       hoursSinceSuccess: 2,
       stalenessRatio: 0.08,
+      failures24h: 0,
+      lastErrorMessage: null,
+      lastItemsProcessed: null,
+      lastPagesProcessed: null,
+      lastDurationMs: null,
     },
     {
       source: "echotik:categories",
       task: "categories",
       region: null,
+      regionName: null,
+      isRegionActive: true,
+      isTaskEnabled: true,
       status: "stale",
       lastSuccessAt: new Date(Date.now() - 30 * 3600_000).toISOString(),
-      lastFailedAt: null,
+      lastFailureAt: null,
+      lastRunAt: new Date(Date.now() - 30 * 3600_000).toISOString(),
+      lastRunStatus: "SUCCESS",
       hoursSinceSuccess: 30,
       stalenessRatio: 1.25,
+      failures24h: 0,
+      lastErrorMessage: null,
+      lastItemsProcessed: null,
+      lastPagesProcessed: null,
+      lastDurationMs: null,
     },
   ],
+  generatedAt: new Date().toISOString(),
 };
 
 vi.mock("@/lib/echotik/admin/health", () => ({
@@ -80,7 +103,7 @@ describe("GET /api/admin/echotik/health", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.summary.total).toBe(6);
+    expect(body.summary.totalCombinations).toBe(6);
     expect(body.summary.healthy).toBe(4);
     expect(body.tasks).toHaveLength(2);
   });
