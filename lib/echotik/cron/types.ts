@@ -163,6 +163,8 @@ export interface CronStats {
   productsSkipped: boolean;
   creatorsSkipped: boolean;
   durationMs: number;
+  /** Total pages fetched in this run (ranklist tasks only). */
+  pagesProcessed?: number;
 }
 
 export interface CronResult {

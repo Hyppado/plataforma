@@ -35,6 +35,7 @@ export async function syncProductRanklistForRegion(
   rankingCycle: 1 | 2 | 3,
   rankField: number,
   log: Logger,
+  maxPages = PRODUCT_RANKLIST_PAGES,
 ): Promise<number> {
   const endpoint = "/api/v3/echotik/product/ranklist";
   const datesToTry = getCandidateDates(rankingCycle);
@@ -73,7 +74,7 @@ export async function syncProductRanklistForRegion(
   const dateStr = formatDate(effectiveDate);
   const date = effectiveDate;
 
-  for (let page = 1; page <= PRODUCT_RANKLIST_PAGES; page++) {
+  for (let page = 1; page <= maxPages; page++) {
     const params = {
       date: dateStr,
       region,
@@ -190,8 +191,9 @@ export async function syncProductRanklist(
   runId: string,
   region: string,
   log: Logger,
+  maxPages = PRODUCT_RANKLIST_PAGES,
 ): Promise<number> {
-  log.info("Syncing products", { region });
+  log.info("Syncing products", { region, maxPages });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
@@ -202,6 +204,7 @@ export async function syncProductRanklist(
         rankingCycle,
         field,
         log,
+        maxPages,
       );
       total += count;
     }

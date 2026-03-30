@@ -26,6 +26,7 @@ export async function syncCreatorRanklistForRegion(
   rankingCycle: 1 | 2 | 3,
   rankField: number,
   log: Logger,
+  maxPages = CREATOR_RANKLIST_PAGES,
 ): Promise<number> {
   const endpoint = "/api/v3/echotik/influencer/ranklist";
   const datesToTry = getCandidateDates(rankingCycle);
@@ -64,7 +65,7 @@ export async function syncCreatorRanklistForRegion(
   const dateStr = formatDate(effectiveDate);
   const date = effectiveDate;
 
-  for (let page = 1; page <= CREATOR_RANKLIST_PAGES; page++) {
+  for (let page = 1; page <= maxPages; page++) {
     const params = {
       date: dateStr,
       region,
@@ -196,8 +197,9 @@ export async function syncCreatorRanklist(
   runId: string,
   region: string,
   log: Logger,
+  maxPages = CREATOR_RANKLIST_PAGES,
 ): Promise<number> {
-  log.info("Syncing creators", { region });
+  log.info("Syncing creators", { region, maxPages });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
@@ -208,6 +210,7 @@ export async function syncCreatorRanklist(
         rankingCycle,
         field,
         log,
+        maxPages,
       );
       total += count;
     }
