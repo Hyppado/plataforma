@@ -50,7 +50,13 @@ interface ImportResult {
   success: boolean;
   message?: string;
   error?: string;
-  data?: { imported: number; skipped: number; errors: number; total: number; details: string[] };
+  data?: {
+    imported: number;
+    skipped: number;
+    errors: number;
+    total: number;
+    details: string[];
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +145,9 @@ export function HotmartTab() {
     setImporting(true);
     setImportResult(null);
     try {
-      const res = await fetch("/api/admin/import-subscribers", { method: "POST" });
+      const res = await fetch("/api/admin/import-subscribers", {
+        method: "POST",
+      });
       const body = (await res.json()) as ImportResult;
       setImportResult(body);
     } catch {
@@ -315,8 +323,8 @@ export function HotmartTab() {
                 >
                   Recupera todos os assinantes do produto no Hotmart e cria os
                   registros de usuário e assinatura localmente. Registros já
-                  existentes são ignorados (idempotente). Recomendado sincronizar
-                  planos antes.
+                  existentes são ignorados (idempotente). Recomendado
+                  sincronizar planos antes.
                 </Typography>
                 <Button
                   variant="contained"
