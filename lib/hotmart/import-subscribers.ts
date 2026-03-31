@@ -23,8 +23,8 @@ const log = createLogger("hotmart/import-subscribers");
 // ---------------------------------------------------------------------------
 
 interface HotmartSubscriber {
-  subscriber_code?: string;
-  subscription_id?: string;
+  subscriber_code?: string | number;
+  subscription_id?: string | number;
   status?: string; // "ACTIVE" | "INACTIVE" | "DELAYED" | "CANCELLED_BY_CUSTOMER" | "CANCELLED_BY_SELLER" | "CANCELLED_BY_ADMIN" | "EXPIRED" | "STARTED" | "OVERDUE"
   plan?: {
     name?: string;
@@ -234,9 +234,10 @@ async function importSingleSubscriber(
   result: ImportSubscribersResult,
 ): Promise<void> {
   const email = sub.subscriber?.email;
-  const subscriberCode = sub.subscriber_code;
-  const subscriptionId =
-    sub.subscription_id ?? subscriberCode ?? `hotmart_${Date.now()}`;
+  const subscriberCode = sub.subscriber_code != null ? String(sub.subscriber_code) : undefined;
+  const subscriptionId = String(
+    sub.subscription_id ?? subscriberCode ?? `hotmart_${Date.now()}`,
+  );
 
   if (!email) {
     result.skipped++;
