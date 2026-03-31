@@ -16,12 +16,18 @@ const prismaMock = vi.hoisted(() => ({
     findFirst: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue({ id: "run-1" }),
     update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    count: vi.fn().mockResolvedValue(0),
   },
 }));
 
 const shouldSkipMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
 const getConfiguredRegionsMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue(["BR", "US"]),
+);
+const cleanupStaleRunsMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
+const hasExcessiveFailuresMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(false),
 );
 const syncAllCategoriesMock = vi.hoisted(() => vi.fn().mockResolvedValue(10));
 const syncVideoRanklistMock = vi.hoisted(() => vi.fn().mockResolvedValue(50));
@@ -60,6 +66,8 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("@/lib/echotik/cron/helpers", () => ({
   shouldSkip: shouldSkipMock,
   getConfiguredRegions: getConfiguredRegionsMock,
+  cleanupStaleRuns: cleanupStaleRunsMock,
+  hasExcessiveFailures: hasExcessiveFailuresMock,
 }));
 
 vi.mock("@/lib/echotik/cron/syncCategories", () => ({
@@ -509,5 +517,105 @@ describe("runEchotikCron() — stats", () => {
     expect(result.stats.categoriesSkipped).toBe(true);
     expect(result.stats.productsSkipped).toBe(true);
     expect(result.stats.creatorsSkipped).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cleanupStaleRuns — called at start of each cron tick
+// ---------------------------------------------------------------------------
+describe("runEchotikCron() — stale RUNNING cleanup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldSkipMock.mockResolvedValue(false);
+    getConfiguredRegionsMock.mockResolvedValue(["BR"]);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
+    prismaMock.ingestionRun.create.mockResolvedValue({ id: "run-stale" });
+  });
+
+  it("calls cleanupStaleRuns before executing any task", async () => {
+    await runEchotikCron({ task: "categories" });
+
+    expect(cleanupStaleRunsMock).toHaveBeenCalledTimes(1);
+    expect(cleanupStaleRunsMock).toHaveBeenCalledWith(5, expect.anything());
+  });
+
+  it("calls cleanupStaleRuns even when main tasks are all fresh", async () => {
+    shouldSkipMock.mockResolvedValue(true);
+    // Details fallback still runs → but stale cleanup happens first regardless
+    syncVideoProductDetailsMock.mockResolvedValue(0);
+    syncRanklistProductDetailsMock.mockResolvedValue(0);
+
+    await runEchotikCron();
+
+    expect(cleanupStaleRunsMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectNextTask — excessive-failure backoff
+// ---------------------------------------------------------------------------
+describe("detectNextTask() — excessive-failure backoff", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldSkipMock.mockResolvedValue(false);
+    hasExcessiveFailuresMock.mockResolvedValue(false);
+    getConfiguredRegionsMock.mockResolvedValue(["BR", "US"]);
+    getEchotikConfigMock.mockResolvedValue(DEFAULT_ECHOTIK_CONFIG);
+  });
+
+  it("skips categories when it has excessive failures", async () => {
+    // categories not fresh → shouldSkip returns false
+    // but excessive failures → skip categories, move to videos:BR
+    hasExcessiveFailuresMock
+      .mockResolvedValueOnce(true) // echotik:run:categories → excessive
+      .mockResolvedValueOnce(false); // echotik:run:videos:BR → ok
+
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "videos", region: "BR" });
+    expect(hasExcessiveFailuresMock).toHaveBeenCalledWith(
+      "echotik:run:categories",
+    );
+  });
+
+  it("skips a region with excessive failures and tries next region", async () => {
+    shouldSkipMock
+      .mockResolvedValueOnce(true) // categories → fresh
+      .mockResolvedValueOnce(false) // videos:BR → needs sync
+      .mockResolvedValueOnce(false); // videos:US → needs sync
+
+    hasExcessiveFailuresMock
+      .mockResolvedValueOnce(true) // videos:BR → excessive failures
+      .mockResolvedValueOnce(false); // videos:US → ok
+
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "videos", region: "US" });
+    expect(hasExcessiveFailuresMock).toHaveBeenCalledWith(
+      "echotik:run:videos:BR",
+    );
+  });
+
+  it("skips all regions for a task if all have excessive failures", async () => {
+    shouldSkipMock
+      .mockResolvedValueOnce(true) // categories → fresh
+      .mockResolvedValueOnce(false) // videos:BR → needs sync
+      .mockResolvedValueOnce(false) // videos:US → needs sync
+      .mockResolvedValueOnce(false); // products:BR → needs sync
+
+    hasExcessiveFailuresMock
+      .mockResolvedValueOnce(true) // videos:BR → excessive
+      .mockResolvedValueOnce(true) // videos:US → excessive
+      .mockResolvedValueOnce(false); // products:BR → ok
+
+    const sel = await detectNextTask(false);
+    expect(sel).toEqual({ task: "products", region: "BR" });
+  });
+
+  it("force=true bypasses excessive-failure check", async () => {
+    hasExcessiveFailuresMock.mockResolvedValue(true);
+
+    const sel = await detectNextTask(true);
+    expect(sel).toEqual({ task: "categories", region: null });
+    // hasExcessiveFailures should NOT be called with force
+    expect(hasExcessiveFailuresMock).not.toHaveBeenCalled();
   });
 });
