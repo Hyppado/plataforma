@@ -1,11 +1,3 @@
-/** Update quota policy via API. */
-export async function updateQuotaPolicy(policy: QuotaPolicy): Promise<void> {
-  await fetch("/api/admin/quota-policy", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(policy),
-  });
-}
 /**
  * Admin API client for billing integration and quota management.
  *
@@ -151,6 +143,21 @@ export async function triggerHotmartSync(): Promise<{
   }
 }
 
+/** Update quota policy via API. */
+export async function updateQuotaPolicy(policy: QuotaPolicy): Promise<void> {
+  const res = await fetch("/api/admin/quota-policy", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(policy),
+  });
+  if (!res.ok) {
+    const body = await res
+      .json()
+      .catch(() => ({ error: "Erro ao salvar limites" }));
+    throw new Error(body.error ?? `Erro ${res.status} ao salvar limites`);
+  }
+}
+
 /**
  * Get quota policy from the Plan table (server-side).
  * Falls back to defaults if not configured.
@@ -237,7 +244,6 @@ export async function createHotmartCoupon(
 
 // ==================== LOCAL STORAGE HELPERS ====================
 
-
 // ==================== PROMPT CONFIG API ====================
 
 import type { PromptConfig } from "@/lib/types/admin";
@@ -250,16 +256,23 @@ export async function getPromptConfig(): Promise<PromptConfig> {
     return await res.json();
   } catch {
     // Fallback to default (should match backend default)
-    const { getDefaultPromptConfig } = await import("@/lib/admin/prompt-config");
+    const { getDefaultPromptConfig } =
+      await import("@/lib/admin/prompt-config");
     return getDefaultPromptConfig();
   }
 }
 
 /** Update prompt config via API. */
 export async function updatePromptConfig(config: PromptConfig): Promise<void> {
-  await fetch("/api/admin/prompt-config", {
+  const res = await fetch("/api/admin/prompt-config", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
   });
+  if (!res.ok) {
+    const body = await res
+      .json()
+      .catch(() => ({ error: "Erro ao salvar prompt" }));
+    throw new Error(body.error ?? `Erro ${res.status} ao salvar prompt`);
+  }
 }

@@ -81,11 +81,15 @@ export default function ConfigPage() {
       transcriptsPerMonth: parseInt(transcriptsLimit) || 40,
       scriptsPerMonth: parseInt(scriptsLimit) || 70,
     };
-    await updateQuotaPolicy(newPolicy);
-    setQuotaPolicyState(newPolicy);
-    setLimitsSaved(true);
-    setTimeout(() => setLimitsSaved(false), 2000);
-    window.dispatchEvent(new Event("quota-policy-changed"));
+    try {
+      await updateQuotaPolicy(newPolicy);
+      setQuotaPolicyState(newPolicy);
+      setLimitsSaved(true);
+      setTimeout(() => setLimitsSaved(false), 2000);
+      window.dispatchEvent(new Event("quota-policy-changed"));
+    } catch (error) {
+      console.error("Erro ao salvar limites:", error);
+    }
   }, [quotaPolicy, transcriptsLimit, scriptsLimit]);
 
   const updatePromptTemplate = useCallback(
@@ -108,9 +112,13 @@ export default function ConfigPage() {
 
   const savePrompt = useCallback(async () => {
     if (!promptConfig) return;
-    await updatePromptConfig(promptConfig);
-    setSavedPrompt(true);
-    setTimeout(() => setSavedPrompt(false), 2000);
+    try {
+      await updatePromptConfig(promptConfig);
+      setSavedPrompt(true);
+      setTimeout(() => setSavedPrompt(false), 2000);
+    } catch (error) {
+      console.error("Erro ao salvar prompt:", error);
+    }
   }, [promptConfig]);
 
   return (

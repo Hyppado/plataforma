@@ -159,13 +159,13 @@ export function estimateEchotikRequests(
   });
 
   notes.push(
-    "Detail enrichment is an estimate based on expected item volume; actual calls depend on cache hit rate.",
+    "Enriquecimento de detalhes é uma estimativa baseada no volume esperado de itens; as chamadas reais dependem da taxa de cache.",
   );
   notes.push(
-    "Probe calls are 1 request per (cycle × field) to discover the most recent available date.",
+    "Chamadas de verificação (probe) são 1 requisição por (ciclo × campo) para descobrir a data mais recente disponível.",
   );
   notes.push(
-    `Cron runs every ${input.cronIntervalMinutes} minutes (${cronTicksPerDay} ticks/day). Each tick runs at most 1 task × 1 region.`,
+    `O cron roda a cada ${input.cronIntervalMinutes} minutos (${cronTicksPerDay} execuções/dia). Cada execução processa no máximo 1 tarefa × 1 região.`,
   );
 
   const totalRequestsPerDay = breakdown.reduce(
@@ -181,7 +181,7 @@ export function estimateEchotikRequests(
 
   if (totalInvocationsPerDay > cronTicksPerDay) {
     notes.push(
-      `⚠️ Estimated ${Math.round(totalInvocationsPerDay)} invocations/day exceeds ${cronTicksPerDay} cron ticks/day. Some tasks may not complete within their expected interval.`,
+      `⚠️ Estimativa de ${Math.round(totalInvocationsPerDay)} invocações/dia excede ${cronTicksPerDay} execuções/dia disponíveis no cron. Algumas tarefas podem não completar dentro do intervalo esperado.`,
     );
   }
 

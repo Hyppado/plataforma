@@ -222,6 +222,16 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
               >
                 Intervalos
               </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.35)",
+                  display: "block",
+                  mb: 0.5,
+                }}
+              >
+                De quantas em quantas horas cada tipo de dado é re-coletado
+              </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 {INTERVAL_TASK_KEYS.map((task) => (
                   <Grid item xs={6} sm={4} key={task}>
@@ -252,6 +262,17 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                 }}
               >
                 Páginas por entidade
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.35)",
+                  display: "block",
+                  mb: 0.5,
+                }}
+              >
+                Quantas páginas são buscadas na API por vez (cada página = 10
+                itens)
               </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 {(
@@ -288,10 +309,21 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
               >
                 Enriquecimento de detalhes
               </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.35)",
+                  display: "block",
+                  mb: 0.5,
+                }}
+              >
+                Busca dados extras de cada produto. Lote = quantos por vez;
+                Idade máx. = quando re-buscar
+              </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 <Grid item xs={6}>
                   <NumberField
-                    label="Batch size"
+                    label="Itens por lote"
                     value={current.detail.batchSize}
                     min={1}
                     max={100}
@@ -330,7 +362,7 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                 {Object.entries(TASK_LABELS).map(([task, label]) => (
                   <Tooltip
                     key={task}
-                    title={`${current.enabledTasks.includes(task) ? "Desabilitar" : "Habilitar"} task: ${task}`}
+                    title={`${current.enabledTasks.includes(task) ? "Desabilitar" : "Habilitar"}: ${label}`}
                   >
                     <Chip
                       label={label}

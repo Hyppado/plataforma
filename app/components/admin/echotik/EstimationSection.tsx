@@ -26,9 +26,11 @@ const cardStyle = {
 };
 
 const ENTITY_LABELS: Record<string, string> = {
+  categories: "Categorias",
   videos: "Vídeos",
   products: "Produtos",
   creators: "Criadores",
+  details: "Detalhes",
 };
 
 function StatBox({
@@ -102,7 +104,7 @@ export function EstimationSection({ data, loading }: EstimationSectionProps) {
         <CardHeader
           avatar={<BarChartOutlined sx={{ color: "#2DD4FF" }} />}
           title="Estimativa de Requisições"
-          subheader="Por invocação × regiões × intervalos"
+          subheader={`Previsão de uso da API com ${data.input.activeRegions} ${data.input.activeRegions === 1 ? "região ativa" : "regiões ativas"}`}
           titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
           subheaderTypographyProps={{ fontSize: "0.8rem" }}
         />
@@ -112,30 +114,23 @@ export function EstimationSection({ data, loading }: EstimationSectionProps) {
             <Grid container spacing={2}>
               <Grid item xs={6} sm={3}>
                 <StatBox
-                  label="Total/dia"
+                  label="Requisições/dia"
                   value={data.totalRequestsPerDay}
                   unit="req"
                 />
               </Grid>
               <Grid item xs={6} sm={3}>
-                <StatBox
-                  label="Invocações/dia"
-                  value={data.invocationsPerDay}
-                />
+                <StatBox label="Execuções/dia" value={data.invocationsPerDay} />
               </Grid>
               <Grid item xs={6} sm={3}>
                 <StatBox
-                  label="Req/tick (pior caso)"
+                  label="Pior caso por tick"
                   value={data.requestsPerCronTick}
                   unit="req"
                 />
               </Grid>
               <Grid item xs={6} sm={3}>
-                <StatBox
-                  label="Capacidade (cron×dia)"
-                  value={96}
-                  unit="slots"
-                />
+                <StatBox label="Capacidade máx." value={96} unit="ticks" />
               </Grid>
             </Grid>
 
@@ -199,7 +194,7 @@ export function EstimationSection({ data, loading }: EstimationSectionProps) {
                         borderColor: "rgba(255,255,255,0.06)",
                       }}
                     >
-                      Probe
+                      Verificação
                     </TableCell>
                     <TableCell
                       align="right"

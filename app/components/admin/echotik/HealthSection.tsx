@@ -109,6 +109,14 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
   const { summary, tasks } = data;
 
   // Group tasks by their task name for display
+  const TASK_DISPLAY: Record<string, string> = {
+    categories: "Categorias",
+    videos: "Vídeos",
+    products: "Produtos",
+    creators: "Criadores",
+    details: "Detalhes",
+  };
+
   const taskGroups = tasks.reduce<Record<string, typeof tasks>>((acc, t) => {
     (acc[t.task] ??= []).push(t);
     return acc;
@@ -186,7 +194,7 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                     display: "block",
                   }}
                 >
-                  {task}
+                  {TASK_DISPLAY[task] ?? task}
                 </Typography>
                 <Stack direction="row" flexWrap="wrap" gap={1}>
                   {entries.map((t) => {
@@ -200,7 +208,7 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                         ? `${Math.round(t.hoursSinceSuccess)}h atrás`
                         : "",
                       t.stalenessRatio != null
-                        ? `Staleness: ${(t.stalenessRatio * 100).toFixed(0)}%`
+                        ? `Atraso: ${(t.stalenessRatio * 100).toFixed(0)}%`
                         : "",
                     ]
                       .filter(Boolean)
