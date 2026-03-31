@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import {
   Check as CheckIcon,
+  GroupAdd as GroupAddIcon,
   Save as SaveIcon,
   SettingsOutlined,
   SyncOutlined,
@@ -43,6 +44,13 @@ interface SyncResult {
   message?: string;
   error?: string;
   data?: { offers: number; coupons: number };
+}
+
+interface ImportResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: { imported: number; skipped: number; errors: number; total: number; details: string[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +88,8 @@ export function HotmartTab() {
   const [saved, setSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   // Use local state if edited, otherwise use the SWR value
   const displayValue = productId ?? currentProductId;
@@ -122,6 +132,20 @@ export function HotmartTab() {
       setSyncResult({ success: false, error: "Erro de rede" });
     } finally {
       setSyncing(false);
+    }
+  }, []);
+
+  const handleImport = useCallback(async () => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch("/api/admin/import-subscribers", { method: "POST" });
+      const body = (await res.json()) as ImportResult;
+      setImportResult(body);
+    } catch {
+      setImportResult({ success: false, error: "Erro de rede" });
+    } finally {
+      setImporting(false);
     }
   }, []);
 
@@ -267,6 +291,106 @@ export function HotmartTab() {
                       ? `Sync concluído — ${syncResult.data?.offers ?? 0} ofertas, ${syncResult.data?.coupons ?? 0} cupons`
                       : (syncResult.error ?? "Erro desconhecido")}
                   </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Import subscribers card */}
+        <Grid item xs={12}>
+          <Card sx={cardStyle}>
+            <CardHeader
+              avatar={<GroupAddIcon sx={{ color: "#2DD4FF" }} />}
+              title="Importar Assinantes"
+              subheader="Importa assinantes existentes do Hotmart para o banco local"
+              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
+              subheaderTypographyProps={{ fontSize: "0.8rem" }}
+            />
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.6)" }}
+                >
+                  Recupera todos os assinantes do produto no Hotmart e cria os
+                  registros de usuário e assinatura localmente. Registros já
+                  existentes são ignorados (idempotente). Recomendado sincronizar
+                  planos antes.
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<GroupAddIcon />}
+                  disabled={importing || !currentProductId}
+                  onClick={handleImport}
+                  sx={{
+                    background:
+                      "linear-gradient(135deg, #2DD4FF 0%, #1B8DFF 100%)",
+                    color: "#fff",
+                    "&:hover": {
+                      background:
+                        "linear-gradient(135deg, #1B8DFF 0%, #2DD4FF 100%)",
+                    },
+                    "&.Mui-disabled": {
+                      background: "rgba(255,255,255,0.06)",
+                      color: "rgba(255,255,255,0.3)",
+                    },
+                  }}
+                >
+                  {importing ? "Importando..." : "Importar Assinantes"}
+                </Button>
+
+                {!currentProductId && !isLoading && (
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "rgba(255, 152, 0, 0.8)" }}
+                  >
+                    Configure o Product ID primeiro.
+                  </Typography>
+                )}
+
+                {importResult && (
+                  <Box>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: importResult.success
+                          ? "rgba(46, 204, 113, 0.9)"
+                          : "rgba(244, 67, 54, 0.9)",
+                        fontWeight: 500,
+                        mb: importResult.data?.details?.length ? 1 : 0,
+                      }}
+                    >
+                      {importResult.success
+                        ? importResult.message
+                        : (importResult.error ?? "Erro desconhecido")}
+                    </Typography>
+                    {importResult.data?.details &&
+                      importResult.data.details.length > 0 && (
+                        <Box
+                          sx={{
+                            maxHeight: 120,
+                            overflowY: "auto",
+                            p: 1,
+                            borderRadius: 1,
+                            background: "rgba(0,0,0,0.2)",
+                          }}
+                        >
+                          {importResult.data.details.map((d, i) => (
+                            <Typography
+                              key={i}
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                color: "rgba(255,255,255,0.5)",
+                              }}
+                            >
+                              {d}
+                            </Typography>
+                          ))}
+                        </Box>
+                      )}
+                  </Box>
                 )}
               </Stack>
             </CardContent>
