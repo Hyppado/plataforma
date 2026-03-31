@@ -15,7 +15,6 @@ function CreatorsContent() {
   const searchParams = useSearchParams();
 
   const timeRange = normalizeRange(searchParams.get("range"));
-  const searchQuery = searchParams.get("q") || "";
   const regionFilter = (
     searchParams.get("region") || getStoredRegion()
   ).toUpperCase();
@@ -40,7 +39,6 @@ function CreatorsContent() {
     range: timeRange,
     region: regionFilter,
     sort,
-    search: searchQuery || undefined,
     pageSize: 100,
   });
 
@@ -49,8 +47,6 @@ function CreatorsContent() {
     params.set("range", overrides.range ?? timeRange);
     params.set("region", overrides.region ?? regionFilter);
     params.set("sort", overrides.sort ?? sort);
-    const q = overrides.q ?? searchQuery;
-    if (q) params.set("q", q);
     router.push(`/dashboard/creators?${params.toString()}`);
   };
 
@@ -92,8 +88,6 @@ function CreatorsContent() {
         <DashboardHeader
           timeRange={timeRange}
           onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
-          searchQuery={searchQuery}
-          onSearchChange={(q: string) => updateUrl({ q })}
           onRefresh={() => mutate()}
           loading={isLoading || isValidating}
         />

@@ -3,7 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Box, Typography, Grid, LinearProgress } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Grid,
+  LinearProgress,
+  Tabs,
+  Tab,
+} from "@mui/material";
 import {
   getQuotaPolicy,
   getPromptConfig,
@@ -17,18 +24,16 @@ import {
 import type { QuotaPolicy, QuotaUsage, PromptConfig } from "@/lib/types/admin";
 import { LimitsSection } from "@/app/components/admin/LimitsSection";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
-
-const cardStyle = {
-  background: "rgba(10, 15, 24, 0.8)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  borderRadius: 3,
-};
+import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
+import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 
 export default function ConfigPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  // Data state
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Data state (for Geral tab)
   const [quotaPolicy, setQuotaPolicyState] = useState<QuotaPolicy | null>(null);
   const [quotaUsage, setQuotaUsage] = useState<QuotaUsage>({});
   const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null);
@@ -128,33 +133,61 @@ export default function ConfigPage() {
           Configuração
         </Typography>
         <Typography sx={{ color: "rgba(255,255,255,0.6)" }}>
-          Limites, prompts, suporte e parâmetros internos
+          Limites, prompts, integrações e parâmetros internos
         </Typography>
       </Box>
-      {loading && <LinearProgress sx={{ mb: 3 }} />}
-      <Grid container spacing={3}>
-        <LimitsSection
-          quotaPolicy={quotaPolicy}
-          quotaUsage={quotaUsage}
-          transcriptsLimit={transcriptsLimit}
-          scriptsLimit={scriptsLimit}
-          limitsSaved={limitsSaved}
-          onTranscriptsLimitChange={setTranscriptsLimit}
-          onScriptsLimitChange={setScriptsLimit}
-          onSave={saveLimits}
-        />
 
-        <PromptsSection
-          promptConfig={promptConfig}
-          promptTab={promptTab}
-          savedPrompt={savedPrompt}
-          promptVariables={PROMPT_VARIABLES}
-          onPromptTabChange={setPromptTab}
-          onUpdateTemplate={updatePromptTemplate}
-          onRestoreDefaults={restoreDefaults}
-          onSave={savePrompt}
-        />
-      </Grid>
+      <Tabs
+        value={activeTab}
+        onChange={(_e, v: number) => setActiveTab(v)}
+        sx={{
+          mb: 3,
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          "& .MuiTab-root": { color: "rgba(255,255,255,0.5)", fontWeight: 600 },
+          "& .Mui-selected": { color: "#2DD4FF" },
+          "& .MuiTabs-indicator": { background: "#2DD4FF" },
+        }}
+      >
+        <Tab label="Geral" />
+        <Tab label="Echotik" />
+        <Tab label="Hotmart" />
+      </Tabs>
+
+      {/* Tab 0 — Geral (Limites + Prompts) */}
+      {activeTab === 0 && (
+        <>
+          {loading && <LinearProgress sx={{ mb: 3 }} />}
+          <Grid container spacing={3}>
+            <LimitsSection
+              quotaPolicy={quotaPolicy}
+              quotaUsage={quotaUsage}
+              transcriptsLimit={transcriptsLimit}
+              scriptsLimit={scriptsLimit}
+              limitsSaved={limitsSaved}
+              onTranscriptsLimitChange={setTranscriptsLimit}
+              onScriptsLimitChange={setScriptsLimit}
+              onSave={saveLimits}
+            />
+
+            <PromptsSection
+              promptConfig={promptConfig}
+              promptTab={promptTab}
+              savedPrompt={savedPrompt}
+              promptVariables={PROMPT_VARIABLES}
+              onPromptTabChange={setPromptTab}
+              onUpdateTemplate={updatePromptTemplate}
+              onRestoreDefaults={restoreDefaults}
+              onSave={savePrompt}
+            />
+          </Grid>
+        </>
+      )}
+
+      {/* Tab 1 — Echotik */}
+      {activeTab === 1 && <EchotikTab />}
+
+      {/* Tab 2 — Hotmart */}
+      {activeTab === 2 && <HotmartTab />}
     </Box>
   );
 }

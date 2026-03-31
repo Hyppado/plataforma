@@ -33,7 +33,6 @@ function TrendsContent() {
 
   // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
-  const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
 
   // Load categories on mount
@@ -67,7 +66,6 @@ function TrendsContent() {
           sort: "1", // total_sale_cnt
           order: "1", // desc
         });
-        if (searchQuery) params.set("search", searchQuery);
         if (categoryFilter && categoryFilter !== ALL_CATEGORY_ID) {
           params.set("category", categoryFilter);
         }
@@ -104,7 +102,7 @@ function TrendsContent() {
         setLoadingMore(false);
       }
     },
-    [timeRange, searchQuery, categoryFilter, filterByCategory],
+    [timeRange, categoryFilter, filterByCategory],
   );
 
   // Reset to page 1 when filters change
@@ -117,15 +115,6 @@ function TrendsContent() {
   const handleTimeRangeChange = (range: TimeRange) => {
     const params = new URLSearchParams();
     params.set("range", range);
-    if (searchQuery) params.set("q", searchQuery);
-    if (categoryFilter) params.set("category", categoryFilter);
-    router.push(`/dashboard/trends?${params.toString()}`);
-  };
-
-  const handleSearchChange = (query: string) => {
-    const params = new URLSearchParams();
-    params.set("range", timeRange);
-    if (query) params.set("q", query);
     if (categoryFilter) params.set("category", categoryFilter);
     router.push(`/dashboard/trends?${params.toString()}`);
   };
@@ -133,7 +122,6 @@ function TrendsContent() {
   const handleCategoryChange = (category: string) => {
     const params = new URLSearchParams();
     params.set("range", timeRange);
-    if (searchQuery) params.set("q", searchQuery);
     if (category) params.set("category", category);
     router.push(`/dashboard/trends?${params.toString()}`);
   };
@@ -186,8 +174,6 @@ function TrendsContent() {
         <DashboardHeader
           timeRange={timeRange}
           onTimeRangeChange={handleTimeRangeChange}
-          searchQuery={searchQuery}
-          onSearchChange={handleSearchChange}
           onRefresh={fetchData}
           loading={loading}
           category={categoryFilter}
