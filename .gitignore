@@ -20,3 +20,4 @@ coverage/
 # SQLite dev databases (if used locally)
 prisma/*.db
 prisma/*.db-journal
+.env.production
