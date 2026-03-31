@@ -234,7 +234,8 @@ async function importSingleSubscriber(
   result: ImportSubscribersResult,
 ): Promise<void> {
   const email = sub.subscriber?.email;
-  const subscriberCode = sub.subscriber_code != null ? String(sub.subscriber_code) : undefined;
+  const subscriberCode =
+    sub.subscriber_code != null ? String(sub.subscriber_code) : undefined;
   const subscriptionId = String(
     sub.subscription_id ?? subscriberCode ?? `hotmart_${Date.now()}`,
   );
