@@ -172,6 +172,74 @@ export async function shouldSkip(
 }
 
 // ---------------------------------------------------------------------------
+// Stale RUNNING cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * Marks RUNNING IngestionRun records older than `staleMinutes` as FAILED.
+ *
+ * Vercel hard-kills functions at the 60s limit, which can prevent the
+ * orchestrator's catch/finally from updating the record. This cleanup
+ * runs at the start of each cron tick to prevent orphaned RUNNING records
+ * from accumulating.
+ */
+export async function cleanupStaleRuns(
+  staleMinutes = 5,
+  log?: Logger,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+
+  const result = await prisma.ingestionRun.updateMany({
+    where: {
+      status: "RUNNING",
+      startedAt: { lt: cutoff },
+    },
+    data: {
+      status: "FAILED",
+      endedAt: new Date(),
+      errorMessage: "Timed out — stale RUNNING record cleaned up",
+    },
+  });
+
+  if (result.count > 0) {
+    log?.warn("Cleaned up stale RUNNING records", { count: result.count });
+  }
+
+  return result.count;
+}
+
+// ---------------------------------------------------------------------------
+// Excessive-failure backoff
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if a source has too many recent failures, meaning the cron
+ * should temporarily skip it and let other sources proceed.
+ *
+ * Prevents a single problematic region from monopolising every cron tick
+ * with repeated retries (e.g. GB had 43 RUNNING/FAILED records in one day).
+ *
+ * After `windowHours` without new failures the counter resets naturally.
+ */
+export async function hasExcessiveFailures(
+  source: string,
+  maxRecent = 5,
+  windowHours = 2,
+): Promise<boolean> {
+  const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+
+  const failCount = await prisma.ingestionRun.count({
+    where: {
+      source,
+      status: "FAILED",
+      startedAt: { gte: since },
+    },
+  });
+
+  return failCount >= maxRecent;
+}
+
+// ---------------------------------------------------------------------------
 // Raw payload storage (dedup by SHA-256)
 // ---------------------------------------------------------------------------
 

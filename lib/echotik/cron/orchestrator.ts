@@ -17,7 +17,12 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import type { Logger } from "@/lib/logger";
 import type { CronResult, CronStats } from "./types";
-import { shouldSkip, getConfiguredRegions } from "./helpers";
+import {
+  shouldSkip,
+  getConfiguredRegions,
+  cleanupStaleRuns,
+  hasExcessiveFailures,
+} from "./helpers";
 import { getEchotikConfig } from "./config";
 import type { EchotikConfig } from "@/lib/types/echotik-admin";
 import { syncAllCategories } from "./syncCategories";
@@ -79,7 +84,9 @@ export async function detectNextTask(
     cfg.enabledTasks.includes("categories") &&
     (force || !(await shouldSkip("echotik:categories", categoriesInterval)))
   ) {
-    return { task: "categories", region: null };
+    if (force || !(await hasExcessiveFailures("echotik:run:categories"))) {
+      return { task: "categories", region: null };
+    }
   }
 
   const regions = await getConfiguredRegions();
@@ -91,7 +98,12 @@ export async function detectNextTask(
         force ||
         !(await shouldSkip(`echotik:videos:${region}`, videosInterval))
       ) {
-        return { task: "videos", region };
+        if (
+          force ||
+          !(await hasExcessiveFailures(`echotik:run:videos:${region}`))
+        ) {
+          return { task: "videos", region };
+        }
       }
     }
   }
@@ -103,7 +115,12 @@ export async function detectNextTask(
         force ||
         !(await shouldSkip(`echotik:products:${region}`, productsInterval))
       ) {
-        return { task: "products", region };
+        if (
+          force ||
+          !(await hasExcessiveFailures(`echotik:run:products:${region}`))
+        ) {
+          return { task: "products", region };
+        }
       }
     }
   }
@@ -115,7 +132,12 @@ export async function detectNextTask(
         force ||
         !(await shouldSkip(`echotik:creators:${region}`, creatorsInterval))
       ) {
-        return { task: "creators", region };
+        if (
+          force ||
+          !(await hasExcessiveFailures(`echotik:run:creators:${region}`))
+        ) {
+          return { task: "creators", region };
+        }
       }
     }
   }
@@ -244,6 +266,9 @@ export async function runEchotikCron(
   } = opts;
   const start = Date.now();
   const log = createLogger("echotik-cron");
+
+  // Clean up orphaned RUNNING records from previous hard-killed invocations
+  await cleanupStaleRuns(5, log);
 
   // Load dynamic config once — all intervals/pages come from here
   const config = await getEchotikConfig();
