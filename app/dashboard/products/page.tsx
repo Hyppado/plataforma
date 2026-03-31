@@ -26,7 +26,6 @@ function ProductsContent() {
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
   const timeRange = normalizeRange(searchParams.get("range"));
-  const searchQuery = searchParams.get("q") || "";
   const categoryFilter = searchParams.get("category") || "";
   const regionFilter = (
     searchParams.get("region") || getStoredRegion()
@@ -36,7 +35,7 @@ function ProductsContent() {
   // Reset display count when filters change
   useEffect(() => {
     setDisplayCount(PAGE_SIZE);
-  }, [timeRange, searchQuery, categoryFilter, regionFilter, sort]);
+  }, [timeRange, categoryFilter, regionFilter, sort]);
 
   const requestedRankingCycle: 1 | 2 | 3 =
     timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
@@ -59,7 +58,6 @@ function ProductsContent() {
     range: timeRange,
     region: regionFilter,
     sort,
-    search: searchQuery || undefined,
     pageSize: 100,
   });
 
@@ -91,8 +89,6 @@ function ProductsContent() {
     params.set("range", overrides.range ?? timeRange);
     params.set("region", overrides.region ?? regionFilter);
     params.set("sort", overrides.sort ?? sort);
-    const q = overrides.q ?? searchQuery;
-    if (q) params.set("q", q);
     const cat = overrides.category ?? categoryFilter;
     if (cat) params.set("category", cat);
     router.push(`/dashboard/products?${params.toString()}`);
@@ -144,8 +140,6 @@ function ProductsContent() {
         <DashboardHeader
           timeRange={timeRange}
           onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
-          searchQuery={searchQuery}
-          onSearchChange={(q: string) => updateUrl({ q })}
           onRefresh={() => mutate()}
           loading={isLoading || isValidating}
           category={categoryFilter}

@@ -1,15 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Box,
-  TextField,
-  InputAdornment,
-  IconButton,
-  Tooltip,
-  Button,
-} from "@mui/material";
-import { Search, FilterList, Refresh } from "@mui/icons-material";
+import { Box, IconButton, Tooltip } from "@mui/material";
+import { FilterList, Refresh } from "@mui/icons-material";
 import { TimeRangeSelect } from "@/app/components/filters/TimeRangeSelect";
 import { CategoryFilter } from "@/app/components/filters/CategoryFilter";
 import type { TimeRange } from "@/lib/filters/timeRange";
@@ -19,8 +11,6 @@ import type { ShopCategory } from "@/lib/types/echotik";
 interface DashboardHeaderProps {
   timeRange: TimeRange;
   onTimeRangeChange: (range: TimeRange) => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
   onRefresh?: () => void;
   loading?: boolean;
   // Category filter (opcional)
@@ -32,33 +22,17 @@ interface DashboardHeaderProps {
 export function DashboardHeader({
   timeRange,
   onTimeRangeChange,
-  searchQuery,
-  onSearchChange,
   onRefresh,
   loading = false,
   category,
   onCategoryChange,
   categories,
 }: DashboardHeaderProps) {
-  const [localSearch, setLocalSearch] = useState(searchQuery);
   const hasCategoryFilter =
     categories && categories.length > 0 && onCategoryChange;
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearchChange(localSearch);
-  };
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      onSearchChange(localSearch);
-    }
-  };
-
   return (
     <Box
-      component="form"
-      onSubmit={handleSearchSubmit}
       sx={{
         display: "flex",
         flexDirection: { xs: "column", md: "row" },
@@ -82,52 +56,6 @@ export function DashboardHeader({
           />
         )}
       </Box>
-
-      {/* Search Input */}
-      <TextField
-        id="dashboard-search"
-        placeholder="Buscar vídeo, produto ou criador..."
-        value={localSearch}
-        onChange={(e) => setLocalSearch(e.target.value)}
-        onKeyDown={handleSearchKeyDown}
-        disabled={loading}
-        size="small"
-        sx={{
-          flex: 1,
-          maxWidth: { md: 350 },
-          "& .MuiOutlinedInput-root": {
-            borderRadius: 1.5,
-            backgroundColor: "rgba(255,255,255,0.04)",
-            color: "#fff",
-            fontSize: "0.75rem",
-            height: 36,
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: "rgba(45, 212, 255, 0.18)",
-            },
-            "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: "rgba(45, 212, 255, 0.35)",
-            },
-            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#2DD4FF",
-            },
-          },
-          "& .MuiInputBase-input": {
-            padding: "6px 8px",
-          },
-          "& .MuiInputBase-input::placeholder": {
-            color: "rgba(255,255,255,0.4)",
-            opacity: 1,
-          },
-        }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <Search sx={{ color: "rgba(255,255,255,0.4)", fontSize: 18 }} />
-            </InputAdornment>
-          ),
-          "aria-label": "Buscar",
-        }}
-      />
 
       {/* Action Buttons */}
       <Box sx={{ display: "flex", gap: 0.75 }}>
@@ -180,25 +108,6 @@ export function DashboardHeader({
             </IconButton>
           </Tooltip>
         )}
-
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={loading}
-          sx={{
-            display: { xs: "flex", md: "none" },
-            background: "#2DD4FF",
-            color: "#06080F",
-            fontWeight: 600,
-            borderRadius: 2,
-            textTransform: "none",
-            "&:hover": {
-              background: "#5BE0FF",
-            },
-          }}
-        >
-          Buscar
-        </Button>
       </Box>
     </Box>
   );
