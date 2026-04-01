@@ -83,11 +83,14 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
+  const now = new Date();
   const result = await prisma.adminNotification.updateMany({
     where: { id: { in: ids } },
     data: {
       status: status as "UNREAD" | "READ" | "ARCHIVED",
-      ...(status === "ARCHIVED" ? { resolvedAt: new Date() } : {}),
+      ...(status === "READ" ? { readAt: now } : {}),
+      ...(status === "ARCHIVED" ? { archivedAt: now, resolvedAt: now } : {}),
+      ...(status === "UNREAD" ? { readAt: null, archivedAt: null } : {}),
     },
   });
 

@@ -4,9 +4,10 @@
  *
  * Gera notificações automaticamente com base em eventos de webhook,
  * falhas de processamento e ações que requerem atenção do admin.
- * Implementa dedup por tipo + userId + janela de 1h.
+ * Dedup determinístico via SHA-256 dedupeKey (DB-enforced unique).
  */
 
+import { createHash } from "crypto";
 import prisma from "../prisma";
 import type { Prisma } from "@prisma/client";
 import type { NotificationSeverity } from "@prisma/client";
@@ -100,9 +101,31 @@ const EVENT_TO_NOTIFICATION_TYPE: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Janela de dedup (1 hora)
+// Deterministic dedup key — SHA-256
 // ---------------------------------------------------------------------------
-const DEDUP_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Builds a deterministic dedup key for a notification.
+ * - If eventId present: SHA-256(type:evt:{eventId}) — one notification per webhook event
+ * - If transactionId present (no eventId): SHA-256(type:txn:{transactionId})
+ * - Otherwise: null — no dedup, always creates
+ */
+export function buildDedupeKey(
+  type: string,
+  eventId?: string | null,
+  transactionId?: string | null,
+): string | null {
+  let raw: string | null = null;
+
+  if (eventId) {
+    raw = `${type}:evt:${eventId}`;
+  } else if (transactionId) {
+    raw = `${type}:txn:${transactionId}`;
+  }
+
+  if (!raw) return null;
+  return createHash("sha256").update(raw).digest("hex");
+}
 
 // ---------------------------------------------------------------------------
 // Criação de notificação com dedup
@@ -117,12 +140,13 @@ export interface NotificationContext {
   userId?: string | null;
   subscriptionId?: string | null;
   eventId?: string | null;
+  source?: string;
   metadata?: Record<string, unknown>;
 }
 
 /**
  * Cria uma notificação admin se as regras indicam que o evento é relevante,
- * e se não houver uma notificação duplicada na janela de 1h.
+ * e se não houver uma notificação duplicada (deterministic dedupeKey).
  *
  * @returns ID da notificação criada, ou null se dedup/regra não aplicável
  */
@@ -137,18 +161,21 @@ export async function createNotificationIfNeeded(
   // Sem regra = evento info-only → não notifica
   if (!rule) return null;
 
-  // Dedup: verifica se já existe notificação do mesmo tipo + userId na última hora
-  const dedupSince = new Date(Date.now() - DEDUP_WINDOW_MS);
-  const existing = await prisma.adminNotification.findFirst({
-    where: {
-      type: notificationType,
-      userId: ctx.userId ?? undefined,
-      createdAt: { gte: dedupSince },
-    },
-    select: { id: true },
-  });
+  // Build deterministic dedup key
+  const dedupeKey = buildDedupeKey(
+    notificationType,
+    ctx.eventId,
+    ctx.transactionId,
+  );
 
-  if (existing) return null;
+  // If we have a dedup key, check if it already exists
+  if (dedupeKey) {
+    const existing = await prisma.adminNotification.findUnique({
+      where: { dedupeKey },
+      select: { id: true },
+    });
+    if (existing) return null;
+  }
 
   // Preenche template
   const message = rule.messageTemplate
@@ -161,11 +188,13 @@ export async function createNotificationIfNeeded(
 
   const notification = await prisma.adminNotification.create({
     data: {
+      source: ctx.source ?? "hotmart",
       type: notificationType,
       severity: rule.severity,
       title: rule.title,
       message,
       status: "UNREAD",
+      dedupeKey,
       userId: ctx.userId ?? undefined,
       subscriptionId: ctx.subscriptionId ?? undefined,
       eventId: ctx.eventId ?? undefined,
@@ -178,7 +207,7 @@ export async function createNotificationIfNeeded(
 
 /**
  * Cria notificação diretamente por tipo (para uso em cron/reconciliation).
- * Ignora dedup — uso interno.
+ * dedupeKey = null → sempre cria (sem dedup).
  */
 export async function createDirectNotification(
   type: string,
@@ -186,6 +215,7 @@ export async function createDirectNotification(
     severity: NotificationSeverity;
     title: string;
     message: string;
+    source: string;
     userId: string;
     subscriptionId: string;
     eventId: string;
@@ -195,6 +225,7 @@ export async function createDirectNotification(
   const rule = NOTIFICATION_RULES[type];
   const notification = await prisma.adminNotification.create({
     data: {
+      source: overrides?.source ?? "system",
       type,
       severity: overrides?.severity ?? rule?.severity ?? "WARNING",
       title: overrides?.title ?? rule?.title ?? type,

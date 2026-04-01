@@ -12,6 +12,7 @@ vi.mock("@/lib/prisma");
 import {
   createNotificationIfNeeded,
   createDirectNotification,
+  buildDedupeKey,
   NOTIFICATION_RULES,
   type NotificationContext,
 } from "@/lib/admin/notifications";
@@ -37,7 +38,7 @@ describe("createNotificationIfNeeded()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: no existing notification (dedup check returns null)
-    prismaMock.adminNotification.findFirst.mockResolvedValue(null);
+    prismaMock.adminNotification.findUnique.mockResolvedValue(null);
     prismaMock.adminNotification.create.mockResolvedValue({
       id: "notif-1",
     });
@@ -49,6 +50,7 @@ describe("createNotificationIfNeeded()", () => {
     expect(result).toBe("notif-1");
     expect(prismaMock.adminNotification.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        source: "hotmart",
         type: "SUBSCRIPTION_CHARGEBACK",
         severity: "CRITICAL",
         title: "Chargeback detectado",
@@ -56,6 +58,7 @@ describe("createNotificationIfNeeded()", () => {
         subscriptionId: "sub-1",
         eventId: "event-1",
         status: "UNREAD",
+        dedupeKey: expect.any(String),
       }),
     });
   });
@@ -106,8 +109,8 @@ describe("createNotificationIfNeeded()", () => {
     expect(prismaMock.adminNotification.create).not.toHaveBeenCalled();
   });
 
-  it("deduplicates notifications within 1h window", async () => {
-    prismaMock.adminNotification.findFirst.mockResolvedValue({
+  it("deduplicates notifications by dedupeKey", async () => {
+    prismaMock.adminNotification.findUnique.mockResolvedValue({
       id: "existing-notif",
     });
 
@@ -115,12 +118,14 @@ describe("createNotificationIfNeeded()", () => {
 
     expect(result).toBeNull();
     expect(prismaMock.adminNotification.create).not.toHaveBeenCalled();
-    expect(prismaMock.adminNotification.findFirst).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        type: "SUBSCRIPTION_CHARGEBACK",
-        userId: "user-1",
-        createdAt: { gte: expect.any(Date) },
-      }),
+    expect(prismaMock.adminNotification.findUnique).toHaveBeenCalledWith({
+      where: {
+        dedupeKey: buildDedupeKey(
+          "SUBSCRIPTION_CHARGEBACK",
+          "event-1",
+          "TXN-123",
+        ),
+      },
       select: { id: true },
     });
   });
@@ -196,6 +201,7 @@ describe("createDirectNotification()", () => {
     expect(id).toBe("direct-notif-1");
     expect(prismaMock.adminNotification.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        source: "system",
         type: "PROCESSING_FAILED",
         severity: "HIGH",
         status: "UNREAD",
@@ -208,11 +214,13 @@ describe("createDirectNotification()", () => {
       severity: "CRITICAL",
       message: "Custom message",
       userId: "user-abc",
+      source: "cron",
     });
 
     expect(id).toBe("direct-notif-1");
     expect(prismaMock.adminNotification.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        source: "cron",
         severity: "CRITICAL",
         message: "Custom message",
         userId: "user-abc",
@@ -267,5 +275,42 @@ describe("NOTIFICATION_RULES", () => {
     expect(NOTIFICATION_RULES.PROCESSING_FAILED.severity).toBe("HIGH");
     expect(NOTIFICATION_RULES.SUBSCRIPTION_CANCELED.severity).toBe("WARNING");
     expect(NOTIFICATION_RULES.SUBSCRIPTION_DELAYED.severity).toBe("WARNING");
+  });
+});
+
+describe("buildDedupeKey()", () => {
+  it("returns SHA-256 hash for eventId", () => {
+    const key = buildDedupeKey("SUBSCRIPTION_CHARGEBACK", "evt-123", null);
+    expect(key).toBeTruthy();
+    expect(key).toHaveLength(64); // SHA-256 hex = 64 chars
+  });
+
+  it("returns SHA-256 hash for transactionId when no eventId", () => {
+    const key = buildDedupeKey("SUBSCRIPTION_REFUNDED", null, "txn-456");
+    expect(key).toBeTruthy();
+    expect(key).toHaveLength(64);
+  });
+
+  it("prioritises eventId over transactionId", () => {
+    const keyEvt = buildDedupeKey("TYPE", "evt-1", "txn-1");
+    const keyEvtOnly = buildDedupeKey("TYPE", "evt-1", null);
+    expect(keyEvt).toBe(keyEvtOnly);
+  });
+
+  it("returns null when no eventId and no transactionId", () => {
+    expect(buildDedupeKey("TYPE", null, null)).toBeNull();
+    expect(buildDedupeKey("TYPE", undefined, undefined)).toBeNull();
+  });
+
+  it("produces deterministic output for same input", () => {
+    const a = buildDedupeKey("SUBSCRIPTION_CHARGEBACK", "evt-1", null);
+    const b = buildDedupeKey("SUBSCRIPTION_CHARGEBACK", "evt-1", null);
+    expect(a).toBe(b);
+  });
+
+  it("produces different keys for different types with same eventId", () => {
+    const a = buildDedupeKey("SUBSCRIPTION_CHARGEBACK", "evt-1", null);
+    const b = buildDedupeKey("SUBSCRIPTION_REFUNDED", "evt-1", null);
+    expect(a).not.toBe(b);
   });
 });
