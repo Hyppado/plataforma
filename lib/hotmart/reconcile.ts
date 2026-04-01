@@ -145,6 +145,7 @@ export async function runHotmartReconcile(
     if (staleSubscriptions.length > 0) {
       await createDirectNotification("IDENTITY_UNRESOLVED", {
         severity: "WARNING",
+        source: "reconciliation",
         title: `${staleSubscriptions.length} assinatura(s) sem atualização recente`,
         message: `Assinaturas ACTIVE sem evento nos últimos ${STALE_SUBSCRIPTION_DAYS} dias. Verifique se estão sincronizadas com o Hotmart.`,
         metadata: {
@@ -164,7 +165,7 @@ export async function runHotmartReconcile(
     const archiveResult = await prisma.adminNotification.deleteMany({
       where: {
         status: "ARCHIVED",
-        updatedAt: { lt: archiveCutoff },
+        archivedAt: { lt: archiveCutoff },
       },
     });
     stats.archivedNotifications = archiveResult.count;

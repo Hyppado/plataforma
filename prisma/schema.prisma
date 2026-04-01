@@ -1,5 +1,6 @@
 // Prisma schema for Hyppado
-// Run: npx prisma generate && npx prisma db push
+// Development: npx prisma migrate dev
+// Deploy:      npx prisma migrate deploy (runs automatically on Vercel)
 
 generator client {
   provider = "prisma-client-js"
@@ -278,7 +279,7 @@ model ExternalAccountLink {
   user                User     @relation(fields: [userId], references: [id])
 
   @@unique([provider, externalCustomerId])
-  @@unique([provider, externalEmail])
+  @@index([provider, externalEmail])       // lookup only — email is mutable, NOT safe as unique
   @@index([userId])
   @@index([provider, isActive])
 }
@@ -832,14 +833,29 @@ enum NotificationStatus {
 model AdminNotification {
   id              String                @id @default(cuid())
 
-  type            String                // ex: "SUBSCRIPTION_CANCELED", "CHARGEBACK", "WEBHOOK_INVALID", "PROCESSING_FAILED"
+  // Classification
+  source          String                @default("hotmart")  // "hotmart" | "system" | "cron" | "reconciliation" | "import"
+  type            String                // "SUBSCRIPTION_CANCELED" | "CHARGEBACK" | "WEBHOOK_INVALID" | "PROCESSING_FAILED" | etc.
   severity        NotificationSeverity  @default(WARNING)
+
+  // Content
   title           String
   message         String
-  status          NotificationStatus    @default(UNREAD)
-  metadata        Json?                 // dados extras (eventType original, valores, etc)
+  metadata        Json?                 // structured extras: eventType, transactionId, amounts, etc.
 
-  // Relações opcionais — contextualizam a notificação
+  // State
+  status          NotificationStatus    @default(UNREAD)
+  readAt          DateTime?             // when status changed to READ
+  archivedAt      DateTime?             // when status changed to ARCHIVED
+  resolvedAt      DateTime?             // when an admin marked it resolved
+  resolvedBy      String?               // admin userId who resolved (not FK — survives admin deletion)
+
+  // Deduplication — deterministic, DB-enforced
+  // Format: SHA-256(type + ":" + eventId|transactionId|userId + ":" + context)
+  // null = no dedup (always creates)
+  dedupeKey       String?   @unique
+
+  // Relations — optional context
   userId          String?
   user            User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -849,15 +865,14 @@ model AdminNotification {
   eventId         String?
   event           HotmartWebhookEvent?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
-  // Resolução
-  resolvedAt      DateTime?
-  resolvedBy      String?               // admin userId que resolveu
-
+  // Timestamps
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
-  @@index([status, severity])
-  @@index([createdAt])
-  @@index([userId])
-  @@index([type, userId, createdAt])    // dedup index
+  // Indexes
+  @@index([status, severity])           // admin inbox: unread + critical first
+  @@index([source, createdAt])          // filter by source
+  @@index([createdAt])                  // time-based queries and cleanup
+  @@index([userId])                     // notifications per user
+  @@index([type, createdAt])            // type-based filtering
 }

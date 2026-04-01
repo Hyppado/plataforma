@@ -175,7 +175,7 @@ describe("GET /api/cron/hotmart-reconcile", () => {
     expect(prismaMock.adminNotification.deleteMany).toHaveBeenCalledWith({
       where: {
         status: "ARCHIVED",
-        updatedAt: { lt: expect.any(Date) },
+        archivedAt: { lt: expect.any(Date) },
       },
     });
   });

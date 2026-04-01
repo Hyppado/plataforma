@@ -8,15 +8,26 @@ Access is authenticated and part of the experience depends on subscription/acces
 
 ## Purpose of These Instructions
 
-These instructions exist to maintain architectural consistency, security, readability, and compatibility.
-Before proposing changes, understand how the project currently works and preserve decisions that are already correct.
+This file is the **authoritative source of truth** for how this project is structured, maintained, and evolved.
+
+Before proposing or implementing any change, **always read and follow these instructions**.
+Before introducing a new pattern, tool, or abstraction, check whether an existing convention already covers it.
 Do not introduce unnecessary complexity.
+
+Key principles:
+- Schema changes must consider Vercel Preview and Production environments first.
+- Local DB is **not** the primary migration target — Vercel environments are.
+- Migration workflow must not be improvised.
+- Any schema change must update migration flow, deploy flow, and docs if relevant.
+- Preserve decisions that are already correct.
 
 ## Git Workflow
 
 - Work on the `develop` branch.
 - For production, open a PR from `develop` to `main`.
+- A GitHub Action (`.github/workflows/auto-pr.yml`) automatically creates/maintains an open PR from `develop` → `main` on every push to `develop`.
 - Do not push directly to `main`, except for critical hotfixes.
+- Merging the auto-PR to `main` triggers the production deploy on Vercel.
 - Use conventional commits:
   - `feat:`
   - `fix:`
@@ -42,7 +53,23 @@ Do not introduce unnecessary complexity.
 ```
 app/
   api/             → route handlers (thin — logic goes to lib/)
-    admin/         → protected admin routes
+    admin/         → protected admin routes (16 sub-routes)
+      access-grants/
+      audit-logs/
+      echotik/         → echotik config + health admin endpoints
+      erasure-requests/
+      import-subscribers/
+      notifications/   → admin notification list + [id] detail
+      plans/
+      prompt-config/
+      quota-policy/
+      quota-usage/
+      settings/
+      subscribers/
+      subscription-metrics/
+      sync-hotmart/
+      users/
+      webhook-events/
     auth/          → NextAuth handlers
     cron/          → cron endpoints (echotik, hotmart reconcile)
     echotik/       → Echotik data endpoints
@@ -64,43 +91,61 @@ app/
     ui/            → reusable primitives (Logo, etc.)
     videos/        → video-specific components
   dashboard/       → authenticated pages (/dashboard/*)
+    admin/         → admin panel pages
+    config/        → user settings
+    creators/      → creator ranking
+    products/      → product ranking
+    produtos-salvos/ → saved products
+    suporte/       → support page
+    trends/        → trend analysis
+    videos/        → video ranking
+    videos-salvos/ → saved videos
   login/           → login page
   theme.ts         → centralized MUI theme
 lib/
   access/          → access control (AccessGrant, subscription)
+    resolver.ts    → resolveAccess() — runtime access chain
   admin/           → admin services
     admin-client.ts
     config.ts
-    notifications.ts
+    notifications.ts  → createNotificationIfNeeded, createDirectNotification, NOTIFICATION_RULES
     prompt-config.ts
     useQuotaUsage.ts
   auth.ts          → NextAuth config + callbacks
   categories.ts    → category mapping
   echotik/
     client.ts      → HTTP client for Echotik API
+    admin/         → admin-facing echotik services
+      estimation.ts
+      health.ts
     cron/          → ingestion cron modules
       orchestrator.ts  → detectNextTask() → {task, region} | null
-      helpers.ts       → getConfiguredRegions() reads Region table from DB
+      helpers.ts       → getConfiguredRegions(), cleanupStaleRuns(), hasExcessiveFailures()
       syncVideos.ts    → syncVideoRanklist(runId, region, log)
       syncProducts.ts  → syncProductRanklist(runId, region, log)
       syncCreators.ts  → syncCreatorRanklist(runId, region, log)
       syncCategories.ts
+      config.ts        → cron configuration
       index.ts
       types.ts
     dates.ts / products.ts / rankFields.ts / trending.ts
   filters/         → shared filter utilities
+    timeRange.ts
   format.ts        → number, date, currency formatters
   hotmart/
     client.ts / config.ts / oauth.ts
-    processor.ts   → webhook event processing
-    reconcile.ts   → subscription reconciliation
+    processor.ts       → webhook event processing
+    reconcile.ts       → subscription reconciliation
+    import-subscribers.ts → bulk subscriber import
     sync.ts / webhook.ts
   lgpd/            → consent and personal data (GDPR)
+    erasure.ts     → data erasure request handling
   logger.ts        → createLogger(source, correlationId) → structured Logger
   prisma.ts        → PrismaClient singleton (ALWAYS use this)
   region.ts        → region helpers
   settings.ts      → database-backed configuration
   storage/         → file storage
+    saved.ts
   swr/
     fetcher.ts     → default SWR fetcher
     useCategories.ts
@@ -109,12 +154,43 @@ lib/
     admin.ts       → admin area types
     dto.ts         → shared DTOs
     echotik.ts     → Echotik API types
+    echotik-admin.ts → Echotik admin-specific types
   usage/           → quota and plan limit logic
+    consume.ts     → consumeUsage()
+    enforce.ts     → enforceQuota()
+    period.ts      → period management
+    quota.ts       → quota resolution
+    index.ts
 prisma/
-  schema.prisma    → Prisma schema (includes Region model)
+  schema.prisma    → Prisma schema (see Database Schema section)
   seed.ts          → seed with default regions BR, US, JP
 __tests__/
-  api/             → route handler tests
+  helpers/
+    auth.ts        → auth mocking helpers
+    factories.ts   → test data factories
+    prisma-mock.ts → Prisma mock setup
+  api/
+    admin/         → admin route tests (10 files)
+      access-grants.test.ts
+      audit-logs.test.ts
+      echotik-config.test.ts
+      echotik-health.test.ts
+      echotik-regions.test.ts
+      notifications.test.ts
+      plans.test.ts
+      subscribers.test.ts
+      subscription-metrics.test.ts
+      users.test.ts
+    cron/
+      echotik.test.ts
+      hotmart-reconcile.test.ts
+    me/
+      alerts.test.ts
+      collections.test.ts
+      notes.test.ts
+      saved.test.ts
+    webhooks/
+      hotmart.test.ts
   components/      → RTL component tests (jsdom)
     setup.tsx      → setup: jest-dom, mocks for MUI/Next/auth
     CategoryFilter.test.tsx
@@ -123,7 +199,37 @@ __tests__/
     RankBadge.test.tsx
     TimeRangeSelect.test.tsx
     VideoCardSkeleton.test.tsx
-  lib/             → business logic tests
+  lib/
+    auth.test.ts
+    logger.test.ts
+    access/
+      resolver.test.ts
+    admin/
+      admin-client.test.ts
+      notifications.test.ts
+    echotik/
+      client.test.ts
+      cron-config.test.ts
+      cron-helpers.test.ts
+      cron-orchestrator.test.ts
+      cron-scheduling.test.ts
+      cron-syncCategories.test.ts
+      cron-syncCreators.test.ts
+      cron-syncProducts.test.ts
+      cron-syncVideos.test.ts
+      dates.test.ts
+      estimation.test.ts
+      products.test.ts
+    hotmart/
+      client.test.ts
+      oauth.test.ts
+      processor.test.ts
+      reconcile.test.ts
+      webhook.test.ts
+    lgpd/
+      erasure.test.ts
+    usage/
+      usage.test.ts
   middleware.test.ts
   security.test.ts
   setup.ts
@@ -138,6 +244,76 @@ vitest.component.config.ts    → jsdom config (React component tests)
   workflows/
     ci.yml         → CI: typecheck → unit+component → build → e2e-smoke
 ```
+
+## Database Schema (Prisma Models)
+
+The Prisma schema is in `prisma/schema.prisma`. Current models:
+
+### Domain 1 — Identity & IAM
+
+- **User** — central identity; has role, status, LGPD fields, soft delete (`deletedAt`)
+- **AccessGrant** — admin-issued access overrides (replaces subscription requirement)
+- **ConsentRecord** — append-only LGPD consent log
+- **DataErasureRequest** — LGPD erasure request tracking
+- **Invitation** — user invitation with secure token, plan pre-assignment
+
+### Domain 2 — Plans & Billing
+
+- **Plan** — subscription plans with quotas (transcripts, scripts, tokens per month)
+- **PlanExternalMapping** — maps Plan to external provider IDs (Hotmart, Stripe, etc.)
+- **Coupon** — Hotmart-synced discount coupons
+- **Subscription** — origin-agnostic subscription (source: hotmart/manual/invite/stripe)
+- **HotmartSubscription** — Hotmart-specific subscription details (linked 1:1 to Subscription)
+- **SubscriptionCharge** — payment records per subscription
+- **ExternalAccountLink** — links User to external provider identity (Hotmart subscriberCode, etc.)
+
+### Domain 3 — Hotmart Events
+
+- **HotmartWebhookEvent** — raw webhook event with idempotency key, processing status, retry count
+
+### Domain 4 — Admin & Observability
+
+- **AdminNotification** — admin inbox notifications with severity, dedup, relations to User/Subscription/Event
+- **AuditLog** — admin action audit trail
+- **Setting** — dynamic key-value configuration (admin panel)
+
+### Domain 5 — Echotik / TikTok Shop Data
+
+- **EchotikCategory** — TikTok Shop L1 categories
+- **EchotikVideoTrendDaily** — daily video ranking snapshots
+- **EchotikProductTrendDaily** — daily product ranking snapshots
+- **EchotikCreatorTrendDaily** — daily creator ranking snapshots
+- **EchotikProductDetail** — cached product detail (enrichment)
+- **EchotikRawResponse** — raw API responses (debug/reproducibility)
+- **IngestionRun** — cron execution tracking (status, timing, stats)
+- **Region** — active regions/countries (code PK: "BR", "US", etc.)
+
+### Domain 6 — User Content
+
+- **SavedItem** — user saved videos/products
+- **Collection** / **CollectionItem** — user collections
+- **Note** — user notes on content
+- **Alert** — user alerts
+
+### Domain 7 — Usage Tracking
+
+- **UsagePeriod** — monthly usage aggregation per user
+- **UsageEvent** — atomic consumption events with idempotency key
+
+### Key Enums
+
+- `UserRole`: ADMIN, USER
+- `UserStatus`: ACTIVE, INACTIVE, SUSPENDED
+- `SubscriptionStatus`: PENDING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED
+- `ChargeStatus`: PENDING, PAID, REFUNDED, CANCELLED, CHARGEBACK, FAILED
+- `WebhookStatus`: RECEIVED, PROCESSING, PROCESSED, FAILED, DUPLICATE
+- `IngestionStatus`: RUNNING, SUCCESS, FAILED
+- `NotificationSeverity`: INFO, WARNING, HIGH, CRITICAL
+- `NotificationStatus`: UNREAD, READ, ARCHIVED
+- `ErasureStatus`: PENDING, IN_PROGRESS, COMPLETED, REJECTED
+- `InvitationStatus`: PENDING, ACCEPTED, EXPIRED, CANCELLED
+- `PlanPeriod`: MONTHLY, ANNUAL
+- `UsageEventType`: TRANSCRIPT, SCRIPT, INSIGHT
 
 ## Mandatory Code Rules
 
@@ -167,7 +343,7 @@ vitest.component.config.ts    → jsdom config (React component tests)
 - Route handlers: `app/api/<domain>/`
 - Visual components: `app/components/<category>/`
 - Shared SWR hooks: `lib/swr/`
-- Shared types: `lib/types/dto.ts`, `lib/types/admin.ts`, `lib/types/echotik.ts`
+- Shared types: `lib/types/dto.ts`, `lib/types/admin.ts`, `lib/types/echotik.ts`, `lib/types/echotik-admin.ts`
 - Database-backed configuration: `lib/settings.ts` and related services
 
 ## Auth and Access
@@ -248,6 +424,7 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
 
 - Webhooks: `/api/webhooks/hotmart` → `lib/hotmart/processor.ts`
 - Reconciliation: dedicated cron → `lib/hotmart/reconcile.ts`
+- Bulk import: `lib/hotmart/import-subscribers.ts`
 - Admin notifications: `lib/admin/notifications.ts`
 - New changes must preserve: retry, auditability, separation of reception/processing,
   compatibility with the current subscription and reconciliation flow.
@@ -277,6 +454,7 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
 
 - The admin area must remain protected on the server.
 - Services in `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `prompt-config.ts`, `useQuotaUsage.ts`.
+- Admin API routes live in `app/api/admin/` (16 sub-routes covering users, plans, subscribers, notifications, access grants, audit logs, echotik config/health, settings, quotas, etc.).
 - Do not put administrative secrets in the frontend.
 - Do not use `localStorage` or `sessionStorage` to store secrets or sensitive credentials.
 
@@ -313,11 +491,12 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
 
 ## Tests
 
-### Current Counts (reference — March 2026)
+### Current Counts (reference — April 2026)
 
-- **417 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **~501+ unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
 - **46 component tests** (vitest, jsdom env, `__tests__/components/`)
-- **Total: 463 tests**, all passing
+- **Total: ~547+ tests**, all passing
+- Run `npm run test:all` to get exact current count
 
 ### Vitest Configs
 
@@ -356,7 +535,9 @@ Already configures: jest-dom matchers, mocks for `matchMedia`, `ResizeObserver`,
 
 ## CI — GitHub Actions
 
-Pipeline in `.github/workflows/ci.yml`, runs on push/PR to `develop` and `main`.
+Workflows in `.github/workflows/`:
+
+### ci.yml — runs on push/PR to `develop` and `main`
 
 Jobs in dependency order:
 
@@ -366,6 +547,59 @@ Jobs in dependency order:
 4. **e2e-smoke** — `playwright test --project=chromium` (depends on build)
 
 Playwright failure artifacts are uploaded to `e2e/.artifacts/` (retention: 7 days).
+
+### auto-pr.yml — runs on push to `develop`
+
+Automatically creates or updates an open PR from `develop` → `main`.
+The PR is never auto-merged — a human reviews and merges when ready to release.
+
+## Deployment — Vercel
+
+- Both `develop` and `main` branches deploy automatically on Vercel.
+  - `develop` → Preview environment
+  - `main` → Production environment
+- Each environment has its own Neon PostgreSQL database (configured via `DATABASE_URL` and `DATABASE_URL_UNPOOLED` env vars in Vercel).
+- The Vercel build command (`vercel.json`) is:
+  ```
+  npx prisma generate && npx prisma migrate deploy && next build
+  ```
+- `prisma migrate deploy` runs automatically on every deploy — it applies pending migrations safely. It **never** creates new migrations, modifies schema, or drops data.
+- If there are no pending migrations, the command is a no-op.
+
+## Database & Migration Workflow
+
+### Priority: Vercel environments first
+
+- **Preview** and **Production** are the primary migration targets.
+- Local DB is secondary — supported but not the required path for schema evolution.
+- Do not rely on "run locally first" as the mandatory workflow.
+
+### How schema changes work
+
+1. Edit `prisma/schema.prisma` with the desired change.
+2. Generate a migration file: `npm run db:migrate` (runs `prisma migrate dev`).
+   - This requires some DB to diff against. Use local or any dev DB.
+   - This creates a new SQL file in `prisma/migrations/<timestamp>_<name>/migration.sql`.
+3. Commit the migration SQL file alongside the schema change.
+4. On the next Vercel deploy, `prisma migrate deploy` applies the new migration automatically.
+
+### Commands
+
+| Script           | Command                    | Purpose                               |
+|------------------|----------------------------|---------------------------------------|
+| `npm run db:migrate` | `prisma migrate dev`   | Create new migration (development)    |
+| `npm run db:deploy`  | `prisma migrate deploy`| Apply pending migrations (safe, deploy-time) |
+| `npm run db:status`  | `prisma migrate status`| Check migration status vs DB          |
+| `npm run db:generate`| `prisma generate`      | Regenerate Prisma client              |
+
+### Safety rules
+
+- **Never use `prisma db push` in production** — it bypasses migration history and can lose data.
+- **Never use `prisma migrate reset`** on Preview or Production.
+- `prisma migrate deploy` is the only safe deploy-time command — it only applies pending SQL files.
+- If a migration needs destructive changes (drop column, drop table), review the SQL manually before committing.
+- If `prisma migrate deploy` fails on Vercel, the build fails and the deploy is blocked — this is correct and safe.
+- The `directUrl` (unpooled connection) in `schema.prisma` is used by Prisma CLI for migrations automatically.
 
 ## Security
 
@@ -406,6 +640,9 @@ Playwright failure artifacts are uploaded to `e2e/.artifacts/` (retention: 7 day
 - Do not create an API route without an internal auth guard (`requireAuth` or `requireAdmin`).
 - Do not treat a missing secret as permissive mode — fail closed.
 - Do not add `Access-Control-Allow-Origin: *` on authenticated routes.
+- Do not use `prisma db push` on Preview or Production — use real migrations.
+- Do not skip committing migration SQL files — the deploy depends on them.
+- Do not improvise migration workflow — follow the documented process.
 
 ## Maintenance Priorities When Working on the Project
 
@@ -420,7 +657,7 @@ Playwright failure artifacts are uploaded to `e2e/.artifacts/` (retention: 7 day
 ## Mandatory Validation Before Marking a Task as Done
 
 - Run `npm run build` and confirm exit code 0.
-- Run `npm run test:all` and confirm that all 463 tests pass.
+- Run `npm run test:all` and confirm that all tests pass (currently ~547+).
 - If the build or tests break, fix before committing.
 - This applies to any change: refactoring, file removal, new feature, fix.
 
