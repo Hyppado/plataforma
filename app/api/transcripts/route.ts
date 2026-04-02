@@ -5,12 +5,12 @@
  *
  * Body: { videoExternalId: string }
  *
- * Flow:
+ * Flow (SYNCHRONOUS — result returned in the same request):
  * 1. Auth check
  * 2. Quota check (TRANSCRIPT)
- * 3. If transcript already exists, return it (no quota consumed)
- * 4. If new, create PENDING, try captions, consume quota
- * 5. Return status + text
+ * 3. If transcript already READY, return it (no quota consumed)
+ * 4. Try Echotik captions → if unavailable, download video + Whisper
+ * 5. Return READY with text, or FAILED
  */
 
 import { NextRequest, NextResponse } from "next/server";

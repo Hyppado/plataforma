@@ -2,26 +2,33 @@
  * lib/transcription/service.ts
  *
  * Core transcription service — coordinates caption retrieval,
- * Whisper fallback, and database persistence.
+ * video download + Whisper fallback, and database persistence.
  *
- * Strategies (in order):
- * 1. Echotik captions API (free, instant) → extract subtitle text
- * 2. OpenAI Whisper (paid, async) → full transcription from audio
+ * The flow is SYNCHRONOUS — user clicks "Transcribe", and within the
+ * same HTTP request they get the result (READY or FAILED). No more
+ * "volte em alguns minutos" dead-end.
  *
- * The service is called by:
- * - POST /api/transcripts (creates PENDING record, tries captions immediately)
- * - POST /api/cron/transcribe (processes PENDING/FAILED records via Whisper)
+ * Strategies (in order, all within one request):
+ * 1. Echotik captions API (free, ~3s) → extract subtitle text
+ * 2. Echotik download-url → download video → OpenAI Whisper (~15-20s)
+ *
+ * The cron only retries previously FAILED transcripts.
+ *
+ * Called by:
+ * - POST /api/transcripts (synchronous pipeline)
+ * - GET /api/cron/transcribe (retry FAILED records)
  */
 
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import type { TranscriptStatus } from "@prisma/client";
-import { getVideoCaptions } from "./media";
+import type { TranscriptStatus, Prisma } from "@prisma/client";
+import { getVideoCaptions, getVideoDownloadUrl, downloadVideoBuffer } from "./media";
+import { transcribeWithWhisper } from "./whisper";
 
 const log = createLogger("transcription/service");
 
 // ---------------------------------------------------------------------------
-// Request a transcript (user-facing)
+// Request a transcript (user-facing, synchronous)
 // ---------------------------------------------------------------------------
 
 export interface RequestTranscriptResult {
@@ -32,11 +39,12 @@ export interface RequestTranscriptResult {
 }
 
 /**
- * Requests a transcript for a video.
- * - If already exists, returns the existing record (global/shared per video).
- * - If new, creates a PENDING record and tries Echotik captions immediately.
- * - If captions succeed, sets READY immediately (no cron needed).
- * - If captions fail, leaves as PENDING for the cron to process via Whisper.
+ * Requests a transcript for a video — fully synchronous.
+ *
+ * 1. If already exists and READY → return immediately (shared/global)
+ * 2. If already exists and FAILED → re-process via full pipeline
+ * 3. Create DB record → try captions → if no captions → download + Whisper
+ * 4. Returns READY with text, or FAILED with reason
  */
 export async function requestTranscript(
   videoExternalId: string,
@@ -48,6 +56,22 @@ export async function requestTranscript(
   });
 
   if (existing) {
+    // If READY, return immediately — no quota consumed
+    if (existing.status === "READY" && existing.transcriptText) {
+      return {
+        videoExternalId: existing.videoExternalId,
+        status: existing.status,
+        transcriptText: existing.transcriptText,
+        isNew: false,
+      };
+    }
+
+    // If FAILED or still stuck, re-process via full pipeline
+    if (existing.status === "FAILED" || existing.status === "PENDING") {
+      return processTranscriptPipeline(existing.id, videoExternalId, true);
+    }
+
+    // If PROCESSING (unlikely in sync flow, but defensive)
     return {
       videoExternalId: existing.videoExternalId,
       status: existing.status,
@@ -56,7 +80,7 @@ export async function requestTranscript(
     };
   }
 
-  // Create PENDING record
+  // Create new record
   const transcript = await prisma.videoTranscript.create({
     data: {
       videoExternalId,
@@ -65,18 +89,44 @@ export async function requestTranscript(
     },
   });
 
-  // Try Echotik captions immediately (fast, free)
+  return processTranscriptPipeline(transcript.id, videoExternalId, true);
+}
+
+// ---------------------------------------------------------------------------
+// Full transcription pipeline (captions → download + Whisper)
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs the full transcription pipeline synchronously.
+ * 1. Mark PROCESSING
+ * 2. Try Echotik captions (fast, free)
+ * 3. If no captions → get download URL → download video → Whisper
+ * 4. Update DB with result (READY or FAILED)
+ */
+async function processTranscriptPipeline(
+  transcriptId: string,
+  videoExternalId: string,
+  isNew: boolean,
+): Promise<RequestTranscriptResult> {
+  // Mark as PROCESSING
+  await prisma.videoTranscript.update({
+    where: { id: transcriptId },
+    data: { status: "PROCESSING", processingAt: new Date(), errorMessage: null },
+  });
+
+  // Step 1: Try Echotik captions (fast, free)
   try {
     const captions = await getVideoCaptions(videoExternalId);
     if (captions?.text) {
       const updated = await prisma.videoTranscript.update({
-        where: { id: transcript.id },
+        where: { id: transcriptId },
         data: {
           status: "READY",
           transcriptText: captions.text,
           language: captions.language,
           source: "echotik_captions",
           readyAt: new Date(),
+          errorMessage: null,
         },
       });
 
@@ -90,22 +140,101 @@ export async function requestTranscript(
         videoExternalId: updated.videoExternalId,
         status: updated.status,
         transcriptText: updated.transcriptText,
-        isNew: true,
+        isNew,
       };
     }
   } catch (error) {
-    log.error("Caption retrieval failed, leaving PENDING for cron", {
+    log.error("Caption retrieval failed, trying Whisper fallback", {
       videoExternalId,
       error: error instanceof Error ? error.message : "Unknown",
     });
   }
 
-  // Captions not available — stay PENDING for cron/Whisper
+  // Step 2: Download video + Whisper fallback
+  try {
+    const urls = await getVideoDownloadUrl(videoExternalId);
+    if (!urls) {
+      return markFailed(transcriptId, videoExternalId, isNew, "Video download URL not available");
+    }
+
+    const videoBuffer = await downloadVideoBuffer(urls);
+    if (!videoBuffer) {
+      return markFailed(transcriptId, videoExternalId, isNew, "Video download failed or file too large");
+    }
+
+    const whisperResult = await transcribeWithWhisper(videoBuffer, `${videoExternalId}.mp4`);
+    if (!whisperResult?.text) {
+      return markFailed(transcriptId, videoExternalId, isNew, "Whisper transcription returned no text");
+    }
+
+    const updated = await prisma.videoTranscript.update({
+      where: { id: transcriptId },
+      data: {
+        status: "READY",
+        transcriptText: whisperResult.text,
+        language: whisperResult.language,
+        durationSeconds: whisperResult.duration ? Math.round(whisperResult.duration) : null,
+        source: "openai_whisper",
+        segmentsJson: whisperResult.segments.length > 0
+          ? (whisperResult.segments as unknown as Prisma.InputJsonValue)
+          : undefined,
+        readyAt: new Date(),
+        errorMessage: null,
+      },
+    });
+
+    log.info("Transcript ready via Whisper", {
+      videoExternalId,
+      language: whisperResult.language,
+      duration: whisperResult.duration,
+      textLength: whisperResult.text.length,
+    });
+
+    return {
+      videoExternalId: updated.videoExternalId,
+      status: updated.status,
+      transcriptText: updated.transcriptText,
+      isNew,
+    };
+  } catch (error) {
+    log.error("Whisper pipeline failed", {
+      videoExternalId,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    return markFailed(
+      transcriptId,
+      videoExternalId,
+      isNew,
+      error instanceof Error ? error.message.slice(0, 500) : "Unknown error",
+    );
+  }
+}
+
+/**
+ * Marks a transcript as FAILED with an error message.
+ */
+async function markFailed(
+  transcriptId: string,
+  videoExternalId: string,
+  isNew: boolean,
+  errorMessage: string,
+): Promise<RequestTranscriptResult> {
+  await prisma.videoTranscript.update({
+    where: { id: transcriptId },
+    data: {
+      status: "FAILED",
+      errorMessage,
+      retryCount: { increment: 1 },
+    },
+  });
+
+  log.info("Transcript marked FAILED", { videoExternalId, errorMessage });
+
   return {
-    videoExternalId: transcript.videoExternalId,
-    status: transcript.status,
+    videoExternalId,
+    status: "FAILED",
     transcriptText: null,
-    isNew: true,
+    isNew,
   };
 }
 
@@ -146,19 +275,17 @@ export async function getTranscript(
 }
 
 // ---------------------------------------------------------------------------
-// Cron: process pending transcripts
+// Cron: retry FAILED transcripts
 // ---------------------------------------------------------------------------
 
 const MAX_RETRIES = 3;
 const BATCH_SIZE = 5;
 
 /**
- * Picks PENDING transcripts and processes them.
- * Called by the cron route. Returns count of processed items.
+ * Picks FAILED transcripts (below retry limit) and re-processes them
+ * through the full pipeline (captions → download → Whisper).
  *
- * For now, if Echotik captions failed at request time, we re-try captions
- * and if still unavailable, mark as FAILED (Whisper requires audio download
- * which will be added when Echotik provides video URLs).
+ * Called by the cron route. Returns count of processed items.
  */
 export async function processPendingTranscripts(): Promise<{
   processed: number;
@@ -167,10 +294,10 @@ export async function processPendingTranscripts(): Promise<{
 }> {
   const stats = { processed: 0, succeeded: 0, failed: 0 };
 
-  // Pick a batch of PENDING transcripts (oldest first)
+  // Pick a batch of FAILED transcripts that can be retried
   const pending = await prisma.videoTranscript.findMany({
     where: {
-      status: { in: ["PENDING"] },
+      status: { in: ["FAILED", "PENDING"] },
       retryCount: { lt: MAX_RETRIES },
     },
     orderBy: { createdAt: "asc" },
@@ -181,75 +308,24 @@ export async function processPendingTranscripts(): Promise<{
     return stats;
   }
 
-  log.info("Processing pending transcripts", { count: pending.length });
+  log.info("Cron: retrying failed transcripts", { count: pending.length });
 
   for (const transcript of pending) {
     stats.processed++;
 
-    // Mark as PROCESSING
-    await prisma.videoTranscript.update({
-      where: { id: transcript.id },
-      data: { status: "PROCESSING", processingAt: new Date() },
-    });
-
     try {
-      // Retry Echotik captions
-      const captions = await getVideoCaptions(transcript.videoExternalId);
+      const result = await processTranscriptPipeline(
+        transcript.id,
+        transcript.videoExternalId,
+        false,
+      );
 
-      if (captions?.text) {
-        await prisma.videoTranscript.update({
-          where: { id: transcript.id },
-          data: {
-            status: "READY",
-            transcriptText: captions.text,
-            language: captions.language,
-            source: "echotik_captions",
-            readyAt: new Date(),
-          },
-        });
+      if (result.status === "READY") {
         stats.succeeded++;
-        log.info("Cron: transcript ready via captions", {
-          videoExternalId: transcript.videoExternalId,
-        });
-        continue;
-      }
-
-      // No captions available — increment retry and mark FAILED if max retries
-      const newRetry = transcript.retryCount + 1;
-      const nextStatus: TranscriptStatus =
-        newRetry >= MAX_RETRIES ? "FAILED" : "PENDING";
-
-      await prisma.videoTranscript.update({
-        where: { id: transcript.id },
-        data: {
-          status: nextStatus,
-          retryCount: newRetry,
-          errorMessage:
-            nextStatus === "FAILED"
-              ? "Captions not available after maximum retries"
-              : null,
-        },
-      });
-
-      if (nextStatus === "FAILED") {
+      } else {
         stats.failed++;
-        log.info("Cron: transcript marked FAILED after retries", {
-          videoExternalId: transcript.videoExternalId,
-          retries: newRetry,
-        });
       }
     } catch (error) {
-      // Processing error — increment retry count
-      const newRetry = transcript.retryCount + 1;
-      await prisma.videoTranscript.update({
-        where: { id: transcript.id },
-        data: {
-          status: newRetry >= MAX_RETRIES ? "FAILED" : "PENDING",
-          retryCount: newRetry,
-          errorMessage:
-            error instanceof Error ? error.message.slice(0, 500) : "Unknown error",
-        },
-      });
       stats.failed++;
       log.error("Cron: transcript processing error", {
         videoExternalId: transcript.videoExternalId,

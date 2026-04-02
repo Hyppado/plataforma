@@ -16,7 +16,6 @@ import {
   ContentCopy,
   Close,
   Check,
-  HourglassEmpty,
   ErrorOutline,
   Refresh,
 } from "@mui/icons-material";
@@ -24,8 +23,6 @@ import {
 type TranscriptStatus =
   | "idle"
   | "loading"
-  | "PENDING"
-  | "PROCESSING"
   | "READY"
   | "FAILED";
 
@@ -60,7 +57,6 @@ export function TranscriptDialog({
   };
 
   const isLoading = status === "loading";
-  const isPending = status === "PENDING" || status === "PROCESSING";
   const isFailed = status === "FAILED";
   const isReady = status === "READY" && !!transcriptText;
 
@@ -107,13 +103,11 @@ export function TranscriptDialog({
           >
             {isReady
               ? "Copie e cole onde quiser."
-              : isPending
-                ? "Processando transcrição..."
-                : isFailed
-                  ? "Não foi possível transcrever este vídeo."
-                  : isLoading
-                    ? "Carregando..."
-                    : "Solicite a transcrição do vídeo."}
+              : isFailed
+                ? "Não foi possível transcrever este vídeo."
+                : isLoading
+                  ? "Transcrevendo o vídeo..."
+                  : "Solicite a transcrição do vídeo."}
           </Typography>
         </Box>
         <IconButton
@@ -163,35 +157,7 @@ export function TranscriptDialog({
                 fontSize: "0.875rem",
               }}
             >
-              Solicitando transcrição...
-            </Typography>
-          </Box>
-        )}
-
-        {/* Pending/Processing state */}
-        {isPending && (
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              py: 6,
-              gap: 2,
-            }}
-          >
-            <HourglassEmpty
-              sx={{ fontSize: 40, color: "rgba(255,255,255,0.4)" }}
-            />
-            <Typography
-              sx={{
-                color: "rgba(255,255,255,0.6)",
-                fontSize: "0.875rem",
-                textAlign: "center",
-              }}
-            >
-              A transcrição está sendo processada.
-              <br />
-              Volte em alguns minutos para ver o resultado.
+              Transcrevendo o vídeo... pode levar até 30 segundos.
             </Typography>
           </Box>
         )}
