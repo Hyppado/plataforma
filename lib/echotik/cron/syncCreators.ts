@@ -13,7 +13,7 @@ import {
   getCandidateDates,
   saveRawResponse,
   getConfiguredRegions,
-  REGION_CURRENCY,
+  ECHOTIK_CURRENCY,
 } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ export async function syncCreatorRanklistForRegion(
           ),
           liveCount: BigInt(item.total_live_cnt ?? 0),
           mostCategoryId: item.most_category_id || null,
-          currency: REGION_CURRENCY[region] ?? "USD",
+          currency: ECHOTIK_CURRENCY,
           country: region,
           extra: item as any,
         },
@@ -170,7 +170,7 @@ export async function syncCreatorRanklistForRegion(
           ),
           liveCount: BigInt(item.total_live_cnt ?? 0),
           mostCategoryId: item.most_category_id || undefined,
-          currency: REGION_CURRENCY[region] ?? "USD",
+          currency: ECHOTIK_CURRENCY,
           country: region,
           extra: item as any,
           syncedAt: new Date(),

@@ -1,0 +1,38 @@
+# .github/workflows/sync-develop.yml
+#
+# After a PR is merged into `main`, automatically merge `main` back
+# into `develop` so that `develop` is never out-of-date.
+#
+# This is the standard GitFlow practice: main → develop back-merge
+# after every release merge. Without this, every "Merge pull request"
+# commit on main makes develop immediately out-of-date.
+#
+name: Sync main → develop
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Merge main into develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Merge main into develop
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git merge origin/main --no-edit -m "chore: sync develop with main (auto)"
+
+          git push origin develop

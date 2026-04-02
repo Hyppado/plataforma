@@ -92,6 +92,14 @@ export function extractFirstCoverUrl(
 // Moeda local de cada região suportada
 // ---------------------------------------------------------------------------
 
+/**
+ * Maps region codes to their local currency.
+ *
+ * IMPORTANT: The Echotik API returns ALL prices and GMV values in USD,
+ * regardless of region. This map is kept for reference (e.g. future
+ * conversion features) but must NOT be used as the display currency
+ * for Echotik data. Always use "USD" for Echotik prices.
+ */
 export const REGION_CURRENCY: Record<string, string> = {
   US: "USD",
   BR: "BRL",
@@ -111,6 +119,11 @@ export const REGION_CURRENCY: Record<string, string> = {
   SG: "SGD",
   MY: "MYR",
 };
+
+/**
+ * Echotik API currency — always USD regardless of region.
+ */
+export const ECHOTIK_CURRENCY = "USD";
 
 // ---------------------------------------------------------------------------
 // Candidate dates for ranklist queries
