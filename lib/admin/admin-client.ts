@@ -116,33 +116,6 @@ export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
   }
 }
 
-/**
- * Trigger Hotmart sync (plans + coupons + subscribers).
- *
- * A autenticação é feita via sessão NextAuth (cookie httpOnly enviado
- * automaticamente pelo browser). Nenhum segredo é armazenado ou transmitido
- * pelo frontend.
- */
-export async function triggerHotmartSync(): Promise<{
-  success: boolean;
-  message: string;
-  data?: unknown;
-}> {
-  try {
-    const res = await fetch("/api/admin/sync-hotmart", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      return { success: false, message: data.error ?? "Sync falhou", data };
-    }
-    return { success: true, message: "Sync concluído", data };
-  } catch (err) {
-    return { success: false, message: String(err) };
-  }
-}
-
 /** Update quota policy via API. */
 export async function updateQuotaPolicy(policy: QuotaPolicy): Promise<void> {
   const res = await fetch("/api/admin/quota-policy", {

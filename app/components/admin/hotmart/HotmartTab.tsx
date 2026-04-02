@@ -20,7 +20,6 @@ import {
   GroupAdd as GroupAddIcon,
   Save as SaveIcon,
   SettingsOutlined,
-  SyncOutlined,
 } from "@mui/icons-material";
 
 // ---------------------------------------------------------------------------
@@ -37,13 +36,6 @@ interface Setting {
 
 interface SettingsResponse {
   settings: Setting[];
-}
-
-interface SyncResult {
-  success: boolean;
-  message?: string;
-  error?: string;
-  data?: { offers: number; coupons: number };
 }
 
 interface ImportResult {
@@ -92,8 +84,6 @@ export function HotmartTab() {
   const [productId, setProductId] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
   const [saved, setSaved] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
@@ -127,20 +117,6 @@ export function HotmartTab() {
     });
   }, [productId, settingsSWR]);
 
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const res = await fetch("/api/admin/sync-hotmart", { method: "POST" });
-      const body = (await res.json()) as SyncResult;
-      setSyncResult(body);
-    } catch {
-      setSyncResult({ success: false, error: "Erro de rede" });
-    } finally {
-      setSyncing(false);
-    }
-  }, []);
-
   const handleImport = useCallback(async () => {
     setImporting(true);
     setImportResult(null);
@@ -169,7 +145,7 @@ export function HotmartTab() {
           Hotmart — Configuração
         </Typography>
         <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
-          ID do produto, sincronização de planos e cupons.
+          ID do produto e importação de assinantes.
         </Typography>
       </Box>
 
@@ -235,76 +211,6 @@ export function HotmartTab() {
           </Card>
         </Grid>
 
-        {/* Sync card */}
-        <Grid item xs={12} md={6}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<SyncOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Sincronização"
-              subheader="Importar planos (offers) e cupons do Hotmart"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-            />
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: "rgba(255,255,255,0.6)" }}
-                >
-                  Sincroniza os dados de ofertas e cupons do produto configurado
-                  com o banco de dados local.
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<SyncOutlined />}
-                  disabled={syncing || !currentProductId}
-                  onClick={handleSync}
-                  sx={{
-                    background:
-                      "linear-gradient(135deg, #2DD4FF 0%, #1B8DFF 100%)",
-                    color: "#fff",
-                    "&:hover": {
-                      background:
-                        "linear-gradient(135deg, #1B8DFF 0%, #2DD4FF 100%)",
-                    },
-                    "&.Mui-disabled": {
-                      background: "rgba(255,255,255,0.06)",
-                      color: "rgba(255,255,255,0.3)",
-                    },
-                  }}
-                >
-                  {syncing ? "Sincronizando..." : "Sincronizar Agora"}
-                </Button>
-
-                {!currentProductId && !isLoading && (
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "rgba(255, 152, 0, 0.8)" }}
-                  >
-                    Configure o Product ID primeiro.
-                  </Typography>
-                )}
-
-                {syncResult && (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: syncResult.success
-                        ? "rgba(46, 204, 113, 0.9)"
-                        : "rgba(244, 67, 54, 0.9)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {syncResult.success
-                      ? `Sync concluído — ${syncResult.data?.offers ?? 0} ofertas, ${syncResult.data?.coupons ?? 0} cupons`
-                      : (syncResult.error ?? "Erro desconhecido")}
-                  </Typography>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
         {/* Import subscribers card */}
         <Grid item xs={12}>
           <Card sx={cardStyle}>
@@ -323,8 +229,7 @@ export function HotmartTab() {
                 >
                   Recupera todos os assinantes do produto no Hotmart e cria os
                   registros de usuário e assinatura localmente. Registros já
-                  existentes são ignorados (idempotente). Recomendado
-                  sincronizar planos antes.
+                  existentes são ignorados (idempotente).
                 </Typography>
                 <Button
                   variant="contained"

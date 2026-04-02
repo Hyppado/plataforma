@@ -160,47 +160,7 @@ async function main() {
   await seedPlans();
   await seedRegions();
 
-  // Tenta sincronizar dados reais via API Hotmart
-  const hasApiCreds =
-    process.env.HOTMART_CLIENTE_ID &&
-    process.env.HOTMART_CLIENT_SECRET &&
-    process.env.HOTMART_BASIC;
-
-  if (!hasApiCreds) {
-    console.warn("⚠️  Credenciais Hotmart ausentes — pulando sync da API.");
-    console.log("\n🎉 Seed básico concluído.");
-    return;
-  }
-
-  // Lê productId do banco (que acabou de ser seedado)
-  const productIdSetting = await prisma.setting.findUnique({
-    where: { key: "hotmart.product_id" },
-  });
-  const productId = productIdSetting?.value;
-
-  if (!productId) {
-    console.warn("⚠️  Product ID não configurado — pulando sync.");
-    console.log("\n🎉 Seed básico concluído.");
-    return;
-  }
-
-  console.log("🔄 Sincronizando dados da API Hotmart...");
-  const { syncAll } = await import("../lib/hotmart/sync");
-  const { offers, coupons } = await syncAll(productId);
-
-  console.log(
-    `\n✅ Offers sincronizados: [${offers.upserted.join(", ") || "nenhum"}]`,
-  );
-  if (offers.skipped.length)
-    console.log(`   Pulados (não-assinatura): [${offers.skipped.join(", ")}]`);
-
-  console.log(
-    `✅ Cupons sincronizados: [${coupons.upserted.join(", ") || "nenhum"}]`,
-  );
-  if (coupons.deactivated.length)
-    console.log(`   Desativados: ${coupons.deactivated.join(", ")}`);
-
-  console.log("\n🎉 Seed completo.");
+  console.log("\n🎉 Seed concluído.");
 }
 
 main()
