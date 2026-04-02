@@ -18,8 +18,6 @@ import { VideoCardActions } from "./VideoCardActions";
 type TranscriptUIStatus =
   | "idle"
   | "loading"
-  | "PENDING"
-  | "PROCESSING"
   | "READY"
   | "FAILED";
 
@@ -104,9 +102,11 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
     if (!video) return;
     setTranscriptStatus("loading");
     try {
-      const res = await fetch(
-        `/api/transcripts/${encodeURIComponent(video.id)}`,
-      );
+      const res = await fetch("/api/transcripts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoExternalId: video.id }),
+      });
       if (!res.ok) {
         setTranscriptStatus("FAILED");
         return;

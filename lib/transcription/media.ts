@@ -1,9 +1,11 @@
 /**
  * lib/transcription/media.ts
  *
- * Retrieves video captions/subtitles from Echotik API.
- * The primary source is the `/realtime/video/captions` endpoint
- * which returns subtitle URLs and data for TikTok videos.
+ * Retrieves video captions/subtitles and download URLs from Echotik API.
+ *
+ * Two Echotik endpoints are used:
+ * - `/realtime/video/captions` — returns subtitle text (fast, free)
+ * - `/realtime/video/download-url` — returns video file URLs for Whisper fallback
  *
  * All media access is server-side only — never expose URLs to the browser.
  */
@@ -40,6 +42,30 @@ export interface CaptionResult {
   language: string;
   /** Source method used */
   source: "echotik_captions";
+}
+
+// ---------------------------------------------------------------------------
+// Types — Echotik download-url response
+// ---------------------------------------------------------------------------
+
+interface EchotikDownloadUrlResponse {
+  code: number;
+  message?: string;
+  msg?: string;
+  data?: {
+    play_url?: string;
+    download_url?: string;
+    no_watermark_download_url?: string;
+    cover_url?: string;
+    dynamic_cover_url?: string;
+    video_id?: string;
+  };
+}
+
+export interface VideoDownloadUrls {
+  playUrl: string | null;
+  downloadUrl: string | null;
+  noWatermarkUrl: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +124,105 @@ export async function getVideoCaptions(
   } catch (error) {
     log.error("Failed to retrieve captions", {
       videoExternalId,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Video download URL retrieval
+// ---------------------------------------------------------------------------
+
+/**
+ * Gets the video download URLs from Echotik.
+ * Uses the `/realtime/video/download-url` endpoint with a constructed TikTok URL.
+ */
+export async function getVideoDownloadUrl(
+  videoExternalId: string,
+): Promise<VideoDownloadUrls | null> {
+  try {
+    const tiktokUrl = `https://www.tiktok.com/@user/video/${videoExternalId}`;
+
+    const response = await echotikRequest<EchotikDownloadUrlResponse>(
+      "/realtime/video/download-url",
+      { params: { url: tiktokUrl }, timeout: 20_000 },
+    );
+
+    if (response.code !== 0 || !response.data) {
+      log.info("No download URL from Echotik", {
+        videoExternalId,
+        code: response.code,
+      });
+      return null;
+    }
+
+    const { play_url, download_url, no_watermark_download_url } = response.data;
+
+    if (!play_url && !download_url && !no_watermark_download_url) {
+      log.info("Download URL response empty", { videoExternalId });
+      return null;
+    }
+
+    return {
+      playUrl: play_url ?? null,
+      downloadUrl: download_url ?? null,
+      noWatermarkUrl: no_watermark_download_url ?? null,
+    };
+  } catch (error) {
+    log.error("Failed to get download URL", {
+      videoExternalId,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Video file download
+// ---------------------------------------------------------------------------
+
+/**
+ * Downloads a video file from a URL and returns it as a Buffer.
+ * Uses the best available URL (no-watermark preferred).
+ *
+ * Max size: 25 MB (Whisper API limit).
+ */
+const MAX_VIDEO_SIZE = 25 * 1024 * 1024; // 25 MB
+
+export async function downloadVideoBuffer(
+  urls: VideoDownloadUrls,
+): Promise<Buffer | null> {
+  const url = urls.noWatermarkUrl ?? urls.downloadUrl ?? urls.playUrl;
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!response.ok) {
+      log.error("Video download HTTP error", { status: response.status });
+      return null;
+    }
+
+    // Check Content-Length before downloading
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    if (contentLength > MAX_VIDEO_SIZE) {
+      log.info("Video too large for Whisper", { sizeBytes: contentLength });
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_VIDEO_SIZE) {
+      log.info("Video too large for Whisper", { sizeBytes: arrayBuffer.byteLength });
+      return null;
+    }
+
+    log.info("Video downloaded", { sizeBytes: arrayBuffer.byteLength });
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    log.error("Video download failed", {
       error: error instanceof Error ? error.message : "Unknown",
     });
     return null;
