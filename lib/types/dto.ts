@@ -44,17 +44,18 @@ export interface ProductDTO {
   name: string; // Nome do produto
   imageUrl: string; // Link da imagem
   category: string; // Categoria
-  priceBRL: number; // Preço (R$)
+  priceBRL: number; // Preço (na moeda da região)
   launchDate: string; // Data de lançamento
   isNew?: boolean; // Produto novo?
   rating: number; // Classificações do produto
   sales: number; // Vendas
-  avgPriceBRL: number; // Preço médio por unidade (R$)
+  avgPriceBRL: number; // Preço médio por unidade (na moeda da região)
   commissionRate: number; // Taxa de comissão
-  revenueBRL: number; // Receita(R$)
-  liveRevenueBRL: number; // Receitas ao vivo (R$)
-  videoRevenueBRL: number; // Receita de vídeo (R$)
-  mallRevenueBRL: number; // Receita de shopping centers (R$)
+  revenueBRL: number; // Receita (na moeda da região)
+  liveRevenueBRL: number; // Receitas ao vivo (na moeda da região)
+  videoRevenueBRL: number; // Receita de vídeo (na moeda da região)
+  mallRevenueBRL: number; // Receita de shopping centers (na moeda da região)
+  currency: string; // Moeda (ex: "USD", "BRL")
   creatorCount: number; // Número de criadores
   creatorConversionRate: number; // Taxa de conversão de criadores
   sourceUrl: string; // Link da fonte de dados
@@ -70,17 +71,18 @@ export interface CreatorDTO {
   name: string; // Nome do criador
   handle: string; // Usuário do criador
   followers: number; // Seguidores
-  revenueBRL: number; // Receita (R$)
+  revenueBRL: number; // Receita (na moeda da região)
   productCount: number; // Quantidade de produtos
   liveCount: number; // Número de transmissões ao vivo
-  liveGmvBRL: number; // GMV ao vivo (R$)
+  liveGmvBRL: number; // GMV ao vivo (na moeda da região)
   videoCount: number; // Número de vídeos
-  videoGmvBRL: number; // GMV por vídeo (R$)
+  videoGmvBRL: number; // GMV por vídeo (na moeda da região)
   likes: number; // Total de curtidas (diggCount da API Echotik; API não fornece views para influencers)
   debutDate: string; // Data de estreia do criador
   sourceUrl: string; // Link da fonte de dados
   tiktokUrl: string; // Link do TikTok
   dateRange: string; // Intervalo de datas
+  currency: string; // Moeda (ex: "USD", "BRL")
   avatarUrl?: string; // Avatar URL
   ecScore?: number; // E-commerce score
   category?: string; // Categoria principal

@@ -118,6 +118,7 @@ export async function GET(request: NextRequest) {
         liveRevenueBRL: 0,
         videoRevenueBRL: 0,
         mallRevenueBRL: 0,
+        currency: r.currency,
         creatorCount: Number(r.influencerCount),
         creatorConversionRate: 0,
         sourceUrl: `https://echotik.live/products/${r.productExternalId}`,

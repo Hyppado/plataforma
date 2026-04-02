@@ -305,7 +305,7 @@ export function ProductCard({
             mb: { xs: 1, md: 1.25 },
           }}
         >
-          {formatCurrency(product.priceBRL)}
+          {formatCurrency(product.priceBRL, product.currency)}
         </Typography>
 
         {/* Metrics */}
@@ -325,7 +325,7 @@ export function ProductCard({
                 color: UI.text.secondary,
               }}
             >
-              {formatCurrency(product.revenueBRL)}
+              {formatCurrency(product.revenueBRL, product.currency)}
             </Typography>
           </Box>
 

@@ -253,7 +253,7 @@ export function ProductTable({
                     </Box>
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
-                    {formatCurrency(product.priceBRL)}
+                    {formatCurrency(product.priceBRL, product.currency)}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
                     {formatNumber(product.sales)}
@@ -266,7 +266,7 @@ export function ProductTable({
                         fontSize: "0.85rem",
                       }}
                     >
-                      {formatCurrency(product.revenueBRL)}
+                      {formatCurrency(product.revenueBRL, product.currency)}
                     </Typography>
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
@@ -471,7 +471,7 @@ export function CreatorTable({
                         fontSize: "0.85rem",
                       }}
                     >
-                      {formatCurrency(creator.revenueBRL)}
+                      {formatCurrency(creator.revenueBRL, creator.currency)}
                     </Typography>
                   </TableCell>
                   <TableCell sx={tableCellSx} align="center">
