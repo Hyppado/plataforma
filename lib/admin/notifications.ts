@@ -9,7 +9,7 @@
 
 import { createHash } from "crypto";
 import prisma from "../prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { NotificationSeverity } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -186,23 +186,35 @@ export async function createNotificationIfNeeded(
     .replace("{eventType}", ctx.eventType)
     .replace("{name}", ctx.email?.split("@")[0] ?? "desconhecido");
 
-  const notification = await prisma.adminNotification.create({
-    data: {
-      source: ctx.source ?? "hotmart",
-      type: notificationType,
-      severity: rule.severity,
-      title: rule.title,
-      message,
-      status: "UNREAD",
-      dedupeKey,
-      userId: ctx.userId ?? undefined,
-      subscriptionId: ctx.subscriptionId ?? undefined,
-      eventId: ctx.eventId ?? undefined,
-      metadata: (ctx.metadata as Prisma.InputJsonValue) ?? undefined,
-    },
-  });
+  try {
+    const notification = await prisma.adminNotification.create({
+      data: {
+        source: ctx.source ?? "hotmart",
+        type: notificationType,
+        severity: rule.severity,
+        title: rule.title,
+        message,
+        status: "UNREAD",
+        dedupeKey,
+        userId: ctx.userId ?? undefined,
+        subscriptionId: ctx.subscriptionId ?? undefined,
+        eventId: ctx.eventId ?? undefined,
+        metadata: (ctx.metadata as Prisma.InputJsonValue) ?? undefined,
+      },
+    });
 
-  return notification.id;
+    return notification.id;
+  } catch (error) {
+    // P2002 = unique constraint violation (race condition on dedupeKey)
+    // Another concurrent request already created this notification — safe to ignore.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**

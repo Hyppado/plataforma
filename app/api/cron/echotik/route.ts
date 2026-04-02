@@ -19,6 +19,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { runEchotikCron } from "@/lib/echotik/cron";
 import type { CronTask } from "@/lib/echotik/cron";
 import { createLogger } from "@/lib/logger";
@@ -44,21 +45,27 @@ export async function GET(request: NextRequest) {
   // -----------------------------------------------------------------------
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret) {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace(/^Bearer\s+/i, "");
-
-    if (token !== cronSecret) {
-      return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
-  } else if (process.env.NODE_ENV === "production") {
-    log.error("CRON_SECRET not configured in production");
+  if (!cronSecret) {
+    log.error("CRON_SECRET not configured — rejecting request");
     return NextResponse.json(
       { ok: false, error: "CRON_SECRET not configured" },
       { status: 500 },
+    );
+  }
+
+  const authHeader = request.headers.get("authorization");
+  const token = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
+
+  const bufToken = Buffer.from(token, "utf8");
+  const bufSecret = Buffer.from(cronSecret, "utf8");
+  const isValid =
+    bufToken.length === bufSecret.length &&
+    timingSafeEqual(bufToken, bufSecret);
+
+  if (!isValid) {
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 },
     );
   }
 
