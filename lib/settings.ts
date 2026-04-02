@@ -6,6 +6,7 @@
  */
 
 import prisma from "./prisma";
+import { encrypt, decrypt } from "./crypto";
 
 // ---------------------------------------------------------------------------
 // Leitura
@@ -75,4 +76,58 @@ export const SETTING_KEYS = {
   HOTMART_PRODUCT_ID: "hotmart.product_id",
   HOTMART_WEBHOOK_URL: "hotmart.webhook_url",
   APP_NAME: "app.name",
+  OPENAI_API_KEY: "openai.api_key",
+  OPENAI_WHISPER_MODEL: "openai.whisper_model",
+  OPENAI_WHISPER_LANGUAGE: "openai.whisper_language",
 } as const;
+
+// ---------------------------------------------------------------------------
+// Secret Settings (encrypted at rest)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads a secret setting and decrypts it.
+ * Returns null if the key does not exist.
+ * Throws if decryption fails (tampered data or key change).
+ */
+export async function getSecretSetting(key: string): Promise<string | null> {
+  const row = await prisma.setting.findUnique({ where: { key } });
+  if (!row?.value) return null;
+  return decrypt(row.value);
+}
+
+/**
+ * Encrypts and saves a secret setting.
+ * Always stores with type="secret" so the admin API can mask it.
+ */
+export async function upsertSecretSetting(
+  key: string,
+  plainValue: string,
+  meta?: { label?: string; group?: string },
+) {
+  const encrypted = encrypt(plainValue);
+  return prisma.setting.upsert({
+    where: { key },
+    update: { value: encrypted },
+    create: {
+      key,
+      value: encrypted,
+      label: meta?.label,
+      group: meta?.group ?? "openai",
+      type: "secret",
+    },
+  });
+}
+
+/**
+ * Checks if a secret setting exists and has a non-empty value.
+ * Does NOT decrypt — only checks existence.
+ */
+export async function hasSecretSetting(key: string): Promise<boolean> {
+  const row = await prisma.setting.findUnique({
+    where: { key },
+    select: { value: true },
+  });
+  return !!row?.value;
+}
+

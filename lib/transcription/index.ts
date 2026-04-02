@@ -1,0 +1,12 @@
+/**
+ * lib/transcription/index.ts
+ *
+ * Public re-exports for the transcription module.
+ */
+
+export { requestTranscript, getTranscript, processPendingTranscripts } from "./service";
+export type { RequestTranscriptResult, TranscriptInfo } from "./service";
+export { getVideoCaptions } from "./media";
+export type { CaptionResult } from "./media";
+export { transcribeWithWhisper } from "./whisper";
+export type { WhisperResult, WhisperSegment } from "./whisper";

@@ -15,7 +15,14 @@ export async function GET(req: NextRequest) {
   if (!isAuthed(auth)) return auth;
 
   const settings = await getAllSettings();
-  return NextResponse.json({ settings });
+
+  // Mask secret values — never expose encrypted data to the frontend
+  const masked = settings.map((s) => ({
+    ...s,
+    value: s.type === "secret" ? "••••••••" : s.value,
+  }));
+
+  return NextResponse.json({ settings: masked });
 }
 
 export async function POST(req: NextRequest) {

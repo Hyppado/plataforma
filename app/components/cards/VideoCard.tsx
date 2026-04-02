@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Box, Chip } from "@mui/material";
 import { PlayArrowRounded } from "@mui/icons-material";
 import type { VideoDTO } from "@/lib/types/dto";
@@ -15,6 +15,14 @@ import { VideoCardProduct } from "./VideoCardProduct";
 import { VideoCardMetrics } from "./VideoCardMetrics";
 import { VideoCardActions } from "./VideoCardActions";
 
+type TranscriptUIStatus =
+  | "idle"
+  | "loading"
+  | "PENDING"
+  | "PROCESSING"
+  | "READY"
+  | "FAILED";
+
 interface VideoCardProps {
   video?: VideoDTO;
   rank?: number;
@@ -28,6 +36,9 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [insightOpen, setInsightOpen] = useState(false);
+  const [transcriptStatus, setTranscriptStatus] =
+    useState<TranscriptUIStatus>("idle");
+  const [transcriptText, setTranscriptText] = useState<string | null>(null);
 
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
@@ -54,6 +65,59 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
     if (!video?.product) return;
     savedProducts.toggle(video.product);
   };
+
+  const handleTranscribe = useCallback(async () => {
+    if (!video) return;
+    setTranscriptOpen(true);
+
+    // If already ready, just show it
+    if (transcriptStatus === "READY" && transcriptText) return;
+
+    setTranscriptStatus("loading");
+    try {
+      const res = await fetch("/api/transcripts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoExternalId: video.id }),
+      });
+
+      if (res.status === 429) {
+        setTranscriptStatus("FAILED");
+        setTranscriptText(null);
+        return;
+      }
+
+      if (!res.ok) {
+        setTranscriptStatus("FAILED");
+        return;
+      }
+
+      const data = await res.json();
+      setTranscriptStatus(data.status ?? "FAILED");
+      setTranscriptText(data.transcriptText ?? null);
+    } catch {
+      setTranscriptStatus("FAILED");
+    }
+  }, [video, transcriptStatus, transcriptText]);
+
+  const handleTranscriptRetry = useCallback(async () => {
+    if (!video) return;
+    setTranscriptStatus("loading");
+    try {
+      const res = await fetch(
+        `/api/transcripts/${encodeURIComponent(video.id)}`,
+      );
+      if (!res.ok) {
+        setTranscriptStatus("FAILED");
+        return;
+      }
+      const data = await res.json();
+      setTranscriptStatus(data.status ?? "FAILED");
+      setTranscriptText(data.transcriptText ?? null);
+    } catch {
+      setTranscriptStatus("FAILED");
+    }
+  }, [video]);
 
   const handleOpenTikTok = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -230,7 +294,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
 
         <VideoCardActions
           saved={saved}
-          onTranscribe={() => setTranscriptOpen(true)}
+          onTranscribe={handleTranscribe}
           onInsight={() => setInsightOpen(true)}
           onSave={handleSave}
         />
@@ -240,8 +304,10 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       <TranscriptDialog
         open={transcriptOpen}
         onClose={() => setTranscriptOpen(false)}
-        transcriptText="Transcrição não disponível.\n\nEm breve, as transcrições serão geradas automaticamente via API EchoTik (/realtime/video/captions)."
+        transcriptText={transcriptText}
         videoTitle={video.title}
+        status={transcriptStatus}
+        onRetry={handleTranscriptRetry}
       />
       <InsightDialog
         open={insightOpen}

@@ -10,15 +10,32 @@ import {
   Typography,
   Box,
   IconButton,
-  Snackbar,
+  CircularProgress,
 } from "@mui/material";
-import { ContentCopy, Close, Check } from "@mui/icons-material";
+import {
+  ContentCopy,
+  Close,
+  Check,
+  HourglassEmpty,
+  ErrorOutline,
+  Refresh,
+} from "@mui/icons-material";
+
+type TranscriptStatus =
+  | "idle"
+  | "loading"
+  | "PENDING"
+  | "PROCESSING"
+  | "READY"
+  | "FAILED";
 
 interface TranscriptDialogProps {
   open: boolean;
   onClose: () => void;
-  transcriptText: string;
+  transcriptText: string | null;
   videoTitle?: string;
+  status: TranscriptStatus;
+  onRetry?: () => void;
 }
 
 export function TranscriptDialog({
@@ -26,10 +43,13 @@ export function TranscriptDialog({
   onClose,
   transcriptText,
   videoTitle,
+  status,
+  onRetry,
 }: TranscriptDialogProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
+    if (!transcriptText) return;
     try {
       await navigator.clipboard.writeText(transcriptText);
       setCopied(true);
@@ -39,81 +59,188 @@ export function TranscriptDialog({
     }
   };
 
+  const isLoading = status === "loading";
+  const isPending = status === "PENDING" || status === "PROCESSING";
+  const isFailed = status === "FAILED";
+  const isReady = status === "READY" && !!transcriptText;
+
   return (
-    <>
-      <Dialog
-        open={open}
-        onClose={onClose}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            background: "linear-gradient(165deg, #0D1422 0%, #0A0F18 100%)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 3,
-            backdropFilter: "blur(20px)",
-          },
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: "linear-gradient(165deg, #0D1422 0%, #0A0F18 100%)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 3,
+          backdropFilter: "blur(20px)",
+        },
+      }}
+    >
+      {/* Header */}
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          pb: 1,
         }}
       >
-        {/* Header */}
-        <DialogTitle
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            pb: 1,
-          }}
-        >
-          <Box>
-            <Typography
-              sx={{
-                fontSize: "1.125rem",
-                fontWeight: 700,
-                color: "rgba(255,255,255,0.92)",
-                mb: 0.25,
-              }}
-            >
-              Transcrição
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: "0.75rem",
-                color: "rgba(255,255,255,0.5)",
-              }}
-            >
-              Copie e cole onde quiser.
-            </Typography>
-          </Box>
-          <IconButton
-            onClick={onClose}
-            size="small"
+        <Box>
+          <Typography
             sx={{
-              color: "rgba(255,255,255,0.5)",
-              "&:hover": { color: "rgba(255,255,255,0.8)" },
+              fontSize: "1.125rem",
+              fontWeight: 700,
+              color: "rgba(255,255,255,0.92)",
+              mb: 0.25,
             }}
           >
-            <Close />
-          </IconButton>
-        </DialogTitle>
+            Transcrição
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: "0.75rem",
+              color: "rgba(255,255,255,0.5)",
+            }}
+          >
+            {isReady
+              ? "Copie e cole onde quiser."
+              : isPending
+                ? "Processando transcrição..."
+                : isFailed
+                  ? "Não foi possível transcrever este vídeo."
+                  : isLoading
+                    ? "Carregando..."
+                    : "Solicite a transcrição do vídeo."}
+          </Typography>
+        </Box>
+        <IconButton
+          onClick={onClose}
+          size="small"
+          sx={{
+            color: "rgba(255,255,255,0.5)",
+            "&:hover": { color: "rgba(255,255,255,0.8)" },
+          }}
+        >
+          <Close />
+        </IconButton>
+      </DialogTitle>
 
-        {/* Content */}
-        <DialogContent sx={{ pb: 0 }}>
-          {videoTitle && (
+      {/* Content */}
+      <DialogContent sx={{ pb: 0 }}>
+        {videoTitle && (
+          <Typography
+            sx={{
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.68)",
+              mb: 1.5,
+              pb: 1.5,
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            {videoTitle}
+          </Typography>
+        )}
+
+        {/* Loading state */}
+        {isLoading && (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              py: 6,
+            }}
+          >
+            <CircularProgress size={32} sx={{ color: "#2DD4FF" }} />
             <Typography
               sx={{
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                color: "rgba(255,255,255,0.68)",
-                mb: 1.5,
-                pb: 1.5,
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                ml: 2,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "0.875rem",
               }}
             >
-              {videoTitle}
+              Solicitando transcrição...
             </Typography>
-          )}
+          </Box>
+        )}
 
-          {/* Transcript Box */}
+        {/* Pending/Processing state */}
+        {isPending && (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              py: 6,
+              gap: 2,
+            }}
+          >
+            <HourglassEmpty
+              sx={{ fontSize: 40, color: "rgba(255,255,255,0.4)" }}
+            />
+            <Typography
+              sx={{
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "0.875rem",
+                textAlign: "center",
+              }}
+            >
+              A transcrição está sendo processada.
+              <br />
+              Volte em alguns minutos para ver o resultado.
+            </Typography>
+          </Box>
+        )}
+
+        {/* Failed state */}
+        {isFailed && (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              py: 6,
+              gap: 2,
+            }}
+          >
+            <ErrorOutline
+              sx={{ fontSize: 40, color: "rgba(255,100,100,0.7)" }}
+            />
+            <Typography
+              sx={{
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "0.875rem",
+                textAlign: "center",
+              }}
+            >
+              Não foi possível transcrever este vídeo.
+              <br />
+              As legendas podem não estar disponíveis para este conteúdo.
+            </Typography>
+            {onRetry && (
+              <Button
+                startIcon={<Refresh />}
+                onClick={onRetry}
+                sx={{
+                  mt: 1,
+                  color: "#2DD4FF",
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                }}
+              >
+                Tentar novamente
+              </Button>
+            )}
+          </Box>
+        )}
+
+        {/* Ready — transcript text */}
+        {isReady && (
           <Box
             sx={{
               background: "rgba(0,0,0,0.3)",
@@ -146,24 +273,51 @@ export function TranscriptDialog({
           >
             {transcriptText}
           </Box>
-        </DialogContent>
+        )}
 
-        {/* Actions */}
-        <DialogActions sx={{ px: 3, py: 2.5 }}>
-          <Button
-            onClick={onClose}
+        {/* Idle state */}
+        {status === "idle" && (
+          <Box
             sx={{
-              color: "rgba(255,255,255,0.6)",
-              textTransform: "none",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              "&:hover": {
-                background: "rgba(255,255,255,0.05)",
-              },
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              py: 6,
+              gap: 2,
             }}
           >
-            Fechar
-          </Button>
+            <Typography
+              sx={{
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "0.875rem",
+                textAlign: "center",
+              }}
+            >
+              Transcrição não disponível.
+              <br />
+              Clique em &quot;Transcrever&quot; para solicitar.
+            </Typography>
+          </Box>
+        )}
+      </DialogContent>
+
+      {/* Actions */}
+      <DialogActions sx={{ px: 3, py: 2.5 }}>
+        <Button
+          onClick={onClose}
+          sx={{
+            color: "rgba(255,255,255,0.6)",
+            textTransform: "none",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            "&:hover": {
+              background: "rgba(255,255,255,0.05)",
+            },
+          }}
+        >
+          Fechar
+        </Button>
+        {isReady && (
           <Button
             variant="contained"
             startIcon={copied ? <Check /> : <ContentCopy />}
@@ -198,8 +352,8 @@ export function TranscriptDialog({
           >
             {copied ? "Copiado" : "Copiar"}
           </Button>
-        </DialogActions>
-      </Dialog>
-    </>
+        )}
+      </DialogActions>
+    </Dialog>
   );
 }

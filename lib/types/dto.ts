@@ -89,6 +89,19 @@ export interface CreatorDTO {
 }
 
 // ============================================
+// Transcript DTO
+// ============================================
+export interface TranscriptDTO {
+  videoExternalId: string;
+  status: "PENDING" | "PROCESSING" | "READY" | "FAILED";
+  transcriptText: string | null;
+  language: string | null;
+  durationSeconds: number | null;
+  readyAt: string | null;
+  createdAt: string;
+}
+
+// ============================================
 // Dashboard aggregate DTOs
 // ============================================
 export interface DashboardKPIs {
