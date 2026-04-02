@@ -15,6 +15,7 @@ Before introducing a new pattern, tool, or abstraction, check whether an existin
 Do not introduce unnecessary complexity.
 
 Key principles:
+
 - Schema changes must consider Vercel Preview and Production environments first.
 - Local DB is **not** the primary migration target — Vercel environments are.
 - Migration workflow must not be improvised.
@@ -53,7 +54,7 @@ Key principles:
 ```
 app/
   api/             → route handlers (thin — logic goes to lib/)
-    admin/         → protected admin routes (16 sub-routes)
+    admin/         → protected admin routes (15 sub-routes)
       access-grants/
       audit-logs/
       echotik/         → echotik config + health admin endpoints
@@ -67,7 +68,6 @@ app/
       settings/
       subscribers/
       subscription-metrics/
-      sync-hotmart/
       users/
       webhook-events/
     auth/          → NextAuth handlers
@@ -137,7 +137,7 @@ lib/
     processor.ts       → webhook event processing
     reconcile.ts       → subscription reconciliation
     import-subscribers.ts → bulk subscriber import
-    sync.ts / webhook.ts
+    webhook.ts
   lgpd/            → consent and personal data (GDPR)
     erasure.ts     → data erasure request handling
   logger.ts        → createLogger(source, correlationId) → structured Logger
@@ -454,7 +454,7 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
 
 - The admin area must remain protected on the server.
 - Services in `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `prompt-config.ts`, `useQuotaUsage.ts`.
-- Admin API routes live in `app/api/admin/` (16 sub-routes covering users, plans, subscribers, notifications, access grants, audit logs, echotik config/health, settings, quotas, etc.).
+- Admin API routes live in `app/api/admin/` (15 sub-routes covering users, plans, subscribers, notifications, access grants, audit logs, echotik config/health, settings, quotas, etc.).
 - Do not put administrative secrets in the frontend.
 - Do not use `localStorage` or `sessionStorage` to store secrets or sensitive credentials.
 
@@ -585,12 +585,12 @@ The PR is never auto-merged — a human reviews and merges when ready to release
 
 ### Commands
 
-| Script           | Command                    | Purpose                               |
-|------------------|----------------------------|---------------------------------------|
-| `npm run db:migrate` | `prisma migrate dev`   | Create new migration (development)    |
-| `npm run db:deploy`  | `prisma migrate deploy`| Apply pending migrations (safe, deploy-time) |
-| `npm run db:status`  | `prisma migrate status`| Check migration status vs DB          |
-| `npm run db:generate`| `prisma generate`      | Regenerate Prisma client              |
+| Script                | Command                 | Purpose                                      |
+| --------------------- | ----------------------- | -------------------------------------------- |
+| `npm run db:migrate`  | `prisma migrate dev`    | Create new migration (development)           |
+| `npm run db:deploy`   | `prisma migrate deploy` | Apply pending migrations (safe, deploy-time) |
+| `npm run db:status`   | `prisma migrate status` | Check migration status vs DB                 |
+| `npm run db:generate` | `prisma generate`       | Regenerate Prisma client                     |
 
 ### Safety rules
 
