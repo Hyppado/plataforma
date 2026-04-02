@@ -23,7 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import type { TranscriptStatus, Prisma } from "@prisma/client";
 import { getVideoCaptions, getVideoDownloadUrl, downloadVideoBuffer } from "./media";
-import { transcribeWithWhisper } from "./whisper";
+import { transcribeWithWhisper, isWhisperError } from "./whisper";
 
 const log = createLogger("transcription/service");
 
@@ -167,7 +167,10 @@ async function processTranscriptPipeline(
     }
 
     const whisperResult = await transcribeWithWhisper(videoBuffer, `${videoExternalId}.mp4`);
-    if (!whisperResult?.text) {
+    if (isWhisperError(whisperResult)) {
+      return markFailed(transcriptId, videoExternalId, isNew, whisperResult.error);
+    }
+    if (!whisperResult.text) {
       return markFailed(transcriptId, videoExternalId, isNew, "Whisper transcription returned no text");
     }
 

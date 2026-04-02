@@ -29,6 +29,8 @@ vi.mock("@/lib/transcription/media", () => ({
 
 vi.mock("@/lib/transcription/whisper", () => ({
   transcribeWithWhisper: transcribeWithWhisperMock,
+  isWhisperError: (result: unknown) =>
+    result !== null && typeof result === "object" && "error" in (result as Record<string, unknown>),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -52,7 +54,7 @@ describe("lib/transcription/service", () => {
     getVideoCaptionsMock.mockResolvedValue(null);
     getVideoDownloadUrlMock.mockResolvedValue(null);
     downloadVideoBufferMock.mockResolvedValue(null);
-    transcribeWithWhisperMock.mockResolvedValue(null);
+    transcribeWithWhisperMock.mockResolvedValue({ error: "API key not configured" });
   });
 
   // -----------------------------------------------------------------------
@@ -202,7 +204,7 @@ describe("lib/transcription/service", () => {
       expect(result.isNew).toBe(true);
     });
 
-    it("returns FAILED when Whisper returns no text", async () => {
+    it("returns FAILED when Whisper returns error", async () => {
       (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       (prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>).mockResolvedValue({
         id: "t6",
@@ -217,7 +219,7 @@ describe("lib/transcription/service", () => {
         noWatermarkUrl: null,
       });
       downloadVideoBufferMock.mockResolvedValue(Buffer.from("video-data"));
-      transcribeWithWhisperMock.mockResolvedValue(null);
+      transcribeWithWhisperMock.mockResolvedValue({ error: "Whisper API error (401): Unauthorized" });
 
       (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockResolvedValue({
         id: "t6",
@@ -228,6 +230,7 @@ describe("lib/transcription/service", () => {
       const result = await requestTranscript("vid-nowhisper", "user-1");
 
       expect(result.status).toBe("FAILED");
+      expect(result.errorMessage).toBe("Whisper API error (401): Unauthorized");
     });
   });
 
