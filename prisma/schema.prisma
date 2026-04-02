@@ -812,6 +812,40 @@ model Region {
   updatedAt DateTime @updatedAt
 }
 
+// ─── Transcrição de Vídeo (on-demand) ───────────────────────────────────────
+
+enum TranscriptStatus {
+  PENDING     // created, waiting to be picked up
+  PROCESSING  // worker is actively transcribing
+  READY       // transcript available
+  FAILED      // transcription failed
+}
+
+/// On-demand video transcript — one canonical transcript per video.
+/// Created when a user first requests transcription; reused for all users.
+/// Serves as the foundation for future AI insight generation.
+model VideoTranscript {
+  id                String            @id @default(cuid())
+  videoExternalId   String            @unique   // Echotik video_id — canonical video identity
+  status            TranscriptStatus  @default(PENDING)
+  source            String            @default("openai")   // transcription provider
+  language          String?           // detected language (e.g. "pt", "en")
+  transcriptText    String?           // full transcript when READY
+  segmentsJson      Json?             // timestamped segments [{start, end, text}]
+  durationSeconds   Int?              // video duration in seconds
+  requestedByUserId String?           // audit: first user who triggered
+  errorMessage      String?           // controlled error info when FAILED
+  retryCount        Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  readyAt           DateTime?         // when status became READY
+  processingAt      DateTime?         // when processing started
+
+  @@index([status])
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
 // ─── Notificações Admin ─────────────────────────────────────────────────────
 
 enum NotificationSeverity {

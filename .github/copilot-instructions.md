@@ -71,11 +71,12 @@ app/
       users/
       webhook-events/
     auth/          → NextAuth handlers
-    cron/          → cron endpoints (echotik, hotmart reconcile)
+    cron/          → cron endpoints (echotik, hotmart reconcile, transcribe)
     echotik/       → Echotik data endpoints
     me/            → authenticated user profile
     proxy/         → external image proxy
     regions/       → active regions
+    transcripts/   → on-demand transcript request + status
     trending/      → trending data
     usage/         → user quotas
     user/          → user data
@@ -143,9 +144,15 @@ lib/
   logger.ts        → createLogger(source, correlationId) → structured Logger
   prisma.ts        → PrismaClient singleton (ALWAYS use this)
   region.ts        → region helpers
-  settings.ts      → database-backed configuration
+  settings.ts      → database-backed configuration + secret encryption helpers
   storage/         → file storage
     saved.ts
+  transcription/   → on-demand video transcription system
+    index.ts       → public re-exports
+    service.ts     → requestTranscript, getTranscript, processPendingTranscripts
+    media.ts       → Echotik captions retrieval + subtitle parsing (SRT/VTT/JSON)
+    whisper.ts     → OpenAI Whisper API integration (for future audio transcription)
+  crypto.ts        → AES-256-GCM encrypt/decrypt for secret settings
   swr/
     fetcher.ts     → default SWR fetcher
     useCategories.ts
@@ -181,9 +188,11 @@ __tests__/
       subscribers.test.ts
       subscription-metrics.test.ts
       users.test.ts
+      openai-settings.test.ts
     cron/
       echotik.test.ts
       hotmart-reconcile.test.ts
+      transcribe.test.ts
     me/
       alerts.test.ts
       collections.test.ts
@@ -191,6 +200,8 @@ __tests__/
       saved.test.ts
     webhooks/
       hotmart.test.ts
+    transcripts/
+      transcripts.test.ts
   components/      → RTL component tests (jsdom)
     setup.tsx      → setup: jest-dom, mocks for MUI/Next/auth
     CategoryFilter.test.tsx
@@ -201,6 +212,7 @@ __tests__/
     VideoCardSkeleton.test.tsx
   lib/
     auth.test.ts
+    crypto.test.ts
     logger.test.ts
     access/
       resolver.test.ts
@@ -228,6 +240,9 @@ __tests__/
       webhook.test.ts
     lgpd/
       erasure.test.ts
+    transcription/
+      media.test.ts
+      service.test.ts
     usage/
       usage.test.ts
   middleware.test.ts
@@ -300,6 +315,13 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 - **UsagePeriod** — monthly usage aggregation per user
 - **UsageEvent** — atomic consumption events with idempotency key
 
+### Domain 8 — Transcription
+
+- **VideoTranscript** — on-demand video transcript (one per videoExternalId, shared globally)
+  - Status lifecycle: PENDING → PROCESSING → READY | FAILED
+  - Source: "echotik" (captions) or "openai" (Whisper, future)
+  - Stores plain text + optional JSONB segments with timestamps
+
 ### Key Enums
 
 - `UserRole`: ADMIN, USER
@@ -314,6 +336,7 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 - `InvitationStatus`: PENDING, ACCEPTED, EXPIRED, CANCELLED
 - `PlanPeriod`: MONTHLY, ANNUAL
 - `UsageEventType`: TRANSCRIPT, SCRIPT, INSIGHT
+- `TranscriptStatus`: PENDING, PROCESSING, READY, FAILED
 
 ## Mandatory Code Rules
 
@@ -440,6 +463,33 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
   - The `rawBody: Buffer` parameter is kept in the `verifySignature` signature to support future HMAC if Hotmart adopts it.
 - Do not change the idempotency behavior (deterministic SHA-256 key via `buildIdempotencyKey`).
 - Do not process the same event more than once — the `UNIQUE` constraint in the database is the guarantee.
+
+## Transcription System
+
+On-demand video transcription, shared globally per `videoExternalId`.
+
+- **Service**: `lib/transcription/service.ts`
+  - `requestTranscript(videoExternalId, userId)` — creates PENDING, tries Echotik captions immediately
+  - `getTranscript(videoExternalId)` — returns current status/content
+  - `processPendingTranscripts()` — cron batch processor (BATCH_SIZE=5, MAX_RETRIES=3)
+- **Media**: `lib/transcription/media.ts` — retrieves captions from Echotik `/realtime/video/captions`
+  - Prefers Portuguese → English → first available caption track
+  - Parses JSON, SRT, and VTT subtitle formats to plain text
+- **Whisper**: `lib/transcription/whisper.ts` — OpenAI Whisper API (future fallback when audio URLs available)
+- **Encryption**: `lib/crypto.ts` — AES-256-GCM for secret settings (OpenAI API key)
+- **API Routes**:
+  - `POST /api/transcripts` — request transcript (consumes TRANSCRIPT quota)
+  - `GET /api/transcripts/[videoExternalId]` — get status/content
+  - `GET /api/cron/transcribe` — cron processor (auth by CRON_SECRET)
+  - `GET/POST /api/admin/settings/openai` — admin OpenAI key management
+  - `POST /api/admin/settings/openai/test` — validate OpenAI key
+- **Frontend**: `TranscriptDialog` in `app/components/videos/`, integrated into `VideoCard`
+- **Admin UI**: `OpenAITab` in `app/components/admin/openai/`, mounted in config page (tab 3)
+- **Rules**:
+  - Transcripts are global — one record per video, shared across all users
+  - Quota is consumed only for new requests, not reuses of existing transcripts
+  - OpenAI key is server-side only — never sent to the browser
+  - New transcript sources must follow the same status lifecycle (PENDING → PROCESSING → READY | FAILED)
 
 ## Logs and Observability
 
