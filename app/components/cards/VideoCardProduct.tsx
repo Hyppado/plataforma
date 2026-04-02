@@ -74,7 +74,7 @@ export function VideoCardProduct({
             fontWeight: 600,
           }}
         >
-          {formatCurrency(product.priceBRL)}
+          {formatCurrency(product.priceBRL, product.currency)}
         </Typography>
       </Box>
 

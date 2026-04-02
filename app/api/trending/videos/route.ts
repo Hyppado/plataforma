@@ -177,6 +177,7 @@ export async function GET(request: NextRequest) {
             liveRevenueBRL: 0,
             videoRevenueBRL: 0,
             mallRevenueBRL: 0,
+            currency: r.currency,
             creatorCount: 0,
             creatorConversionRate: 0,
             sourceUrl: "",

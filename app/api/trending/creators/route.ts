@@ -113,6 +113,7 @@ export async function GET(request: NextRequest) {
         sourceUrl: `https://echotik.live/influencer/${r.uniqueId || r.userExternalId}`,
         tiktokUrl: r.uniqueId ? `https://www.tiktok.com/@${r.uniqueId}` : "",
         dateRange: range,
+        currency: r.currency,
         avatarUrl: proxyIfEchotikCdn(r.avatar) || undefined,
         ecScore: r.ecScore,
         category: r.category || undefined,
