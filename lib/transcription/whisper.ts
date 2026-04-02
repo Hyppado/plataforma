@@ -30,6 +30,14 @@ export interface WhisperResult {
   segments: WhisperSegment[];
 }
 
+export interface WhisperError {
+  error: string;
+}
+
+export function isWhisperError(result: WhisperResult | WhisperError): result is WhisperError {
+  return "error" in result;
+}
+
 // ---------------------------------------------------------------------------
 // Whisper transcription
 // ---------------------------------------------------------------------------
@@ -44,11 +52,11 @@ export interface WhisperResult {
 export async function transcribeWithWhisper(
   audioBuffer: Buffer,
   filename: string = "audio.mp4",
-): Promise<WhisperResult | null> {
+): Promise<WhisperResult | WhisperError> {
   const apiKey = await getSecretSetting(SETTING_KEYS.OPENAI_API_KEY);
   if (!apiKey) {
     log.error("OpenAI API key not configured");
-    return null;
+    return { error: "OpenAI API key not configured in settings" };
   }
 
   const model =
@@ -94,7 +102,7 @@ export async function transcribeWithWhisper(
         status: response.status,
         body: errorText.slice(0, 300),
       });
-      return null;
+      return { error: `Whisper API error (${response.status}): ${errorText.slice(0, 200)}` };
     }
 
     const data = await response.json();
@@ -117,7 +125,7 @@ export async function transcribeWithWhisper(
     log.error("Whisper transcription failed", {
       error: error instanceof Error ? error.message : "Unknown",
     });
-    return null;
+    return { error: error instanceof Error ? error.message : "Whisper transcription failed" };
   }
 }
 

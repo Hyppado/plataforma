@@ -8,5 +8,5 @@ export { requestTranscript, getTranscript, processPendingTranscripts } from "./s
 export type { RequestTranscriptResult, TranscriptInfo } from "./service";
 export { getVideoCaptions, getVideoDownloadUrl, downloadVideoBuffer } from "./media";
 export type { CaptionResult, VideoDownloadUrls } from "./media";
-export { transcribeWithWhisper } from "./whisper";
-export type { WhisperResult, WhisperSegment } from "./whisper";
+export { transcribeWithWhisper, isWhisperError } from "./whisper";
+export type { WhisperResult, WhisperSegment, WhisperError } from "./whisper";

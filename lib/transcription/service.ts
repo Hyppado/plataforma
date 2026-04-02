@@ -23,7 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import type { TranscriptStatus, Prisma } from "@prisma/client";
 import { getVideoCaptions, getVideoDownloadUrl, downloadVideoBuffer } from "./media";
-import { transcribeWithWhisper } from "./whisper";
+import { transcribeWithWhisper, isWhisperError } from "./whisper";
 
 const log = createLogger("transcription/service");
 
@@ -35,6 +35,7 @@ export interface RequestTranscriptResult {
   videoExternalId: string;
   status: TranscriptStatus;
   transcriptText: string | null;
+  errorMessage: string | null;
   isNew: boolean;
 }
 
@@ -62,6 +63,7 @@ export async function requestTranscript(
         videoExternalId: existing.videoExternalId,
         status: existing.status,
         transcriptText: existing.transcriptText,
+        errorMessage: null,
         isNew: false,
       };
     }
@@ -76,6 +78,7 @@ export async function requestTranscript(
       videoExternalId: existing.videoExternalId,
       status: existing.status,
       transcriptText: existing.transcriptText,
+      errorMessage: existing.errorMessage ?? null,
       isNew: false,
     };
   }
@@ -140,6 +143,7 @@ async function processTranscriptPipeline(
         videoExternalId: updated.videoExternalId,
         status: updated.status,
         transcriptText: updated.transcriptText,
+        errorMessage: null,
         isNew,
       };
     }
@@ -163,7 +167,10 @@ async function processTranscriptPipeline(
     }
 
     const whisperResult = await transcribeWithWhisper(videoBuffer, `${videoExternalId}.mp4`);
-    if (!whisperResult?.text) {
+    if (isWhisperError(whisperResult)) {
+      return markFailed(transcriptId, videoExternalId, isNew, whisperResult.error);
+    }
+    if (!whisperResult.text) {
       return markFailed(transcriptId, videoExternalId, isNew, "Whisper transcription returned no text");
     }
 
@@ -194,6 +201,7 @@ async function processTranscriptPipeline(
       videoExternalId: updated.videoExternalId,
       status: updated.status,
       transcriptText: updated.transcriptText,
+      errorMessage: null,
       isNew,
     };
   } catch (error) {
@@ -234,6 +242,7 @@ async function markFailed(
     videoExternalId,
     status: "FAILED",
     transcriptText: null,
+    errorMessage,
     isNew,
   };
 }

@@ -37,6 +37,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const [transcriptStatus, setTranscriptStatus] =
     useState<TranscriptUIStatus>("idle");
   const [transcriptText, setTranscriptText] = useState<string | null>(null);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
 
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
@@ -82,19 +83,23 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       if (res.status === 429) {
         setTranscriptStatus("FAILED");
         setTranscriptText(null);
+        setTranscriptError("Cota de transcrições excedida. Aguarde o próximo período.");
         return;
       }
 
       if (!res.ok) {
         setTranscriptStatus("FAILED");
+        setTranscriptError(null);
         return;
       }
 
       const data = await res.json();
       setTranscriptStatus(data.status ?? "FAILED");
       setTranscriptText(data.transcriptText ?? null);
+      setTranscriptError(data.errorMessage ?? null);
     } catch {
       setTranscriptStatus("FAILED");
+      setTranscriptError(null);
     }
   }, [video, transcriptStatus, transcriptText]);
 
@@ -114,8 +119,10 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       const data = await res.json();
       setTranscriptStatus(data.status ?? "FAILED");
       setTranscriptText(data.transcriptText ?? null);
+      setTranscriptError(data.errorMessage ?? null);
     } catch {
       setTranscriptStatus("FAILED");
+      setTranscriptError(null);
     }
   }, [video]);
 
@@ -307,6 +314,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
         transcriptText={transcriptText}
         videoTitle={video.title}
         status={transcriptStatus}
+        errorMessage={transcriptError}
         onRetry={handleTranscriptRetry}
       />
       <InsightDialog
