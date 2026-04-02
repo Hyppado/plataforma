@@ -136,7 +136,7 @@ describe("syncCreatorRanklistForRegion()", () => {
     );
   });
 
-  it("uses MXN currency for MX region", async () => {
+  it("uses USD currency for all regions (Echotik returns USD)", async () => {
     echotikRequestMock
       .mockResolvedValueOnce(apiOk([creatorItem("c1")])) // date check
       .mockResolvedValueOnce(apiOk([creatorItem("c1")]))
@@ -145,7 +145,7 @@ describe("syncCreatorRanklistForRegion()", () => {
     await syncCreatorRanklistForRegion("run-1", "MX", 1, 2, stubLog());
 
     const call = prismaMock.echotikCreatorTrendDaily.upsert.mock.calls[0][0];
-    expect(call.create.currency).toBe("MXN");
+    expect(call.create.currency).toBe("USD");
   });
 
   it("converts gmv to cents (BigInt)", async () => {

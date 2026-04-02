@@ -22,7 +22,7 @@ import {
   saveRawResponse,
   getConfiguredRegions,
   upsertProductDetail,
-  REGION_CURRENCY,
+  ECHOTIK_CURRENCY,
 } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ export async function syncProductRanklistForRegion(
           influencerCount: BigInt(item.total_ifl_cnt ?? 0),
           videoCount: BigInt(item.total_video_cnt ?? 0),
           liveCount: BigInt(item.total_live_cnt ?? 0),
-          currency: REGION_CURRENCY[region] ?? "USD",
+          currency: ECHOTIK_CURRENCY,
           country: region,
           extra: item as any,
         },
@@ -164,7 +164,7 @@ export async function syncProductRanklistForRegion(
           influencerCount: BigInt(item.total_ifl_cnt ?? 0),
           videoCount: BigInt(item.total_video_cnt ?? 0),
           liveCount: BigInt(item.total_live_cnt ?? 0),
-          currency: REGION_CURRENCY[region] ?? "USD",
+          currency: ECHOTIK_CURRENCY,
           country: region,
           extra: item as any,
           syncedAt: new Date(),

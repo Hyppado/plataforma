@@ -16,7 +16,7 @@
 import { echotikRequest } from "./client";
 import { newProductDateWindow } from "./dates";
 import { proxyIfEchotikCdn } from "./trending";
-import { REGION_CURRENCY } from "./cron/helpers";
+import { ECHOTIK_CURRENCY } from "./cron/helpers";
 import type { ProductDTO } from "@/lib/types/dto";
 
 // ---------------------------------------------------------------------------
@@ -162,8 +162,6 @@ export function normalizeProductListItem(
   region?: string,
 ): ProductDTO {
   const coverRaw = parseCoverUrl(item.cover_url);
-  const effectiveRegion = (item.region ?? region ?? "US").toUpperCase();
-  const currency = REGION_CURRENCY[effectiveRegion] ?? "USD";
 
   return {
     id: item.product_id ?? "",
@@ -181,7 +179,7 @@ export function normalizeProductListItem(
     liveRevenueBRL: item.total_live_sale_gmv_amt ?? 0,
     videoRevenueBRL: item.total_video_sale_gmv_amt ?? 0,
     mallRevenueBRL: 0,
-    currency,
+    currency: ECHOTIK_CURRENCY,
     creatorCount: item.total_ifl_cnt ?? 0,
     creatorConversionRate: 0,
     sourceUrl: `https://echotik.live/products/${item.product_id}`,

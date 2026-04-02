@@ -214,7 +214,7 @@ describe("syncVideoRanklistForRegion()", () => {
 
     const call = prismaMock.echotikVideoTrendDaily.upsert.mock.calls[0][0];
     expect(call.create.gmv).toBe(BigInt(9999));
-    expect(call.create.currency).toBe("BRL");
+    expect(call.create.currency).toBe("USD");
   });
 
   it("throws on fetch error", async () => {
