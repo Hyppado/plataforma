@@ -73,5 +73,6 @@ export async function POST(req: NextRequest) {
     videoExternalId: result.videoExternalId,
     status: result.status,
     transcriptText: result.transcriptText,
+    errorMessage: result.errorMessage,
   });
 }

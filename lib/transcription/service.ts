@@ -35,6 +35,7 @@ export interface RequestTranscriptResult {
   videoExternalId: string;
   status: TranscriptStatus;
   transcriptText: string | null;
+  errorMessage: string | null;
   isNew: boolean;
 }
 
@@ -62,6 +63,7 @@ export async function requestTranscript(
         videoExternalId: existing.videoExternalId,
         status: existing.status,
         transcriptText: existing.transcriptText,
+        errorMessage: null,
         isNew: false,
       };
     }
@@ -76,6 +78,7 @@ export async function requestTranscript(
       videoExternalId: existing.videoExternalId,
       status: existing.status,
       transcriptText: existing.transcriptText,
+      errorMessage: existing.errorMessage ?? null,
       isNew: false,
     };
   }
@@ -140,6 +143,7 @@ async function processTranscriptPipeline(
         videoExternalId: updated.videoExternalId,
         status: updated.status,
         transcriptText: updated.transcriptText,
+        errorMessage: null,
         isNew,
       };
     }
@@ -194,6 +198,7 @@ async function processTranscriptPipeline(
       videoExternalId: updated.videoExternalId,
       status: updated.status,
       transcriptText: updated.transcriptText,
+      errorMessage: null,
       isNew,
     };
   } catch (error) {
@@ -234,6 +239,7 @@ async function markFailed(
     videoExternalId,
     status: "FAILED",
     transcriptText: null,
+    errorMessage,
     isNew,
   };
 }

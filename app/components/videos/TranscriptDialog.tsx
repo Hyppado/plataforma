@@ -32,7 +32,27 @@ interface TranscriptDialogProps {
   transcriptText: string | null;
   videoTitle?: string;
   status: TranscriptStatus;
+  errorMessage?: string | null;
   onRetry?: () => void;
+}
+
+/**
+ * Maps backend error messages to user-friendly Portuguese messages.
+ */
+function formatErrorMessage(error: string): string {
+  if (error.includes("API key not configured")) {
+    return "Chave OpenAI não configurada. Peça ao administrador para configurar.";
+  }
+  if (error.includes("download URL not available")) {
+    return "Não foi possível obter o vídeo para transcrição.";
+  }
+  if (error.includes("download failed") || error.includes("too large")) {
+    return "O download do vídeo falhou ou o arquivo é muito grande.";
+  }
+  if (error.includes("Whisper transcription returned no text")) {
+    return "A transcrição não retornou texto. O vídeo pode não ter áudio.";
+  }
+  return "Erro inesperado. Tente novamente.";
 }
 
 export function TranscriptDialog({
@@ -41,6 +61,7 @@ export function TranscriptDialog({
   transcriptText,
   videoTitle,
   status,
+  errorMessage,
   onRetry,
 }: TranscriptDialogProps) {
   const [copied, setCopied] = useState(false);
@@ -185,7 +206,9 @@ export function TranscriptDialog({
             >
               Não foi possível transcrever este vídeo.
               <br />
-              As legendas podem não estar disponíveis para este conteúdo.
+              {errorMessage
+                ? formatErrorMessage(errorMessage)
+                : "Erro inesperado. Tente novamente."}
             </Typography>
             {onRetry && (
               <Button
