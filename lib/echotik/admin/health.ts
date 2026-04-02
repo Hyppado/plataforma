@@ -127,9 +127,19 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     where: { source: { startsWith: "echotik:" }, status: "SUCCESS" },
     _max: { endedAt: true },
   });
-  const successMap = new Map(
-    latestSuccess.map((r) => [r.source, r._max.endedAt]),
-  );
+  // Normalize success keys (echotik:run:X:R → echotik:X:R)
+  const successMap = new Map<string, Date | null>();
+  for (const r of latestSuccess) {
+    const canonical = r.source.replace(":run:", ":");
+    const existing = successMap.get(canonical);
+    const val = r._max.endedAt;
+    if (!existing || (val && val > existing)) {
+      successMap.set(canonical, val);
+    }
+    if (r.source !== canonical) {
+      successMap.set(r.source, val);
+    }
+  }
 
   // Separate query for latest FAILED per source
   const latestFailure = await prisma.ingestionRun.groupBy({
@@ -137,9 +147,21 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     where: { source: { startsWith: "echotik:" }, status: "FAILED" },
     _max: { endedAt: true },
   });
-  const failureMap = new Map(
-    latestFailure.map((r) => [r.source, r._max.endedAt]),
-  );
+  // Build failure map that normalizes lifecycle keys (echotik:run:X:R → echotik:X:R)
+  // so health lookups by canonical source find failures from both key formats.
+  const failureMap = new Map<string, Date | null>();
+  for (const r of latestFailure) {
+    const canonical = r.source.replace(":run:", ":");
+    const existing = failureMap.get(canonical);
+    const val = r._max.endedAt;
+    if (!existing || (val && val > existing)) {
+      failureMap.set(canonical, val);
+    }
+    // Also keep the original key for direct lookups
+    if (r.source !== canonical) {
+      failureMap.set(r.source, val);
+    }
+  }
 
   // Failures in last 24h per source
   const failures24hRows = await prisma.ingestionRun.groupBy({
@@ -151,9 +173,21 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     },
     _count: { id: true },
   });
-  const failures24hMap = new Map(
-    failures24hRows.map((r) => [r.source, r._count.id]),
-  );
+  // Normalize failures24h keys the same way
+  const failures24hMap = new Map<string, number>();
+  for (const r of failures24hRows) {
+    const canonical = r.source.replace(":run:", ":");
+    failures24hMap.set(
+      canonical,
+      (failures24hMap.get(canonical) ?? 0) + r._count.id,
+    );
+    if (r.source !== canonical) {
+      failures24hMap.set(
+        r.source,
+        (failures24hMap.get(r.source) ?? 0) + r._count.id,
+      );
+    }
+  }
 
   // Most recent successful run per source (for statsJson)
   const recentSuccessRuns = await prisma.ingestionRun.findMany({
@@ -166,9 +200,17 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     distinct: ["source"],
     select: { source: true, statsJson: true, errorMessage: true },
   });
-  const recentStatsMap = new Map(
-    recentSuccessRuns.map((r) => [r.source, r.statsJson]),
-  );
+  // Normalize stats keys (echotik:run:X:R → echotik:X:R)
+  const recentStatsMap = new Map<string, unknown>();
+  for (const r of recentSuccessRuns) {
+    const canonical = r.source.replace(":run:", ":");
+    if (!recentStatsMap.has(canonical)) {
+      recentStatsMap.set(canonical, r.statsJson);
+    }
+    if (r.source !== canonical && !recentStatsMap.has(r.source)) {
+      recentStatsMap.set(r.source, r.statsJson);
+    }
+  }
 
   // Most recent failed run per source (for errorMessage)
   const recentFailedRuns = await prisma.ingestionRun.findMany({
@@ -177,9 +219,17 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     distinct: ["source"],
     select: { source: true, errorMessage: true },
   });
-  const recentErrorMap = new Map(
-    recentFailedRuns.map((r) => [r.source, r.errorMessage]),
-  );
+  // Normalize error keys (echotik:run:X:R → echotik:X:R)
+  const recentErrorMap = new Map<string, string | null>();
+  for (const r of recentFailedRuns) {
+    const canonical = r.source.replace(":run:", ":");
+    if (!recentErrorMap.has(canonical)) {
+      recentErrorMap.set(canonical, r.errorMessage);
+    }
+    if (r.source !== canonical && !recentErrorMap.has(r.source)) {
+      recentErrorMap.set(r.source, r.errorMessage);
+    }
+  }
 
   // Build the canonical set of task × region combos to report
   const activeRegions = regions.filter((r) => r.isActive).map((r) => r.code);
@@ -217,7 +267,9 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     const hoursSinceSuccess = ageMs != null ? ageMs / (60 * 60 * 1000) : null;
     const stalenessRatio =
       hoursSinceSuccess != null ? hoursSinceSuccess / interval : null;
-    const lastRun = latestBySource.find((r) => r.source === source);
+    const lastRun = latestBySource.find(
+      (r) => r.source === source || r.source.replace(":run:", ":") === source,
+    );
     const stats = extractStats(recentStatsMap.get(source));
 
     tasks.push({
@@ -265,7 +317,9 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
       const hoursSinceSuccess = ageMs != null ? ageMs / (60 * 60 * 1000) : null;
       const stalenessRatio =
         hoursSinceSuccess != null ? hoursSinceSuccess / interval : null;
-      const latestRun = latestBySource.find((r) => r.source === source);
+      const latestRun = latestBySource.find(
+        (r) => r.source === source || r.source.replace(":run:", ":") === source,
+      );
       const stats = extractStats(recentStatsMap.get(source));
 
       tasks.push({
