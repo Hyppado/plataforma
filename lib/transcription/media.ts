@@ -86,7 +86,7 @@ export async function getVideoCaptions(
 ): Promise<CaptionResult | null> {
   try {
     const response = await echotikRequest<EchotikCaptionResponse>(
-      `/realtime/video/captions?video_id=${encodeURIComponent(videoExternalId)}`,
+      `/api/v3/realtime/video/captions?video_id=${encodeURIComponent(videoExternalId)}`,
     );
 
     // Echotik returns data as a direct array of caption tracks
@@ -102,7 +102,9 @@ export async function getVideoCaptions(
 
     // Prefer Portuguese, then English, then first available
     const preferred =
-      captions.find((c) => c.lang?.startsWith("pt") || c.lang?.startsWith("por")) ??
+      captions.find(
+        (c) => c.lang?.startsWith("pt") || c.lang?.startsWith("por"),
+      ) ??
       captions.find((c) => c.lang?.startsWith("en")) ??
       captions[0];
 
@@ -123,7 +125,10 @@ export async function getVideoCaptions(
     }
 
     if (!captionText) {
-      log.info("Caption found but no usable text", { videoExternalId, lang: preferred.lang });
+      log.info("Caption found but no usable text", {
+        videoExternalId,
+        lang: preferred.lang,
+      });
       return null;
     }
 
@@ -156,7 +161,7 @@ export async function getVideoDownloadUrl(
     const tiktokUrl = `https://www.tiktok.com/@user/video/${videoExternalId}`;
 
     const response = await echotikRequest<EchotikDownloadUrlResponse>(
-      "/realtime/video/download-url",
+      "/api/v3/realtime/video/download-url",
       { params: { url: tiktokUrl }, timeout: 20_000 },
     );
 
