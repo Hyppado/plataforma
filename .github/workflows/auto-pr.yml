@@ -6,6 +6,10 @@
 # This ensures the release path is always one PR-merge away.
 # The PR is never auto-merged — a human reviews and merges to main.
 #
+# IMPORTANT: Always merge this PR using "Rebase and merge" on GitHub.
+# This avoids creating merge commits that cause develop and main to diverge.
+# The sync-develop.yml workflow will fast-forward develop to main after merge.
+#
 name: Auto PR develop → main
 
 on:
@@ -46,7 +50,10 @@ jobs:
               --body "Automated PR from \`develop\` to \`main\`.
 
           This PR is created automatically on every push to \`develop\`.
-          Review, verify CI, and merge when ready to release to production.
+          Review, verify CI, and **merge using 'Rebase and merge'** to avoid merge commits.
+
+          After merging, the [sync-develop](.github/workflows/sync-develop.yml) workflow
+          will automatically fast-forward \`develop\` to match \`main\`.
 
           ---
           _Created by [auto-pr.yml](/.github/workflows/auto-pr.yml)_"

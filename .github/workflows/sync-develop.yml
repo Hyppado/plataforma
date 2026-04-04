@@ -1,13 +1,15 @@
 # .github/workflows/sync-develop.yml
 #
-# After a PR is merged into `main`, automatically merge `main` back
-# into `develop` so that `develop` is never out-of-date.
+# After a PR is merged into `main`, fast-forward `develop` to match.
 #
-# This is the standard GitFlow practice: main → develop back-merge
-# after every release merge. Without this, every "Merge pull request"
-# commit on main makes develop immediately out-of-date.
+# When PRs are merged with "Rebase and merge", the commits on main
+# have different SHAs than those on develop. This workflow resets
+# develop to point at main so both branches stay aligned.
 #
-name: Sync main → develop
+# This avoids the divergence problem where `git push origin develop`
+# is rejected because origin/develop has commits that local doesn't.
+#
+name: Sync develop with main
 
 on:
   push:
@@ -18,21 +20,23 @@ permissions:
 
 jobs:
   sync:
-    name: Merge main into develop
+    name: Fast-forward develop to main
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout develop
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: main
           fetch-depth: 0
 
-      - name: Merge main into develop
+      - name: Update develop to match main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin main
-          git merge origin/main --no-edit -m "chore: sync develop with main (auto)"
+          git fetch origin develop
 
-          git push origin develop
+          # Force-update develop to point at the same commit as main.
+          # This is safe because develop→main is a one-way release flow:
+          # all commits on main came from develop (via the auto-PR).
+          git push origin main:develop --force-with-lease

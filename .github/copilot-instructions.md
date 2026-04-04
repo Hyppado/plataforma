@@ -29,6 +29,9 @@ Key principles:
 - A GitHub Action (`.github/workflows/auto-pr.yml`) automatically creates/maintains an open PR from `develop` → `main` on every push to `develop`.
 - Do not push directly to `main`, except for critical hotfixes.
 - Merging the auto-PR to `main` triggers the production deploy on Vercel.
+- **Always merge the auto-PR using "Rebase and merge"** on GitHub — never "Create a merge commit".
+- After merge, `.github/workflows/sync-develop.yml` automatically syncs `develop` to match `main`.
+- If `git push origin develop` is rejected after a merge, run `git pull --rebase origin develop` first.
 - Use conventional commits:
   - `feat:`
   - `fix:`
@@ -602,6 +605,11 @@ Playwright failure artifacts are uploaded to `e2e/.artifacts/` (retention: 7 day
 
 Automatically creates or updates an open PR from `develop` → `main`.
 The PR is never auto-merged — a human reviews and merges when ready to release.
+
+### sync-develop.yml — runs on push to `main`
+
+After the auto-PR is merged, pushes `main` to `develop` so both branches point at the same commit.
+This prevents `develop` from falling behind `main` due to rebase commits created by GitHub.
 
 ## Deployment — Vercel
 
