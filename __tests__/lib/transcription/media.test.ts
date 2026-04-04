@@ -24,6 +24,7 @@ import {
   getVideoCaptions,
   getVideoDownloadUrl,
   downloadVideoBuffer,
+  parseCaptionToPlainText,
 } from "@/lib/transcription/media";
 
 const echotikRequestMock = vi.mocked(echotikRequest);
@@ -45,11 +46,11 @@ describe("lib/transcription/media", () => {
   // -----------------------------------------------------------------------
 
   describe("getVideoCaptions", () => {
-    it("returns null when Echotik returns no captions", async () => {
+    it("returns null when Echotik returns empty data array", async () => {
       echotikRequestMock.mockResolvedValue({
         code: 0,
         msg: "success",
-        data: { captions: [] },
+        data: [],
       });
 
       const result = await getVideoCaptions("vid-1");
@@ -78,7 +79,7 @@ describe("lib/transcription/media", () => {
       echotikRequestMock.mockResolvedValue({
         code: 0,
         msg: "success",
-        data: { captions: [] },
+        data: [],
       });
 
       await getVideoCaptions("vid-test-123");
@@ -88,28 +89,100 @@ describe("lib/transcription/media", () => {
       );
     });
 
-    it("prefers Portuguese captions", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve("Olá mundo"),
-      }) as unknown as typeof fetch;
-
+    it("uses inline data field (no URL download needed)", async () => {
       echotikRequestMock.mockResolvedValue({
         code: 0,
         msg: "success",
-        data: {
-          captions: [
-            { lang: "en", url: "https://example.com/en.srt" },
-            { lang: "pt-BR", url: "https://example.com/pt.srt" },
-          ],
-        },
+        data: [
+          { lang: "por-PT", data: "WEBVTT\n\n00:00:00.400 --> 00:00:02.300\nOlá mundo" },
+        ],
+      });
+
+      const result = await getVideoCaptions("vid-inline");
+
+      expect(result).not.toBeNull();
+      expect(result?.language).toBe("por-PT");
+      expect(result?.text).toBe("Olá mundo");
+      expect(result?.source).toBe("echotik_captions");
+    });
+
+    it("prefers Portuguese captions (pt or por prefix)", async () => {
+      echotikRequestMock.mockResolvedValue({
+        code: 0,
+        msg: "success",
+        data: [
+          { lang: "en", data: "Hello world" },
+          { lang: "por-PT", data: "Olá mundo" },
+        ],
       });
 
       const result = await getVideoCaptions("vid-4");
 
       expect(result).not.toBeNull();
-      expect(result?.language).toBe("pt-BR");
+      expect(result?.language).toBe("por-PT");
       expect(result?.text).toBe("Olá mundo");
+    });
+
+    it("falls back to URL download when no inline data", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve("Downloaded text"),
+      }) as unknown as typeof fetch;
+
+      echotikRequestMock.mockResolvedValue({
+        code: 0,
+        msg: "success",
+        data: [
+          { lang: "en", url: "https://example.com/en.srt" },
+        ],
+      });
+
+      const result = await getVideoCaptions("vid-url");
+
+      expect(result).not.toBeNull();
+      expect(result?.text).toBe("Downloaded text");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://example.com/en.srt",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    it("returns null when caption has neither data nor url", async () => {
+      echotikRequestMock.mockResolvedValue({
+        code: 0,
+        msg: "success",
+        data: [
+          { lang: "en" },
+        ],
+      });
+
+      const result = await getVideoCaptions("vid-empty");
+      expect(result).toBeNull();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // parseCaptionToPlainText
+  // -----------------------------------------------------------------------
+
+  describe("parseCaptionToPlainText", () => {
+    it("parses WEBVTT format", () => {
+      const vtt = "WEBVTT\n\n00:00:00.400 --> 00:00:02.300\nOlá mundo\n\n00:00:02.400 --> 00:00:04.300\ncomo vai";
+      expect(parseCaptionToPlainText(vtt)).toBe("Olá mundo como vai");
+    });
+
+    it("parses SRT format", () => {
+      const srt = "1\n00:00:00,400 --> 00:00:02,300\nHello\n\n2\n00:00:02,400 --> 00:00:04,300\nworld";
+      expect(parseCaptionToPlainText(srt)).toBe("Hello world");
+    });
+
+    it("parses JSON array format", () => {
+      const json = JSON.stringify([{ text: "Hello" }, { text: "world" }]);
+      expect(parseCaptionToPlainText(json)).toBe("Hello world");
+    });
+
+    it("returns null for empty string", () => {
+      expect(parseCaptionToPlainText("")).toBeNull();
     });
   });
 

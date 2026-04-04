@@ -21,7 +21,10 @@ const log = createLogger("transcription/media");
 
 interface EchotikCaptionItem {
   lang: string;
-  url: string;
+  /** Inline subtitle text (SRT/VTT/JSON) — present when captions are available */
+  data?: string;
+  /** URL to download subtitle file — alternative to inline data */
+  url?: string;
   format?: string;
   expire?: number;
 }
@@ -29,10 +32,8 @@ interface EchotikCaptionItem {
 interface EchotikCaptionResponse {
   code: number;
   msg: string;
-  data?: {
-    captions?: EchotikCaptionItem[];
-    video_url?: string;
-  };
+  /** Array of caption tracks (returned directly as array, not nested) */
+  data?: EchotikCaptionItem[];
 }
 
 export interface CaptionResult {
@@ -88,7 +89,9 @@ export async function getVideoCaptions(
       `/realtime/video/captions?video_id=${encodeURIComponent(videoExternalId)}`,
     );
 
-    if (response.code !== 0 || !response.data?.captions?.length) {
+    // Echotik returns data as a direct array of caption tracks
+    const captions = response.data;
+    if (response.code !== 0 || !Array.isArray(captions) || !captions.length) {
       log.info("No captions available from Echotik", {
         videoExternalId,
         code: response.code,
@@ -98,20 +101,31 @@ export async function getVideoCaptions(
     }
 
     // Prefer Portuguese, then English, then first available
-    const captions = response.data.captions;
     const preferred =
-      captions.find((c) => c.lang?.startsWith("pt")) ??
+      captions.find((c) => c.lang?.startsWith("pt") || c.lang?.startsWith("por")) ??
       captions.find((c) => c.lang?.startsWith("en")) ??
       captions[0];
 
-    if (!preferred?.url) {
-      log.info("Caption found but no URL", { videoExternalId });
+    if (!preferred) {
+      log.info("No suitable caption track found", { videoExternalId });
       return null;
     }
 
-    // Download caption content
-    const captionText = await downloadCaptionContent(preferred.url);
-    if (!captionText) return null;
+    // Captions can have inline text (preferred.data) or a URL to download
+    let captionText: string | null = null;
+
+    if (preferred.data) {
+      // Inline subtitle text — parse directly (no HTTP download needed)
+      captionText = parseCaptionToPlainText(preferred.data);
+    } else if (preferred.url) {
+      // URL to download subtitle file
+      captionText = await downloadCaptionContent(preferred.url);
+    }
+
+    if (!captionText) {
+      log.info("Caption found but no usable text", { videoExternalId, lang: preferred.lang });
+      return null;
+    }
 
     return {
       text: captionText,
@@ -259,7 +273,7 @@ async function downloadCaptionContent(url: string): Promise<string | null> {
 /**
  * Parses subtitle content (SRT/VTT/JSON) into plain text.
  */
-function parseCaptionToPlainText(raw: string): string | null {
+export function parseCaptionToPlainText(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 

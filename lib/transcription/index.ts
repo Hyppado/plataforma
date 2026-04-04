@@ -14,6 +14,7 @@ export {
   getVideoCaptions,
   getVideoDownloadUrl,
   downloadVideoBuffer,
+  parseCaptionToPlainText,
 } from "./media";
 export type { CaptionResult, VideoDownloadUrls } from "./media";
 export { transcribeWithWhisper, isWhisperError } from "./whisper";
