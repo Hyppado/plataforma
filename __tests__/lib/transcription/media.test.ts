@@ -85,7 +85,7 @@ describe("lib/transcription/media", () => {
       await getVideoCaptions("vid-test-123");
 
       expect(echotikRequestMock).toHaveBeenCalledWith(
-        "/realtime/video/captions?video_id=vid-test-123",
+        "/api/v3/realtime/video/captions?video_id=vid-test-123",
       );
     });
 
@@ -94,7 +94,10 @@ describe("lib/transcription/media", () => {
         code: 0,
         msg: "success",
         data: [
-          { lang: "por-PT", data: "WEBVTT\n\n00:00:00.400 --> 00:00:02.300\nOlá mundo" },
+          {
+            lang: "por-PT",
+            data: "WEBVTT\n\n00:00:00.400 --> 00:00:02.300\nOlá mundo",
+          },
         ],
       });
 
@@ -132,9 +135,7 @@ describe("lib/transcription/media", () => {
       echotikRequestMock.mockResolvedValue({
         code: 0,
         msg: "success",
-        data: [
-          { lang: "en", url: "https://example.com/en.srt" },
-        ],
+        data: [{ lang: "en", url: "https://example.com/en.srt" }],
       });
 
       const result = await getVideoCaptions("vid-url");
@@ -151,9 +152,7 @@ describe("lib/transcription/media", () => {
       echotikRequestMock.mockResolvedValue({
         code: 0,
         msg: "success",
-        data: [
-          { lang: "en" },
-        ],
+        data: [{ lang: "en" }],
       });
 
       const result = await getVideoCaptions("vid-empty");
@@ -167,12 +166,14 @@ describe("lib/transcription/media", () => {
 
   describe("parseCaptionToPlainText", () => {
     it("parses WEBVTT format", () => {
-      const vtt = "WEBVTT\n\n00:00:00.400 --> 00:00:02.300\nOlá mundo\n\n00:00:02.400 --> 00:00:04.300\ncomo vai";
+      const vtt =
+        "WEBVTT\n\n00:00:00.400 --> 00:00:02.300\nOlá mundo\n\n00:00:02.400 --> 00:00:04.300\ncomo vai";
       expect(parseCaptionToPlainText(vtt)).toBe("Olá mundo como vai");
     });
 
     it("parses SRT format", () => {
-      const srt = "1\n00:00:00,400 --> 00:00:02,300\nHello\n\n2\n00:00:02,400 --> 00:00:04,300\nworld";
+      const srt =
+        "1\n00:00:00,400 --> 00:00:02,300\nHello\n\n2\n00:00:02,400 --> 00:00:04,300\nworld";
       expect(parseCaptionToPlainText(srt)).toBe("Hello world");
     });
 
@@ -210,7 +211,7 @@ describe("lib/transcription/media", () => {
       });
 
       expect(echotikRequestMock).toHaveBeenCalledWith(
-        "/realtime/video/download-url",
+        "/api/v3/realtime/video/download-url",
         {
           params: { url: "https://www.tiktok.com/@user/video/vid-dl-1" },
           timeout: 20_000,
