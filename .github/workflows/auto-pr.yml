@@ -51,9 +51,7 @@ jobs:
 
           This PR is created automatically on every push to \`develop\`.
           Review, verify CI, and **merge using 'Rebase and merge'** to avoid merge commits.
-
-          After merging, the [sync-develop](.github/workflows/sync-develop.yml) workflow
-          will automatically fast-forward \`develop\` to match \`main\`.
+          No sync workflow is needed — develop keeps its original SHAs and works normally.
 
           ---
           _Created by [auto-pr.yml](/.github/workflows/auto-pr.yml)_"

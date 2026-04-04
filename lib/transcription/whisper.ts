@@ -34,7 +34,9 @@ export interface WhisperError {
   error: string;
 }
 
-export function isWhisperError(result: WhisperResult | WhisperError): result is WhisperError {
+export function isWhisperError(
+  result: WhisperResult | WhisperError,
+): result is WhisperError {
   return "error" in result;
 }
 
@@ -66,7 +68,9 @@ export async function transcribeWithWhisper(
 
   // Build multipart form data
   const formData = new FormData();
-  const blob = new Blob([new Uint8Array(audioBuffer)], { type: getMimeType(filename) });
+  const blob = new Blob([new Uint8Array(audioBuffer)], {
+    type: getMimeType(filename),
+  });
   formData.append("file", blob, filename);
   formData.append("model", model);
   formData.append("response_format", "verbose_json");
@@ -102,7 +106,9 @@ export async function transcribeWithWhisper(
         status: response.status,
         body: errorText.slice(0, 300),
       });
-      return { error: `Whisper API error (${response.status}): ${errorText.slice(0, 200)}` };
+      return {
+        error: `Whisper API error (${response.status}): ${errorText.slice(0, 200)}`,
+      };
     }
 
     const data = await response.json();
@@ -125,7 +131,10 @@ export async function transcribeWithWhisper(
     log.error("Whisper transcription failed", {
       error: error instanceof Error ? error.message : "Unknown",
     });
-    return { error: error instanceof Error ? error.message : "Whisper transcription failed" };
+    return {
+      error:
+        error instanceof Error ? error.message : "Whisper transcription failed",
+    };
   }
 }
 

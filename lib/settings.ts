@@ -130,4 +130,3 @@ export async function hasSecretSetting(key: string): Promise<boolean> {
   });
   return !!row?.value;
 }
-

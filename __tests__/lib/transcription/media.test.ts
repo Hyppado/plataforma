@@ -20,7 +20,11 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { echotikRequest } from "@/lib/echotik/client";
-import { getVideoCaptions, getVideoDownloadUrl, downloadVideoBuffer } from "@/lib/transcription/media";
+import {
+  getVideoCaptions,
+  getVideoDownloadUrl,
+  downloadVideoBuffer,
+} from "@/lib/transcription/media";
 
 const echotikRequestMock = vi.mocked(echotikRequest);
 
@@ -134,7 +138,10 @@ describe("lib/transcription/media", () => {
 
       expect(echotikRequestMock).toHaveBeenCalledWith(
         "/realtime/video/download-url",
-        { params: { url: "https://www.tiktok.com/@user/video/vid-dl-1" }, timeout: 20_000 },
+        {
+          params: { url: "https://www.tiktok.com/@user/video/vid-dl-1" },
+          timeout: 20_000,
+        },
       );
     });
 

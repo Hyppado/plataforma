@@ -15,11 +15,7 @@ import { VideoCardProduct } from "./VideoCardProduct";
 import { VideoCardMetrics } from "./VideoCardMetrics";
 import { VideoCardActions } from "./VideoCardActions";
 
-type TranscriptUIStatus =
-  | "idle"
-  | "loading"
-  | "READY"
-  | "FAILED";
+type TranscriptUIStatus = "idle" | "loading" | "READY" | "FAILED";
 
 interface VideoCardProps {
   video?: VideoDTO;
@@ -83,7 +79,9 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       if (res.status === 429) {
         setTranscriptStatus("FAILED");
         setTranscriptText(null);
-        setTranscriptError("Cota de transcrições excedida. Aguarde o próximo período.");
+        setTranscriptError(
+          "Cota de transcrições excedida. Aguarde o próximo período.",
+        );
         return;
       }
 

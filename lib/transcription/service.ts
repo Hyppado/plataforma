@@ -22,7 +22,11 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import type { TranscriptStatus, Prisma } from "@prisma/client";
-import { getVideoCaptions, getVideoDownloadUrl, downloadVideoBuffer } from "./media";
+import {
+  getVideoCaptions,
+  getVideoDownloadUrl,
+  downloadVideoBuffer,
+} from "./media";
 import { transcribeWithWhisper, isWhisperError } from "./whisper";
 
 const log = createLogger("transcription/service");
@@ -114,7 +118,11 @@ async function processTranscriptPipeline(
   // Mark as PROCESSING
   await prisma.videoTranscript.update({
     where: { id: transcriptId },
-    data: { status: "PROCESSING", processingAt: new Date(), errorMessage: null },
+    data: {
+      status: "PROCESSING",
+      processingAt: new Date(),
+      errorMessage: null,
+    },
   });
 
   // Step 1: Try Echotik captions (fast, free)
@@ -158,20 +166,43 @@ async function processTranscriptPipeline(
   try {
     const urls = await getVideoDownloadUrl(videoExternalId);
     if (!urls) {
-      return markFailed(transcriptId, videoExternalId, isNew, "Video download URL not available");
+      return markFailed(
+        transcriptId,
+        videoExternalId,
+        isNew,
+        "Video download URL not available",
+      );
     }
 
     const videoBuffer = await downloadVideoBuffer(urls);
     if (!videoBuffer) {
-      return markFailed(transcriptId, videoExternalId, isNew, "Video download failed or file too large");
+      return markFailed(
+        transcriptId,
+        videoExternalId,
+        isNew,
+        "Video download failed or file too large",
+      );
     }
 
-    const whisperResult = await transcribeWithWhisper(videoBuffer, `${videoExternalId}.mp4`);
+    const whisperResult = await transcribeWithWhisper(
+      videoBuffer,
+      `${videoExternalId}.mp4`,
+    );
     if (isWhisperError(whisperResult)) {
-      return markFailed(transcriptId, videoExternalId, isNew, whisperResult.error);
+      return markFailed(
+        transcriptId,
+        videoExternalId,
+        isNew,
+        whisperResult.error,
+      );
     }
     if (!whisperResult.text) {
-      return markFailed(transcriptId, videoExternalId, isNew, "Whisper transcription returned no text");
+      return markFailed(
+        transcriptId,
+        videoExternalId,
+        isNew,
+        "Whisper transcription returned no text",
+      );
     }
 
     const updated = await prisma.videoTranscript.update({
@@ -180,11 +211,14 @@ async function processTranscriptPipeline(
         status: "READY",
         transcriptText: whisperResult.text,
         language: whisperResult.language,
-        durationSeconds: whisperResult.duration ? Math.round(whisperResult.duration) : null,
+        durationSeconds: whisperResult.duration
+          ? Math.round(whisperResult.duration)
+          : null,
         source: "openai_whisper",
-        segmentsJson: whisperResult.segments.length > 0
-          ? (whisperResult.segments as unknown as Prisma.InputJsonValue)
-          : undefined,
+        segmentsJson:
+          whisperResult.segments.length > 0
+            ? (whisperResult.segments as unknown as Prisma.InputJsonValue)
+            : undefined,
         readyAt: new Date(),
         errorMessage: null,
       },
