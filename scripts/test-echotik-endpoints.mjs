@@ -56,10 +56,7 @@ async function testCaptions() {
         }
       });
     } else {
-      console.log(
-        "Data:",
-        JSON.stringify(body.data || body).substring(0, 400),
-      );
+      console.log("Data:", JSON.stringify(body.data || body).substring(0, 400));
     }
     return { elapsed, success: body.code === 0, hasData: !!body.data?.length };
   } catch (e) {
@@ -173,16 +170,24 @@ async function testVideoDownload(downloadUrl) {
   const r3 = await testVideoDownload(downloadUrl);
 
   console.log("\n========== SUMMARY ==========");
-  console.log("Captions:     ", r1.elapsed, "ms | success:", r1.success, "| has data:", r1.hasData);
-  console.log("Download URL: ", r2.elapsed, "ms | success:", r2.success, "| has URL:", r2.hasDownloadUrl);
+  console.log(
+    "Captions:     ",
+    r1.elapsed,
+    "ms | success:",
+    r1.success,
+    "| has data:",
+    r1.hasData,
+  );
+  console.log(
+    "Download URL: ",
+    r2.elapsed,
+    "ms | success:",
+    r2.success,
+    "| has URL:",
+    r2.hasDownloadUrl,
+  );
   if (r3) {
-    console.log(
-      "Video DL:     ",
-      r3.elapsed,
-      "ms |",
-      r3.sizeMB || "N/A",
-      "MB",
-    );
+    console.log("Video DL:     ", r3.elapsed, "ms |", r3.sizeMB || "N/A", "MB");
   }
   console.log(
     "\nTotal pipeline (download-url + video DL):",

@@ -88,10 +88,7 @@ export async function getVideoCaptions(
       `/realtime/video/captions?video_id=${encodeURIComponent(videoExternalId)}`,
     );
 
-    if (
-      response.code !== 0 ||
-      !response.data?.captions?.length
-    ) {
+    if (response.code !== 0 || !response.data?.captions?.length) {
       log.info("No captions available from Echotik", {
         videoExternalId,
         code: response.code,
@@ -215,7 +212,9 @@ export async function downloadVideoBuffer(
 
     const arrayBuffer = await response.arrayBuffer();
     if (arrayBuffer.byteLength > MAX_VIDEO_SIZE) {
-      log.info("Video too large for Whisper", { sizeBytes: arrayBuffer.byteLength });
+      log.info("Video too large for Whisper", {
+        sizeBytes: arrayBuffer.byteLength,
+      });
       return null;
     }
 
@@ -240,7 +239,10 @@ async function downloadCaptionContent(url: string): Promise<string | null> {
     });
 
     if (!response.ok) {
-      log.error("Caption download failed", { status: response.status, url: url.slice(0, 100) });
+      log.error("Caption download failed", {
+        status: response.status,
+        url: url.slice(0, 100),
+      });
       return null;
     }
 

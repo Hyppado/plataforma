@@ -20,11 +20,7 @@ import {
   Refresh,
 } from "@mui/icons-material";
 
-type TranscriptStatus =
-  | "idle"
-  | "loading"
-  | "READY"
-  | "FAILED";
+type TranscriptStatus = "idle" | "loading" | "READY" | "FAILED";
 
 interface TranscriptDialogProps {
   open: boolean;

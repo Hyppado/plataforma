@@ -30,7 +30,9 @@ vi.mock("@/lib/transcription/media", () => ({
 vi.mock("@/lib/transcription/whisper", () => ({
   transcribeWithWhisper: transcribeWithWhisperMock,
   isWhisperError: (result: unknown) =>
-    result !== null && typeof result === "object" && "error" in (result as Record<string, unknown>),
+    result !== null &&
+    typeof result === "object" &&
+    "error" in (result as Record<string, unknown>),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -54,7 +56,9 @@ describe("lib/transcription/service", () => {
     getVideoCaptionsMock.mockResolvedValue(null);
     getVideoDownloadUrlMock.mockResolvedValue(null);
     downloadVideoBufferMock.mockResolvedValue(null);
-    transcribeWithWhisperMock.mockResolvedValue({ error: "API key not configured" });
+    transcribeWithWhisperMock.mockResolvedValue({
+      error: "API key not configured",
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -69,7 +73,9 @@ describe("lib/transcription/service", () => {
         status: "READY",
         transcriptText: "Hello world",
       };
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(existing);
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(existing);
 
       const result = await requestTranscript("vid-123", "user-1");
 
@@ -86,8 +92,12 @@ describe("lib/transcription/service", () => {
         status: "FAILED",
         transcriptText: null,
       };
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(existing);
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(existing);
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t-fail",
         videoExternalId: "vid-fail",
         status: "FAILED",
@@ -108,8 +118,12 @@ describe("lib/transcription/service", () => {
     });
 
     it("creates record and returns READY via captions", async () => {
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (
+        prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t3",
         videoExternalId: "vid-789",
         status: "PENDING",
@@ -121,8 +135,14 @@ describe("lib/transcription/service", () => {
         source: "echotik_captions",
       });
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockImplementation(
-        async ({ data }: { data: { status: string; transcriptText?: string } }) => ({
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockImplementation(
+        async ({
+          data,
+        }: {
+          data: { status: string; transcriptText?: string };
+        }) => ({
           id: "t3",
           videoExternalId: "vid-789",
           status: data.status,
@@ -141,8 +161,12 @@ describe("lib/transcription/service", () => {
     });
 
     it("falls back to Whisper when captions unavailable", async () => {
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (
+        prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t4",
         videoExternalId: "vid-whisper",
         status: "PENDING",
@@ -162,8 +186,14 @@ describe("lib/transcription/service", () => {
         segments: [{ start: 0, end: 10, text: "Whisper transcription result" }],
       });
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockImplementation(
-        async ({ data }: { data: { status: string; transcriptText?: string } }) => ({
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockImplementation(
+        async ({
+          data,
+        }: {
+          data: { status: string; transcriptText?: string };
+        }) => ({
           id: "t4",
           videoExternalId: "vid-whisper",
           status: data.status,
@@ -181,8 +211,12 @@ describe("lib/transcription/service", () => {
     });
 
     it("returns FAILED when no captions and no download URL", async () => {
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (
+        prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t5",
         videoExternalId: "vid-nodl",
         status: "PENDING",
@@ -191,7 +225,9 @@ describe("lib/transcription/service", () => {
       getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue(null);
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t5",
         videoExternalId: "vid-nodl",
         status: "FAILED",
@@ -205,8 +241,12 @@ describe("lib/transcription/service", () => {
     });
 
     it("returns FAILED when Whisper returns error", async () => {
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (
+        prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t6",
         videoExternalId: "vid-nowhisper",
         status: "PENDING",
@@ -219,9 +259,13 @@ describe("lib/transcription/service", () => {
         noWatermarkUrl: null,
       });
       downloadVideoBufferMock.mockResolvedValue(Buffer.from("video-data"));
-      transcribeWithWhisperMock.mockResolvedValue({ error: "Whisper API error (401): Unauthorized" });
+      transcribeWithWhisperMock.mockResolvedValue({
+        error: "Whisper API error (401): Unauthorized",
+      });
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         id: "t6",
         videoExternalId: "vid-nowhisper",
         status: "FAILED",
@@ -249,7 +293,9 @@ describe("lib/transcription/service", () => {
         readyAt: new Date(),
         createdAt: new Date(),
       };
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(row);
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(row);
 
       const result = await getTranscript("vid-100");
 
@@ -257,7 +303,9 @@ describe("lib/transcription/service", () => {
     });
 
     it("returns null when not found", async () => {
-      (prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
 
       const result = await getTranscript("nonexistent");
 
@@ -271,7 +319,9 @@ describe("lib/transcription/service", () => {
 
   describe("processPendingTranscripts", () => {
     it("returns zero stats when no failed transcripts", async () => {
-      (prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (
+        prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([]);
 
       const stats = await processPendingTranscripts();
 
@@ -279,8 +329,15 @@ describe("lib/transcription/service", () => {
     });
 
     it("retries FAILED transcript with full pipeline (captions succeed)", async () => {
-      (prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { id: "t10", videoExternalId: "vid-10", status: "FAILED", retryCount: 1 },
+      (
+        prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([
+        {
+          id: "t10",
+          videoExternalId: "vid-10",
+          status: "FAILED",
+          retryCount: 1,
+        },
       ]);
 
       getVideoCaptionsMock.mockResolvedValue({
@@ -289,13 +346,13 @@ describe("lib/transcription/service", () => {
         source: "echotik_captions",
       });
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockImplementation(
-        async ({ data }: { data: { status: string } }) => ({
-          id: "t10",
-          videoExternalId: "vid-10",
-          status: data.status,
-        }),
-      );
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockImplementation(async ({ data }: { data: { status: string } }) => ({
+        id: "t10",
+        videoExternalId: "vid-10",
+        status: data.status,
+      }));
 
       const stats = await processPendingTranscripts();
 
@@ -305,8 +362,15 @@ describe("lib/transcription/service", () => {
     });
 
     it("retries FAILED transcript with Whisper fallback", async () => {
-      (prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { id: "t11", videoExternalId: "vid-11", status: "FAILED", retryCount: 0 },
+      (
+        prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([
+        {
+          id: "t11",
+          videoExternalId: "vid-11",
+          status: "FAILED",
+          retryCount: 0,
+        },
       ]);
 
       getVideoCaptionsMock.mockResolvedValue(null);
@@ -323,13 +387,13 @@ describe("lib/transcription/service", () => {
         segments: [],
       });
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockImplementation(
-        async ({ data }: { data: { status: string } }) => ({
-          id: "t11",
-          videoExternalId: "vid-11",
-          status: data.status,
-        }),
-      );
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockImplementation(async ({ data }: { data: { status: string } }) => ({
+        id: "t11",
+        videoExternalId: "vid-11",
+        status: data.status,
+      }));
 
       const stats = await processPendingTranscripts();
 
@@ -338,14 +402,23 @@ describe("lib/transcription/service", () => {
     });
 
     it("counts as failed when full pipeline fails", async () => {
-      (prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { id: "t12", videoExternalId: "vid-12", status: "FAILED", retryCount: 2 },
+      (
+        prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([
+        {
+          id: "t12",
+          videoExternalId: "vid-12",
+          status: "FAILED",
+          retryCount: 2,
+        },
       ]);
 
       getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue(null);
 
-      (prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({});
 
       const stats = await processPendingTranscripts();
 
