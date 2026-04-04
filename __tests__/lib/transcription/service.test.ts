@@ -1,8 +1,9 @@
 /**
  * Tests: lib/transcription/service.ts
  *
- * Coverage: requestTranscript (sync flow: captions → download → whisper),
- *          getTranscript, processPendingTranscripts (cron retry)
+ * Coverage: requestTranscript (sync flow: download → Whisper),
+ *          getTranscript, processPendingTranscripts (cron retry),
+ *          detectHallucination (music-only video detection)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@tests/helpers/prisma-mock";
@@ -10,19 +11,16 @@ import { prismaMock } from "@tests/helpers/prisma-mock";
 
 // Mock the media and whisper modules
 const {
-  getVideoCaptionsMock,
   getVideoDownloadUrlMock,
   downloadVideoBufferMock,
   transcribeWithWhisperMock,
 } = vi.hoisted(() => ({
-  getVideoCaptionsMock: vi.fn(),
   getVideoDownloadUrlMock: vi.fn(),
   downloadVideoBufferMock: vi.fn(),
   transcribeWithWhisperMock: vi.fn(),
 }));
 
 vi.mock("@/lib/transcription/media", () => ({
-  getVideoCaptions: getVideoCaptionsMock,
   getVideoDownloadUrl: getVideoDownloadUrlMock,
   downloadVideoBuffer: downloadVideoBufferMock,
 }));
@@ -48,12 +46,12 @@ import {
   requestTranscript,
   getTranscript,
   processPendingTranscripts,
+  detectHallucination,
 } from "@/lib/transcription/service";
 
 describe("lib/transcription/service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getVideoCaptionsMock.mockResolvedValue(null);
     getVideoDownloadUrlMock.mockResolvedValue(null);
     downloadVideoBufferMock.mockResolvedValue(null);
     transcribeWithWhisperMock.mockResolvedValue({
@@ -117,50 +115,7 @@ describe("lib/transcription/service", () => {
       );
     });
 
-    it("creates record and returns READY via captions", async () => {
-      (
-        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(null);
-      (
-        prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>
-      ).mockResolvedValue({
-        id: "t3",
-        videoExternalId: "vid-789",
-        status: "PENDING",
-      });
-
-      getVideoCaptionsMock.mockResolvedValue({
-        text: "Caption text here",
-        language: "pt",
-        source: "echotik_captions",
-      });
-
-      (
-        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
-      ).mockImplementation(
-        async ({
-          data,
-        }: {
-          data: { status: string; transcriptText?: string };
-        }) => ({
-          id: "t3",
-          videoExternalId: "vid-789",
-          status: data.status,
-          transcriptText: data.transcriptText ?? null,
-        }),
-      );
-
-      const result = await requestTranscript("vid-789", "user-1");
-
-      expect(result.status).toBe("READY");
-      expect(result.transcriptText).toBe("Caption text here");
-      expect(result.isNew).toBe(true);
-      // Whisper should NOT have been called
-      expect(getVideoDownloadUrlMock).not.toHaveBeenCalled();
-      expect(transcribeWithWhisperMock).not.toHaveBeenCalled();
-    });
-
-    it("falls back to Whisper when captions unavailable", async () => {
+    it("creates record and returns READY via Whisper", async () => {
       (
         prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
       ).mockResolvedValue(null);
@@ -172,7 +127,6 @@ describe("lib/transcription/service", () => {
         status: "PENDING",
       });
 
-      getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue({
         playUrl: "https://example.com/play.mp4",
         downloadUrl: "https://example.com/dl.mp4",
@@ -210,7 +164,7 @@ describe("lib/transcription/service", () => {
       expect(transcribeWithWhisperMock).toHaveBeenCalled();
     });
 
-    it("returns FAILED when no captions and no download URL", async () => {
+    it("returns FAILED when no download URL available", async () => {
       (
         prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
       ).mockResolvedValue(null);
@@ -222,7 +176,6 @@ describe("lib/transcription/service", () => {
         status: "PENDING",
       });
 
-      getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue(null);
 
       (
@@ -252,7 +205,6 @@ describe("lib/transcription/service", () => {
         status: "PENDING",
       });
 
-      getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue({
         playUrl: null,
         downloadUrl: "https://example.com/dl.mp4",
@@ -328,7 +280,7 @@ describe("lib/transcription/service", () => {
       expect(stats).toEqual({ processed: 0, succeeded: 0, failed: 0 });
     });
 
-    it("retries FAILED transcript with full pipeline (captions succeed)", async () => {
+    it("retries FAILED transcript with Whisper pipeline", async () => {
       (
         prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
       ).mockResolvedValue([
@@ -340,10 +292,17 @@ describe("lib/transcription/service", () => {
         },
       ]);
 
-      getVideoCaptionsMock.mockResolvedValue({
-        text: "Caption from cron retry",
+      getVideoDownloadUrlMock.mockResolvedValue({
+        playUrl: null,
+        downloadUrl: "https://example.com/dl.mp4",
+        noWatermarkUrl: null,
+      });
+      downloadVideoBufferMock.mockResolvedValue(Buffer.from("video"));
+      transcribeWithWhisperMock.mockResolvedValue({
+        text: "Whisper from cron retry",
         language: "en",
-        source: "echotik_captions",
+        duration: 20,
+        segments: [],
       });
 
       (
@@ -361,7 +320,7 @@ describe("lib/transcription/service", () => {
       expect(stats.failed).toBe(0);
     });
 
-    it("retries FAILED transcript with Whisper fallback", async () => {
+    it("retries FAILED transcript via Whisper", async () => {
       (
         prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
       ).mockResolvedValue([
@@ -373,7 +332,6 @@ describe("lib/transcription/service", () => {
         },
       ]);
 
-      getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue({
         playUrl: null,
         downloadUrl: "https://example.com/dl.mp4",
@@ -401,7 +359,7 @@ describe("lib/transcription/service", () => {
       expect(stats.succeeded).toBe(1);
     });
 
-    it("counts as failed when full pipeline fails", async () => {
+    it("counts as failed when pipeline fails", async () => {
       (
         prismaMock.videoTranscript.findMany as ReturnType<typeof vi.fn>
       ).mockResolvedValue([
@@ -413,7 +371,6 @@ describe("lib/transcription/service", () => {
         },
       ]);
 
-      getVideoCaptionsMock.mockResolvedValue(null);
       getVideoDownloadUrlMock.mockResolvedValue(null);
 
       (
@@ -424,6 +381,101 @@ describe("lib/transcription/service", () => {
 
       expect(stats.processed).toBe(1);
       expect(stats.failed).toBe(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // detectHallucination
+  // -----------------------------------------------------------------------
+
+  describe("detectHallucination", () => {
+    it("returns error for empty text", () => {
+      expect(detectHallucination("")).not.toBeNull();
+      expect(detectHallucination("   ")).not.toBeNull();
+    });
+
+    it("returns error for very short text (< 10 chars)", () => {
+      expect(detectHallucination("Oi")).not.toBeNull();
+      expect(detectHallucination("Hi there")).not.toBeNull();
+    });
+
+    it("returns null for real speech text", () => {
+      expect(
+        detectHallucination(
+          "Olá pessoal, hoje vamos falar sobre os melhores produtos do TikTok Shop",
+        ),
+      ).toBeNull();
+    });
+
+    it("detects 'thanks for watching' hallucination", () => {
+      expect(
+        detectHallucination("Thanks for watching"),
+      ).not.toBeNull();
+      expect(
+        detectHallucination("Obrigado por assistir"),
+      ).not.toBeNull();
+    });
+
+    it("detects 'subscribe' hallucination", () => {
+      expect(detectHallucination("Subscribe")).not.toBeNull();
+      expect(detectHallucination("Inscreva-se")).not.toBeNull();
+    });
+
+    it("detects music-only markers", () => {
+      expect(detectHallucination("♪")).not.toBeNull();
+      expect(detectHallucination("[Music]")).not.toBeNull();
+      expect(detectHallucination("[Música]")).not.toBeNull();
+    });
+
+    it("detects single-word repetition", () => {
+      expect(detectHallucination("yeah yeah yeah")).not.toBeNull();
+    });
+
+    it("allows normal speech even if short-ish", () => {
+      expect(
+        detectHallucination("Esse produto é incrível, gente"),
+      ).toBeNull();
+    });
+
+    it("returns FAILED when Whisper output is hallucination", async () => {
+      (
+        prismaMock.videoTranscript.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (
+        prismaMock.videoTranscript.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: "t-hall",
+        videoExternalId: "vid-music",
+        status: "PENDING",
+      });
+
+      getVideoDownloadUrlMock.mockResolvedValue({
+        playUrl: null,
+        downloadUrl: "https://example.com/dl.mp4",
+        noWatermarkUrl: null,
+      });
+      downloadVideoBufferMock.mockResolvedValue(Buffer.from("video-data"));
+      transcribeWithWhisperMock.mockResolvedValue({
+        text: "Obrigado por assistir",
+        language: "pt",
+        duration: 15,
+        segments: [],
+      });
+
+      (
+        prismaMock.videoTranscript.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: "t-hall",
+        videoExternalId: "vid-music",
+        status: "FAILED",
+        errorMessage:
+          "Este vídeo não contém fala detectável (apenas música ou silêncio)",
+      });
+
+      const result = await requestTranscript("vid-music", "user-1");
+
+      expect(result.status).toBe("FAILED");
+      expect(result.errorMessage).toContain("não contém fala detectável");
     });
   });
 });
