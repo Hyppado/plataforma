@@ -1,16 +1,16 @@
 /**
  * lib/transcription/service.ts
  *
- * Core transcription service — coordinates caption retrieval,
- * video download + Whisper fallback, and database persistence.
+ * Core transcription service — coordinates video download,
+ * Whisper transcription, and database persistence.
  *
  * The flow is SYNCHRONOUS — user clicks "Transcribe", and within the
  * same HTTP request they get the result (READY or FAILED). No more
  * "volte em alguns minutos" dead-end.
  *
- * Strategies (in order, all within one request):
- * 1. Echotik captions API (free, ~3s) → extract subtitle text
- * 2. Echotik download-url → download video → OpenAI Whisper (~15-20s)
+ * Pipeline (all within one request):
+ * 1. Echotik download-url → download video → OpenAI Whisper
+ * 2. Whisper result is validated for hallucination (music-only detection)
  *
  * The cron only retries previously FAILED transcripts.
  *
@@ -22,11 +22,7 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import type { TranscriptStatus, Prisma } from "@prisma/client";
-import {
-  getVideoCaptions,
-  getVideoDownloadUrl,
-  downloadVideoBuffer,
-} from "./media";
+import { getVideoDownloadUrl, downloadVideoBuffer } from "./media";
 import { transcribeWithWhisper, isWhisperError } from "./whisper";
 
 const log = createLogger("transcription/service");
@@ -100,14 +96,14 @@ export async function requestTranscript(
 }
 
 // ---------------------------------------------------------------------------
-// Full transcription pipeline (captions → download + Whisper)
+// Full transcription pipeline (download + Whisper)
 // ---------------------------------------------------------------------------
 
 /**
  * Runs the full transcription pipeline synchronously.
  * 1. Mark PROCESSING
- * 2. Try Echotik captions (fast, free)
- * 3. If no captions → get download URL → download video → Whisper
+ * 2. Get download URL → download video → Whisper
+ * 3. Validate Whisper output (detect hallucination on music-only videos)
  * 4. Update DB with result (READY or FAILED)
  */
 async function processTranscriptPipeline(
@@ -125,44 +121,7 @@ async function processTranscriptPipeline(
     },
   });
 
-  // Step 1: Try Echotik captions (fast, free)
-  try {
-    const captions = await getVideoCaptions(videoExternalId);
-    if (captions?.text) {
-      const updated = await prisma.videoTranscript.update({
-        where: { id: transcriptId },
-        data: {
-          status: "READY",
-          transcriptText: captions.text,
-          language: captions.language,
-          source: "echotik_captions",
-          readyAt: new Date(),
-          errorMessage: null,
-        },
-      });
-
-      log.info("Transcript ready via captions", {
-        videoExternalId,
-        language: captions.language,
-        textLength: captions.text.length,
-      });
-
-      return {
-        videoExternalId: updated.videoExternalId,
-        status: updated.status,
-        transcriptText: updated.transcriptText,
-        errorMessage: null,
-        isNew,
-      };
-    }
-  } catch (error) {
-    log.error("Caption retrieval failed, trying Whisper fallback", {
-      videoExternalId,
-      error: error instanceof Error ? error.message : "Unknown",
-    });
-  }
-
-  // Step 2: Download video + Whisper fallback
+  // Download video + Whisper
   try {
     const urls = await getVideoDownloadUrl(videoExternalId);
     if (!urls) {
@@ -196,12 +155,15 @@ async function processTranscriptPipeline(
         whisperResult.error,
       );
     }
-    if (!whisperResult.text) {
+
+    // Check for empty or hallucinated output (music-only videos)
+    const hallucinationCheck = detectHallucination(whisperResult.text);
+    if (hallucinationCheck) {
       return markFailed(
         transcriptId,
         videoExternalId,
         isNew,
-        "Whisper transcription returned no text",
+        hallucinationCheck,
       );
     }
 
@@ -250,6 +212,65 @@ async function processTranscriptPipeline(
       error instanceof Error ? error.message.slice(0, 500) : "Unknown error",
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Whisper hallucination detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detects likely Whisper hallucination on music-only or silent videos.
+ *
+ * Whisper is known to produce short, repetitive, or formulaic text when
+ * there is no actual speech — just music or background noise. Common
+ * hallucination patterns include:
+ * - Very short output (< 10 chars)
+ * - Thanking viewers, subscribing prompts
+ * - Repetitive text (same phrase repeated)
+ * - Generic filler phrases
+ *
+ * Returns an error message if hallucination is detected, null otherwise.
+ */
+export function detectHallucination(text: string): string | null {
+  if (!text || !text.trim()) {
+    return "Este vídeo não contém fala detectável (apenas música ou silêncio)";
+  }
+
+  const trimmed = text.trim();
+
+  // Too short to be real speech
+  if (trimmed.length < 10) {
+    return "Este vídeo não contém fala detectável (apenas música ou silêncio)";
+  }
+
+  const lower = trimmed.toLowerCase();
+
+  // Common Whisper hallucination phrases (appears when only music plays)
+  const hallucinationPatterns = [
+    /^(thanks? (for )?watch|obrigad[oa] (por )?assistir)/i,
+    /^(subscribe|inscreva-se|like and subscribe)/i,
+    /^(music|♪|🎵|🎶|\[music\]|\[música\])/i,
+    /^\.+$/,   // just dots
+    /^…+$/,    // just ellipsis
+  ];
+
+  for (const pattern of hallucinationPatterns) {
+    if (pattern.test(lower)) {
+      return "Este vídeo não contém fala detectável (apenas música ou silêncio)";
+    }
+  }
+
+  // Check for extreme repetition (same short phrase repeated 3+ times)
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 3 && words.length <= 20) {
+    const unique = new Set(words.map((w) => w.toLowerCase()));
+    // If 80%+ of words are the same word, likely hallucination
+    if (unique.size === 1) {
+      return "Este vídeo não contém fala detectável (apenas música ou silêncio)";
+    }
+  }
+
+  return null;
 }
 
 /**
