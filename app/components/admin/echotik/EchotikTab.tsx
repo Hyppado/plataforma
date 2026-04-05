@@ -22,15 +22,15 @@ export function EchotikTab() {
     fetcher,
     { refreshInterval: 60_000 },
   );
-  const configSWR = useSWR<EchotikConfig>(
+  const configSWR = useSWR<{ config: EchotikConfig }>(
     "/api/admin/echotik/config",
     fetcher,
   );
   const estimateSWR = useSWR<EstimationResult>(
-    "/api/admin/echotik/estimation",
+    "/api/admin/echotik/estimate",
     fetcher,
   );
-  const regionsSWR = useSWR<RegionData[]>(
+  const regionsSWR = useSWR<{ regions: RegionData[] }>(
     "/api/admin/echotik/regions",
     fetcher,
   );
@@ -73,7 +73,7 @@ export function EchotikTab() {
 
       {/* Compact region selector — not wrapped in Grid */}
       <RegionSection
-        regions={regionsSWR.data}
+        regions={regionsSWR.data?.regions}
         loading={regionsSWR.isLoading}
         onToggle={handleToggleRegion}
       />
@@ -87,7 +87,7 @@ export function EchotikTab() {
 
         {/* Config + Estimation — each renders its own Grid item md={6} */}
         <ConfigSection
-          config={configSWR.data}
+          config={configSWR.data?.config}
           loading={configSWR.isLoading}
           onSave={handleSaveConfig}
         />
