@@ -78,6 +78,24 @@ describe("lib/insight/generate", () => {
       expect(result).toBeNull();
     });
 
+    it("recovers truncated JSON from max_tokens cutoff", () => {
+      // Simulates a response cut off mid-value
+      const truncated =
+        '{\n  "contexto": "O vídeo apresenta skincare",\n  "gancho": "Pergunta provocativa",\n  "problema": "Pele oleosa",\n  "solucao": "Produto X resolve o prob';
+
+      const result = parseInsightResponse(truncated);
+
+      expect(result).not.toBeNull();
+      expect(result!.contexto).toBe("O vídeo apresenta skincare");
+      expect(result!.gancho).toBe("Pergunta provocativa");
+      expect(result!.problema).toBe("Pele oleosa");
+      // Truncated field gets partial value
+      expect(result!.solucao).toContain("Produto X");
+      // Missing fields get empty strings
+      expect(result!.cta).toBe("");
+      expect(result!.copie_o_que_funcionou).toBe("");
+    });
+
     it("returns empty strings for missing fields", () => {
       const json = JSON.stringify({ contexto: "Only this" });
       const result = parseInsightResponse(json);

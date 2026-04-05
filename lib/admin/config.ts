@@ -215,7 +215,7 @@ const DEFAULT_MODEL_SETTINGS: Record<"insight" | "script", ModelSettings> = {
     model: "gpt-4o-mini",
     temperature: 0.7,
     top_p: 0.9,
-    max_output_tokens: 800,
+    max_output_tokens: 2000,
   },
   script: {
     model: "gpt-4o-mini",
