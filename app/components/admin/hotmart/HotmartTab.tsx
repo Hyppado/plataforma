@@ -17,9 +17,11 @@ import {
 } from "@mui/material";
 import {
   Check as CheckIcon,
+  ContentCopy,
   GroupAdd as GroupAddIcon,
   Save as SaveIcon,
   SettingsOutlined,
+  Webhook as WebhookIcon,
 } from "@mui/icons-material";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +67,98 @@ async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json() as Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Webhook endpoint card (self-contained)
+// ---------------------------------------------------------------------------
+
+function WebhookEndpointCard() {
+  const [copied, setCopied] = useState(false);
+
+  const webhookUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/webhooks/hotmart`
+      : "https://<seu-domínio>/api/webhooks/hotmart";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <Card sx={cardStyle}>
+      <CardHeader
+        avatar={<WebhookIcon sx={{ color: "#2DD4FF" }} />}
+        title="Webhook Endpoint"
+        subheader="URL para cadastrar no painel da Hotmart"
+        titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
+        subheaderTypographyProps={{ fontSize: "0.8rem" }}
+      />
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Typography
+            variant="body2"
+            sx={{ color: "rgba(255,255,255,0.6)", fontSize: "0.8rem" }}
+          >
+            Cadastre esta URL em{" "}
+            <strong>Hotmart → Ferramentas → Webhooks → Nova URL</strong>.
+          </Typography>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              p: 1,
+              borderRadius: 1,
+              background: "rgba(0,0,0,0.3)",
+              border: "1px solid rgba(45,212,255,0.15)",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                flex: 1,
+                fontFamily: "monospace",
+                fontSize: "0.78rem",
+                color: "rgba(255,255,255,0.85)",
+                wordBreak: "break-all",
+                userSelect: "all",
+              }}
+            >
+              {webhookUrl}
+            </Typography>
+            <Button
+              size="small"
+              onClick={handleCopy}
+              startIcon={
+                copied ? (
+                  <CheckIcon sx={{ fontSize: 14 }} />
+                ) : (
+                  <ContentCopy sx={{ fontSize: 14 }} />
+                )
+              }
+              sx={{
+                minWidth: "auto",
+                px: 1.5,
+                color: copied ? "#2ecc71" : "#2DD4FF",
+                fontSize: "0.75rem",
+                textTransform: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {copied ? "Copiado" : "Copiar"}
+            </Button>
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +303,11 @@ export function HotmartTab() {
               </Stack>
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Webhook endpoint */}
+        <Grid item xs={12} md={6}>
+          <WebhookEndpointCard />
         </Grid>
 
         {/* Import subscribers card */}

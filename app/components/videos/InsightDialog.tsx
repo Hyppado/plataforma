@@ -117,8 +117,8 @@ export function InsightDialog({
   onRetry,
 }: InsightDialogProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [expandedSection, setExpandedSection] = useState<string | null>(
-    "copyWorkedText",
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    new Set(),
   );
 
   const handleCopy = async (key: string, text: string) => {
@@ -147,7 +147,15 @@ export function InsightDialog({
   };
 
   const toggleSection = (key: string) => {
-    setExpandedSection((prev) => (prev === key ? null : key));
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
   return (
@@ -328,7 +336,7 @@ export function InsightDialog({
             {SECTIONS.map((section) => {
               const text = data[section.key];
               const Icon = section.icon;
-              const isExpanded = expandedSection === section.key;
+              const isExpanded = !collapsedSections.has(section.key);
               const isCopySection = section.key === "copyWorkedText";
               const hasContent = !!text;
 
