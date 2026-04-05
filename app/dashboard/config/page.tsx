@@ -17,10 +17,7 @@ import {
   updateQuotaPolicy,
   updatePromptConfig,
 } from "@/lib/admin/admin-client";
-import {
-  PROMPT_VARIABLES,
-  getDefaultPromptConfig,
-} from "@/lib/admin/prompt-config";
+import { PROMPT_VARIABLES, getDefaultPromptConfig } from "@/lib/admin/config";
 import type { QuotaPolicy, QuotaUsage, PromptConfig } from "@/lib/types/admin";
 import { LimitsSection } from "@/app/components/admin/LimitsSection";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";

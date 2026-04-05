@@ -250,8 +250,8 @@ export function detectHallucination(text: string): string | null {
     /^(thanks? (for )?watch|obrigad[oa] (por )?assistir)/i,
     /^(subscribe|inscreva-se|like and subscribe)/i,
     /^(music|♪|🎵|🎶|\[music\]|\[música\])/i,
-    /^\.+$/,   // just dots
-    /^…+$/,    // just ellipsis
+    /^\.+$/, // just dots
+    /^…+$/, // just ellipsis
   ];
 
   for (const pattern of hallucinationPatterns) {
