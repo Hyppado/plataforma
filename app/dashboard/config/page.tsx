@@ -73,10 +73,6 @@ export default function ConfigPage() {
     loadData();
   }, [session, status, router, loadData]);
 
-  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
-    return null;
-  }
-
   const saveLimits = useCallback(async () => {
     if (!quotaPolicy) return;
     const newPolicy: QuotaPolicy = {
@@ -123,6 +119,10 @@ export default function ConfigPage() {
       console.error("Erro ao salvar prompt:", error);
     }
   }, [promptConfig]);
+
+  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
+    return null;
+  }
 
   return (
     <Box>
