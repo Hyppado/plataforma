@@ -111,10 +111,18 @@ export async function generateInsight(
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
+    const finishReason = data.choices?.[0]?.finish_reason;
     const tokensUsed = data.usage?.total_tokens ?? 0;
 
     if (!content) {
       return { error: "OpenAI retornou resposta vazia" };
+    }
+
+    if (finishReason === "length") {
+      log.warn("OpenAI response truncated (finish_reason=length)", {
+        tokensUsed,
+        contentLength: content.length,
+      });
     }
 
     const sections = parseInsightResponse(content);
@@ -153,18 +161,70 @@ export async function generateInsight(
 export function parseInsightResponse(content: string): InsightSections | null {
   try {
     const parsed = JSON.parse(content);
-    return {
-      contexto: parsed.contexto || parsed.context || "",
-      gancho: parsed.gancho || parsed.hook || "",
-      problema: parsed.problema || parsed.problem || "",
-      solucao: parsed.solucao || parsed.solution || "",
-      cta: parsed.cta || parsed.call_to_action || "",
-      copie_o_que_funcionou:
-        parsed.copie_o_que_funcionou ||
+    return extractSections(parsed);
+  } catch {
+    // JSON may be truncated due to max_tokens — try to recover
+    const repaired = tryRepairTruncatedJson(content);
+    if (repaired) {
+      return extractSections(repaired);
+    }
+    return null;
+  }
+}
+
+function extractSections(parsed: Record<string, unknown>): InsightSections {
+  return {
+    contexto: String(parsed.contexto || parsed.context || ""),
+    gancho: String(parsed.gancho || parsed.hook || ""),
+    problema: String(parsed.problema || parsed.problem || ""),
+    solucao: String(parsed.solucao || parsed.solution || ""),
+    cta: String(parsed.cta || parsed.call_to_action || ""),
+    copie_o_que_funcionou: String(
+      parsed.copie_o_que_funcionou ||
         parsed.copy_what_worked ||
         parsed.script ||
         "",
-    };
+    ),
+  };
+}
+
+/**
+ * Attempts to repair a truncated JSON string from OpenAI.
+ * Common case: response cut off mid-value due to max_tokens.
+ */
+function tryRepairTruncatedJson(
+  content: string,
+): Record<string, unknown> | null {
+  try {
+    // Try closing any open string and object
+    // e.g. {"key": "val... → {"key": "val..."}
+    let attempt = content.trim();
+
+    // Remove trailing incomplete escape sequences
+    attempt = attempt.replace(/\\$/, "");
+
+    // Close any unclosed string
+    const quoteCount = (attempt.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      attempt += '"';
+    }
+
+    // Remove trailing comma if present
+    attempt = attempt.replace(/,\s*$/, "");
+
+    // Close unclosed braces
+    const openBraces =
+      (attempt.match(/{/g) || []).length -
+      (attempt.match(/}/g) || []).length;
+    for (let i = 0; i < openBraces; i++) {
+      attempt += "}";
+    }
+
+    const parsed = JSON.parse(attempt);
+    if (typeof parsed === "object" && parsed !== null) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
   } catch {
     return null;
   }
