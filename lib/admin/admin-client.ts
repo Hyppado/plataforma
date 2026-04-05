@@ -229,8 +229,7 @@ export async function getPromptConfig(): Promise<PromptConfig> {
     return await res.json();
   } catch {
     // Fallback to default (should match backend default)
-    const { getDefaultPromptConfig } =
-      await import("@/lib/admin/prompt-config");
+    const { getDefaultPromptConfig } = await import("@/lib/admin/config");
     return getDefaultPromptConfig();
   }
 }

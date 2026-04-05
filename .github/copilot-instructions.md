@@ -6,6 +6,14 @@ Hyppado is a TikTok Shop intelligence SaaS.
 It helps users discover trending videos, products, and creators, filtered by region and time period.
 Access is authenticated and part of the experience depends on subscription/access control via Hotmart.
 
+## Branding
+
+- The only brand names allowed in this project are **Hyppe** and **Hyppado**.
+- Do not introduce, reference, or use any other brand name, trademark, or product name in code, comments, prompts, UI text, or documentation.
+- Feature names must follow the pattern: "Insight Hyppado", "Hyppado Trends", etc.
+- Never create brand neologisms or adopt external brand terminology (e.g. no "VYRAL", no "Copilot", no third-party feature names used as our own).
+- This applies to all layers: database comments, service docstrings, prompt templates, UI labels, commit messages, and documentation.
+
 ## Purpose of These Instructions
 
 This file is the **authoritative source of truth** for how this project is structured, maintained, and evolved.
@@ -110,9 +118,8 @@ lib/
     resolver.ts    → resolveAccess() — runtime access chain
   admin/           → admin services
     admin-client.ts
-    config.ts
+    config.ts      → admin config (quota policy, prompt templates, model settings)
     notifications.ts  → createNotificationIfNeeded, createDirectNotification, NOTIFICATION_RULES
-    prompt-config.ts
     useQuotaUsage.ts
   auth.ts          → NextAuth config + callbacks
   categories.ts    → category mapping
@@ -505,7 +512,7 @@ On-demand video transcription, shared globally per `videoExternalId`.
 ## Admin
 
 - The admin area must remain protected on the server.
-- Services in `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `prompt-config.ts`, `useQuotaUsage.ts`.
+- Services in `lib/admin/`: `admin-client.ts`, `config.ts`, `notifications.ts`, `useQuotaUsage.ts`.
 - Admin API routes live in `app/api/admin/` (15 sub-routes covering users, plans, subscribers, notifications, access grants, audit logs, echotik config/health, settings, quotas, etc.).
 - Do not put administrative secrets in the frontend.
 - Do not use `localStorage` or `sessionStorage` to store secrets or sensitive credentials.
@@ -696,6 +703,7 @@ Always use "Rebase and merge" — no merge commits, no sync workflow needed.
 - Do not use `prisma db push` on Preview or Production — use real migrations.
 - Do not skip committing migration SQL files — the deploy depends on them.
 - Do not improvise migration workflow — follow the documented process.
+- Do not use any brand name other than **Hyppe** or **Hyppado** — never invent feature brand names or adopt external terminology.
 
 ## Maintenance Priorities When Working on the Project
 

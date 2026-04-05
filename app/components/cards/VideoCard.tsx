@@ -4,10 +4,12 @@ import { useState, useCallback } from "react";
 import { Box, Chip } from "@mui/material";
 import { PlayArrowRounded } from "@mui/icons-material";
 import type { VideoDTO } from "@/lib/types/dto";
-import { formatCurrency, formatNumber } from "@/lib/format";
 import { useSavedVideos, useSavedProducts } from "@/lib/storage/saved";
 import { TranscriptDialog } from "@/app/components/videos/TranscriptDialog";
-import { InsightDialog } from "@/app/components/videos/InsightDialog";
+import {
+  InsightDialog,
+  type InsightData,
+} from "@/app/components/videos/InsightDialog";
 import { UI } from "./videoCardConfig";
 import { RankBadge } from "./RankBadge";
 import { VideoCardSkeleton } from "./VideoCardSkeleton";
@@ -16,6 +18,7 @@ import { VideoCardMetrics } from "./VideoCardMetrics";
 import { VideoCardActions } from "./VideoCardActions";
 
 type TranscriptUIStatus = "idle" | "loading" | "READY" | "FAILED";
+type InsightUIStatus = "idle" | "loading" | "READY" | "FAILED";
 
 interface VideoCardProps {
   video?: VideoDTO;
@@ -34,6 +37,11 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
     useState<TranscriptUIStatus>("idle");
   const [transcriptText, setTranscriptText] = useState<string | null>(null);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
+
+  // Insight state
+  const [insightStatus, setInsightStatus] = useState<InsightUIStatus>("idle");
+  const [insightData, setInsightData] = useState<InsightData | null>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
 
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
@@ -121,6 +129,97 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
     } catch {
       setTranscriptStatus("FAILED");
       setTranscriptError(null);
+    }
+  }, [video]);
+
+  const handleInsight = useCallback(async () => {
+    if (!video) return;
+    setInsightOpen(true);
+
+    // If already ready, just show it
+    if (insightStatus === "READY" && insightData) return;
+
+    setInsightStatus("loading");
+    setInsightError(null);
+    try {
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoExternalId: video.id,
+          videoTitle: video.title || undefined,
+          videoCreator: video.creatorHandle || undefined,
+        }),
+      });
+
+      if (res.status === 429) {
+        setInsightStatus("FAILED");
+        setInsightData(null);
+        setInsightError(
+          "Cota de insights excedida. Aguarde o próximo período.",
+        );
+        return;
+      }
+
+      if (!res.ok) {
+        setInsightStatus("FAILED");
+        setInsightError(null);
+        return;
+      }
+
+      const data = await res.json();
+      setInsightStatus(data.status ?? "FAILED");
+      if (data.status === "READY") {
+        setInsightData({
+          contextText: data.contextText ?? null,
+          hookText: data.hookText ?? null,
+          problemText: data.problemText ?? null,
+          solutionText: data.solutionText ?? null,
+          ctaText: data.ctaText ?? null,
+          copyWorkedText: data.copyWorkedText ?? null,
+        });
+      }
+      setInsightError(data.errorMessage ?? null);
+    } catch {
+      setInsightStatus("FAILED");
+      setInsightError(null);
+    }
+  }, [video, insightStatus, insightData]);
+
+  const handleInsightRetry = useCallback(async () => {
+    if (!video) return;
+    setInsightStatus("loading");
+    setInsightError(null);
+    try {
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoExternalId: video.id,
+          videoTitle: video.title || undefined,
+          videoCreator: video.creatorHandle || undefined,
+        }),
+      });
+      if (!res.ok) {
+        setInsightStatus("FAILED");
+        return;
+      }
+      const data = await res.json();
+      setInsightStatus(data.status ?? "FAILED");
+      if (data.status === "READY") {
+        setInsightData({
+          contextText: data.contextText ?? null,
+          hookText: data.hookText ?? null,
+          problemText: data.problemText ?? null,
+          solutionText: data.solutionText ?? null,
+          ctaText: data.ctaText ?? null,
+          copyWorkedText: data.copyWorkedText ?? null,
+        });
+      }
+      setInsightError(data.errorMessage ?? null);
+    } catch {
+      setInsightStatus("FAILED");
+      setInsightError(null);
     }
   }, [video]);
 
@@ -300,7 +399,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
         <VideoCardActions
           saved={saved}
           onTranscribe={handleTranscribe}
-          onInsight={() => setInsightOpen(true)}
+          onInsight={handleInsight}
           onSave={handleSave}
         />
       </Box>
@@ -318,41 +417,12 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       <InsightDialog
         open={insightOpen}
         onClose={() => setInsightOpen(false)}
-        promptText={generatePrompt(video)}
         videoTitle={video.title}
+        status={insightStatus}
+        data={insightData}
+        errorMessage={insightError}
+        onRetry={handleInsightRetry}
       />
     </Box>
   );
-}
-
-/* ---- helpers ---- */
-
-function generatePrompt(video: VideoDTO): string {
-  const metricsSummary =
-    [
-      video.views > 0 ? `Views: ${formatNumber(video.views)}` : null,
-      video.sales > 0 ? `Vendas: ${formatNumber(video.sales)}` : null,
-      video.revenueBRL > 0
-        ? `GMV: ${formatCurrency(video.revenueBRL, video.currency)}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(" | ") || "—";
-
-  return `Você é um gerador de roteiro curto inspirado em um vídeo do TikTok Shop.
-
-Regras:
-- Português do Brasil, linguagem simples, sem emojis.
-- Estrutura: Hook (1 frase) -> Contexto (2 frases) -> Prova/Detalhes (3 bullets) -> CTA (1 frase).
-- Sem prometer milagre. Tom de curadoria: 'eu filtro pra você'.
-
-Dados do vídeo:
-- Título: ${video.title || "—"}
-- Creator: ${video.creatorHandle || "—"}
-- Resumo de métricas: ${metricsSummary}
-
-Entregue:
-1) Roteiro falado (até 20 segundos)
-2) 3 variações de hook
-3) 1 CTA curto para 'salvar'`;
 }

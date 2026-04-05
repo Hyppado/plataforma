@@ -408,12 +408,8 @@ describe("lib/transcription/service", () => {
     });
 
     it("detects 'thanks for watching' hallucination", () => {
-      expect(
-        detectHallucination("Thanks for watching"),
-      ).not.toBeNull();
-      expect(
-        detectHallucination("Obrigado por assistir"),
-      ).not.toBeNull();
+      expect(detectHallucination("Thanks for watching")).not.toBeNull();
+      expect(detectHallucination("Obrigado por assistir")).not.toBeNull();
     });
 
     it("detects 'subscribe' hallucination", () => {
@@ -432,9 +428,7 @@ describe("lib/transcription/service", () => {
     });
 
     it("allows normal speech even if short-ish", () => {
-      expect(
-        detectHallucination("Esse produto é incrível, gente"),
-      ).toBeNull();
+      expect(detectHallucination("Esse produto é incrível, gente")).toBeNull();
     });
 
     it("returns FAILED when Whisper output is hallucination", async () => {
