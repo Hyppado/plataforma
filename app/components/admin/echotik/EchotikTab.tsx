@@ -1,125 +1,93 @@
 "use client";
 
-import { useCallback } from "react";
+import { Box, Grid, Typography } from "@mui/material";
 import useSWR from "swr";
-import { Box, Grid, LinearProgress, Typography } from "@mui/material";
-import { HealthSection } from "./HealthSection";
-import { ConfigSection } from "./ConfigSection";
-import { EstimationSection } from "./EstimationSection";
-import { RegionSection } from "./RegionSection";
-import type { RegionData } from "./RegionSection";
+import { fetcher } from "@/lib/swr/fetcher";
 import type {
   EchotikConfig,
   EchotikHealthResponse,
   EstimationResult,
 } from "@/lib/types/echotik-admin";
-
-interface ConfigResponse {
-  config: EchotikConfig;
-}
-
-interface RegionsResponse {
-  regions: RegionData[];
-}
-
-async function fetcher<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json() as Promise<T>;
-}
+import { RegionSection, type RegionData } from "./RegionSection";
+import { HealthSection } from "./HealthSection";
+import { ConfigSection } from "./ConfigSection";
+import { EstimationSection } from "./EstimationSection";
 
 export function EchotikTab() {
-  const health = useSWR<EchotikHealthResponse>(
+  // -----------------------------------------------------------------------
+  // Data
+  // -----------------------------------------------------------------------
+  const healthSWR = useSWR<EchotikHealthResponse>(
     "/api/admin/echotik/health",
     fetcher,
-    {
-      refreshInterval: 60_000,
-    },
+    { refreshInterval: 60_000 },
   );
-
-  const configSWR = useSWR<ConfigResponse>(
+  const configSWR = useSWR<EchotikConfig>(
     "/api/admin/echotik/config",
     fetcher,
   );
-
-  // estimate endpoint returns EstimationResult directly (no wrapper)
   const estimateSWR = useSWR<EstimationResult>(
-    "/api/admin/echotik/estimate",
+    "/api/admin/echotik/estimation",
     fetcher,
   );
-
-  const regionsSWR = useSWR<RegionsResponse>(
+  const regionsSWR = useSWR<RegionData[]>(
     "/api/admin/echotik/regions",
     fetcher,
   );
 
-  const isLoading =
-    health.isLoading || configSWR.isLoading || estimateSWR.isLoading;
+  // -----------------------------------------------------------------------
+  // Callbacks
+  // -----------------------------------------------------------------------
 
-  const handleSaveConfig = useCallback(
-    async (patch: Record<string, unknown>) => {
-      const res = await fetch("/api/admin/echotik/config", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { error?: string };
-        throw new Error(body.error ?? "Erro ao salvar configuração");
-      }
-      // Revalidate config and estimation after save
-      await Promise.all([configSWR.mutate(), estimateSWR.mutate()]);
-    },
-    [configSWR, estimateSWR],
-  );
+  async function handleSaveConfig(patch: Record<string, unknown>) {
+    await fetch("/api/admin/echotik/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    await Promise.all([configSWR.mutate(), estimateSWR.mutate()]);
+  }
 
-  const handleToggleRegion = useCallback(
-    async (code: string, isActive: boolean) => {
-      const res = await fetch("/api/admin/echotik/regions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, isActive }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { error?: string };
-        throw new Error(body.error ?? "Erro ao atualizar região");
-      }
-      // Revalidate regions, health, and estimation (region count affects estimation)
-      await Promise.all([
-        regionsSWR.mutate(),
-        health.mutate(),
-        estimateSWR.mutate(),
-      ]);
-    },
-    [regionsSWR, health, estimateSWR],
-  );
+  async function handleToggleRegion(code: string, isActive: boolean) {
+    await fetch("/api/admin/echotik/regions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, isActive }),
+    });
+    await Promise.all([
+      regionsSWR.mutate(),
+      healthSWR.mutate(),
+      estimateSWR.mutate(),
+    ]);
+  }
 
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
   return (
     <Box>
-      <Box sx={{ mb: 3 }}>
-        <Typography
-          variant="h6"
-          sx={{ fontWeight: 600, color: "#fff", mb: 0.5 }}
-        >
-          Echotik — Ingestão
-        </Typography>
-        <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
-          Visibilidade operacional, configuração dinâmica e estimativa de
-          consumo da API.
-        </Typography>
-      </Box>
+      {/* Header */}
+      <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+        Echotik — Ingestão de dados
+      </Typography>
 
-      {isLoading && <LinearProgress sx={{ mb: 2 }} />}
+      {/* Compact region selector — not wrapped in Grid */}
+      <RegionSection
+        regions={regionsSWR.data}
+        loading={regionsSWR.isLoading}
+        onToggle={handleToggleRegion}
+      />
 
+      {/* Operational summary + Config + Estimation in a single Grid */}
       <Grid container spacing={3}>
-        <RegionSection
-          regions={regionsSWR.data?.regions}
-          loading={regionsSWR.isLoading}
-          onToggle={handleToggleRegion}
+        <HealthSection
+          data={healthSWR.data}
+          loading={healthSWR.isLoading}
         />
-        <HealthSection data={health.data} loading={health.isLoading} />
+
+        {/* Config + Estimation — each renders its own Grid item md={6} */}
         <ConfigSection
-          config={configSWR.data?.config}
+          config={configSWR.data}
           loading={configSWR.isLoading}
           onSave={handleSaveConfig}
         />
