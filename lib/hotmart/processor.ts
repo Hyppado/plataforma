@@ -84,10 +84,7 @@ const CHARGE_STATUS_MAP: Record<string, string> = {
 async function getProvisioningPlan(fields: HotmartWebhookFields) {
   // 1. Tenta match direto por planCode + auto-sync da Hotmart API
   if (fields.planCode) {
-    const matched = await resolveOrSyncPlan(
-      fields.planCode,
-      fields.productId,
-    );
+    const matched = await resolveOrSyncPlan(fields.planCode, fields.productId);
     if (matched) return matched;
   }
 

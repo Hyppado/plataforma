@@ -279,4 +279,86 @@ describe("resolveOrSyncPlan()", () => {
 
     expect(result).toBeNull();
   });
+
+  it("returns null when Prisma findUnique throws (e.g. missing column)", async () => {
+    prismaMock.plan.findUnique.mockRejectedValue(
+      new Error(
+        "The column `Plan.hotmartPlanCode` does not exist in the current database",
+      ),
+    );
+
+    const result = await resolveOrSyncPlan("tz12qeev", "7420891");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when sync succeeds but post-sync lookup throws", async () => {
+    prismaMock.plan.findUnique
+      .mockRejectedValueOnce(new Error("column does not exist")) // initial lookup
+      .mockRejectedValueOnce(new Error("column does not exist")); // would be called in sync
+
+    const result = await resolveOrSyncPlan("tz12qeev", "7420891");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("syncPlansFromHotmart() — error handling", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("propagates Prisma findUnique error (missing column)", async () => {
+    mockHotmartRequest.mockResolvedValue({
+      items: [hotmartPlan],
+    });
+    prismaMock.plan.findUnique.mockRejectedValue(
+      new Error(
+        "The column `Plan.hotmartPlanCode` does not exist in the current database",
+      ),
+    );
+
+    await expect(syncPlansFromHotmart("abc-uuid-123")).rejects.toThrow(
+      "does not exist",
+    );
+  });
+
+  it("propagates Prisma create error (unique constraint)", async () => {
+    mockHotmartRequest.mockResolvedValue({
+      items: [hotmartPlan],
+    });
+    prismaMock.plan.findUnique.mockResolvedValue(null);
+    prismaMock.plan.create.mockRejectedValue(
+      new Error("Unique constraint failed on the fields: (`code`)"),
+    );
+
+    await expect(syncPlansFromHotmart("abc-uuid-123")).rejects.toThrow(
+      "Unique constraint",
+    );
+  });
+
+  it("propagates Prisma update error", async () => {
+    const existingPlan = buildPlan({
+      id: "existing-plan",
+      hotmartPlanCode: "tz12qeev",
+    });
+
+    mockHotmartRequest.mockResolvedValue({
+      items: [hotmartPlan],
+    });
+    prismaMock.plan.findUnique.mockResolvedValue(existingPlan);
+    prismaMock.plan.update.mockRejectedValue(
+      new Error("Record to update not found"),
+    );
+
+    await expect(syncPlansFromHotmart("abc-uuid-123")).rejects.toThrow(
+      "Record to update not found",
+    );
+  });
+
+  it("propagates Hotmart API error from listPlansForProduct", async () => {
+    mockHotmartRequest.mockRejectedValue(new Error("401 Unauthorized"));
+
+    await expect(syncPlansFromHotmart("abc-uuid-123")).rejects.toThrow(
+      "401 Unauthorized",
+    );
+  });
 });

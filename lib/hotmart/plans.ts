@@ -118,9 +118,7 @@ export async function listPlansForProduct(
  * Hotmart pode enviar: MONTHLY, BIMONTHLY, QUARTERLY, BIANNUAL, ANNUAL.
  * O sistema suporta MONTHLY e ANNUAL — outros mapeiam para MONTHLY como fallback.
  */
-function mapPeriodicity(
-  hotmartPeriod: string,
-): "MONTHLY" | "ANNUAL" {
+function mapPeriodicity(hotmartPeriod: string): "MONTHLY" | "ANNUAL" {
   if (hotmartPeriod === "ANNUAL") return "ANNUAL";
   return "MONTHLY";
 }
@@ -146,12 +144,21 @@ import prisma from "../prisma";
  */
 export async function syncPlansFromHotmart(
   productUcode: string,
-): Promise<{ created: number; updated: number; plans: { id: string; code: string; name: string; hotmartPlanCode: string }[] }> {
+): Promise<{
+  created: number;
+  updated: number;
+  plans: { id: string; code: string; name: string; hotmartPlanCode: string }[];
+}> {
   const hotmartPlans = await listPlansForProduct(productUcode);
 
   let created = 0;
   let updated = 0;
-  const results: { id: string; code: string; name: string; hotmartPlanCode: string }[] = [];
+  const results: {
+    id: string;
+    code: string;
+    name: string;
+    hotmartPlanCode: string;
+  }[] = [];
 
   for (const hp of hotmartPlans) {
     const existing = await prisma.plan.findUnique({
@@ -167,7 +174,10 @@ export async function syncPlansFromHotmart(
           priceAmount: Math.round(hp.price.value),
           currency: hp.price.currency_code,
           periodicity: mapPeriodicity(hp.periodicity),
-          displayPrice: formatDisplayPrice(hp.price.value, hp.price.currency_code),
+          displayPrice: formatDisplayPrice(
+            hp.price.value,
+            hp.price.currency_code,
+          ),
           description: hp.description ?? existing.description,
         },
       });
@@ -190,7 +200,10 @@ export async function syncPlansFromHotmart(
           code: slug,
           name: hp.name,
           description: hp.description,
-          displayPrice: formatDisplayPrice(hp.price.value, hp.price.currency_code),
+          displayPrice: formatDisplayPrice(
+            hp.price.value,
+            hp.price.currency_code,
+          ),
           priceAmount: Math.round(hp.price.value),
           currency: hp.price.currency_code,
           periodicity: mapPeriodicity(hp.periodicity),
@@ -221,7 +234,11 @@ export async function syncPlansFromHotmart(
     }
   }
 
-  log.info("Hotmart plan sync complete", { created, updated, total: hotmartPlans.length });
+  log.info("Hotmart plan sync complete", {
+    created,
+    updated,
+    total: hotmartPlans.length,
+  });
   return { created, updated, plans: results };
 }
 
@@ -239,16 +256,16 @@ export async function resolveOrSyncPlan(
   planCode: string,
   productId?: string,
 ): Promise<{ id: string } | null> {
-  // 1. Busca plano existente
-  const existing = await prisma.plan.findUnique({
-    where: { hotmartPlanCode: planCode },
-    select: { id: true },
-  });
-  if (existing) return existing;
+  try {
+    // 1. Busca plano existente
+    const existing = await prisma.plan.findUnique({
+      where: { hotmartPlanCode: planCode },
+      select: { id: true },
+    });
+    if (existing) return existing;
 
-  // 2. Tenta sincronizar da Hotmart API
-  if (productId) {
-    try {
+    // 2. Tenta sincronizar da Hotmart API
+    if (productId) {
       const numericId = parseInt(productId, 10);
       if (!isNaN(numericId)) {
         const product = await getProductByNumericId(numericId);
@@ -263,13 +280,13 @@ export async function resolveOrSyncPlan(
           if (synced) return synced;
         }
       }
-    } catch (err) {
-      log.warn("Failed to auto-sync Hotmart plans for provisioning", {
-        planCode,
-        productId,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
+  } catch (err) {
+    log.warn("Failed to resolve or sync Hotmart plan for provisioning", {
+      planCode,
+      productId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return null;

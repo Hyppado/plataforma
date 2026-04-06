@@ -242,6 +242,29 @@ describe("processHotmartEvent()", () => {
     );
   });
 
+  it("falls back to findFirst when resolveOrSyncPlan returns null (e.g. missing column)", async () => {
+    // Simulates the scenario where Plan.hotmartPlanCode column doesn't exist
+    // — resolveOrSyncPlan catches the Prisma error internally and returns null
+    const { resolveOrSyncPlan } = await import("@/lib/hotmart/plans");
+    vi.mocked(resolveOrSyncPlan).mockResolvedValueOnce(null);
+
+    const fields = makeFields({ planCode: "tz12qeev", productId: "7420891" });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(resolveOrSyncPlan).toHaveBeenCalledWith("tz12qeev", "7420891");
+
+    // Should fall back to findFirst since resolveOrSyncPlan returned null
+    expect(prismaMock.plan.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+    );
+  });
+
   it("creates audit log for unresolved identity", async () => {
     prismaMock.externalAccountLink.findFirst.mockResolvedValue(null);
     // Remove email so we can't create user
