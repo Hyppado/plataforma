@@ -1,0 +1,92 @@
+/**
+ * Cron Route: GET /api/cron/sync-db
+ *
+ * Daily prod→preview database sync (06:00 UTC = 03:00 BRT).
+ * Copies Echotik data as-is and user/billing data with PII masking.
+ *
+ * This route runs ONLY on the preview environment.
+ * In production, it returns early with a 200 and a skip message.
+ *
+ * Auth: CRON_SECRET via Bearer token (same pattern as other cron routes).
+ *
+ * Response:
+ *   200 — { ok: true, summary: { ... } }
+ *   401 — CRON_SECRET invalid
+ *   500 — error
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
+import { runSync } from "@/lib/sync/service";
+import { createLogger } from "@/lib/logger";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+export async function GET(request: NextRequest) {
+  const log = createLogger("cron/sync-db");
+
+  // -----------------------------------------------------------------------
+  // 0. Guard: only run on preview — never in production
+  // -----------------------------------------------------------------------
+  if (process.env.VERCEL_ENV === "production") {
+    log.info("Skipping sync-db — running in production environment");
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "sync-db only runs on preview environment",
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // 1. Validate CRON_SECRET
+  // -----------------------------------------------------------------------
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    log.error("CRON_SECRET not configured — rejecting request");
+    return NextResponse.json(
+      { ok: false, error: "CRON_SECRET not configured" },
+      { status: 500 },
+    );
+  }
+
+  const authHeader = request.headers.get("authorization");
+  const token = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
+
+  const bufToken = Buffer.from(token, "utf8");
+  const bufSecret = Buffer.from(cronSecret, "utf8");
+  const isValid =
+    bufToken.length === bufSecret.length &&
+    timingSafeEqual(bufToken, bufSecret);
+
+  if (!isValid) {
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // 2. Run sync
+  // -----------------------------------------------------------------------
+  try {
+    const summary = await runSync({ logger: log });
+
+    const ok = summary.tablesFailed === 0;
+    return NextResponse.json({ ok, summary });
+  } catch (error) {
+    log.error("Unhandled error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    );
+  }
+}
