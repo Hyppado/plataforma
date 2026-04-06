@@ -67,8 +67,8 @@ export function EchotikTab() {
   return (
     <Box>
       {/* Header */}
-      <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
-        Echotik — Ingestão de dados
+      <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: 'text.primary' }}>
+        Echotik — Regiões disponíveis
       </Typography>
 
       {/* Compact region selector — not wrapped in Grid */}
