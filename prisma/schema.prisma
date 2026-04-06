@@ -95,6 +95,9 @@ model Plan {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
+  // Vínculo com plano Hotmart (nullable — planos manuais não têm)
+  hotmartPlanCode     String?  @unique   // código do plano na Hotmart (ex: "tz12qeev")
+
   // Quotas de uso por plano
   transcriptsPerMonth       Int  @default(40)
   scriptsPerMonth           Int  @default(70)
@@ -102,11 +105,6 @@ model Plan {
   scriptTokensMonthlyMax    Int  @default(20000)
   insightMaxOutputTokens    Int  @default(800)
   scriptMaxOutputTokens     Int  @default(1500)
-
-  // Hotmart product/offer mappings (admin-managed via Configurações → Hotmart)
-  hotmartProductId    String?
-  hotmartPlanCode     String?  // hotmart plan_name or code
-  hotmartOfferCode    String?  // hotmart offer_code
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]
@@ -120,7 +118,8 @@ enum PlanPeriod {
 }
 
 // (PlanExternalMapping and Coupon models removed — Hotmart catalog data
-//  is not mirrored locally. Plan fields above are the canonical mapping.)
+//  is not mirrored locally. Provider plan/product metadata is stored
+//  in HotmartSubscription as external reference data.)
 
 // ---------------------------------------------------------------------------
 // SUBSCRIPTIONS — Origin-agnostic

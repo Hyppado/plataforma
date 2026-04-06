@@ -40,15 +40,13 @@ export async function POST(req: NextRequest) {
     badge,
     sortOrder,
     features,
+    hotmartPlanCode,
     transcriptsPerMonth,
     scriptsPerMonth,
     insightTokensMonthlyMax,
     scriptTokensMonthlyMax,
     insightMaxOutputTokens,
     scriptMaxOutputTokens,
-    hotmartProductId,
-    hotmartPlanCode,
-    hotmartOfferCode,
   } = body;
 
   if (!code || !name || priceAmount === undefined || !periodicity) {
@@ -72,15 +70,13 @@ export async function POST(req: NextRequest) {
         badge,
         sortOrder: sortOrder ?? 0,
         features: features ?? [],
+        hotmartPlanCode: hotmartPlanCode ?? undefined,
         transcriptsPerMonth: transcriptsPerMonth ?? 40,
         scriptsPerMonth: scriptsPerMonth ?? 70,
         insightTokensMonthlyMax: insightTokensMonthlyMax ?? 50000,
         scriptTokensMonthlyMax: scriptTokensMonthlyMax ?? 20000,
         insightMaxOutputTokens: insightMaxOutputTokens ?? 800,
         scriptMaxOutputTokens: scriptMaxOutputTokens ?? 1500,
-        hotmartProductId,
-        hotmartPlanCode,
-        hotmartOfferCode,
       },
     });
     return NextResponse.json({ plan }, { status: 201 });

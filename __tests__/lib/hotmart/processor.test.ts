@@ -18,6 +18,11 @@ vi.mock("@/lib/admin/notifications", () => ({
   createNotificationIfNeeded: vi.fn().mockResolvedValue(null),
 }));
 
+// Mock Hotmart plans: resolveOrSyncPlan returns null by default (falls to findFirst fallback)
+vi.mock("@/lib/hotmart/plans", () => ({
+  resolveOrSyncPlan: vi.fn().mockResolvedValue(null),
+}));
+
 // Use fake timers to skip retry delays
 vi.useFakeTimers();
 
@@ -54,11 +59,7 @@ function makeFields(
 }
 
 const mockUser = buildUser({ id: "user-1", email: "buyer@test.com" });
-const mockPlan = buildPlan({
-  id: "plan-1",
-  hotmartProductId: "7420891",
-  hotmartPlanCode: "pro_mensal",
-});
+const mockPlan = buildPlan({ id: "plan-1" });
 const mockIdentity = {
   id: "ident-1",
   userId: "user-1",
@@ -197,22 +198,46 @@ describe("processHotmartEvent()", () => {
     );
   });
 
-  it("resolves plan by productId and planCode", async () => {
-    const fields = makeFields({
-      productId: "7420891",
-      planCode: "pro_mensal",
-    });
+  it("resolves provisioning plan (planCode match → findFirst fallback)", async () => {
+    const fields = makeFields();
 
     const promise = processHotmartEvent("event-1", fields);
     await vi.runAllTimersAsync();
     await promise;
 
+    // resolveOrSyncPlan was called with the webhook planCode
+    const { resolveOrSyncPlan } = await import("@/lib/hotmart/plans");
+    expect(resolveOrSyncPlan).toHaveBeenCalledWith("pro_mensal", "7420891");
+
+    // Falls back to findFirst since resolveOrSyncPlan returns null
     expect(prismaMock.plan.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          hotmartProductId: "7420891",
-          hotmartPlanCode: "pro_mensal",
-        }),
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+    );
+  });
+
+  it("uses plan matched by hotmartPlanCode without fallback", async () => {
+    const matchedPlan = { id: "plan-matched" };
+    const { resolveOrSyncPlan } = await import("@/lib/hotmart/plans");
+    vi.mocked(resolveOrSyncPlan).mockResolvedValueOnce(matchedPlan);
+
+    const fields = makeFields({ planCode: "tz12qeev", productId: "7420891" });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(resolveOrSyncPlan).toHaveBeenCalledWith("tz12qeev", "7420891");
+
+    // findFirst should NOT be called since resolveOrSyncPlan returned a plan
+    expect(prismaMock.plan.findFirst).not.toHaveBeenCalled();
+
+    // Subscription should use the matched plan
+    expect(prismaMock.subscription.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ planId: "plan-matched" }),
       }),
     );
   });
@@ -652,7 +677,7 @@ describe("handleApproved() — PURCHASE_APPROVED provisioning", () => {
         data: expect.objectContaining({
           action: "WEBHOOK_PURCHASE_APPROVED_UNRESOLVED",
           after: expect.objectContaining({
-            reason: "plan_not_found",
+            reason: "no_active_plan",
           }),
         }),
       }),

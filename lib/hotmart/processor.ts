@@ -32,6 +32,7 @@ import prisma from "../prisma";
 import type { HotmartWebhookFields } from "./webhook";
 import { createNotificationIfNeeded } from "../admin/notifications";
 import { createLogger } from "../logger";
+import { resolveOrSyncPlan } from "./plans";
 
 const log = createLogger("hotmart/processor");
 
@@ -71,35 +72,30 @@ const CHARGE_STATUS_MAP: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Resolve plano interno (PRO_MENSAL / PREMIUM_ANUAL)
+// Resolve plano interno para provisionamento
 // ---------------------------------------------------------------------------
-// Edite hotmartProductId + hotmartPlanCode no seed dos planos para ligar ao produto real.
+// Tenta resolver nesta ordem:
+// 1. Busca por hotmartPlanCode (match exato do planCode do webhook)
+// 2. Auto-sync da Hotmart API se não encontrou (via resolveOrSyncPlan)
+// 3. Fallback: primeiro plano ativo (por sortOrder)
+//
+// Nunca bloqueia provisionamento — se nada funcionar, retorna null.
 
-async function resolvePlan(fields: HotmartWebhookFields) {
-  if (fields.productId) {
-    const plan = await prisma.plan.findFirst({
-      where: {
-        hotmartProductId: fields.productId,
-        isActive: true,
-        ...(fields.planCode ? { hotmartPlanCode: fields.planCode } : {}),
-      },
-    });
-    if (plan) return plan;
-
-    // fallback: só productId
-    const byProduct = await prisma.plan.findFirst({
-      where: { hotmartProductId: fields.productId, isActive: true },
-    });
-    if (byProduct) return byProduct;
+async function getProvisioningPlan(fields: HotmartWebhookFields) {
+  // 1. Tenta match direto por planCode + auto-sync da Hotmart API
+  if (fields.planCode) {
+    const matched = await resolveOrSyncPlan(
+      fields.planCode,
+      fields.productId,
+    );
+    if (matched) return matched;
   }
 
-  if (fields.offerCode) {
-    return prisma.plan.findFirst({
-      where: { hotmartOfferCode: fields.offerCode, isActive: true },
-    });
-  }
-
-  return null;
+  // 2. Fallback: primeiro plano ativo (por sortOrder)
+  return prisma.plan.findFirst({
+    where: { isActive: true },
+    orderBy: { sortOrder: "asc" },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +293,7 @@ async function logUnresolved(
  * Steps:
  *   A. Resolve or create the internal user + external account link
  *   B. Reactivate INACTIVE user; warn admin if SUSPENDED
- *   C. Resolve the internal plan mapping
+ *   C. Get the internal provisioning plan (first active plan)
  *   D. Create or update Subscription + HotmartSubscription (via upsertSubscription)
  *   E. Create payment/charge record (PAID)
  *   F. Access is runtime-driven — no derived state to persist
@@ -370,10 +366,10 @@ export async function handleApproved(
     });
   }
 
-  // C. Resolve the internal plan
-  const plan = await resolvePlan(fields);
+  // C. Get the internal provisioning plan (matches by planCode → auto-sync → fallback)
+  const plan = await getProvisioningPlan(fields);
   if (!plan) {
-    await logUnresolved(webhookEventId, fields, "plan_not_found");
+    await logUnresolved(webhookEventId, fields, "no_active_plan");
     await markProcessed(webhookEventId);
     return;
   }
@@ -578,8 +574,8 @@ async function _processEvent(
   // 1. Resolve identidade
   const identity = await resolveOrCreateIdentity(fields);
 
-  // 2. Resolve plano
-  const plan = await resolvePlan(fields);
+  // 2. Get provisioning plan (matches by planCode → auto-sync → fallback)
+  const plan = await getProvisioningPlan(fields);
 
   let subscriptionId: string | undefined;
 
@@ -693,7 +689,7 @@ async function _processEvent(
     await logUnresolved(
       webhookEventId,
       fields,
-      !identity ? "identity_not_found" : "plan_not_found",
+      !identity ? "identity_not_found" : "no_active_plan",
     );
   }
 
