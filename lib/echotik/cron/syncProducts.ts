@@ -192,12 +192,21 @@ export async function syncProductRanklist(
   region: string,
   log: Logger,
   maxPages = PRODUCT_RANKLIST_PAGES,
+  deadlineMs?: number,
 ): Promise<number> {
   log.info("Syncing products", { region, maxPages });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
     for (const { field } of PRODUCT_RANK_FIELDS) {
+      if (deadlineMs && Date.now() > deadlineMs - 30_000) {
+        log.warn("Deadline approaching, stopping product sync early", {
+          region,
+          synced: total,
+          remainingMs: deadlineMs - Date.now(),
+        });
+        return total;
+      }
       const count = await syncProductRanklistForRegion(
         runId,
         region,

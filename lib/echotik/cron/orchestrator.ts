@@ -1,9 +1,11 @@
 /**
  * lib/echotik/cron/orchestrator.ts — Main cron entrypoint
  *
- * Runs ONE task for ONE region per invocation to stay within Vercel's 60s limit.
+ * Runs ONE task for ONE region per invocation.
+ * maxDuration is 300s; a deadline with 15s safety margin is passed down
+ * so sync loops stop gracefully before the hard timeout.
  *
- * Budget per invocation: 1 region × 3 cycles × 2 fields × 10 pages ≈ 40s.
+ * Budget per invocation: 1 region × 3 cycles × 2 fields × 10 pages ≈ 40-90s.
  *
  * shouldSkip keys are region-scoped: "echotik:videos:BR", "echotik:videos:US"…
  * In "auto" mode, the orchestrator iterates task × region to find the first
@@ -52,6 +54,8 @@ export interface CronOptions {
   region?: string;
   /** If true, ignores shouldSkip intervals */
   force?: boolean;
+  /** Absolute timestamp (Date.now()-based) by which execution must finish */
+  deadlineMs?: number;
 }
 
 export interface TaskSelection {
@@ -170,8 +174,15 @@ async function runVideos(
   region: string,
   log: Logger,
   maxPages: number,
+  deadlineMs?: number,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncVideoRanklist(runId, region, log, maxPages);
+  const synced = await syncVideoRanklist(
+    runId,
+    region,
+    log,
+    maxPages,
+    deadlineMs,
+  );
   const pagesProcessed = 3 * 2 * maxPages; // cycles × fields × pages
   await prisma.ingestionRun.create({
     data: {
@@ -188,8 +199,15 @@ async function runProducts(
   region: string,
   log: Logger,
   maxPages: number,
+  deadlineMs?: number,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncProductRanklist(runId, region, log, maxPages);
+  const synced = await syncProductRanklist(
+    runId,
+    region,
+    log,
+    maxPages,
+    deadlineMs,
+  );
   const pagesProcessed = 3 * 2 * maxPages;
   await prisma.ingestionRun.create({
     data: {
@@ -206,8 +224,15 @@ async function runCreators(
   region: string,
   log: Logger,
   maxPages: number,
+  deadlineMs?: number,
 ): Promise<Partial<CronStats>> {
-  const synced = await syncCreatorRanklist(runId, region, log, maxPages);
+  const synced = await syncCreatorRanklist(
+    runId,
+    region,
+    log,
+    maxPages,
+    deadlineMs,
+  );
   const pagesProcessed = 3 * 2 * maxPages;
   await prisma.ingestionRun.create({
     data: {
@@ -263,6 +288,7 @@ export async function runEchotikCron(
     task: requestedTask = "auto",
     region: requestedRegion,
     force = false,
+    deadlineMs,
   } = opts;
   const start = Date.now();
   const log = createLogger("echotik-cron");
@@ -382,7 +408,13 @@ export async function runEchotikCron(
         break;
       case "videos":
         if (!region) throw new Error("videos task requires a region");
-        partial = await runVideos(run.id, region, runLog, config.pages.videos);
+        partial = await runVideos(
+          run.id,
+          region,
+          runLog,
+          config.pages.videos,
+          deadlineMs,
+        );
         break;
       case "products":
         if (!region) throw new Error("products task requires a region");
@@ -391,6 +423,7 @@ export async function runEchotikCron(
           region,
           runLog,
           config.pages.products,
+          deadlineMs,
         );
         break;
       case "creators":
@@ -400,6 +433,7 @@ export async function runEchotikCron(
           region,
           runLog,
           config.pages.creators,
+          deadlineMs,
         );
         break;
     }

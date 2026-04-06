@@ -198,12 +198,21 @@ export async function syncCreatorRanklist(
   region: string,
   log: Logger,
   maxPages = CREATOR_RANKLIST_PAGES,
+  deadlineMs?: number,
 ): Promise<number> {
   log.info("Syncing creators", { region, maxPages });
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
     for (const { field } of CREATOR_RANK_FIELDS) {
+      if (deadlineMs && Date.now() > deadlineMs - 30_000) {
+        log.warn("Deadline approaching, stopping creator sync early", {
+          region,
+          synced: total,
+          remainingMs: deadlineMs - Date.now(),
+        });
+        return total;
+      }
       const count = await syncCreatorRanklistForRegion(
         runId,
         region,

@@ -176,13 +176,9 @@ function aggregateByRegion(tasks: TaskRegionHealth[]): RegionRow[] {
       .filter(Boolean) as string[];
 
     const latestSuccess =
-      allSuccesses.length > 0
-        ? allSuccesses.sort().reverse()[0]
-        : null;
+      allSuccesses.length > 0 ? allSuccesses.sort().reverse()[0] : null;
     const latestFailure =
-      allFailures.length > 0
-        ? allFailures.sort().reverse()[0]
-        : null;
+      allFailures.length > 0 ? allFailures.sort().reverse()[0] : null;
 
     const totalItems = regionTasks.reduce(
       (s: number, t: TaskRegionHealth) => s + (t.lastItemsProcessed ?? 0),
@@ -308,7 +304,9 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                 const flag = REGION_FLAGS[row.code] ?? "";
                 return (
                   <TableRow key={row.code} hover>
-                    <TableCell sx={{ ...cellSx, color: "#fff", fontWeight: 600 }}>
+                    <TableCell
+                      sx={{ ...cellSx, color: "#fff", fontWeight: 600 }}
+                    >
                       {flag && (
                         <Box
                           component="span"
@@ -377,7 +375,10 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                       {row.lastFailureAt ? (
                         <Typography
                           component="span"
-                          sx={{ color: "rgba(244,67,54,0.8)", fontSize: "0.8rem" }}
+                          sx={{
+                            color: "rgba(244,67,54,0.8)",
+                            fontSize: "0.8rem",
+                          }}
                         >
                           {formatDatetime(row.lastFailureAt)}
                         </Typography>
@@ -398,7 +399,10 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                         component="span"
                         sx={{
                           fontWeight: 600,
-                          color: row.totalItems > 0 ? "#2DD4FF" : "rgba(255,255,255,0.3)",
+                          color:
+                            row.totalItems > 0
+                              ? "#2DD4FF"
+                              : "rgba(255,255,255,0.3)",
                         }}
                       >
                         {row.totalItems > 0
@@ -411,7 +415,10 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
               })}
               {regionRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} sx={{ ...cellSx, textAlign: "center" }}>
+                  <TableCell
+                    colSpan={6}
+                    sx={{ ...cellSx, textAlign: "center" }}
+                  >
                     Nenhuma região ativa com dados de ingestão
                   </TableCell>
                 </TableRow>
