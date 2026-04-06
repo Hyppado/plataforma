@@ -26,7 +26,7 @@ import { createLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const VALID_TASKS = new Set<CronTask>([
   "categories",
@@ -91,6 +91,7 @@ export async function GET(request: NextRequest) {
       task: taskParam as CronTask,
       region: regionParam,
       force,
+      deadlineMs: Date.now() + (maxDuration - 15) * 1000, // 15s safety margin
     });
 
     return NextResponse.json({

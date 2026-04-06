@@ -239,6 +239,7 @@ describe("runEchotikCron() — auto mode", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 });
@@ -274,6 +275,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 
@@ -287,6 +289,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 
@@ -300,6 +303,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 
@@ -312,6 +316,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 
@@ -325,6 +330,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 
@@ -337,6 +343,7 @@ describe("runEchotikCron() — explicit tasks", () => {
       "BR",
       expect.anything(),
       expect.any(Number),
+      undefined,
     );
   });
 
