@@ -133,10 +133,10 @@ interface RegionRow {
 }
 
 const TASK_LABELS: Record<string, string> = {
-  categories: "Cat",
+  categories: "Categorias",
   videos: "Vídeos",
-  products: "Prod",
-  creators: "Creators",
+  products: "Produtos",
+  creators: "Criadores",
 };
 
 const STATUS_PRIORITY: Record<HealthStatus, number> = {
@@ -390,7 +390,7 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                             fontSize: "0.8rem",
                           }}
                         >
-                          Nenhuma
+                          Nunca falhou
                         </Typography>
                       )}
                     </TableCell>
