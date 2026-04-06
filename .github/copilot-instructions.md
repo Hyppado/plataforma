@@ -804,6 +804,8 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 - Do not skip committing migration SQL files — the deploy depends on them.
 - Do not improvise migration workflow — follow the documented process.
 - Do not use any brand name other than **Hyppe** or **Hyppado** — never invent feature brand names or adopt external terminology.
+- Do not commit or push code without running `npx tsc --noEmit`, `npm run build`, and `npm run test:all` first — all three must pass with zero errors.
+- Do not guess TypeScript property names in test fixtures — always read the actual interface/type definition before writing fixture data.
 
 ## Maintenance Priorities When Working on the Project
 
@@ -817,10 +819,13 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 
 ## Mandatory Validation Before Marking a Task as Done
 
+- Run `npx tsc --noEmit` and confirm zero type errors.
 - Run `npm run build` and confirm exit code 0.
-- Run `npm run test:all` and confirm that all tests pass (currently 632+).
-- If the build or tests break, fix before committing.
-- This applies to any change: refactoring, file removal, new feature, fix.
+- Run `npm run test:all` and confirm that all tests pass (currently 669+).
+- If the typecheck, build, or tests break, fix before committing.
+- **Never commit or push code with type errors, lint errors, test failures, or build failures — no exceptions.**
+- When creating or modifying test files, verify that fixture data matches the actual TypeScript interfaces. Do not guess property names — read the type definition first.
+- This applies to any change: refactoring, file removal, new feature, fix, test addition.
 
 ## How to Respond to Changes in This Project
 
