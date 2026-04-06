@@ -38,8 +38,6 @@ export const TABLE_DEFS: TableDef[] = [
 
   // ── Plans / billing (no PII in these) ──────────────────────────────────
   { table: "Plan", group: "billing", masked: false },
-  { table: "PlanExternalMapping", group: "billing", masked: false },
-  { table: "Coupon", group: "billing", masked: false },
 
   // ── Users (masked) ────────────────────────────────────────────────────
   {

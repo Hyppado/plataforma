@@ -18,7 +18,6 @@ process.env.HOTMART_CLIENTE_ID = "test-client-id";
 process.env.HOTMART_CLIENT_SECRET = "test-client-secret";
 process.env.HOTMART_BASIC = "dGVzdC1jbGllbnQtaWQ6dGVzdC1jbGllbnQtc2VjcmV0"; // base64
 process.env.HOTMART_WEBHOOK_SECRET = "test-hottok-secret";
-process.env.HOTMART_PRODUCT_ID = "7420891";
 process.env.ECHOTIK_BASE_URL = "https://test.echotik.local";
 process.env.ECHOTIK_USERNAME = "test-echotik-user";
 process.env.ECHOTIK_PASSWORD = "test-echotik-pass";

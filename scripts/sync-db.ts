@@ -20,8 +20,7 @@
  *   echotik      Region, EchotikCategory, Echotik*TrendDaily, EchotikProductDetail,
  *                EchotikRawResponse, IngestionRun
  *   users        User, ExternalAccountLink, ConsentRecord, DataErasureRequest
- *   billing      Subscription, HotmartSubscription, SubscriptionCharge,
- *                Plan, PlanExternalMapping, Coupon
+ *   billing      Subscription, HotmartSubscription, SubscriptionCharge, Plan
  *   access       AccessGrant, Invitation
  *   usage        UsagePeriod, UsageEvent
  */

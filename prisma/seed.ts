@@ -1,8 +1,7 @@
 /**
  * prisma/seed.ts
  *
- * Seed inicial: cria planos padrão e settings de configuração.
- * Se a API Hotmart estiver disponível, sincroniza offers e cupons.
+ * Seed inicial: cria regiões padrão, settings e planos.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -56,20 +55,6 @@ async function seedRegions() {
 
 async function seedSettings() {
   const defaults = [
-    {
-      key: "hotmart.product_id",
-      value: process.env.HOTMART_PRODUCT_ID ?? "",
-      label: "ID do Produto Hotmart",
-      group: "hotmart",
-      type: "text",
-    },
-    {
-      key: "hotmart.webhook_url",
-      value: "",
-      label: "URL do Webhook (informativo)",
-      group: "hotmart",
-      type: "text",
-    },
     {
       key: "app.name",
       value: "Hyppado",

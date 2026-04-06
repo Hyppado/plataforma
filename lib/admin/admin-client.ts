@@ -177,44 +177,6 @@ export async function getQuotaUsage(): Promise<QuotaUsage> {
   }
 }
 
-// ==================== HOTMART COUPON (UI-only) ====================
-
-export interface CouponCreateRequest {
-  productId: string;
-  code: string;
-  discountType: "PERCENTAGE" | "FIXED";
-  discountValue: number;
-  startDate?: string;
-  endDate?: string;
-  maxUses?: number;
-}
-
-/**
- * Create a Hotmart coupon.
- * This will only work when backend is connected.
- * Returns { success: false, message } if not connected.
- */
-export async function createHotmartCoupon(
-  coupon: CouponCreateRequest,
-): Promise<{ success: boolean; message: string }> {
-  try {
-    const res = await fetch("/api/admin/hotmart/coupons", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(coupon),
-    });
-    if (!res.ok) {
-      return {
-        success: false,
-        message: "Backend not connected or request failed",
-      };
-    }
-    return await res.json();
-  } catch {
-    return { success: false, message: "Backend not available" };
-  }
-}
-
 // ==================== LOCAL STORAGE HELPERS ====================
 
 // ==================== PROMPT CONFIG API ====================

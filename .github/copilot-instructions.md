@@ -63,12 +63,11 @@ Key principles:
 ```
 app/
   api/             → route handlers (thin — logic goes to lib/)
-    admin/         → protected admin routes (15 sub-routes)
+    admin/         → protected admin routes (14 sub-routes)
       access-grants/
       audit-logs/
       echotik/         → echotik config + health admin endpoints
       erasure-requests/
-      import-subscribers/
       notifications/   → admin notification list + [id] detail
       plans/
       prompt-config/
@@ -151,7 +150,6 @@ lib/
     client.ts / config.ts / oauth.ts
     processor.ts       → webhook event processing
     reconcile.ts       → subscription reconciliation
-    import-subscribers.ts → bulk subscriber import
     webhook.ts
   insight/           → on-demand AI video insight system
     index.ts       → public re-exports
@@ -295,9 +293,7 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 
 ### Domain 2 — Plans & Billing
 
-- **Plan** — subscription plans with quotas (transcripts, scripts, tokens per month)
-- **PlanExternalMapping** — maps Plan to external provider IDs (Hotmart, Stripe, etc.)
-- **Coupon** — Hotmart-synced discount coupons
+- **Plan** — subscription plans with quotas, Hotmart mapping fields (`hotmartProductId`, `hotmartPlanCode`, `hotmartOfferCode`)
 - **Subscription** — origin-agnostic subscription (source: hotmart/manual/invite/stripe)
 - **HotmartSubscription** — Hotmart-specific subscription details (linked 1:1 to Subscription)
 - **SubscriptionCharge** — payment records per subscription
@@ -479,8 +475,9 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
 
 - Webhooks: `/api/webhooks/hotmart` → `lib/hotmart/processor.ts`
 - Reconciliation: dedicated cron → `lib/hotmart/reconcile.ts`
-- Bulk import: `lib/hotmart/import-subscribers.ts`
 - Admin notifications: `lib/admin/notifications.ts`
+- Plan→Hotmart mapping: admin-managed via Configurações → Hotmart tab (writes `Plan.hotmartProductId` etc.)
+- Hotmart catalog data (coupons, offers, products) is NOT mirrored locally — access via API when needed
 - New changes must preserve: retry, auditability, separation of reception/processing,
   compatibility with the current subscription and reconciliation flow.
 

@@ -103,14 +103,13 @@ model Plan {
   insightMaxOutputTokens    Int  @default(800)
   scriptMaxOutputTokens     Int  @default(1500)
 
-  // Hotmart product/offer mappings (legacy — use PlanExternalMapping for new providers)
+  // Hotmart product/offer mappings (admin-managed via Configurações → Hotmart)
   hotmartProductId    String?
   hotmartPlanCode     String?  // hotmart plan_name or code
   hotmartOfferCode    String?  // hotmart offer_code
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]
-  externalMappings    PlanExternalMapping[]
 
   @@index([isActive, sortOrder])
 }
@@ -120,54 +119,8 @@ enum PlanPeriod {
   ANNUAL
 }
 
-// ---------------------------------------------------------------------------
-// PLAN ↔ EXTERNAL PROVIDER MAPPING
-// ---------------------------------------------------------------------------
-// Mapeia planos internos a identificadores de provedores externos.
-// Permite múltiplos provedores sem poluir a tabela Plan.
-
-model PlanExternalMapping {
-  id            String   @id @default(uuid())
-  planId        String
-  provider      String   // "hotmart", "stripe", etc.
-  externalId    String   // productId, priceId, etc.
-  externalCode  String?  // planCode, offerCode, etc.
-  externalMeta  Json?    // dados extras do provider
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  plan          Plan     @relation(fields: [planId], references: [id])
-
-  @@unique([provider, externalId])
-  @@index([planId])
-  @@index([provider, isActive])
-}
-
-// ---------------------------------------------------------------------------
-// COUPONS (sincronizados via Hotmart API)
-// ---------------------------------------------------------------------------
-
-model Coupon {
-  id                String    @id @default(uuid())
-  hotmartCouponCode String    @unique  // código do cupom na Hotmart
-  productId         String    // hotmartProductId ("7420891")
-  offerCode         String?   // offerCode ao qual o cupom está vinculado
-  name              String?
-  discountType      String    // PERCENTAGE | FIXED_VALUE
-  discountValue     Float     // ex: 20 (20%) ou 50 (R$ 50)
-  currency          String    @default("BRL")
-  maxUses           Int?      // null = ilimitado
-  usedCount         Int       @default(0)
-  startsAt          DateTime?
-  expiresAt         DateTime?
-  isActive          Boolean   @default(true)
-  syncedAt          DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@index([productId])
-  @@index([isActive, expiresAt])
-}
+// (PlanExternalMapping and Coupon models removed — Hotmart catalog data
+//  is not mirrored locally. Plan fields above are the canonical mapping.)
 
 // ---------------------------------------------------------------------------
 // SUBSCRIPTIONS — Origin-agnostic
@@ -609,7 +562,7 @@ model UsageEvent {
 // ---------------------------------------------------------------------------
 
 model Setting {
-  key         String   @id           // ex: "hotmart.product_id", "app.name"
+  key         String   @id           // ex: "app.name", "openai.api_key"
   value       String                 // valor serializado (string)
   label       String?                // rótulo amigável: "ID do Produto Hotmart"
   group       String   @default("general")  // agrupamento na UI: "hotmart", "general"
