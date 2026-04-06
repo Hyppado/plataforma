@@ -262,8 +262,7 @@ function maskRow(
         row.externalCustomerId = deterministicHash(id).slice(0, 32);
       if (row.externalReference)
         row.externalReference = deterministicHash(`ref:${id}`).slice(0, 32);
-      if (row.externalEmail)
-        row.externalEmail = fakeEmail(`ext:${row.userId}`);
+      if (row.externalEmail) row.externalEmail = fakeEmail(`ext:${row.userId}`);
       break;
     }
 
@@ -499,7 +498,10 @@ async function main(): Promise<void> {
     const previewDb = previewDbRes.rows[0].current_database;
 
     if (prodUrl === previewUrl) {
-      log("error", "PROD_DATABASE_URL and DATABASE_URL point to the same connection string — aborting to prevent data loss");
+      log(
+        "error",
+        "PROD_DATABASE_URL and DATABASE_URL point to the same connection string — aborting to prevent data loss",
+      );
       process.exit(1);
     }
 
@@ -516,8 +518,7 @@ async function main(): Promise<void> {
         const result = await syncTable(prod, preview, def, dryRun);
         results.push(result);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : String(err);
+        const message = err instanceof Error ? err.message : String(err);
         log("error", `Failed to sync ${def.table}`, {
           table: def.table,
           error: message,
@@ -549,12 +550,18 @@ async function main(): Promise<void> {
       `║  Sync ${dryRun ? "(DRY-RUN) " : ""}completed                      ║`,
     );
     console.log("╠══════════════════════════════════════════╣");
-    console.log(`║  Tables synced:  ${String(synced.length).padStart(4)}                     ║`);
-    console.log(`║  Tables failed:  ${String(failed.length).padStart(4)}                     ║`);
+    console.log(
+      `║  Tables synced:  ${String(synced.length).padStart(4)}                     ║`,
+    );
+    console.log(
+      `║  Tables failed:  ${String(failed.length).padStart(4)}                     ║`,
+    );
     console.log(
       `║  Total rows:     ${String(totalRows.toLocaleString("pt-BR")).padStart(10)}               ║`,
     );
-    console.log(`║  PII masked:     ${maskedTables.length > 0 ? "yes" : "no "}                      ║`);
+    console.log(
+      `║  PII masked:     ${maskedTables.length > 0 ? "yes" : "no "}                      ║`,
+    );
     console.log("╚══════════════════════════════════════════╝");
 
     if (synced.length > 0) {
