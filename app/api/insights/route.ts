@@ -7,10 +7,10 @@
  *
  * Flow (SYNCHRONOUS — result returned in the same request):
  * 1. Auth check
- * 2. Quota check (INSIGHT)
+ * 2. Quota check (SCRIPT — insights share the scripts quota)
  * 3. If user already has READY insight → return it (no quota consumed)
  * 4. Ensure transcript exists → generate insight from transcript
- * 5. Consume quota with actual tokens used
+ * 5. Consume SCRIPT quota with actual tokens used
  * 6. Return READY with sections, or FAILED with reason
  */
 
@@ -46,14 +46,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Check quota before processing
+  // Check quota before processing (insights consume from SCRIPT quota)
   try {
-    await assertQuota(auth.userId, "INSIGHT");
+    await assertQuota(auth.userId, "SCRIPT");
   } catch (error) {
     if (error instanceof QuotaExceededError) {
       return NextResponse.json(
         {
-          error: "Cota de insights excedida",
+          error: "Cota de scripts excedida",
           used: error.used,
           limit: error.limit,
         },
@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
     videoCreator,
   );
 
-  // Consume quota only for new insights (not reuses of existing)
+  // Consume SCRIPT quota for new insights (not reuses of existing)
   if (result.isNew && result.status === "READY" && result.tokensUsed > 0) {
-    await consumeUsage(auth.userId, "INSIGHT", result.tokensUsed, {
+    await consumeUsage(auth.userId, "SCRIPT", result.tokensUsed, {
       idempotencyKey: `insight:${videoExternalId}:${auth.userId}`,
       refTable: "VideoInsight",
       refId: videoExternalId,
