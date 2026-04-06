@@ -33,12 +33,11 @@ Key principles:
 ## Git Workflow
 
 - Work on the `develop` branch.
-- For production, open a PR from `develop` to `main`.
-- A GitHub Action (`.github/workflows/auto-pr.yml`) automatically creates/maintains an open PR from `develop` → `main` on every push to `develop`.
+- A GitHub Action (`.github/workflows/auto-deploy.yml`) automatically fast-forwards `main` to `develop` after CI passes on every push to `develop`.
 - Do not push directly to `main`, except for critical hotfixes.
-- Merging the auto-PR to `main` triggers the production deploy on Vercel.
-- **Always merge the auto-PR using "Rebase and merge"** on GitHub — never "Create a merge commit".
-- There is no sync workflow — after merge, `develop` keeps its original commit SHAs and `main` gets rebased copies. This is intentional and causes no issues.
+- Fast-forward means `main` advances to the exact same SHA as `develop` — no merge commits, no rebased copies, no divergence.
+- `git pull` on any local branch always works cleanly after deploy.
+- If `develop` has diverged from `main` (e.g. after a hotfix on `main`), the workflow fails and instructs the developer to rebase `develop` onto `main` locally.
 - Use conventional commits:
   - `feat:`
   - `fix:`
@@ -690,11 +689,11 @@ Jobs in dependency order:
 
 Playwright failure artifacts are uploaded to `e2e/.artifacts/` (retention: 7 days).
 
-### auto-pr.yml — runs on push to `develop`
+### auto-deploy.yml — runs on push to `develop`
 
-Automatically creates or updates an open PR from `develop` → `main`.
-The PR is never auto-merged — a human reviews and merges when ready to release.
-Always use "Rebase and merge" — no merge commits, no sync workflow needed.
+Waits for `ci.yml` to pass on the same SHA, then fast-forwards `main` to `develop`.
+No PR, no merge commits, no rebased SHAs — `main` and `develop` point to the exact same commit.
+If fast-forward is not possible (diverged histories), fails with instructions to rebase locally.
 
 ## Deployment — Vercel
 

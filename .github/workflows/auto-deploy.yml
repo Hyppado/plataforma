@@ -1,0 +1,122 @@
+# .github/workflows/auto-deploy.yml
+#
+# Fast-forward main to develop after CI passes.
+#
+# Strategy:
+#   1. Triggered on every push to `develop`
+#   2. Waits for `ci.yml` to pass on the same SHA
+#   3. Fast-forwards `main` to the exact SHA of `develop` (no new commits)
+#   4. If fast-forward is not possible (diverged histories), fails with clear instructions
+#
+# Why fast-forward?
+#   - `main` ends up on the SAME SHA as `develop` — zero divergence
+#   - No merge commits, no rebased SHAs, no history duplication
+#   - `git pull` on any local branch always works cleanly
+#
+# Requirements:
+#   - Only `GITHUB_TOKEN` — no PAT needed
+#   - `ci.yml` must exist and run on `develop` pushes
+#
+name: Auto Deploy develop → main
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: auto-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  fast-forward-main:
+    name: Fast-forward main to develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for CI to pass on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${GITHUB_SHA}"
+          echo "Waiting for CI workflow to complete on ${SHA}..."
+
+          # Find the CI run for this exact SHA
+          # Retry loop: CI may not have started yet
+          MAX_WAIT=1800  # 30 minutes max
+          POLL_INTERVAL=30
+          ELAPSED=0
+
+          while [ "$ELAPSED" -lt "$MAX_WAIT" ]; do
+            RUN_ID=$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --branch develop \
+              --json headSha,databaseId,status,conclusion \
+              --jq ".[] | select(.headSha == \"${SHA}\") | .databaseId" \
+              | head -1)
+
+            if [ -n "$RUN_ID" ]; then
+              echo "Found CI run #${RUN_ID} — watching until completion..."
+              # gh run watch blocks until the run finishes
+              gh run watch "$RUN_ID" \
+                --repo "$GITHUB_REPOSITORY" \
+                --exit-status \
+                && CI_OK=true || CI_OK=false
+
+              if [ "$CI_OK" = true ]; then
+                echo "✅ CI passed on ${SHA}"
+                break
+              else
+                echo "❌ CI failed on ${SHA} — aborting deploy."
+                exit 1
+              fi
+            fi
+
+            echo "CI run not found yet. Waiting ${POLL_INTERVAL}s... (${ELAPSED}s elapsed)"
+            sleep "$POLL_INTERVAL"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+
+          if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
+            echo "❌ Timed out waiting for CI run on ${SHA} after ${MAX_WAIT}s."
+            exit 1
+          fi
+
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fast-forward main to develop
+        run: |
+          git fetch origin main develop
+          git checkout main
+          git merge --ff-only "origin/develop"
+
+          if [ $? -ne 0 ]; then
+            echo ""
+            echo "══════════════════════════════════════════════════════════════"
+            echo "ERRO: develop divergiu de main — fast-forward não é possível."
+            echo ""
+            echo "Resolva localmente com:"
+            echo "  git fetch origin"
+            echo "  git rebase origin/main develop"
+            echo "  git push origin develop"
+            echo ""
+            echo "Depois, o próximo push em develop disparará este workflow."
+            echo "══════════════════════════════════════════════════════════════"
+            exit 1
+          fi
+
+          git push origin main
+          echo ""
+          echo "✅ main avançou via fast-forward para $(git rev-parse HEAD)"
+          echo "   develop e main agora apontam para o mesmo SHA."
