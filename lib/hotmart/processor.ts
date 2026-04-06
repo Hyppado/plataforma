@@ -2,6 +2,10 @@
  * lib/hotmart/processor.ts
  * Processa eventos Hotmart v2 e atualiza o estado interno.
  *
+ * Exports:
+ *  processHotmartEvent(webhookEventId, fields)  — entry point (retry wrapper)
+ *  handleApproved(webhookEventId, fields)       — dedicated PURCHASE_APPROVED handler
+ *
  * Eventos suportados:
  *  PURCHASE_APPROVED          — compra/renovação aprovada (recurrence_number > 1 = renovação)
  *  PURCHASE_COMPLETE          — compra concluída (após período antichargeback)
@@ -244,6 +248,218 @@ async function upsertSubscription(
 }
 
 // ---------------------------------------------------------------------------
+// Unresolved identity/plan — audit + admin notification
+// ---------------------------------------------------------------------------
+
+async function logUnresolved(
+  webhookEventId: string,
+  fields: HotmartWebhookFields,
+  reason: string,
+): Promise<void> {
+  await prisma.auditLog.create({
+    data: {
+      actorId: "system",
+      action: `WEBHOOK_${fields.eventType}_UNRESOLVED`,
+      entityType: "HotmartWebhookEvent",
+      entityId: webhookEventId,
+      after: {
+        reason,
+        buyerEmail: fields.buyerEmail,
+        subscriberCode: fields.subscriberCode,
+        productId: fields.productId,
+        planCode: fields.planCode,
+      },
+    },
+  });
+
+  await createNotificationIfNeeded({
+    eventType: "IDENTITY_UNRESOLVED",
+    email: fields.buyerEmail ?? fields.subscriberEmail,
+    reason,
+    eventId: webhookEventId,
+    metadata: {
+      eventType: fields.eventType,
+      buyerEmail: fields.buyerEmail,
+      subscriberCode: fields.subscriberCode,
+      productId: fields.productId,
+      planCode: fields.planCode,
+    },
+  }).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// PURCHASE_APPROVED — dedicated provisioning handler
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles PURCHASE_APPROVED — the main provisioning event.
+ *
+ * Steps:
+ *   A. Resolve or create the internal user + external account link
+ *   B. Reactivate INACTIVE user; warn admin if SUSPENDED
+ *   C. Resolve the internal plan mapping
+ *   D. Create or update Subscription + HotmartSubscription (via upsertSubscription)
+ *   E. Create payment/charge record (PAID)
+ *   F. Access is runtime-driven — no derived state to persist
+ *   G. Create audit trail (distinct action for new vs renewal)
+ *   H. Admin notification for first-time purchases only
+ *
+ * Idempotency:
+ *   - Webhook event dedup at persistence layer (idempotencyKey unique)
+ *   - Subscription upsert by external ID / subscriberCode
+ *   - Charge upsert by transactionId
+ *   - Notification dedup by SHA-256 dedupeKey
+ *
+ * Exported for testing and observability.
+ */
+export async function handleApproved(
+  webhookEventId: string,
+  fields: HotmartWebhookFields,
+): Promise<void> {
+  const isRenewal = (fields.recurrenceNumber ?? 1) > 1;
+
+  // A. Resolve or create the internal user + external account link
+  const identity = await resolveOrCreateIdentity(fields);
+  if (!identity) {
+    await logUnresolved(webhookEventId, fields, "identity_not_found");
+    await markProcessed(webhookEventId);
+    return;
+  }
+
+  // B. Reactivate INACTIVE user (purchasing implies intent to use)
+  //    SUSPENDED stays — admin must review before reactivation
+  if (identity.user.status === "INACTIVE") {
+    await prisma.user.update({
+      where: { id: identity.userId },
+      data: { status: "ACTIVE" },
+    });
+    await prisma.auditLog.create({
+      data: {
+        userId: identity.userId,
+        actorId: "system",
+        action: "USER_REACTIVATED_BY_PURCHASE",
+        entityType: "User",
+        entityId: identity.userId,
+        after: {
+          previousStatus: "INACTIVE",
+          newStatus: "ACTIVE",
+          trigger: "PURCHASE_APPROVED",
+          transactionId: fields.transactionId,
+        },
+      },
+    });
+  } else if (identity.user.status === "SUSPENDED") {
+    // Subscription will be created but access remains blocked at runtime.
+    // Notify admin to review.
+    await createNotificationIfNeeded({
+      eventType: "SUSPENDED_USER_PURCHASE",
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      transactionId: fields.transactionId,
+      planCode: fields.planCode,
+      userId: identity.userId,
+      eventId: webhookEventId,
+      metadata: {
+        eventType: fields.eventType,
+        amountCents: fields.amountCents,
+        productId: fields.productId,
+      },
+    }).catch((err) => {
+      log.warn("Failed to create suspended-user notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  // C. Resolve the internal plan
+  const plan = await resolvePlan(fields);
+  if (!plan) {
+    await logUnresolved(webhookEventId, fields, "plan_not_found");
+    await markProcessed(webhookEventId);
+    return;
+  }
+
+  // D. Create or update Subscription + HotmartSubscription
+  const subscriptionId = await upsertSubscription(
+    fields,
+    identity.userId,
+    plan.id,
+    "ACTIVE",
+  );
+
+  // E. Create payment/charge record
+  if (fields.transactionId) {
+    await prisma.subscriptionCharge.upsert({
+      where: { transactionId: fields.transactionId },
+      update: {
+        status: "PAID" as never,
+        amountCents: fields.amountCents,
+        currency: fields.currency ?? "BRL",
+        paidAt: fields.occurredAt ?? new Date(),
+      },
+      create: {
+        subscriptionId,
+        transactionId: fields.transactionId,
+        amountCents: fields.amountCents,
+        currency: fields.currency ?? "BRL",
+        status: "PAID" as never,
+        paidAt: fields.occurredAt ?? new Date(),
+        chargeAt: fields.occurredAt,
+      },
+    });
+  }
+
+  // F. Access — runtime-driven via resolveUserAccess() in lib/access/resolver.ts
+  //    Active subscription → FULL_ACCESS. No derived state to persist.
+
+  // G. Audit trail
+  await prisma.auditLog.create({
+    data: {
+      userId: identity.userId,
+      actorId: "system",
+      action: isRenewal
+        ? "WEBHOOK_PURCHASE_RENEWED"
+        : "WEBHOOK_PURCHASE_APPROVED",
+      entityType: "Subscription",
+      entityId: subscriptionId,
+      after: {
+        status: "ACTIVE",
+        eventType: fields.eventType,
+        transactionId: fields.transactionId,
+        recurrenceNumber: fields.recurrenceNumber,
+        planCode: fields.planCode,
+        amountCents: fields.amountCents,
+        isRenewal,
+      },
+    },
+  });
+
+  // H. Admin notification — first-time purchases only (renewals are routine)
+  if (!isRenewal) {
+    await createNotificationIfNeeded({
+      eventType: "SUBSCRIPTION_ACTIVATED",
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      transactionId: fields.transactionId,
+      planCode: fields.planCode,
+      userId: identity.userId,
+      subscriptionId,
+      eventId: webhookEventId,
+      metadata: {
+        eventType: fields.eventType,
+        recurrenceNumber: fields.recurrenceNumber,
+        amountCents: fields.amountCents,
+        productId: fields.productId,
+      },
+    }).catch((err) => {
+      log.warn("Failed to create activation notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  await markProcessed(webhookEventId);
+}
+
+// ---------------------------------------------------------------------------
 // Retry helper com backoff exponencial
 // ---------------------------------------------------------------------------
 
@@ -350,6 +566,12 @@ async function _processEvent(
       },
     });
     await markProcessed(webhookEventId);
+    return;
+  }
+
+  // PURCHASE_APPROVED — dedicated provisioning handler
+  if (eventType === "PURCHASE_APPROVED") {
+    await handleApproved(webhookEventId, fields);
     return;
   }
 
@@ -468,37 +690,11 @@ async function _processEvent(
       });
     }
   } else {
-    // Sem identidade ou plano resolvido — loga para investigação
-    await prisma.auditLog.create({
-      data: {
-        actorId: "system",
-        action: `WEBHOOK_${eventType}_UNRESOLVED`,
-        entityType: "HotmartWebhookEvent",
-        entityId: webhookEventId,
-        after: {
-          reason: !identity ? "identity_not_found" : "plan_not_found",
-          buyerEmail: fields.buyerEmail,
-          subscriberCode: fields.subscriberCode,
-          productId: fields.productId,
-          planCode: fields.planCode,
-        },
-      },
-    });
-
-    // Notifica admin sobre identidade não resolvida
-    await createNotificationIfNeeded({
-      eventType: "IDENTITY_UNRESOLVED",
-      email: fields.buyerEmail ?? fields.subscriberEmail,
-      reason: !identity ? "identity_not_found" : "plan_not_found",
-      eventId: webhookEventId,
-      metadata: {
-        eventType,
-        buyerEmail: fields.buyerEmail,
-        subscriberCode: fields.subscriberCode,
-        productId: fields.productId,
-        planCode: fields.planCode,
-      },
-    }).catch(() => {});
+    await logUnresolved(
+      webhookEventId,
+      fields,
+      !identity ? "identity_not_found" : "plan_not_found",
+    );
   }
 
   await markProcessed(webhookEventId);

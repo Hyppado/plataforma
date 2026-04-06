@@ -88,6 +88,22 @@ export const NOTIFICATION_RULES: Record<string, NotificationRule> = {
     messageTemplate:
       "Evento {eventType} de {email}: não foi possível resolver identidade ou plano.",
   },
+
+  // Nova compra aprovada (primeira aquisição — provisioning event)
+  SUBSCRIPTION_ACTIVATED: {
+    severity: "INFO",
+    title: "Nova assinatura ativada",
+    messageTemplate:
+      "Compra aprovada para {email} — plano {planCode}. Transação {transactionId}.",
+  },
+
+  // Compra aprovada para usuário suspenso (requer atenção do admin)
+  SUSPENDED_USER_PURCHASE: {
+    severity: "WARNING",
+    title: "Compra de usuário suspenso",
+    messageTemplate:
+      "Compra aprovada para {email} (conta suspensa). Transação {transactionId}. Verificar situação.",
+  },
 };
 
 // Mapeamento eventType do Hotmart → tipo de notificação
