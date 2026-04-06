@@ -83,6 +83,7 @@ app/
     auth/          → NextAuth handlers
     cron/          → cron endpoints (echotik, hotmart reconcile, transcribe)
     echotik/       → Echotik data endpoints
+    insights/      → on-demand video insight (POST + GET [videoExternalId])
     me/            → authenticated user profile
     proxy/         → external image proxy
     regions/       → active regions
@@ -94,13 +95,17 @@ app/
   components/
     BrandLogo.tsx  → responsive logo component (uses next/image)
     admin/         → admin area components
+      echotik/       → EchotikTab (region, health, config)
+      hotmart/       → HotmartTab (product ID, webhook, import)
+      notifications/ → NotificationsTab (admin notification inbox)
+      openai/        → OpenAITab (API key mgmt)
     cards/         → video, product, creator, rank cards
     dashboard/     → authenticated dashboard components
     filters/       → CategoryFilter, TimeRangeSelect etc.
     landing/       → landing page components
     layout/        → shared layout (sidebar, header)
     ui/            → reusable primitives (Logo, etc.)
-    videos/        → video-specific components
+    videos/        → video-specific components (TranscriptDialog, InsightDialog)
   dashboard/       → authenticated pages (/dashboard/*)
     admin/         → admin panel pages
     config/        → user settings
@@ -121,6 +126,7 @@ lib/
     config.ts      → admin config (quota policy, prompt templates, model settings)
     notifications.ts  → createNotificationIfNeeded, createDirectNotification, NOTIFICATION_RULES
     useQuotaUsage.ts
+  crypto.ts        → AES-256-GCM encrypt/decrypt for secret settings
   auth.ts          → NextAuth config + callbacks
   categories.ts    → category mapping
   echotik/
@@ -148,6 +154,10 @@ lib/
     reconcile.ts       → subscription reconciliation
     import-subscribers.ts → bulk subscriber import
     webhook.ts
+  insight/           → on-demand AI video insight system
+    index.ts       → public re-exports
+    service.ts     → requestInsight, getInsight
+    generate.ts    → generateInsight, parseInsightResponse (OpenAI Chat Completions)
   lgpd/            → consent and personal data (GDPR)
     erasure.ts     → data erasure request handling
   logger.ts        → createLogger(source, correlationId) → structured Logger
@@ -156,12 +166,11 @@ lib/
   settings.ts      → database-backed configuration + secret encryption helpers
   storage/         → file storage
     saved.ts
-  transcription/   → on-demand video transcription system
+  transcription/   → on-demand video transcription system (Whisper-only pipeline)
     index.ts       → public re-exports
-    service.ts     → requestTranscript, getTranscript, processPendingTranscripts
-    media.ts       → Echotik captions retrieval + subtitle parsing (SRT/VTT/JSON)
-    whisper.ts     → OpenAI Whisper API integration (for future audio transcription)
-  crypto.ts        → AES-256-GCM encrypt/decrypt for secret settings
+    service.ts     → requestTranscript, getTranscript, processPendingTranscripts, detectHallucination
+    media.ts       → Echotik download URL retrieval + video buffer download
+    whisper.ts     → OpenAI Whisper API transcription (active)
   swr/
     fetcher.ts     → default SWR fetcher
     useCategories.ts
@@ -186,18 +195,19 @@ __tests__/
     factories.ts   → test data factories
     prisma-mock.ts → Prisma mock setup
   api/
-    admin/         → admin route tests (10 files)
+    admin/         → admin route tests (12 files)
       access-grants.test.ts
       audit-logs.test.ts
       echotik-config.test.ts
       echotik-health.test.ts
       echotik-regions.test.ts
+      echotik-tab-integration.test.ts
       notifications.test.ts
+      openai-settings.test.ts
       plans.test.ts
       subscribers.test.ts
       subscription-metrics.test.ts
       users.test.ts
-      openai-settings.test.ts
     cron/
       echotik.test.ts
       hotmart-reconcile.test.ts
@@ -247,6 +257,9 @@ __tests__/
       processor.test.ts
       reconcile.test.ts
       webhook.test.ts
+    insight/
+      generate.test.ts
+      service.test.ts
     lgpd/
       erasure.test.ts
     transcription/
@@ -328,8 +341,18 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 
 - **VideoTranscript** — on-demand video transcript (one per videoExternalId, shared globally)
   - Status lifecycle: PENDING → PROCESSING → READY | FAILED
-  - Source: "echotik" (captions) or "openai" (Whisper, future)
+  - Source: "openai" (Whisper) — fully synchronous pipeline
+  - Pipeline: Echotik download-url → download video → OpenAI Whisper → hallucination check
   - Stores plain text + optional JSONB segments with timestamps
+
+### Domain 9 — Video Insights
+
+- **VideoInsight** — user-specific AI insight generated from a video transcript (one per user per video)
+  - Status lifecycle: PENDING → PROCESSING → READY | FAILED
+  - Structured output: contextText, hookText, problemText, solutionText, ctaText, copyWorkedText
+  - Stores rawResponseJson (debug), promptVersion, tokensUsed
+  - Relations: User (cascade delete)
+  - Unique constraint: `[userId, videoExternalId]`
 
 ### Key Enums
 
@@ -346,6 +369,7 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 - `PlanPeriod`: MONTHLY, ANNUAL
 - `UsageEventType`: TRANSCRIPT, SCRIPT, INSIGHT
 - `TranscriptStatus`: PENDING, PROCESSING, READY, FAILED
+- `InsightStatus`: PENDING, PROCESSING, READY, FAILED
 
 ## Mandatory Code Rules
 
@@ -476,20 +500,20 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
 ## Transcription System
 
 On-demand video transcription, shared globally per `videoExternalId`.
+Fully synchronous — user clicks "Transcrever" and gets the result within the same request.
 
 - **Service**: `lib/transcription/service.ts`
-  - `requestTranscript(videoExternalId, userId)` — creates PENDING, tries Echotik captions immediately
+  - `requestTranscript(videoExternalId, userId)` — synchronous pipeline: download + Whisper + hallucination check
   - `getTranscript(videoExternalId)` — returns current status/content
-  - `processPendingTranscripts()` — cron batch processor (BATCH_SIZE=5, MAX_RETRIES=3)
-- **Media**: `lib/transcription/media.ts` — retrieves captions from Echotik `/realtime/video/captions`
-  - Prefers Portuguese → English → first available caption track
-  - Parses JSON, SRT, and VTT subtitle formats to plain text
-- **Whisper**: `lib/transcription/whisper.ts` — OpenAI Whisper API (future fallback when audio URLs available)
+  - `processPendingTranscripts()` — cron batch processor for retrying FAILED records
+  - `detectHallucination(text)` — detects music-only Whisper outputs
+- **Media**: `lib/transcription/media.ts` — retrieves download URLs from Echotik `/realtime/video/download-url` + downloads video buffer
+- **Whisper**: `lib/transcription/whisper.ts` — OpenAI Whisper API transcription (active, primary method)
 - **Encryption**: `lib/crypto.ts` — AES-256-GCM for secret settings (OpenAI API key)
 - **API Routes**:
   - `POST /api/transcripts` — request transcript (consumes TRANSCRIPT quota)
   - `GET /api/transcripts/[videoExternalId]` — get status/content
-  - `GET /api/cron/transcribe` — cron processor (auth by CRON_SECRET)
+  - `GET /api/cron/transcribe` — cron processor for FAILED retries (auth by CRON_SECRET)
   - `GET/POST /api/admin/settings/openai` — admin OpenAI key management
   - `POST /api/admin/settings/openai/test` — validate OpenAI key
 - **Frontend**: `TranscriptDialog` in `app/components/videos/`, integrated into `VideoCard`
@@ -498,7 +522,66 @@ On-demand video transcription, shared globally per `videoExternalId`.
   - Transcripts are global — one record per video, shared across all users
   - Quota is consumed only for new requests, not reuses of existing transcripts
   - OpenAI key is server-side only — never sent to the browser
+  - Pipeline is Whisper-only — Echotik captions were removed from the flow
+  - Hallucination detection rejects music-only Whisper outputs
   - New transcript sources must follow the same status lifecycle (PENDING → PROCESSING → READY | FAILED)
+
+## Insight System
+
+On-demand AI video insights (Insight Hyppado), per-user per-video.
+Fully synchronous — user clicks "Gerar Insight" and gets structured analysis within the same request.
+Depends on a transcript existing (auto-generates one if needed).
+
+- **Service**: `lib/insight/service.ts`
+  - `requestInsight(videoExternalId, userId)` — synchronous pipeline: ensure transcript → OpenAI → parse → save
+  - `getInsight(videoExternalId, userId)` — returns current status/content for this user
+- **Generate**: `lib/insight/generate.ts` — OpenAI Chat Completions with structured output
+  - `generateInsight(transcriptText, promptTemplate)` — calls OpenAI, returns raw response
+  - `parseInsightResponse(content)` — parses JSON sections with `tryRepairTruncatedJson` fallback
+  - Output sections: contexto, gancho, problema, solução, CTA, roteiro reutilizável
+- **Index**: `lib/insight/index.ts` — public re-exports
+- **API Routes**:
+  - `POST /api/insights` — request insight (consumes SCRIPT quota)
+  - `GET /api/insights/[videoExternalId]` — get status/content for authenticated user
+- **Frontend**: `InsightDialog` in `app/components/videos/`, integrated into `VideoCard`
+- **Prompt Config**: admin-configurable prompt template via `lib/admin/config.ts` → `getPromptConfigFromDB()`
+- **Rules**:
+  - Insights are per-user — one `VideoInsight` per `(userId, videoExternalId)`, unlike shared transcripts
+  - Transcript is a prerequisite — auto-generated if missing
+  - Quota is consumed from the SCRIPT allocation, not a separate INSIGHT quota
+  - Structured output is stored as individual text columns, not a single blob
+  - `rawResponseJson` stored for debug; `promptVersion` and `tokensUsed` tracked
+  - New insight types must follow the same status lifecycle (PENDING → PROCESSING → READY | FAILED)
+
+## Admin Notifications
+
+Notifications generated by Hotmart events and system processes, visible to admins in the config panel.
+
+- **Service**: `lib/admin/notifications.ts`
+  - `NOTIFICATION_RULES` — maps 7 event types to severity/title/message templates
+  - `EVENT_TO_NOTIFICATION_TYPE` — maps Hotmart event names to notification types
+  - `buildDedupeKey()` — SHA-256 deterministic deduplication
+  - `createNotificationIfNeeded(ctx)` — rule-based creation with dedup (called from `lib/hotmart/processor.ts`)
+  - `createDirectNotification(type, overrides)` — for cron/reconciliation use
+- **API Routes** (all admin-only via `requireAdmin()`):
+  - `GET /api/admin/notifications` — paginated list with status/severity/type filters
+  - `PATCH /api/admin/notifications` — bulk status update (READ/ARCHIVED/UNREAD)
+  - `PATCH /api/admin/notifications/[id]` — single notification status update
+  - `GET /api/admin/notifications/summary` — returns `{ unread, critical, total }`
+  - `GET /api/admin/webhook-events` — paginated webhook event list with filters
+  - `POST /api/admin/webhook-events` — replay webhook event
+- **Frontend**: `NotificationsTab` in `app/components/admin/notifications/`, mounted in config page (tab 4)
+  - SWR-powered inbox with 30s auto-refresh
+  - Filters: status (all/unread/read/archived), severity color coding
+  - Actions: mark read/unread, archive (single + bulk "mark all read")
+  - Expandable details: user, subscription, Hotmart event, metadata
+  - Summary badges: unread count, critical count
+  - Recent Hotmart webhook events section for test validation
+- **Rules**:
+  - Notifications dedup by `dedupeKey` (SHA-256) — same event won't create duplicates
+  - `processor.ts` calls `createNotificationIfNeeded()` at 3 integration points
+  - Frontend is admin-only — config page requires ADMIN role
+  - No raw payload exposure in the UI
 
 ## Logs and Observability
 
@@ -552,9 +635,9 @@ On-demand video transcription, shared globally per `videoExternalId`.
 
 ### Current Counts (reference — April 2026)
 
-- **~501+ unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **586 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
 - **46 component tests** (vitest, jsdom env, `__tests__/components/`)
-- **Total: ~547+ tests**, all passing
+- **Total: 632 tests**, all passing
 - Run `npm run test:all` to get exact current count
 
 ### Vitest Configs
@@ -718,7 +801,7 @@ Always use "Rebase and merge" — no merge commits, no sync workflow needed.
 ## Mandatory Validation Before Marking a Task as Done
 
 - Run `npm run build` and confirm exit code 0.
-- Run `npm run test:all` and confirm that all tests pass (currently ~547+).
+- Run `npm run test:all` and confirm that all tests pass (currently 632+).
 - If the build or tests break, fix before committing.
 - This applies to any change: refactoring, file removal, new feature, fix.
 
