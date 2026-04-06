@@ -5,10 +5,10 @@
  * This script provides CLI argument parsing and a human-readable summary.
  *
  * Environment variables:
- *   PROD_DATABASE_URL  — read-only connection string to production Neon DB
- *   DATABASE_URL       — pooled connection to the preview Neon DB (already in .env)
+ *   PROD_DATABASE_URL       — production DB (source). Falls back to DATABASE_URL.
+ *   PREVIEW_DATABASE_URL    — preview/dev DB (target).
  *
- * ⚠️  NEVER commit PROD_DATABASE_URL to any file — use it only as a shell export
+ * ⚠️  NEVER commit database URLs to any file — use them only as shell exports
  *     or a secrets manager at runtime.
  *
  * Usage:
@@ -157,13 +157,15 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(JSON.stringify({
-    ts: new Date().toISOString(),
-    level: "error",
-    source: "sync-db",
-    msg: "Unhandled error",
-    error: err instanceof Error ? err.message : String(err),
-    stack: err instanceof Error ? err.stack : undefined,
-  }));
+  console.error(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: "error",
+      source: "sync-db",
+      msg: "Unhandled error",
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    }),
+  );
   process.exit(1);
 });

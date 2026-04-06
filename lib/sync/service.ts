@@ -2,11 +2,16 @@
  * lib/sync/service.ts — Prod→preview database sync service
  *
  * Environment variables:
- *   PROD_DATABASE_URL  — read-only pooled connection to production Neon DB
- *   DATABASE_URL       — pooled connection to the preview Neon DB
+ *   DATABASE_URL            — production database (source) — already set by Vercel
+ *   PREVIEW_DATABASE_URL    — preview/dev database (target) — set in Vercel prod env
  *
- * ⚠️  NEVER commit PROD_DATABASE_URL to any file — configure it only in
- *     Vercel environment variables (preview deployment) or as a shell export.
+ * For CLI usage (scripts/sync-db.ts):
+ *   PROD_DATABASE_URL       — overrides the source if set (backwards compat)
+ *   DATABASE_URL             — falls back to source if PROD_DATABASE_URL is unset
+ *   PREVIEW_DATABASE_URL    — target database
+ *
+ * ⚠️  NEVER commit database URLs to any file — configure them only in
+ *     Vercel environment variables or as shell exports.
  *
  * This module is used by:
  *   - app/api/cron/sync-db/route.ts  (Vercel Cron — daily at 06:00 UTC)
@@ -171,16 +176,20 @@ export async function runSync(options: SyncOptions): Promise<SyncSummary> {
   const startMs = Date.now();
 
   // Validate env
-  const prodUrl = process.env.PROD_DATABASE_URL;
-  const previewUrl = process.env.DATABASE_URL;
+  // Source: PROD_DATABASE_URL (CLI) or DATABASE_URL (Vercel prod)
+  const prodUrl = process.env.PROD_DATABASE_URL ?? process.env.DATABASE_URL;
+  // Target: always PREVIEW_DATABASE_URL
+  const previewUrl = process.env.PREVIEW_DATABASE_URL;
 
   if (!prodUrl) {
     throw new Error(
-      "PROD_DATABASE_URL is not set — cannot connect to production",
+      "Neither PROD_DATABASE_URL nor DATABASE_URL is set — cannot connect to production",
     );
   }
   if (!previewUrl) {
-    throw new Error("DATABASE_URL is not set — cannot connect to preview");
+    throw new Error(
+      "PREVIEW_DATABASE_URL is not set — cannot connect to preview",
+    );
   }
 
   // Determine which tables to sync

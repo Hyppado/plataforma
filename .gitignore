@@ -9,6 +9,13 @@ node_modules/
 .env.test
 .env.test.local
 .env.prod
+.env.cleanup
+.env.preview
+.env.production
+
+# Local-only scripts
+Makefile
+scripts/cleanup-members.ts
 
 # Build output
 out/
@@ -20,4 +27,3 @@ coverage/
 # SQLite dev databases (if used locally)
 prisma/*.db
 prisma/*.db-journal
-.env.production

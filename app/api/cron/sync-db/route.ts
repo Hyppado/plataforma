@@ -4,8 +4,14 @@
  * Daily prod→preview database sync (06:00 UTC = 03:00 BRT).
  * Copies Echotik data as-is and user/billing data with PII masking.
  *
- * This route runs ONLY on the preview environment.
- * In production, it returns early with a 200 and a skip message.
+ * Vercel only triggers cron jobs on the production deployment, so this
+ * route runs IN production and writes TO the preview database using
+ * PREVIEW_DATABASE_URL (configured as env var in Vercel → Production).
+ *
+ * Required env vars (Production scope):
+ *   CRON_SECRET           — bearer token for cron auth
+ *   PREVIEW_DATABASE_URL  — unpooled connection string to the preview/dev Neon DB
+ *   DATABASE_URL          — used as the production source (already set by Vercel)
  *
  * Auth: CRON_SECRET via Bearer token (same pattern as other cron routes).
  *
@@ -28,15 +34,14 @@ export async function GET(request: NextRequest) {
   const log = createLogger("cron/sync-db");
 
   // -----------------------------------------------------------------------
-  // 0. Guard: only run on preview — never in production
+  // 0. Guard: PREVIEW_DATABASE_URL must be configured
   // -----------------------------------------------------------------------
-  if (process.env.VERCEL_ENV === "production") {
-    log.info("Skipping sync-db — running in production environment");
-    return NextResponse.json({
-      ok: true,
-      skipped: true,
-      reason: "sync-db only runs on preview environment",
-    });
+  if (!process.env.PREVIEW_DATABASE_URL) {
+    log.error("PREVIEW_DATABASE_URL not configured — cannot sync");
+    return NextResponse.json(
+      { ok: false, error: "PREVIEW_DATABASE_URL not configured" },
+      { status: 500 },
+    );
   }
 
   // -----------------------------------------------------------------------
