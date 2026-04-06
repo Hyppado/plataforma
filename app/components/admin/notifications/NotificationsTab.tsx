@@ -88,25 +88,6 @@ interface SummaryResponse {
   total: number;
 }
 
-interface WebhookEvent {
-  id: string;
-  eventType: string;
-  processingStatus: string;
-  buyerEmail: string | null;
-  subscriberCode: string | null;
-  transactionId: string | null;
-  amountCents: number | null;
-  occurredAt: string | null;
-  receivedAt: string;
-  processedAt: string | null;
-  errorMessage: string | null;
-}
-
-interface WebhookEventsResponse {
-  events: WebhookEvent[];
-  pagination: { page: number; total: number; totalPages: number };
-}
-
 type StatusFilter = "UNREAD" | "READ" | "ARCHIVED" | "ALL";
 
 // ---------------------------------------------------------------------------
@@ -149,14 +130,6 @@ const SEVERITY_CONFIG: Record<
     color: "#2DD4FF",
     label: "Info",
   },
-};
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  RECEIVED: { label: "Recebido", color: "#2DD4FF" },
-  PROCESSING: { label: "Processando", color: "#ffc107" },
-  PROCESSED: { label: "Processado", color: "#2ecc71" },
-  FAILED: { label: "Falhou", color: "#f44336" },
-  DUPLICATE: { label: "Duplicado", color: "rgba(255,255,255,0.4)" },
 };
 
 function formatDatetime(iso: string): string {
@@ -479,93 +452,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Recent Webhook Events (compact)
-// ---------------------------------------------------------------------------
-
-function RecentWebhookEvents() {
-  const { data, isLoading } = useSWR<WebhookEventsResponse>(
-    "/api/admin/webhook-events?limit=10",
-    fetcher,
-    { refreshInterval: 30_000 },
-  );
-
-  if (isLoading) return <LinearProgress sx={{ my: 1 }} />;
-  if (!data?.events?.length) {
-    return (
-      <Typography
-        variant="body2"
-        sx={{ color: "rgba(255,255,255,0.4)", py: 2, textAlign: "center" }}
-      >
-        Nenhum evento recente.
-      </Typography>
-    );
-  }
-
-  return (
-    <Stack divider={<Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />}>
-      {data.events.map((evt) => {
-        const st =
-          STATUS_CONFIG[evt.processingStatus] ?? STATUS_CONFIG.RECEIVED;
-        return (
-          <Stack
-            key={evt.id}
-            direction="row"
-            alignItems="center"
-            spacing={1.5}
-            sx={{ py: 1, px: 0.5 }}
-          >
-            <Chip
-              label={st.label}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: "0.68rem",
-                fontWeight: 600,
-                background: `${st.color}18`,
-                color: st.color,
-                border: `1px solid ${st.color}33`,
-                minWidth: 80,
-              }}
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                color: "rgba(255,255,255,0.7)",
-                fontSize: "0.8rem",
-                flex: 1,
-              }}
-            >
-              {formatEventType(evt.eventType)}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.72rem" }}
-            >
-              {evt.buyerEmail ?? "—"}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: "rgba(255,255,255,0.35)",
-                fontSize: "0.72rem",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {formatDatetime(evt.receivedAt)}
-            </Typography>
-            {evt.errorMessage && (
-              <Tooltip title={evt.errorMessage}>
-                <ErrorIcon sx={{ fontSize: 14, color: "#f44336" }} />
-              </Tooltip>
-            )}
-          </Stack>
-        );
-      })}
-    </Stack>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -804,26 +690,6 @@ export function NotificationsTab() {
           />
         </Box>
       )}
-
-      {/* Recent Hotmart Events — helps testing */}
-      <Card sx={cardStyle}>
-        <CardContent>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: 600, color: "#fff", mb: 1 }}
-          >
-            Eventos Hotmart recentes
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ color: "rgba(255,255,255,0.4)", display: "block", mb: 1.5 }}
-          >
-            Últimos webhooks recebidos — útil para validar o fluxo com eventos
-            de teste.
-          </Typography>
-          <RecentWebhookEvents />
-        </CardContent>
-      </Card>
     </Box>
   );
 }

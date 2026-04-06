@@ -3,11 +3,13 @@
 import { useState, useCallback, useTransition } from "react";
 import useSWR from "swr";
 import {
+  Alert,
   Box,
   Button,
   Card,
   CardContent,
   CardHeader,
+  Chip,
   Grid,
   LinearProgress,
   Skeleton,
@@ -18,9 +20,8 @@ import {
 import {
   Check as CheckIcon,
   ContentCopy,
-  GroupAdd as GroupAddIcon,
+  Inventory2Outlined,
   Save as SaveIcon,
-  SettingsOutlined,
   Webhook as WebhookIcon,
 } from "@mui/icons-material";
 
@@ -28,29 +29,31 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface Setting {
-  key: string;
-  value: string;
-  label: string | null;
-  group: string;
-  type: string;
+interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  displayPrice: string | null;
+  priceAmount: number;
+  periodicity: "MONTHLY" | "ANNUAL";
+  isActive: boolean;
+  hotmartProductId: string | null;
+  hotmartPlanCode: string | null;
+  hotmartOfferCode: string | null;
+  transcriptsPerMonth: number;
+  scriptsPerMonth: number;
 }
 
-interface SettingsResponse {
-  settings: Setting[];
+interface PlansResponse {
+  plans: Plan[];
 }
 
-interface ImportResult {
-  success: boolean;
-  message?: string;
-  error?: string;
-  data?: {
-    imported: number;
-    skipped: number;
-    errors: number;
-    total: number;
-    details: string[];
-  };
+/** Hotmart fields being edited, keyed by plan id */
+interface EditState {
+  hotmartProductId: string;
+  hotmartPlanCode: string;
+  hotmartOfferCode: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -162,72 +165,273 @@ function WebhookEndpointCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Plan Mapping Card
+// ---------------------------------------------------------------------------
+
+function PlanMappingCard({
+  plan,
+  editing,
+  saving,
+  saved,
+  onChange,
+  onSave,
+}: {
+  plan: Plan;
+  editing: EditState;
+  saving: boolean;
+  saved: boolean;
+  onChange: (field: keyof EditState, value: string) => void;
+  onSave: () => void;
+}) {
+  const hasChanges =
+    editing.hotmartProductId !== (plan.hotmartProductId ?? "") ||
+    editing.hotmartPlanCode !== (plan.hotmartPlanCode ?? "") ||
+    editing.hotmartOfferCode !== (plan.hotmartOfferCode ?? "");
+
+  const isMapped = !!plan.hotmartProductId;
+
+  return (
+    <Card sx={cardStyle}>
+      <CardHeader
+        title={
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              {plan.name}
+            </Typography>
+            <Chip
+              label={plan.code}
+              size="small"
+              sx={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                background: "rgba(45,212,255,0.1)",
+                color: "#2DD4FF",
+                border: "1px solid rgba(45,212,255,0.2)",
+                height: 22,
+              }}
+            />
+            <Chip
+              label={plan.periodicity === "MONTHLY" ? "Mensal" : "Anual"}
+              size="small"
+              sx={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                background: "rgba(255,255,255,0.05)",
+                color: "rgba(255,255,255,0.5)",
+                height: 22,
+              }}
+            />
+            {!plan.isActive && (
+              <Chip
+                label="Inativo"
+                size="small"
+                sx={{
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  background: "rgba(244,67,54,0.1)",
+                  color: "#f44336",
+                  height: 22,
+                }}
+              />
+            )}
+            <Chip
+              label={isMapped ? "Mapeado" : "Não mapeado"}
+              size="small"
+              sx={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                background: isMapped
+                  ? "rgba(46,204,113,0.1)"
+                  : "rgba(255,193,7,0.1)",
+                color: isMapped ? "#2ecc71" : "#ffc107",
+                border: `1px solid ${isMapped ? "rgba(46,204,113,0.2)" : "rgba(255,193,7,0.2)"}`,
+                height: 22,
+              }}
+            />
+          </Stack>
+        }
+        subheader={
+          <Typography
+            variant="body2"
+            sx={{ color: "rgba(255,255,255,0.4)", mt: 0.5 }}
+          >
+            {plan.displayPrice} — {plan.transcriptsPerMonth} transcrições /{" "}
+            {plan.scriptsPerMonth} insights por mês
+          </Typography>
+        }
+        sx={{
+          "& .MuiCardHeader-subheader": { color: "rgba(255,255,255,0.4)" },
+          pb: 1,
+        }}
+      />
+      <CardContent sx={{ pt: 0 }}>
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={2}>
+            <TextField
+              label="Product ID"
+              size="small"
+              fullWidth
+              value={editing.hotmartProductId}
+              onChange={(e) => onChange("hotmartProductId", e.target.value)}
+              placeholder="Ex: 7420891"
+              helperText="ID do produto na Hotmart"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  background: "rgba(255,255,255,0.03)",
+                },
+              }}
+            />
+            <TextField
+              label="Plan Code"
+              size="small"
+              fullWidth
+              value={editing.hotmartPlanCode}
+              onChange={(e) => onChange("hotmartPlanCode", e.target.value)}
+              placeholder="Ex: plano1"
+              helperText="planCode do payload do webhook"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  background: "rgba(255,255,255,0.03)",
+                },
+              }}
+            />
+            <TextField
+              label="Offer Code"
+              size="small"
+              fullWidth
+              value={editing.hotmartOfferCode}
+              onChange={(e) => onChange("hotmartOfferCode", e.target.value)}
+              placeholder="Ex: abc123"
+              helperText="Código da oferta (fallback)"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  background: "rgba(255,255,255,0.03)",
+                },
+              }}
+            />
+          </Stack>
+
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Button
+              variant="contained"
+              size="small"
+              disabled={!hasChanges || saving}
+              startIcon={saved ? <CheckIcon /> : <SaveIcon />}
+              onClick={onSave}
+              sx={{
+                background: saved
+                  ? "#2ecc71"
+                  : hasChanges
+                    ? "#2DD4FF"
+                    : undefined,
+                color: "#0a0f18",
+                fontWeight: 700,
+                "&:hover": {
+                  background: saved ? "#27ae60" : "#1bb8e0",
+                },
+              }}
+            >
+              {saving ? "Salvando…" : saved ? "Salvo" : "Salvar mapeamento"}
+            </Button>
+            {saved && (
+              <Typography
+                variant="caption"
+                sx={{ color: "#2ecc71", fontSize: "0.72rem" }}
+              >
+                Mapeamento atualizado com sucesso
+              </Typography>
+            )}
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function HotmartTab() {
-  const settingsSWR = useSWR<SettingsResponse>("/api/admin/settings", fetcher);
+  const plansSWR = useSWR<PlansResponse>("/api/admin/plans", fetcher);
 
-  const hotmartSettings = settingsSWR.data?.settings.filter(
-    (s) => s.group === "hotmart",
+  const [edits, setEdits] = useState<Record<string, EditState>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const getEditState = useCallback(
+    (plan: Plan): EditState =>
+      edits[plan.id] ?? {
+        hotmartProductId: plan.hotmartProductId ?? "",
+        hotmartPlanCode: plan.hotmartPlanCode ?? "",
+        hotmartOfferCode: plan.hotmartOfferCode ?? "",
+      },
+    [edits],
   );
 
-  const currentProductId =
-    hotmartSettings?.find((s) => s.key === "hotmart.product_id")?.value ?? "";
+  const handleChange = useCallback(
+    (planId: string, plan: Plan, field: keyof EditState, value: string) => {
+      setEdits((prev) => ({
+        ...prev,
+        [planId]: {
+          ...getEditState(plan),
+          [field]: value,
+        },
+      }));
+    },
+    [getEditState],
+  );
 
-  const [productId, setProductId] = useState<string | null>(null);
-  const [saving, startSaving] = useTransition();
-  const [saved, setSaved] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const handleSave = useCallback(
+    async (planId: string) => {
+      const editState = edits[planId];
+      if (!editState) return;
 
-  // Use local state if edited, otherwise use the SWR value
-  const displayValue = productId ?? currentProductId;
-  const hasChanges = productId !== null && productId !== currentProductId;
+      setSavingId(planId);
+      setSavedId(null);
+      setError(null);
 
-  const handleSave = useCallback(() => {
-    if (!productId) return;
-    setSaved(false);
-    startSaving(async () => {
-      const res = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "hotmart.product_id",
-          value: productId.trim(),
-          label: "ID do Produto Hotmart",
-          group: "hotmart",
-          type: "text",
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { error?: string };
-        throw new Error(body.error ?? "Erro ao salvar");
+      try {
+        const res = await fetch("/api/admin/plans", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: planId,
+            hotmartProductId: editState.hotmartProductId || null,
+            hotmartPlanCode: editState.hotmartPlanCode || null,
+            hotmartOfferCode: editState.hotmartOfferCode || null,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? `Erro ao salvar (${res.status})`);
+        }
+
+        startTransition(() => {
+          setSavedId(planId);
+          setSavingId(null);
+          setEdits((prev) => {
+            const next = { ...prev };
+            delete next[planId];
+            return next;
+          });
+        });
+
+        await plansSWR.mutate();
+        setTimeout(() => setSavedId(null), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setSavingId(null);
       }
-      await settingsSWR.mutate();
-      setProductId(null);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    });
-  }, [productId, settingsSWR]);
+    },
+    [edits, plansSWR],
+  );
 
-  const handleImport = useCallback(async () => {
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const res = await fetch("/api/admin/import-subscribers", {
-        method: "POST",
-      });
-      const body = (await res.json()) as ImportResult;
-      setImportResult(body);
-    } catch {
-      setImportResult({ success: false, error: "Erro de rede" });
-    } finally {
-      setImporting(false);
-    }
-  }, []);
-
-  const isLoading = settingsSWR.isLoading;
+  const plans = plansSWR.data?.plans ?? [];
+  const isLoading = plansSWR.isLoading;
 
   return (
     <Box>
@@ -239,176 +443,87 @@ export function HotmartTab() {
           Hotmart — Configuração
         </Typography>
         <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
-          ID do produto e importação de assinantes.
+          Webhook, mapeamento de planos e integração com a Hotmart.
         </Typography>
       </Box>
 
       {isLoading && <LinearProgress sx={{ mb: 2 }} />}
 
-      <Grid container spacing={3}>
-        {/* Product ID config */}
-        <Grid item xs={12} md={6}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<SettingsOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Produto"
-              subheader="ID do produto Hotmart vinculado à plataforma"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-            />
-            <CardContent>
-              <Stack spacing={2}>
-                {isLoading ? (
-                  <Skeleton variant="rounded" height={40} />
-                ) : (
-                  <TextField
-                    label="Product ID"
-                    value={displayValue}
-                    onChange={(e) => setProductId(e.target.value)}
-                    size="small"
-                    fullWidth
-                    placeholder="Ex: 7420891"
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        background: "rgba(0,0,0,0.2)",
-                      },
-                    }}
-                  />
-                )}
-                <Button
-                  variant="contained"
-                  startIcon={saved ? <CheckIcon /> : <SaveIcon />}
-                  disabled={!hasChanges || saving}
-                  onClick={handleSave}
-                  sx={{
-                    background: saved
-                      ? "rgba(46, 204, 113, 0.2)"
-                      : hasChanges
-                        ? "linear-gradient(135deg, #2DD4FF 0%, #1B8DFF 100%)"
-                        : "rgba(255,255,255,0.06)",
-                    color: saved ? "#2ecc71" : "#fff",
-                    "&:hover": {
-                      background: saved
-                        ? "rgba(46, 204, 113, 0.3)"
-                        : "linear-gradient(135deg, #1B8DFF 0%, #2DD4FF 100%)",
-                    },
-                    "&.Mui-disabled": {
-                      background: "rgba(255,255,255,0.06)",
-                      color: "rgba(255,255,255,0.3)",
-                    },
-                  }}
-                >
-                  {saving ? "Salvando..." : saved ? "Salvo" : "Salvar"}
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
+      <Grid container spacing={3}>
         {/* Webhook endpoint */}
         <Grid item xs={12} md={6}>
           <WebhookEndpointCard />
         </Grid>
-
-        {/* Import subscribers card */}
-        <Grid item xs={12}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<GroupAddIcon sx={{ color: "#2DD4FF" }} />}
-              title="Importar Assinantes"
-              subheader="Importa assinantes existentes do Hotmart para o banco local"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-            />
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: "rgba(255,255,255,0.6)" }}
-                >
-                  Recupera todos os assinantes do produto no Hotmart e cria os
-                  registros de usuário e assinatura localmente. Registros já
-                  existentes são ignorados (idempotente).
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<GroupAddIcon />}
-                  disabled={importing || !currentProductId}
-                  onClick={handleImport}
-                  sx={{
-                    background:
-                      "linear-gradient(135deg, #2DD4FF 0%, #1B8DFF 100%)",
-                    color: "#fff",
-                    "&:hover": {
-                      background:
-                        "linear-gradient(135deg, #1B8DFF 0%, #2DD4FF 100%)",
-                    },
-                    "&.Mui-disabled": {
-                      background: "rgba(255,255,255,0.06)",
-                      color: "rgba(255,255,255,0.3)",
-                    },
-                  }}
-                >
-                  {importing ? "Importando..." : "Importar Assinantes"}
-                </Button>
-
-                {!currentProductId && !isLoading && (
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "rgba(255, 152, 0, 0.8)" }}
-                  >
-                    Configure o Product ID primeiro.
-                  </Typography>
-                )}
-
-                {importResult && (
-                  <Box>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: importResult.success
-                          ? "rgba(46, 204, 113, 0.9)"
-                          : "rgba(244, 67, 54, 0.9)",
-                        fontWeight: 500,
-                        mb: importResult.data?.details?.length ? 1 : 0,
-                      }}
-                    >
-                      {importResult.success
-                        ? importResult.message
-                        : (importResult.error ?? "Erro desconhecido")}
-                    </Typography>
-                    {importResult.data?.details &&
-                      importResult.data.details.length > 0 && (
-                        <Box
-                          sx={{
-                            maxHeight: 120,
-                            overflowY: "auto",
-                            p: 1,
-                            borderRadius: 1,
-                            background: "rgba(0,0,0,0.2)",
-                          }}
-                        >
-                          {importResult.data.details.map((d, i) => (
-                            <Typography
-                              key={i}
-                              variant="caption"
-                              sx={{
-                                display: "block",
-                                color: "rgba(255,255,255,0.5)",
-                              }}
-                            >
-                              {d}
-                            </Typography>
-                          ))}
-                        </Box>
-                      )}
-                  </Box>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
+
+      {/* Plan mapping section */}
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1.5}
+        sx={{ mt: 4, mb: 2 }}
+      >
+        <Inventory2Outlined sx={{ color: "#2DD4FF", fontSize: 24 }} />
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Mapeamento de Planos
+        </Typography>
+      </Stack>
+
+      {isLoading ? (
+        <Stack spacing={2}>
+          <Skeleton variant="rounded" height={140} />
+          <Skeleton variant="rounded" height={140} />
+        </Stack>
+      ) : plans.length === 0 ? (
+        <Typography
+          variant="body2"
+          sx={{ color: "rgba(255,255,255,0.4)", textAlign: "center", py: 4 }}
+        >
+          Nenhum plano cadastrado.
+        </Typography>
+      ) : (
+        <Stack spacing={2}>
+          {plans.map((plan) => (
+            <PlanMappingCard
+              key={plan.id}
+              plan={plan}
+              editing={getEditState(plan)}
+              saving={savingId === plan.id}
+              saved={savedId === plan.id}
+              onChange={(field, value) =>
+                handleChange(plan.id, plan, field, value)
+              }
+              onSave={() => handleSave(plan.id)}
+            />
+          ))}
+        </Stack>
+      )}
+
+      {!isLoading && plans.length > 0 && (
+        <Alert
+          severity="info"
+          sx={{
+            mt: 3,
+            background: "rgba(45,212,255,0.05)",
+            border: "1px solid rgba(45,212,255,0.15)",
+            "& .MuiAlert-icon": { color: "#2DD4FF" },
+          }}
+        >
+          <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>
+            Quando um webhook <strong>PURCHASE_APPROVED</strong> chega da
+            Hotmart, o sistema resolve o plano interno usando{" "}
+            <strong>Product ID</strong> + <strong>Plan Code</strong>. Se nenhum
+            plano for encontrado, uma notificação{" "}
+            <strong>&quot;Identidade não resolvida&quot;</strong> é criada.
+          </Typography>
+        </Alert>
+      )}
     </Box>
   );
 }
