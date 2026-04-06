@@ -80,10 +80,7 @@ export function EchotikTab() {
 
       {/* Operational summary + Config + Estimation in a single Grid */}
       <Grid container spacing={3}>
-        <HealthSection
-          data={healthSWR.data}
-          loading={healthSWR.isLoading}
-        />
+        <HealthSection data={healthSWR.data} loading={healthSWR.isLoading} />
 
         {/* Config + Estimation — each renders its own Grid item md={6} */}
         <ConfigSection

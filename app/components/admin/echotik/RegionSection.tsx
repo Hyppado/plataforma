@@ -111,9 +111,7 @@ export function RegionSection({
                   variant="caption"
                   sx={{
                     fontWeight: 600,
-                    color: region.isActive
-                      ? "#fff"
-                      : "rgba(255,255,255,0.35)",
+                    color: region.isActive ? "#fff" : "rgba(255,255,255,0.35)",
                   }}
                 >
                   {region.code}

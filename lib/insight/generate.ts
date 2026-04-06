@@ -214,8 +214,7 @@ function tryRepairTruncatedJson(
 
     // Close unclosed braces
     const openBraces =
-      (attempt.match(/{/g) || []).length -
-      (attempt.match(/}/g) || []).length;
+      (attempt.match(/{/g) || []).length - (attempt.match(/}/g) || []).length;
     for (let i = 0; i < openBraces; i++) {
       attempt += "}";
     }
