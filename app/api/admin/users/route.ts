@@ -1,9 +1,12 @@
 /**
- * GET  /api/admin/users — Lista usuários com filtros
- * PATCH /api/admin/users — Atualiza status de um usuário
+ * GET   /api/admin/users — Lista usuários com filtros
+ * POST  /api/admin/users — Cria um novo usuário (retorna senha one-time)
+ * PATCH /api/admin/users — Atualiza status ou role de um usuário
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 
@@ -50,7 +53,7 @@ export async function GET(req: NextRequest) {
         lastLoginAt: true,
         _count: {
           select: {
-            subscriptions: true,
+            subscriptions: { where: { status: "ACTIVE" } },
             accessGrants: true,
           },
         },
@@ -126,4 +129,85 @@ export async function PATCH(req: NextRequest) {
   });
 
   return NextResponse.json({ user: updated });
+}
+
+// ---------------------------------------------------------------------------
+// POST — Cria novo usuário com senha aleatória (one-time see)
+// ---------------------------------------------------------------------------
+
+function generatePassword(): string {
+  return randomBytes(12).toString("base64url").slice(0, 16);
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
+  const body = await req.json();
+  const {
+    email,
+    name,
+    role: userRole,
+  } = body as {
+    email?: string;
+    name?: string;
+    role?: string;
+  };
+
+  if (!email || !email.includes("@")) {
+    return NextResponse.json(
+      { error: "Valid email is required" },
+      { status: 400 },
+    );
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Check for duplicates
+  const existing = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { error: "Email already in use" },
+      { status: 409 },
+    );
+  }
+
+  const assignedRole =
+    userRole === "ADMIN" ? "ADMIN" : ("USER" as "ADMIN" | "USER");
+  const plainPassword = generatePassword();
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
+
+  const user = await prisma.user.create({
+    data: {
+      email: normalizedEmail,
+      name: name?.trim() || null,
+      role: assignedRole,
+      status: "ACTIVE",
+      passwordHash,
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      actorId: auth.userId,
+      action: "USER_CREATED",
+      entityType: "User",
+      entityId: user.id,
+      after: { email: user.email, role: user.role },
+    },
+  });
+
+  // Return password once — it is never stored in plain text
+  return NextResponse.json({ user, password: plainPassword }, { status: 201 });
 }
