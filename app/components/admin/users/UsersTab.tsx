@@ -13,7 +13,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   IconButton,
   InputAdornment,
   LinearProgress,
@@ -21,6 +20,12 @@ import {
   Pagination,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -129,7 +134,25 @@ const CHARGE_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   REFUND_REQUEST: { color: "#e91e63", bg: "rgba(233,30,99,0.12)" },
 };
 
-const defaultStatusStyle = { color: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.06)" };
+const defaultStatusStyle = {
+  color: "rgba(255,255,255,0.5)",
+  bg: "rgba(255,255,255,0.06)",
+};
+
+const cellSx = {
+  color: "rgba(255,255,255,0.6)",
+  borderColor: "rgba(255,255,255,0.06)",
+  fontSize: "0.8rem",
+  py: 1,
+};
+
+const headCellSx = {
+  color: "rgba(255,255,255,0.5)",
+  borderColor: "rgba(255,255,255,0.06)",
+  fontWeight: 600,
+  fontSize: "0.75rem",
+  whiteSpace: "nowrap" as const,
+};
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -674,48 +697,61 @@ export function UsersTab() {
 
       {(isLoading || updating) && <LinearProgress sx={{ mb: 1 }} />}
 
-      {/* Users list */}
+      {/* Users table */}
       <Card sx={{ ...cardStyle, mb: 3 }}>
         <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-          {filteredUsers && filteredUsers.length > 0 ? (
-            <Stack
-              divider={
-                <Divider sx={{ borderColor: "rgba(255,255,255,0.05)" }} />
-              }
-            >
-              {filteredUsers.map((u) => {
-                const cat = getUserCategory(u);
-                const chip = CATEGORY_CHIP[cat];
-                const isEditable = cat !== "subscriber";
-                return (
-                  <Box
-                    key={u.id}
-                    sx={{
-                      px: 2.5,
-                      py: 1.5,
-                      "&:hover": { background: "rgba(255,255,255,0.02)" },
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    <Stack direction="row" alignItems="center" spacing={2}>
-                      {/* User info */}
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Stack
-                          direction="row"
-                          alignItems="center"
-                          spacing={1}
-                          sx={{ mb: 0.3 }}
-                        >
-                          <Typography
-                            noWrap
-                            sx={{
-                              fontWeight: 600,
-                              fontSize: "0.85rem",
-                              color: "#fff",
-                            }}
-                          >
-                            {u.name ?? u.email}
-                          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {[
+                    "Nome",
+                    "Email",
+                    "Perfil",
+                    "Status",
+                    "Plano",
+                    "Assinatura",
+                    "Cobrança",
+                    "Criado",
+                    "Último Login",
+                    "Ações",
+                  ].map((h) => (
+                    <TableCell key={h} sx={headCellSx}>
+                      {h}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredUsers && filteredUsers.length > 0 ? (
+                  filteredUsers.map((u) => {
+                    const cat = getUserCategory(u);
+                    const chip = CATEGORY_CHIP[cat];
+                    const isEditable = cat !== "subscriber";
+                    const sub = u.subscriptions?.[0];
+                    const subStyle = sub
+                      ? (SUB_STATUS_COLORS[sub.status] ?? defaultStatusStyle)
+                      : null;
+                    const charge = sub?.charges?.[0];
+                    const chargeStyle = charge
+                      ? (CHARGE_STATUS_COLORS[charge.status] ?? defaultStatusStyle)
+                      : null;
+
+                    return (
+                      <TableRow
+                        key={u.id}
+                        sx={{ "&:hover": { background: "rgba(255,255,255,0.02)" } }}
+                      >
+                        {/* Nome */}
+                        <TableCell sx={{ ...cellSx, color: "rgba(255,255,255,0.8)" }}>
+                          {u.name ?? u.email}
+                        </TableCell>
+
+                        {/* Email */}
+                        <TableCell sx={cellSx}>{u.email}</TableCell>
+
+                        {/* Perfil */}
+                        <TableCell sx={cellSx}>
                           <Chip
                             label={chip.label}
                             size="small"
@@ -728,6 +764,10 @@ export function UsersTab() {
                               border: `1px solid ${chip.color}33`,
                             }}
                           />
+                        </TableCell>
+
+                        {/* Status */}
+                        <TableCell sx={cellSx}>
                           <Chip
                             label={u.status}
                             size="small"
@@ -749,137 +789,130 @@ export function UsersTab() {
                                     : "rgba(255,255,255,0.5)",
                             }}
                           />
-                        </Stack>
-                        <Typography
-                          noWrap
-                          sx={{
-                            fontSize: "0.78rem",
-                            color: "rgba(255,255,255,0.45)",
-                          }}
-                        >
-                          {u.email}
-                        </Typography>
-                        {(() => {
-                          const sub = u.subscriptions?.[0];
-                          if (!sub) return null;
-                          const subStyle = SUB_STATUS_COLORS[sub.status] ?? defaultStatusStyle;
-                          const charge = sub.charges?.[0];
-                          const chargeStyle = charge
-                            ? (CHARGE_STATUS_COLORS[charge.status] ?? defaultStatusStyle)
-                            : null;
-                          return (
-                            <Stack direction="row" spacing={0.5} sx={{ mt: 0.3 }}>
-                              {sub.plan?.name && (
-                                <Chip
-                                  label={sub.plan.name}
-                                  size="small"
-                                  sx={{
-                                    height: 18,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 600,
-                                    background: "rgba(45,212,255,0.10)",
-                                    color: "#2DD4FF",
-                                    border: "1px solid rgba(45,212,255,0.25)",
-                                  }}
-                                />
-                              )}
-                              <Chip
-                                label={`Assin: ${sub.status}`}
-                                size="small"
-                                sx={{
-                                  height: 18,
-                                  fontSize: "0.65rem",
-                                  fontWeight: 600,
-                                  background: subStyle.bg,
-                                  color: subStyle.color,
-                                  border: `1px solid ${subStyle.color}33`,
-                                }}
-                              />
-                              {chargeStyle && charge && (
-                                <Chip
-                                  label={`Cobr: ${charge.status}`}
-                                  size="small"
-                                  sx={{
-                                    height: 18,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 600,
-                                    background: chargeStyle.bg,
-                                    color: chargeStyle.color,
-                                    border: `1px solid ${chargeStyle.color}33`,
-                                  }}
-                                />
-                              )}
-                            </Stack>
-                          );
-                        })()}
-                      </Box>
+                        </TableCell>
 
-                      {/* Dates */}
-                      <Stack
-                        sx={{
-                          display: { xs: "none", md: "flex" },
-                          minWidth: 140,
-                          textAlign: "right",
-                        }}
-                      >
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "rgba(255,255,255,0.35)" }}
-                        >
-                          Criado: {formatDate(u.createdAt)}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "rgba(255,255,255,0.35)" }}
-                        >
-                          Login: {formatDate(u.lastLoginAt)}
-                        </Typography>
-                      </Stack>
-
-                      {/* Actions */}
-                      <Stack direction="row" spacing={0.5}>
-                        {isEditable && (
-                          <Tooltip title="Editar">
-                            <IconButton
+                        {/* Plano */}
+                        <TableCell sx={cellSx}>
+                          {sub?.plan?.name ? (
+                            <Chip
+                              label={sub.plan.name}
                               size="small"
-                              onClick={() => setEditUser(u)}
                               sx={{
-                                color: "rgba(255,255,255,0.4)",
-                                "&:hover": { color: "#2DD4FF" },
+                                background: "rgba(45,212,255,0.1)",
+                                color: "#2DD4FF",
+                                fontSize: "0.75rem",
+                                maxWidth: 150,
                               }}
-                            >
-                              <EditIcon sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        <Tooltip title="Resetar senha">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleResetPassword(u.id)}
-                            sx={{
-                              color: "rgba(255,255,255,0.4)",
-                              "&:hover": { color: "#ff9800" },
-                            }}
-                          >
-                            <KeyIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </Stack>
-                  </Box>
-                );
-              })}
-            </Stack>
-          ) : !isLoading ? (
-            <Box sx={{ py: 4, textAlign: "center" }}>
-              <Typography
-                variant="body2"
-                sx={{ color: "rgba(255,255,255,0.4)" }}
-              >
-                Nenhum usuário encontrado.
-              </Typography>
-            </Box>
-          ) : null}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Assinatura */}
+                        <TableCell sx={cellSx}>
+                          {sub && subStyle ? (
+                            <Chip
+                              label={sub.status}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: "0.68rem",
+                                fontWeight: 600,
+                                background: subStyle.bg,
+                                color: subStyle.color,
+                                border: `1px solid ${subStyle.color}33`,
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Cobrança */}
+                        <TableCell sx={cellSx}>
+                          {charge && chargeStyle ? (
+                            <Chip
+                              label={charge.status}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: "0.68rem",
+                                fontWeight: 600,
+                                background: chargeStyle.bg,
+                                color: chargeStyle.color,
+                                border: `1px solid ${chargeStyle.color}33`,
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Criado */}
+                        <TableCell sx={cellSx}>
+                          {formatDate(u.createdAt)}
+                        </TableCell>
+
+                        {/* Último Login */}
+                        <TableCell sx={cellSx}>
+                          {formatDate(u.lastLoginAt)}
+                        </TableCell>
+
+                        {/* Ações */}
+                        <TableCell sx={cellSx}>
+                          <Stack direction="row" spacing={0.5}>
+                            {isEditable && (
+                              <Tooltip title="Editar">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setEditUser(u)}
+                                  sx={{
+                                    color: "rgba(255,255,255,0.4)",
+                                    "&:hover": { color: "#2DD4FF" },
+                                  }}
+                                >
+                                  <EditIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            <Tooltip title="Resetar senha">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleResetPassword(u.id)}
+                                sx={{
+                                  color: "rgba(255,255,255,0.4)",
+                                  "&:hover": { color: "#ff9800" },
+                                }}
+                              >
+                                <KeyIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={10}
+                      sx={{
+                        color: "rgba(255,255,255,0.4)",
+                        borderColor: "rgba(255,255,255,0.06)",
+                        textAlign: "center",
+                        py: 4,
+                      }}
+                    >
+                      {isLoading
+                        ? "Carregando..."
+                        : "Nenhum usuário encontrado."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </CardContent>
       </Card>
 
