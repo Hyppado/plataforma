@@ -63,6 +63,20 @@ export interface SyncSummary {
 const BATCH_SIZE = 2000;
 
 /**
+ * Prepare a value for parameterised insertion.
+ * The `pg` driver deserialises JSON/JSONB columns into JS objects/arrays on
+ * SELECT, but PostgreSQL expects a JSON **string** when inserting via $N
+ * parameters.  Re-serialise any plain object or array so the INSERT succeeds.
+ */
+function prepareValue(v: unknown): unknown {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v;
+  if (Buffer.isBuffer(v)) return v;
+  if (typeof v === "object") return JSON.stringify(v);
+  return v;
+}
+
+/**
  * Build a parameterised INSERT statement for a batch of rows.
  * Returns { sql, values } ready for client.query().
  */
@@ -77,7 +91,7 @@ function buildInsert(
   for (const row of rows) {
     const placeholders: string[] = [];
     for (const col of columns) {
-      values.push(row[col] ?? null);
+      values.push(prepareValue(row[col]));
       placeholders.push(`$${values.length}`);
     }
     rowPlaceholders.push(`(${placeholders.join(", ")})`);
