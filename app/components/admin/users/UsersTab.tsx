@@ -107,31 +107,66 @@ const CATEGORY_CHIP: Record<
   string,
   { label: string; color: string; bg: string }
 > = {
-  admin: { label: "Admin", color: "#f44336", bg: "rgba(244,67,54,0.12)" },
+  admin: { label: "Admin", color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
   subscriber: {
     label: "Assinante",
-    color: "#4caf50",
-    bg: "rgba(76,175,80,0.12)",
+    color: "#81C784",
+    bg: "rgba(76,175,80,0.15)",
   },
 };
 
+// Portuguese labels for user status
+const USER_STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "Ativo",
+  INACTIVE: "Inativo",
+  SUSPENDED: "Suspenso",
+};
+
+// Portuguese labels for subscription status
+const SUB_STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "Ativo",
+  PENDING: "Pendente",
+  PAST_DUE: "Inadimplente",
+  CANCELLED: "Cancelado",
+  EXPIRED: "Expirado",
+};
+
+// Portuguese labels for charge status
+const CHARGE_STATUS_LABEL: Record<string, string> = {
+  PAID: "Pago",
+  PENDING: "Pendente",
+  OVERDUE: "Atrasado",
+  REFUNDED: "Reembolsado",
+  CANCELLED: "Cancelado",
+  CHARGEBACK: "Chargeback",
+  FAILED: "Falhou",
+  REFUND_REQUEST: "Reembolso Solicitado",
+};
+
+// Colors matching SubscribersTable pattern (0.15 alpha bg, pastel fg)
 const SUB_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
-  ACTIVE: { color: "#4caf50", bg: "rgba(76,175,80,0.12)" },
-  PENDING: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
-  PAST_DUE: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
-  CANCELLED: { color: "#f44336", bg: "rgba(244,67,54,0.12)" },
-  EXPIRED: { color: "#9e9e9e", bg: "rgba(158,158,158,0.12)" },
+  ACTIVE: { color: "#81C784", bg: "rgba(76,175,80,0.15)" },
+  PENDING: { color: "#42A5F5", bg: "rgba(66,165,245,0.15)" },
+  PAST_DUE: { color: "#FFB74D", bg: "rgba(255,183,77,0.15)" },
+  CANCELLED: { color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
+  EXPIRED: { color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
 };
 
 const CHARGE_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
-  PAID: { color: "#4caf50", bg: "rgba(76,175,80,0.12)" },
-  PENDING: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
-  OVERDUE: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
-  REFUNDED: { color: "#2196f3", bg: "rgba(33,150,243,0.12)" },
-  CANCELLED: { color: "#9e9e9e", bg: "rgba(158,158,158,0.12)" },
-  CHARGEBACK: { color: "#f44336", bg: "rgba(244,67,54,0.12)" },
-  FAILED: { color: "#f44336", bg: "rgba(244,67,54,0.12)" },
-  REFUND_REQUEST: { color: "#e91e63", bg: "rgba(233,30,99,0.12)" },
+  PAID: { color: "#81C784", bg: "rgba(76,175,80,0.15)" },
+  PENDING: { color: "#42A5F5", bg: "rgba(66,165,245,0.15)" },
+  OVERDUE: { color: "#FFB74D", bg: "rgba(255,183,77,0.15)" },
+  REFUNDED: { color: "#42A5F5", bg: "rgba(66,165,245,0.15)" },
+  CANCELLED: { color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
+  CHARGEBACK: { color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
+  FAILED: { color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
+  REFUND_REQUEST: { color: "#FFB74D", bg: "rgba(255,183,77,0.15)" },
+};
+
+const USER_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
+  ACTIVE: { color: "#81C784", bg: "rgba(76,175,80,0.15)" },
+  INACTIVE: { color: "#FFB74D", bg: "rgba(255,183,77,0.15)" },
+  SUSPENDED: { color: "#EF5350", bg: "rgba(244,67,54,0.15)" },
 };
 
 const defaultStatusStyle = {
@@ -734,16 +769,21 @@ export function UsersTab() {
                       : null;
                     const charge = sub?.charges?.[0];
                     const chargeStyle = charge
-                      ? (CHARGE_STATUS_COLORS[charge.status] ?? defaultStatusStyle)
+                      ? (CHARGE_STATUS_COLORS[charge.status] ??
+                        defaultStatusStyle)
                       : null;
 
                     return (
                       <TableRow
                         key={u.id}
-                        sx={{ "&:hover": { background: "rgba(255,255,255,0.02)" } }}
+                        sx={{
+                          "&:hover": { background: "rgba(255,255,255,0.02)" },
+                        }}
                       >
                         {/* Nome */}
-                        <TableCell sx={{ ...cellSx, color: "rgba(255,255,255,0.8)" }}>
+                        <TableCell
+                          sx={{ ...cellSx, color: "rgba(255,255,255,0.8)" }}
+                        >
                           {u.name ?? u.email}
                         </TableCell>
 
@@ -756,39 +796,29 @@ export function UsersTab() {
                             label={chip.label}
                             size="small"
                             sx={{
-                              height: 20,
-                              fontSize: "0.68rem",
-                              fontWeight: 700,
                               background: chip.bg,
                               color: chip.color,
-                              border: `1px solid ${chip.color}33`,
+                              fontSize: "0.75rem",
                             }}
                           />
                         </TableCell>
 
                         {/* Status */}
                         <TableCell sx={cellSx}>
-                          <Chip
-                            label={u.status}
-                            size="small"
-                            sx={{
-                              height: 20,
-                              fontSize: "0.68rem",
-                              fontWeight: 600,
-                              background:
-                                u.status === "ACTIVE"
-                                  ? "rgba(76,175,80,0.12)"
-                                  : u.status === "SUSPENDED"
-                                    ? "rgba(244,67,54,0.12)"
-                                    : "rgba(255,255,255,0.06)",
-                              color:
-                                u.status === "ACTIVE"
-                                  ? "#4caf50"
-                                  : u.status === "SUSPENDED"
-                                    ? "#f44336"
-                                    : "rgba(255,255,255,0.5)",
-                            }}
-                          />
+                          {(() => {
+                            const sc = USER_STATUS_COLORS[u.status] ?? defaultStatusStyle;
+                            return (
+                              <Chip
+                                label={USER_STATUS_LABEL[u.status] ?? u.status}
+                                size="small"
+                                sx={{
+                                  background: sc.bg,
+                                  color: sc.color,
+                                  fontSize: "0.75rem",
+                                }}
+                              />
+                            );
+                          })()}
                         </TableCell>
 
                         {/* Plano */}
@@ -813,15 +843,12 @@ export function UsersTab() {
                         <TableCell sx={cellSx}>
                           {sub && subStyle ? (
                             <Chip
-                              label={sub.status}
+                              label={SUB_STATUS_LABEL[sub.status] ?? sub.status}
                               size="small"
                               sx={{
-                                height: 20,
-                                fontSize: "0.68rem",
-                                fontWeight: 600,
                                 background: subStyle.bg,
                                 color: subStyle.color,
-                                border: `1px solid ${subStyle.color}33`,
+                                fontSize: "0.75rem",
                               }}
                             />
                           ) : (
@@ -833,15 +860,12 @@ export function UsersTab() {
                         <TableCell sx={cellSx}>
                           {charge && chargeStyle ? (
                             <Chip
-                              label={charge.status}
+                              label={CHARGE_STATUS_LABEL[charge.status] ?? charge.status}
                               size="small"
                               sx={{
-                                height: 20,
-                                fontSize: "0.68rem",
-                                fontWeight: 600,
                                 background: chargeStyle.bg,
                                 color: chargeStyle.color,
-                                border: `1px solid ${chargeStyle.color}33`,
+                                fontSize: "0.75rem",
                               }}
                             />
                           ) : (
