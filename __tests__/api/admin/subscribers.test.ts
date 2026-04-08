@@ -190,8 +190,17 @@ describe("GET /api/admin/subscribers", () => {
   it("filtra client-side por nome quando search não contém @", async () => {
     mockHotmartRequest.mockResolvedValue(
       mockResponse([
-        mockHotmartItem({ subscriber: { name: "Eve Teste", email: "eve@test.com", ucode: "u1" } }),
-        mockHotmartItem({ subscriber: { name: "João Silva", email: "joao@test.com", ucode: "u2" }, subscription_id: 999 }),
+        mockHotmartItem({
+          subscriber: { name: "Eve Teste", email: "eve@test.com", ucode: "u1" },
+        }),
+        mockHotmartItem({
+          subscriber: {
+            name: "João Silva",
+            email: "joao@test.com",
+            ucode: "u2",
+          },
+          subscription_id: 999,
+        }),
       ]),
     );
 
@@ -267,9 +276,7 @@ describe("GET /api/admin/subscribers", () => {
   // ---------------------------------------------------------------------------
 
   it("retorna 500 quando Hotmart API lança erro", async () => {
-    mockHotmartRequest.mockRejectedValue(
-      new Error("Hotmart API unreachable"),
-    );
+    mockHotmartRequest.mockRejectedValue(new Error("Hotmart API unreachable"));
 
     const res = await GET(makeRequest());
     const body = await res.json();

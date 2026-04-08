@@ -83,7 +83,8 @@ export async function GET() {
       countByStatus("STARTED", productId),
     ]);
 
-    const cancelled = cancelledByCustomer + cancelledBySeller + cancelledByAdmin;
+    const cancelled =
+      cancelledByCustomer + cancelledBySeller + cancelledByAdmin;
     const pastDue = delayed + overdue;
     const total = active + cancelled + pastDue + inactive + started;
 
@@ -108,7 +109,8 @@ export async function GET() {
           },
         },
       );
-      newThisMonth = recentData.page_info?.total_results ?? recentData.items?.length ?? 0;
+      newThisMonth =
+        recentData.page_info?.total_results ?? recentData.items?.length ?? 0;
     } catch {
       // Silent fallback
     }
@@ -125,7 +127,10 @@ export async function GET() {
           },
         },
       );
-      cancelledThisMonth = cancelledData.page_info?.total_results ?? cancelledData.items?.length ?? 0;
+      cancelledThisMonth =
+        cancelledData.page_info?.total_results ??
+        cancelledData.items?.length ??
+        0;
     } catch {
       // Silent fallback
     }

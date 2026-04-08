@@ -112,10 +112,10 @@ hyppado/
 
 ### Crons
 
-| Rota                          | Horário          | Função                                           |
-| ----------------------------- | ---------------- | ------------------------------------------------ |
-| `/api/cron/echotik`           | */15 * * * *     | Ingestão de rankings, categorias, top lists      |
-| `/api/cron/sync-db`           | 0 6 * * *        | Sync prod → preview database com masking de PII  |
+| Rota                | Horário         | Função                                          |
+| ------------------- | --------------- | ----------------------------------------------- |
+| `/api/cron/echotik` | _/15 _ \* \* \* | Ingestão de rankings, categorias, top lists     |
+| `/api/cron/sync-db` | 0 6 \* \* \*    | Sync prod → preview database com masking de PII |
 
 ---
 
@@ -226,22 +226,22 @@ Fluxo:
 
 ### 🔴 CRÍTICO
 
-| #   | Problema                                     | Onde                                                             | Impacto                                                                                              |
-| --- | -------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| C1  | **Landing page = 3.592 linhas "use client"** | `app/page.tsx`                                                   | Zero SSR/SSG numa página que é 99% estática. Bundle JS enorme no first load. SEO prejudicado.        |
+| #   | Problema                                     | Onde                                                                   | Impacto                                                                                              |
+| --- | -------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| C1  | **Landing page = 3.592 linhas "use client"** | `app/page.tsx`                                                         | Zero SSR/SSG numa página que é 99% estática. Bundle JS enorme no first load. SEO prejudicado.        |
 | C2  | **3 definições de MUI theme diferentes**     | `app/theme.ts`, `app/dashboard/layout.tsx:42`, `app/login/page.tsx:21` | Cores e espaçamentos inconsistentes entre landing, app e login. Manutenção duplicada.                |
-| C3  | **`getUserActivePlan` ignora AccessGrant**   | `lib/usage/quota.ts`                                             | Usuário com grant manual mas sem subscription → quotas = zero → todas features bloqueadas. Bug real. |
-| C4  | **`cron.ts` = 1.685 linhas**                 | `lib/echotik/cron.ts`                                            | Módulo monolítico, impossível testar/manter por partes                                               |
-| C5  | **Dupla lógica de extractQuotas**            | `lib/access/resolver.ts` + `lib/usage/quota.ts`                  | Risco de divergência — duas implementações plan→quotas que podem ficar dessincronizadas              |
+| C3  | **`getUserActivePlan` ignora AccessGrant**   | `lib/usage/quota.ts`                                                   | Usuário com grant manual mas sem subscription → quotas = zero → todas features bloqueadas. Bug real. |
+| C4  | **`cron.ts` = 1.685 linhas**                 | `lib/echotik/cron.ts`                                                  | Módulo monolítico, impossível testar/manter por partes                                               |
+| C5  | **Dupla lógica de extractQuotas**            | `lib/access/resolver.ts` + `lib/usage/quota.ts`                        | Risco de divergência — duas implementações plan→quotas que podem ficar dessincronizadas              |
 
 ### 🟠 IMPORTANTE
 
 | #   | Problema                                   | Onde                                                           | Impacto                                                                                  |
 | --- | ------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | I1  | **2 VideoCard duplicados**                 | `VideoCardPro.tsx` (797 linhas) + `VideoCard.tsx` (611 linhas) | ~1400 linhas de código quase idêntico, manutenção duplicada                              |
-| I2  | **Admin dashboard monolítico**             | `app/dashboard/admin/page.tsx` (1016 linhas)                         | Sem componentização, difícil adicionar features                                          |
-| I3  | **Assinatura page monolítica**             | `app/dashboard/assinatura/page.tsx` (955 linhas)                     | Mesma situação do admin                                                                  |
-| I4  | **Layout autenticado monolítico**          | `app/dashboard/layout.tsx` (700 linhas)                              | Sidebar, theme, quota display tudo inline                                                |
+| I2  | **Admin dashboard monolítico**             | `app/dashboard/admin/page.tsx` (1016 linhas)                   | Sem componentização, difícil adicionar features                                          |
+| I3  | **Assinatura page monolítica**             | `app/dashboard/assinatura/page.tsx` (955 linhas)               | Mesma situação do admin                                                                  |
+| I4  | **Layout autenticado monolítico**          | `app/dashboard/layout.tsx` (700 linhas)                        | Sidebar, theme, quota display tudo inline                                                |
 | I5  | **Nenhuma lib de data fetching**           | Todas as pages                                                 | Sem cache, sem dedup, sem revalidação. Cada page faz fetch manual + useState + useEffect |
 | I6  | **Paginação client-side**                  | videos, products, creators                                     | API retorna TUDO, frontend faz slice local. Não escala.                                  |
 | I7  | **`categories.ts` self-fetch via HTTP**    | `lib/categories.ts`                                            | Servidor faz HTTP pra si mesmo ao invés de chamar DB direto                              |
@@ -254,8 +254,8 @@ Fluxo:
 | #   | Problema                                          | Onde                      | Impacto                                                                  |
 | --- | ------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------ |
 | D1  | **TranscriptDialog ≈ InsightDialog**              | `components/videos/`      | 80% clone — extrair CopyableDialog genérico                              |
-| D2  | **videos/products/creators pages ~90% clone**     | `app/dashboard/`                | Extrair TrendingListPage genérico                                        |
-| D3  | **videos-salvos ≈ produtos-salvos**               | `app/dashboard/`                | 95% clone — extrair SavedItemsPage genérico                              |
+| D2  | **videos/products/creators pages ~90% clone**     | `app/dashboard/`          | Extrair TrendingListPage genérico                                        |
+| D3  | **videos-salvos ≈ produtos-salvos**               | `app/dashboard/`          | 95% clone — extrair SavedItemsPage genérico                              |
 | D4  | **`UI` design tokens redefinidos em 6+ arquivos** | páginas e components      | Cada arquivo define um objeto `UI = { ... }` com valores quase idênticos |
 | D5  | **`handleInsightClick` é noop**                   | videos page               | TODO não implementado                                                    |
 | D6  | **`formatTimeAgo` duplicado**                     | VideoCardPro + assinatura | Mesmo helper em 2+ lugares                                               |
@@ -367,7 +367,7 @@ Fluxo:
 
 | Padrão                                    | Usado em                                                 |
 | ----------------------------------------- | -------------------------------------------------------- |
-| `middleware.ts` route matching            | `/dashboard/*`, `/api/admin/*`                                 |
+| `middleware.ts` route matching            | `/dashboard/*`, `/api/admin/*`                           |
 | `requireAdmin()` em API routes            | Todas rotas `/api/admin/*`                               |
 | `isAuthed()` em API routes                | Rotas de usuário                                         |
 | `getServerSession()` para dados de sessão | Route handlers                                           |

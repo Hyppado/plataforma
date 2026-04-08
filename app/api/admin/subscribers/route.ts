@@ -165,9 +165,7 @@ export async function GET(request: Request) {
       startedAt: item.accession_date
         ? new Date(item.accession_date).toISOString()
         : null,
-      cancelledAt: item.end_date
-        ? new Date(item.end_date).toISOString()
-        : null,
+      cancelledAt: item.end_date ? new Date(item.end_date).toISOString() : null,
       lastPaymentAt: null,
       lastPaymentAmount: item.price ? Math.round(item.price.value * 100) : null,
       lastPaymentCurrency: item.price?.currency_code ?? "BRL",
@@ -177,13 +175,14 @@ export async function GET(request: Request) {
     }));
 
     // Client-side name search for non-email queries
-    const filtered = search && !search.includes("@")
-      ? subscribers.filter(
-          (s) =>
-            s.name?.toLowerCase().includes(search.toLowerCase()) ||
-            s.email?.toLowerCase().includes(search.toLowerCase()),
-        )
-      : subscribers;
+    const filtered =
+      search && !search.includes("@")
+        ? subscribers.filter(
+            (s) =>
+              s.name?.toLowerCase().includes(search.toLowerCase()) ||
+              s.email?.toLowerCase().includes(search.toLowerCase()),
+          )
+        : subscribers;
 
     const total = data.page_info?.total_results ?? filtered.length;
 
