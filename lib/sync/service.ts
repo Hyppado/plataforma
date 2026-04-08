@@ -239,8 +239,11 @@ export async function runSync(options: SyncOptions): Promise<SyncSummary> {
   });
 
   // Connect to both databases
-  const prod = new Client({ connectionString: prodUrl });
-  const preview = new Client({ connectionString: previewUrl });
+  // Explicit ssl config silences the pg v8 deprecation warning about
+  // sslmode=require being treated as verify-full.
+  const ssl = { rejectUnauthorized: true };
+  const prod = new Client({ connectionString: prodUrl, ssl });
+  const preview = new Client({ connectionString: previewUrl, ssl });
 
   try {
     await prod.connect();
