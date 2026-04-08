@@ -61,7 +61,10 @@ export interface HotmartWebhookFields {
   productId?: string;
   productName?: string;
 
+  // Datas
   occurredAt?: Date;
+  /** Data efetiva de cancelamento (epoch ms enviado pela Hotmart em data.cancellation_date) */
+  cancellationDate?: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +196,7 @@ export function extractWebhookFields(
       // se subscriber_email vier sem buyer (alguns eventos de club)
       subscriberEmail,
   );
-  const buyerName = str(buyer?.name ?? buyer?.full_name);
+  const buyerName = str(buyer?.name ?? buyer?.full_name ?? subscriber?.name);
 
   // product
   const product = d?.product ?? payload?.product ?? {};
@@ -207,6 +210,9 @@ export function extractWebhookFields(
       payload?.event_date ??
       payload?.occurred_at,
   );
+
+  // cancellation_date — epoch ms específico de SUBSCRIPTION_CANCELLATION
+  const cancellationDate = parseDate(d?.cancellation_date);
 
   return {
     payloadVersion,
@@ -231,6 +237,7 @@ export function extractWebhookFields(
     productId,
     productName,
     occurredAt,
+    cancellationDate,
   };
 }
 

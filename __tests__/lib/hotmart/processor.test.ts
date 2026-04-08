@@ -54,6 +54,7 @@ function makeFields(
     productId: "7420891",
     productName: "Hyppado",
     occurredAt: new Date(),
+    cancellationDate: undefined,
     ...overrides,
   };
 }
@@ -150,16 +151,197 @@ describe("processHotmartEvent()", () => {
     expect(prismaMock.subscription.create).toHaveBeenCalled();
   });
 
-  it("processes SUBSCRIPTION_CANCELLATION", async () => {
-    const fields = makeFields({ eventType: "SUBSCRIPTION_CANCELLATION" });
+  it("processes SUBSCRIPTION_CANCELLATION with CANCELLED status", async () => {
+    const cancellationDate = new Date("2025-04-08T12:00:00Z");
+    const fields = makeFields({
+      eventType: "SUBSCRIPTION_CANCELLATION",
+      cancellationDate,
+      subscriptionStatus: "CANCELLED",
+    });
+
+    // Existing subscription to update
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-existing",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+    });
 
     const promise = processHotmartEvent("event-1", fields);
     await vi.runAllTimersAsync();
     await promise;
 
-    // Resolved identity and plan
-    expect(prismaMock.externalAccountLink.findFirst).toHaveBeenCalled();
-    expect(prismaMock.plan.findFirst).toHaveBeenCalled();
+    // Subscription updated with CANCELLED status
+    expect(prismaMock.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "sub-existing" },
+        data: expect.objectContaining({
+          status: "CANCELLED",
+          cancelledAt: cancellationDate,
+          endedAt: cancellationDate,
+        }),
+      }),
+    );
+    // Should NOT create new subscription — only update existing
+    expect(prismaMock.subscription.create).not.toHaveBeenCalled();
+  });
+
+  it("SUBSCRIPTION_CANCELLATION uses occurredAt when cancellationDate is absent", async () => {
+    const occurredAt = new Date("2025-04-08T10:00:00Z");
+    const fields = makeFields({
+      eventType: "SUBSCRIPTION_CANCELLATION",
+      cancellationDate: undefined,
+      occurredAt,
+    });
+
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-existing",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(prismaMock.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cancelledAt: occurredAt,
+          endedAt: occurredAt,
+        }),
+      }),
+    );
+  });
+
+  it("SUBSCRIPTION_CANCELLATION does NOT delete user or history", async () => {
+    const fields = makeFields({ eventType: "SUBSCRIPTION_CANCELLATION" });
+
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-existing",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    // User must NOT be deleted or suspended — only subscription changes status
+    expect(prismaMock.user.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "SUSPENDED" }),
+      }),
+    );
+    expect(prismaMock.user.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ deletedAt: expect.anything() }),
+      }),
+    );
+  });
+
+  it("SUBSCRIPTION_CANCELLATION creates audit log with WEBHOOK_SUBSCRIPTION_CANCELLATION", async () => {
+    const fields = makeFields({ eventType: "SUBSCRIPTION_CANCELLATION" });
+
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-existing",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "WEBHOOK_SUBSCRIPTION_CANCELLATION",
+          userId: "user-1",
+          entityType: "Subscription",
+          entityId: "sub-existing",
+          after: expect.objectContaining({
+            status: "CANCELLED",
+            eventType: "SUBSCRIPTION_CANCELLATION",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("SUBSCRIPTION_CANCELLATION creates admin notification", async () => {
+    const fields = makeFields({ eventType: "SUBSCRIPTION_CANCELLATION" });
+
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-existing",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(createNotificationIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "SUBSCRIPTION_CANCELLATION",
+        userId: "user-1",
+        subscriptionId: "sub-existing",
+        eventId: "event-1",
+      }),
+    );
+  });
+
+  it("SUBSCRIPTION_CANCELLATION handles unresolved identity", async () => {
+    prismaMock.externalAccountLink.findFirst.mockResolvedValue(null);
+
+    const fields = makeFields({
+      eventType: "SUBSCRIPTION_CANCELLATION",
+      buyerEmail: undefined as any,
+      subscriberEmail: undefined as any,
+      subscriberCode: undefined,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    // Should log unresolved
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "WEBHOOK_SUBSCRIPTION_CANCELLATION_UNRESOLVED",
+          after: expect.objectContaining({
+            reason: "identity_not_found",
+          }),
+        }),
+      }),
+    );
+
+    // Should NOT modify subscription or user
+    expect(prismaMock.subscription.update).not.toHaveBeenCalled();
+    expect(prismaMock.subscription.create).not.toHaveBeenCalled();
+
+    // Should still mark event as PROCESSED
+    const updateCalls = prismaMock.hotmartWebhookEvent.update.mock.calls;
+    const processedCall = updateCalls.find(
+      (call: any) => call[0]?.data?.processingStatus === "PROCESSED",
+    );
+    expect(processedCall).toBeTruthy();
   });
 
   it("auto-suspends user on PURCHASE_CHARGEBACK", async () => {

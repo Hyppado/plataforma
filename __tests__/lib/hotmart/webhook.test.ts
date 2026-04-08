@@ -11,7 +11,10 @@ import {
   extractWebhookFields,
   buildIdempotencyKey,
 } from "@/lib/hotmart/webhook";
-import { buildHotmartWebhookPayload } from "@tests/helpers/factories";
+import {
+  buildHotmartWebhookPayload,
+  buildCancellationPayload,
+} from "@tests/helpers/factories";
 
 describe("verifySignature()", () => {
   beforeEach(() => {
@@ -145,6 +148,50 @@ describe("extractWebhookFields()", () => {
     const fields = extractWebhookFields(payload);
     expect(fields.occurredAt).toBeInstanceOf(Date);
     expect(fields.occurredAt?.getTime()).toBe(epoch);
+  });
+
+  // ── SUBSCRIPTION_CANCELLATION payload structure ─────────────────────
+
+  it("extracts cancellationDate from data.cancellation_date", () => {
+    const epoch = 1744130948000;
+    const payload = buildCancellationPayload({
+      data: {
+        ...buildCancellationPayload().data,
+        cancellation_date: epoch,
+      },
+    });
+    const fields = extractWebhookFields(payload);
+    expect(fields.cancellationDate).toBeInstanceOf(Date);
+    expect(fields.cancellationDate?.getTime()).toBe(epoch);
+  });
+
+  it("returns undefined cancellationDate when not present", () => {
+    const payload = buildHotmartWebhookPayload();
+    const fields = extractWebhookFields(payload);
+    expect(fields.cancellationDate).toBeUndefined();
+  });
+
+  it("extracts subscriber fields from data.subscriber (no buyer block)", () => {
+    const payload = buildCancellationPayload();
+    const fields = extractWebhookFields(payload);
+    expect(fields.subscriberCode).toBe("SUB_CODE_1");
+    expect(fields.subscriberEmail).toBe("subscriber@test.com");
+    expect(fields.subscriptionExternalId).toBe("SUB-CANCEL-1");
+    expect(fields.subscriptionStatus).toBe("CANCELLED");
+  });
+
+  it("falls back buyerName to subscriber.name when no buyer block", () => {
+    const payload = buildCancellationPayload();
+    const fields = extractWebhookFields(payload);
+    // No data.buyer → buyerName should come from data.subscriber.name
+    expect(fields.buyerName).toBe("Test Subscriber");
+  });
+
+  it("falls back buyerEmail to subscriberEmail when no buyer block", () => {
+    const payload = buildCancellationPayload();
+    const fields = extractWebhookFields(payload);
+    // No data.buyer → buyerEmail should fall back to subscriberEmail
+    expect(fields.buyerEmail).toBe("subscriber@test.com");
   });
 });
 

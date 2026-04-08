@@ -176,6 +176,44 @@ export function buildHotmartWebhookPayload(
   };
 }
 
+/**
+ * Builds a realistic SUBSCRIPTION_CANCELLATION payload.
+ * Matches the real Hotmart v2 structure for this event:
+ *   - subscriber at data level (NOT under data.subscription.subscriber)
+ *   - data.cancellation_date (epoch ms)
+ *   - data.subscription.id and data.subscription.plan
+ *   - NO data.buyer, NO data.purchase blocks
+ */
+export function buildCancellationPayload(
+  overrides: Record<string, unknown> = {},
+) {
+  const cancellationDate = Date.now();
+  return {
+    event: "SUBSCRIPTION_CANCELLATION",
+    id: randomUUID(),
+    version: "2.0.0",
+    creation_date: cancellationDate - 5000, // webhook sent slightly before
+    data: {
+      subscriber: {
+        code: "SUB_CODE_1",
+        name: "Test Subscriber",
+        email: "subscriber@test.com",
+      },
+      product: {
+        id: "7420891",
+        name: "Hyppado",
+      },
+      subscription: {
+        id: "SUB-CANCEL-1",
+        plan: { name: "Pro Mensal", id: "plan-123" },
+        status: "CANCELLED",
+      },
+      cancellation_date: cancellationDate,
+    },
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Echotik
 // ---------------------------------------------------------------------------

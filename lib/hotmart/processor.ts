@@ -184,7 +184,13 @@ async function upsertSubscription(
   const occurredAt = fields.occurredAt ?? new Date();
   const isActivation = ACTIVATION_EVENTS.has(fields.eventType);
   const isCancellation = CANCELLATION_EVENTS.has(fields.eventType);
+  const isExpiry = EXPIRY_EVENTS.has(fields.eventType);
   const isSwitchPlan = fields.eventType === "SWITCH_PLAN";
+
+  // Para cancelamentos, usa cancellationDate (data efetiva) ou fallback para occurredAt
+  const effectiveCancelledAt = isCancellation
+    ? (fields.cancellationDate ?? occurredAt)
+    : undefined;
 
   // Busca HotmartSubscription existente por id externo ou subscriberCode
   const orWhere: { hotmartSubscriptionId?: string; subscriberCode?: string }[] =
@@ -209,8 +215,10 @@ async function upsertSubscription(
         ...(isActivation && { renewedAt: occurredAt }),
         ...(isActivation &&
           fields.recurrenceNumber === 1 && { startedAt: occurredAt }),
-        ...(isCancellation && { cancelledAt: occurredAt }),
-        ...(newStatus === "EXPIRED" && { endedAt: occurredAt }),
+        ...(isCancellation && { cancelledAt: effectiveCancelledAt }),
+        ...((isExpiry || isCancellation) && {
+          endedAt: effectiveCancelledAt ?? occurredAt,
+        }),
       },
     });
 
