@@ -14,10 +14,6 @@
       "schedule": "*/15 * * * *"
     },
     {
-      "path": "/api/cron/hotmart-reconcile",
-      "schedule": "0 6 * * *"
-    },
-    {
       "path": "/api/cron/sync-db",
       "schedule": "0 6 * * *"
     }
