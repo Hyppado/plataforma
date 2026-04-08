@@ -42,18 +42,36 @@ interface NotificationUser {
   id: string;
   email: string | null;
   name: string | null;
+  status?: string | null;
 }
 
 interface NotificationSubscription {
   id: string;
   status: string;
-  plan: { name: string } | null;
+  source?: string | null;
+  startedAt?: string | null;
+  plan: { name: string; hotmartPlanCode?: string | null } | null;
+  hotmart?: {
+    subscriberCode?: string | null;
+    hotmartSubscriptionId?: string | null;
+    buyerEmail?: string | null;
+    externalStatus?: string | null;
+  } | null;
 }
 
 interface NotificationEvent {
   id: string;
   eventType: string;
   processingStatus: string;
+  transactionId?: string | null;
+  subscriberCode?: string | null;
+  buyerEmail?: string | null;
+  productId?: string | null;
+  amountCents?: number | null;
+  occurredAt?: string | null;
+  receivedAt?: string | null;
+  processedAt?: string | null;
+  errorMessage?: string | null;
 }
 
 interface AdminNotification {
@@ -300,80 +318,202 @@ function NotificationRow({
                 border: "1px solid rgba(255,255,255,0.06)",
               }}
             >
-              <Stack spacing={1}>
-                <DetailRow label="Tipo" value={formatEventType(n.type)} />
-                <DetailRow label="Fonte" value={n.source} />
-                <DetailRow label="Status" value={n.status} />
-                {n.user && (
+              <Stack spacing={2}>
+                {/* ---- Notification Info ---- */}
+                <DetailSection label="Notificação">
+                  <DetailRow label="Tipo" value={formatEventType(n.type)} />
+                  <DetailRow label="Fonte" value={n.source} />
+                  <DetailRow label="Status" value={formatStatus(n.status)} />
                   <DetailRow
-                    label="Usuário"
-                    value={`${n.user.name ?? ""} (${n.user.email ?? "—"})`}
+                    label="Criado em"
+                    value={formatDatetime(n.createdAt)}
                   />
-                )}
-                {n.subscription && (
-                  <DetailRow
-                    label="Assinatura"
-                    value={`${n.subscription.plan?.name ?? "—"} — ${n.subscription.status}`}
-                  />
-                )}
-                {n.event && (
-                  <>
+                  {n.readAt && (
                     <DetailRow
-                      label="Evento Hotmart"
+                      label="Lido em"
+                      value={formatDatetime(n.readAt)}
+                    />
+                  )}
+                  {n.resolvedAt && (
+                    <DetailRow
+                      label="Resolvido em"
+                      value={formatDatetime(n.resolvedAt)}
+                    />
+                  )}
+                </DetailSection>
+
+                {/* ---- User Info ---- */}
+                {n.user && (
+                  <DetailSection label="Usuário">
+                    <DetailRow
+                      label="Nome"
+                      value={n.user.name ?? "—"}
+                    />
+                    <DetailRow
+                      label="E-mail"
+                      value={n.user.email ?? "—"}
+                    />
+                    {n.user.status && (
+                      <DetailRow
+                        label="Status da conta"
+                        value={n.user.status}
+                        highlight={
+                          n.user.status === "SUSPENDED"
+                            ? "#f44336"
+                            : n.user.status === "INACTIVE"
+                              ? "#ff9800"
+                              : undefined
+                        }
+                      />
+                    )}
+                  </DetailSection>
+                )}
+
+                {/* ---- Subscription Info ---- */}
+                {n.subscription && (
+                  <DetailSection label="Assinatura">
+                    <DetailRow
+                      label="Plano"
+                      value={n.subscription.plan?.name ?? "—"}
+                    />
+                    {n.subscription.plan?.hotmartPlanCode && (
+                      <DetailRow
+                        label="Código do plano"
+                        value={n.subscription.plan.hotmartPlanCode}
+                      />
+                    )}
+                    <DetailRow
+                      label="Status"
+                      value={n.subscription.status}
+                      highlight={
+                        n.subscription.status === "CANCELLED" ||
+                        n.subscription.status === "EXPIRED"
+                          ? "#f44336"
+                          : n.subscription.status === "PAST_DUE"
+                            ? "#ff9800"
+                            : n.subscription.status === "ACTIVE"
+                              ? "#4caf50"
+                              : undefined
+                      }
+                    />
+                    {n.subscription.source && (
+                      <DetailRow
+                        label="Fonte"
+                        value={n.subscription.source}
+                      />
+                    )}
+                    {n.subscription.startedAt && (
+                      <DetailRow
+                        label="Início"
+                        value={formatDatetime(n.subscription.startedAt)}
+                      />
+                    )}
+                    {n.subscription.hotmart && (
+                      <>
+                        {n.subscription.hotmart.subscriberCode && (
+                          <DetailRow
+                            label="Cód. assinante"
+                            value={n.subscription.hotmart.subscriberCode}
+                          />
+                        )}
+                        {n.subscription.hotmart.hotmartSubscriptionId && (
+                          <DetailRow
+                            label="ID Hotmart"
+                            value={n.subscription.hotmart.hotmartSubscriptionId}
+                          />
+                        )}
+                        {n.subscription.hotmart.externalStatus && (
+                          <DetailRow
+                            label="Status Hotmart"
+                            value={n.subscription.hotmart.externalStatus}
+                          />
+                        )}
+                      </>
+                    )}
+                  </DetailSection>
+                )}
+
+                {/* ---- Hotmart Event Info ---- */}
+                {n.event && (
+                  <DetailSection label="Evento Hotmart">
+                    <DetailRow
+                      label="Tipo"
                       value={formatEventType(n.event.eventType)}
                     />
                     <DetailRow
-                      label="Status do evento"
-                      value={n.event.processingStatus}
+                      label="Status"
+                      value={formatProcessingStatus(n.event.processingStatus)}
+                      highlight={
+                        n.event.processingStatus === "FAILED"
+                          ? "#f44336"
+                          : n.event.processingStatus === "PROCESSED"
+                            ? "#4caf50"
+                            : undefined
+                      }
                     />
-                  </>
+                    {n.event.transactionId && (
+                      <DetailRow
+                        label="Transação"
+                        value={n.event.transactionId}
+                      />
+                    )}
+                    {n.event.subscriberCode && (
+                      <DetailRow
+                        label="Cód. assinante"
+                        value={n.event.subscriberCode}
+                      />
+                    )}
+                    {n.event.buyerEmail && (
+                      <DetailRow
+                        label="E-mail comprador"
+                        value={n.event.buyerEmail}
+                      />
+                    )}
+                    {n.event.productId && (
+                      <DetailRow
+                        label="Produto"
+                        value={n.event.productId}
+                      />
+                    )}
+                    {n.event.amountCents != null && (
+                      <DetailRow
+                        label="Valor"
+                        value={formatCurrency(n.event.amountCents)}
+                      />
+                    )}
+                    {n.event.occurredAt && (
+                      <DetailRow
+                        label="Data do evento"
+                        value={formatDatetime(n.event.occurredAt)}
+                      />
+                    )}
+                    {n.event.receivedAt && (
+                      <DetailRow
+                        label="Recebido em"
+                        value={formatDatetime(n.event.receivedAt)}
+                      />
+                    )}
+                    {n.event.processedAt && (
+                      <DetailRow
+                        label="Processado em"
+                        value={formatDatetime(n.event.processedAt)}
+                      />
+                    )}
+                    {n.event.errorMessage && (
+                      <DetailRow
+                        label="Erro"
+                        value={n.event.errorMessage}
+                        highlight="#f44336"
+                      />
+                    )}
+                  </DetailSection>
                 )}
-                {n.readAt && (
-                  <DetailRow label="Lido em" value={formatDatetime(n.readAt)} />
-                )}
-                {n.resolvedAt && (
-                  <DetailRow
-                    label="Resolvido em"
-                    value={formatDatetime(n.resolvedAt)}
-                  />
-                )}
+
+                {/* ---- Metadata (structured) ---- */}
                 {n.metadata && Object.keys(n.metadata).length > 0 && (
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "rgba(255,255,255,0.4)",
-                        fontWeight: 600,
-                        display: "block",
-                        mb: 0.5,
-                      }}
-                    >
-                      Metadados
-                    </Typography>
-                    <Box
-                      sx={{
-                        p: 1,
-                        borderRadius: 1,
-                        background: "rgba(0,0,0,0.3)",
-                        maxHeight: 120,
-                        overflow: "auto",
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        component="pre"
-                        sx={{
-                          color: "rgba(255,255,255,0.5)",
-                          fontFamily: "monospace",
-                          fontSize: "0.7rem",
-                          whiteSpace: "pre-wrap",
-                          m: 0,
-                        }}
-                      >
-                        {JSON.stringify(n.metadata, null, 2)}
-                      </Typography>
-                    </Box>
-                  </Box>
+                  <DetailSection label="Dados adicionais">
+                    {renderMetadata(n.metadata, n.event)}
+                  </DetailSection>
                 )}
               </Stack>
             </Box>
@@ -435,20 +575,160 @@ function NotificationRow({
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: string;
+}) {
   return (
     <Stack direction="row" spacing={1}>
       <Typography
         variant="caption"
-        sx={{ color: "rgba(255,255,255,0.4)", minWidth: 110, fontWeight: 600 }}
+        sx={{ color: "rgba(255,255,255,0.4)", minWidth: 120, fontWeight: 600 }}
       >
         {label}
       </Typography>
-      <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: highlight ?? "rgba(255,255,255,0.7)",
+          fontWeight: highlight ? 600 : 400,
+          wordBreak: "break-all",
+        }}
+      >
         {value}
       </Typography>
     </Stack>
   );
+}
+
+function DetailSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "#2DD4FF",
+          fontWeight: 700,
+          fontSize: "0.72rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          display: "block",
+          mb: 0.5,
+          pb: 0.3,
+          borderBottom: "1px solid rgba(45,212,255,0.12)",
+        }}
+      >
+        {label}
+      </Typography>
+      <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+        {children}
+      </Stack>
+    </Box>
+  );
+}
+
+// Human-readable labels for metadata keys
+const METADATA_LABELS: Record<string, string> = {
+  eventType: "Tipo de evento",
+  recurrenceNumber: "Nº da recorrência",
+  amountCents: "Valor (centavos)",
+  productId: "ID do produto",
+  buyerEmail: "E-mail do comprador",
+  subscriberCode: "Cód. do assinante",
+  planCode: "Código do plano",
+  webhookEventId: "ID do webhook",
+  reason: "Motivo",
+  transactionId: "ID da transação",
+  previousStatus: "Status anterior",
+  newStatus: "Novo status",
+  trigger: "Gatilho",
+  source: "Fonte",
+  ip: "IP de origem",
+};
+
+function formatMetadataValue(key: string, val: unknown): string {
+  if (val == null) return "—";
+  if (key === "amountCents" && typeof val === "number") {
+    return formatCurrency(val);
+  }
+  if (key === "recurrenceNumber" && typeof val === "number") {
+    return val === 1 ? "1ª (primeira compra)" : `${val}ª recorrência`;
+  }
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+}
+
+/**
+ * Renders metadata as labeled rows, skipping keys already shown in
+ * the event section to avoid duplication.
+ */
+function renderMetadata(
+  metadata: Record<string, unknown>,
+  event: NotificationEvent | null,
+): React.ReactNode {
+  // Keys already displayed in the event section — skip them to avoid duplication
+  const eventDisplayedKeys = new Set<string>();
+  if (event) {
+    if (event.eventType) eventDisplayedKeys.add("eventType");
+    if (event.transactionId) eventDisplayedKeys.add("transactionId");
+    if (event.subscriberCode) eventDisplayedKeys.add("subscriberCode");
+    if (event.buyerEmail) eventDisplayedKeys.add("buyerEmail");
+    if (event.productId) eventDisplayedKeys.add("productId");
+    if (event.amountCents != null) eventDisplayedKeys.add("amountCents");
+  }
+
+  const entries = Object.entries(metadata).filter(
+    ([key, val]) => val != null && !eventDisplayedKeys.has(key),
+  );
+
+  if (entries.length === 0) return null;
+
+  return (
+    <>
+      {entries.map(([key, val]) => (
+        <DetailRow
+          key={key}
+          label={METADATA_LABELS[key] ?? key}
+          value={formatMetadataValue(key, val)}
+        />
+      ))}
+    </>
+  );
+}
+
+function formatStatus(status: string): string {
+  const map: Record<string, string> = {
+    UNREAD: "Não lido",
+    READ: "Lido",
+    ARCHIVED: "Arquivado",
+  };
+  return map[status] ?? status;
+}
+
+function formatProcessingStatus(status: string): string {
+  const map: Record<string, string> = {
+    RECEIVED: "Recebido",
+    PROCESSING: "Processando",
+    PROCESSED: "Processado",
+    FAILED: "Falhou",
+    DUPLICATE: "Duplicado",
+  };
+  return map[status] ?? status;
+}
+
+function formatCurrency(cents: number): string {
+  return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
 }
 
 // ---------------------------------------------------------------------------

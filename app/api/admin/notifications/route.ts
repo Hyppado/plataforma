@@ -37,12 +37,39 @@ export async function GET(req: NextRequest) {
       skip,
       take: limit,
       include: {
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: { id: true, email: true, name: true, status: true } },
         subscription: {
-          select: { id: true, status: true, plan: { select: { name: true } } },
+          select: {
+            id: true,
+            status: true,
+            source: true,
+            startedAt: true,
+            plan: { select: { name: true, hotmartPlanCode: true } },
+            hotmart: {
+              select: {
+                subscriberCode: true,
+                hotmartSubscriptionId: true,
+                buyerEmail: true,
+                externalStatus: true,
+              },
+            },
+          },
         },
         event: {
-          select: { id: true, eventType: true, processingStatus: true },
+          select: {
+            id: true,
+            eventType: true,
+            processingStatus: true,
+            transactionId: true,
+            subscriberCode: true,
+            buyerEmail: true,
+            productId: true,
+            amountCents: true,
+            occurredAt: true,
+            receivedAt: true,
+            processedAt: true,
+            errorMessage: true,
+          },
         },
       },
     }),

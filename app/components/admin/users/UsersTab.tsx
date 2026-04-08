@@ -97,7 +97,6 @@ const CATEGORY_CHIP: Record<
     color: "#4caf50",
     bg: "rgba(76,175,80,0.12)",
   },
-
 };
 
 function formatDate(iso: string | null): string {
