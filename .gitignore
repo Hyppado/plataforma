@@ -16,6 +16,8 @@ node_modules/
 # Local-only scripts
 Makefile
 scripts/cleanup-members.ts
+scripts/import-subscribers.ts
+scripts/sync-db.ts
 
 # Build output
 out/

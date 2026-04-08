@@ -64,7 +64,7 @@ interface UsersResponse {
   };
 }
 
-type UserCategory = "all" | "admin" | "subscriber" | "manual";
+type UserCategory = "all" | "admin" | "subscriber";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,10 +82,9 @@ async function fetcher<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function getUserCategory(u: UserRow): "admin" | "subscriber" | "manual" {
+function getUserCategory(u: UserRow): "admin" | "subscriber" {
   if (u.role === "ADMIN") return "admin";
-  if (u._count.subscriptions > 0) return "subscriber";
-  return "manual";
+  return "subscriber";
 }
 
 const CATEGORY_CHIP: Record<
@@ -98,7 +97,7 @@ const CATEGORY_CHIP: Record<
     color: "#4caf50",
     bg: "rgba(76,175,80,0.12)",
   },
-  manual: { label: "Manual", color: "#2DD4FF", bg: "rgba(45,212,255,0.12)" },
+
 };
 
 function formatDate(iso: string | null): string {
@@ -557,7 +556,7 @@ export function UsersTab() {
             Usuários
           </Typography>
           <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
-            Gerencie usuários do sistema, crie contas manuais e resete senhas.
+            Gerencie usuários do sistema, crie contas e resete senhas.
           </Typography>
         </Box>
         <Button
@@ -609,7 +608,6 @@ export function UsersTab() {
               { value: "all", label: "Todos" },
               { value: "admin", label: "Admins" },
               { value: "subscriber", label: "Assinantes" },
-              { value: "manual", label: "Manuais" },
             ] as const
           ).map((opt) => (
             <Chip
