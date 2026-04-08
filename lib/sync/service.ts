@@ -141,7 +141,21 @@ async function syncTable(
   // Apply masking if needed
   let rows = readRes.rows as Record<string, unknown>[];
   if (masked) {
-    rows = rows.map((row) => maskRow(table, { ...row }));
+    if (table === "User") {
+      // Only mask users that came from a subscription — preserve admins
+      // and manually created accounts so they can log in on preview
+      const subRes = await prod.query(
+        'SELECT DISTINCT "userId" FROM "Subscription"',
+      );
+      const subscriberIds = new Set(subRes.rows.map((r) => r.userId as string));
+      rows = rows.map((row) =>
+        subscriberIds.has(row.id as string)
+          ? maskRow(table, { ...row })
+          : { ...row },
+      );
+    } else {
+      rows = rows.map((row) => maskRow(table, { ...row }));
+    }
   }
 
   // Null out columns if needed
