@@ -206,6 +206,8 @@ enum ChargeStatus {
   CANCELLED
   CHARGEBACK
   FAILED
+  OVERDUE
+  REFUND_REQUEST
 }
 
 // ---------------------------------------------------------------------------

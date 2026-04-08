@@ -111,7 +111,7 @@ describe("processHotmartEvent()", () => {
     vi.useFakeTimers();
   });
 
-  it("processes informational event (PURCHASE_BILLET_PRINTED)", async () => {
+  it("processes PURCHASE_BILLET_PRINTED with notification (status-preserving)", async () => {
     const fields = makeFields({ eventType: "PURCHASE_BILLET_PRINTED" });
 
     const promise = processHotmartEvent("event-1", fields);
@@ -119,7 +119,7 @@ describe("processHotmartEvent()", () => {
     await vi.runAllTimersAsync();
     await promise;
 
-    // Should create audit log with informational action
+    // Should create audit log
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -127,8 +127,14 @@ describe("processHotmartEvent()", () => {
         }),
       }),
     );
-    // Should NOT try to resolve identity (informationals skip this)
-    expect(prismaMock.externalAccountLink.findFirst).not.toHaveBeenCalled();
+    // Should resolve identity (status-preserving events DO resolve identity)
+    expect(prismaMock.externalAccountLink.findFirst).toHaveBeenCalled();
+    // Should create notification
+    expect(createNotificationIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "PURCHASE_BILLET_PRINTED",
+      }),
+    );
   });
 
   it("processes PURCHASE_APPROVED and creates subscription", async () => {

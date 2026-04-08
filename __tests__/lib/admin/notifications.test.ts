@@ -91,13 +91,18 @@ describe("createNotificationIfNeeded()", () => {
     });
   });
 
-  it("returns null for informational events (no rule)", async () => {
+  it("creates INFO notification for PURCHASE_BILLET_PRINTED (awaiting payment)", async () => {
     const result = await createNotificationIfNeeded(
       makeCtx({ eventType: "PURCHASE_BILLET_PRINTED" }),
     );
 
-    expect(result).toBeNull();
-    expect(prismaMock.adminNotification.create).not.toHaveBeenCalled();
+    expect(result).toBe("notif-1");
+    expect(prismaMock.adminNotification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "SUBSCRIPTION_AWAITING_PAYMENT",
+        severity: "INFO",
+      }),
+    });
   });
 
   it("returns null for PURCHASE_APPROVED (no rule)", async () => {

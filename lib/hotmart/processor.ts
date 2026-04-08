@@ -13,11 +13,13 @@
  *  PURCHASE_REFUNDED          — reembolso
  *  PURCHASE_CHARGEBACK        — chargeback
  *  PURCHASE_DELAYED           — renovação em atraso (grace period → PAST_DUE)
- *  PURCHASE_BILLET_PRINTED    — boleto gerado (informacional)
+ *  PURCHASE_EXPIRED           — pagamento expirado (boleto/PIX não pago → EXPIRED)
+ *  PURCHASE_PROTEST           — solicitação de reembolso/disputa (charge → REFUND_REQUEST)
+ *  PURCHASE_BILLET_PRINTED    — boleto gerado (aguardando pagamento, notificação)
  *  PURCHASE_OUT_OF_SHOPPING_CART / CART_ABANDONMENT — carrinho abandonado (informacional)
  *  SUBSCRIPTION_CANCELLATION  — assinatura cancelada definitivamente
  *  SWITCH_PLAN                — mudança de plano
- *  UPDATE_SUBSCRIPTION_CHARGE_DATE — nova data de cobrança (informacional)
+ *  UPDATE_SUBSCRIPTION_CHARGE_DATE — nova data de cobrança (notificação)
  *  CLUB_FIRST_ACCESS          — 1º acesso ao clube (informacional)
  *  CLUB_MODULE_COMPLETED      — módulo concluído (informacional)
  *
@@ -52,14 +54,22 @@ const CANCELLATION_EVENTS = new Set([
 
 const DELAY_EVENTS = new Set(["PURCHASE_DELAYED"]);
 
-// Eventos que não alteram estado de assinatura — apenas auditados
+const EXPIRY_EVENTS = new Set(["PURCHASE_EXPIRED"]);
+
+// Eventos que não alteram estado de assinatura mas geram notificação + audit
+// Charge status pode ser atualizado, mas subscription status permanece inalterado.
+const STATUS_PRESERVING_EVENTS = new Set([
+  "PURCHASE_PROTEST", // Solicitação de reembolso (disputa)
+  "UPDATE_SUBSCRIPTION_CHARGE_DATE", // Nova data de cobrança
+  "PURCHASE_BILLET_PRINTED", // Boleto gerado (aguardando pagamento)
+]);
+
+// Eventos puramente informativos — apenas audit log, sem notificação
 const INFORMATIONAL_EVENTS = new Set([
-  "PURCHASE_BILLET_PRINTED",
   "PURCHASE_OUT_OF_SHOPPING_CART",
   "CART_ABANDONMENT",
   "CLUB_FIRST_ACCESS",
   "CLUB_MODULE_COMPLETED",
-  "UPDATE_SUBSCRIPTION_CHARGE_DATE",
 ]);
 
 // Evento → ChargeStatus
@@ -68,7 +78,11 @@ const CHARGE_STATUS_MAP: Record<string, string> = {
   PURCHASE_COMPLETE: "PAID",
   PURCHASE_REFUNDED: "REFUNDED",
   PURCHASE_CHARGEBACK: "CHARGEBACK",
-  PURCHASE_DELAYED: "FAILED",
+  PURCHASE_DELAYED: "OVERDUE",
+  PURCHASE_CANCELED: "CANCELLED",
+  PURCHASE_CANCELLED: "CANCELLED",
+  PURCHASE_PROTEST: "REFUND_REQUEST",
+  PURCHASE_EXPIRED: "FAILED",
 };
 
 // ---------------------------------------------------------------------------
@@ -543,7 +557,7 @@ async function _processEvent(
 ): Promise<void> {
   const { eventType } = fields;
 
-  // Eventos informativos — apenas audit log
+  // Eventos informativos — apenas audit log, sem notificação
   if (INFORMATIONAL_EVENTS.has(eventType)) {
     await prisma.auditLog.create({
       data: {
@@ -558,6 +572,102 @@ async function _processEvent(
         },
       },
     });
+    await markProcessed(webhookEventId);
+    return;
+  }
+
+  // Eventos que preservam status da assinatura (notificação + audit, sem mudança de estado)
+  if (STATUS_PRESERVING_EVENTS.has(eventType)) {
+    const identity = await resolveOrCreateIdentity(fields);
+
+    let subscriptionId: string | undefined;
+
+    if (identity) {
+      // Busca HotmartSubscription existente (sem criar/modificar)
+      const orWhere: {
+        hotmartSubscriptionId?: string;
+        subscriberCode?: string;
+      }[] = [];
+      if (fields.subscriptionExternalId)
+        orWhere.push({ hotmartSubscriptionId: fields.subscriptionExternalId });
+      if (fields.subscriberCode)
+        orWhere.push({ subscriberCode: fields.subscriberCode });
+
+      const hotmartSub = orWhere.length
+        ? await prisma.hotmartSubscription.findFirst({ where: { OR: orWhere } })
+        : null;
+
+      subscriptionId = hotmartSub?.subscriptionId;
+
+      // Atualiza externalStatus no HotmartSubscription
+      if (hotmartSub) {
+        await prisma.hotmartSubscription.update({
+          where: { id: hotmartSub.id },
+          data: {
+            externalStatus: fields.subscriptionStatus ?? fields.eventType,
+          },
+        });
+      }
+
+      // Cria charge record se aplicável
+      const chargeStatus = CHARGE_STATUS_MAP[eventType];
+      if (chargeStatus && fields.transactionId && subscriptionId) {
+        await prisma.subscriptionCharge.upsert({
+          where: { transactionId: fields.transactionId },
+          update: {
+            status: chargeStatus as never,
+            amountCents: fields.amountCents,
+            currency: fields.currency ?? "BRL",
+          },
+          create: {
+            subscriptionId,
+            transactionId: fields.transactionId,
+            amountCents: fields.amountCents,
+            currency: fields.currency ?? "BRL",
+            status: chargeStatus as never,
+            chargeAt: fields.occurredAt,
+          },
+        });
+      }
+    }
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: identity?.userId,
+        actorId: "system",
+        action: `WEBHOOK_${eventType}`,
+        entityType: subscriptionId ? "Subscription" : "HotmartWebhookEvent",
+        entityId: subscriptionId ?? webhookEventId,
+        after: {
+          eventType,
+          subscriberCode: fields.subscriberCode,
+          transactionId: fields.transactionId,
+          productId: fields.productId,
+          amountCents: fields.amountCents,
+        },
+      },
+    });
+
+    // Notificação admin
+    await createNotificationIfNeeded({
+      eventType,
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      transactionId: fields.transactionId,
+      planCode: fields.planCode,
+      userId: identity?.userId,
+      subscriptionId,
+      eventId: webhookEventId,
+      metadata: {
+        eventType,
+        amountCents: fields.amountCents,
+      },
+    }).catch((err) => {
+      log.warn("Failed to create status-preserving notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     await markProcessed(webhookEventId);
     return;
   }
@@ -584,7 +694,9 @@ async function _processEvent(
         ? "CANCELLED"
         : DELAY_EVENTS.has(eventType)
           ? "PAST_DUE"
-          : "ACTIVE"; // SWITCH_PLAN e outros
+          : EXPIRY_EVENTS.has(eventType)
+            ? "EXPIRED"
+            : "ACTIVE"; // SWITCH_PLAN e outros
 
     subscriptionId = await upsertSubscription(
       fields,

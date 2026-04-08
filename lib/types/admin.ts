@@ -37,6 +37,18 @@ export interface Subscriber {
   hotmartStatus?: string | null;
   startedAt?: string | null;
   cancelledAt?: string | null;
+  /** Date the next charge is scheduled */
+  nextChargeAt?: string | null;
+  /** Date the subscription ends (after cancellation) */
+  endDate?: string | null;
+  /** Date the cancellation was requested */
+  requestDate?: string | null;
+  /** Whether the subscription is in trial */
+  trial?: boolean;
+  /** Max charge cycles for the plan */
+  maxChargeCycles?: number | null;
+  /** Recurrency period (MONTHLY, YEARLY, etc.) */
+  recurrencyPeriod?: string | null;
   lastPaymentAt?: string | null;
   lastPaymentAmount?: number | null;
   lastPaymentCurrency?: string;
@@ -188,20 +200,57 @@ export interface PromptConfig {
   };
 }
 
-/** Hotmart webhook event types we plan to listen to */
+/** Hotmart webhook event types we handle */
 export const HOTMART_WEBHOOK_EVENTS = [
+  // Provisionamento principal
   {
     event: "PURCHASE_APPROVED",
     description: "Compra aprovada / pagamento confirmado",
   },
+  {
+    event: "PURCHASE_COMPLETE",
+    description: "Compra concluída (pós-garantia antichargeback)",
+  },
+
+  // Cancelamentos e perdas
+  { event: "PURCHASE_CANCELED", description: "Compra cancelada" },
   { event: "PURCHASE_REFUNDED", description: "Reembolso processado" },
   { event: "PURCHASE_CHARGEBACK", description: "Chargeback recebido" },
-  { event: "SUBSCRIPTION_CANCELLATION", description: "Assinatura cancelada" },
   {
-    event: "SUBSCRIPTION_RENEWAL",
-    description: "Renovação de assinatura paga",
+    event: "SUBSCRIPTION_CANCELLATION",
+    description: "Assinatura cancelada definitivamente",
   },
+
+  // Atraso e expiração
+  { event: "PURCHASE_DELAYED", description: "Pagamento em atraso (overdue)" },
+  {
+    event: "PURCHASE_EXPIRED",
+    description: "Pagamento expirado (boleto/PIX não compensado)",
+  },
+
+  // Disputa / pedido de reembolso
+  {
+    event: "PURCHASE_PROTEST",
+    description: "Solicitação de reembolso / disputa",
+  },
+
+  // Alterações de assinatura
   { event: "SWITCH_PLAN", description: "Mudança de plano" },
+  {
+    event: "UPDATE_SUBSCRIPTION_CHARGE_DATE",
+    description: "Data de cobrança alterada",
+  },
+
+  // Aguardando pagamento
+  {
+    event: "PURCHASE_BILLET_PRINTED",
+    description: "Boleto emitido (aguardando pagamento)",
+  },
+
+  // Informativos (audit log apenas)
+  { event: "CART_ABANDONMENT", description: "Carrinho abandonado" },
+  { event: "CLUB_FIRST_ACCESS", description: "Primeiro acesso ao conteúdo" },
+  { event: "CLUB_MODULE_COMPLETED", description: "Módulo concluído" },
 ] as const;
 
 /** Hotmart product/offer data mapping (schema reference) */

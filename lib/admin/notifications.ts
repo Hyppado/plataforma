@@ -66,6 +66,52 @@ export const NOTIFICATION_RULES: Record<string, NotificationRule> = {
       "Assinatura de {email} cancelada definitivamente pelo Hotmart.",
   },
 
+  // Mudança de plano
+  SUBSCRIPTION_PLAN_CHANGED: {
+    severity: "INFO",
+    title: "Plano alterado",
+    messageTemplate:
+      "Assinante {email} alterou de plano. Novo plano: {planCode}.",
+  },
+
+  // Solicitação de reembolso (PURCHASE_PROTEST)
+  SUBSCRIPTION_REFUND_REQUESTED: {
+    severity: "HIGH",
+    title: "Reembolso solicitado",
+    messageTemplate:
+      "Solicitação de reembolso de {email} — transação {transactionId}.",
+  },
+
+  // Assinatura expirada (PURCHASE_EXPIRED)
+  SUBSCRIPTION_EXPIRED: {
+    severity: "WARNING",
+    title: "Assinatura expirada",
+    messageTemplate:
+      "Pagamento de {email} expirou (boleto/PIX não compensado). Transação {transactionId}.",
+  },
+
+  // Boleto aguardando pagamento (PURCHASE_BILLET_PRINTED)
+  SUBSCRIPTION_AWAITING_PAYMENT: {
+    severity: "INFO",
+    title: "Aguardando pagamento",
+    messageTemplate: "Boleto emitido para {email}. Plano: {planCode}.",
+  },
+
+  // Data de cobrança alterada
+  SUBSCRIPTION_BILLING_CHANGED: {
+    severity: "INFO",
+    title: "Data de cobrança alterada",
+    messageTemplate: "Data de cobrança da assinatura de {email} foi alterada.",
+  },
+
+  // Compra concluída (pós-antichargeback)
+  SUBSCRIPTION_COMPLETED: {
+    severity: "INFO",
+    title: "Compra concluída",
+    messageTemplate:
+      "Compra de {email} concluída (garantia encerrada). Transação {transactionId}.",
+  },
+
   // Segurança — HOTTOK inválido
   WEBHOOK_INVALID: {
     severity: "CRITICAL",
@@ -113,7 +159,13 @@ const EVENT_TO_NOTIFICATION_TYPE: Record<string, string> = {
   PURCHASE_REFUNDED: "SUBSCRIPTION_REFUNDED",
   PURCHASE_CHARGEBACK: "SUBSCRIPTION_CHARGEBACK",
   PURCHASE_DELAYED: "SUBSCRIPTION_DELAYED",
+  PURCHASE_COMPLETE: "SUBSCRIPTION_COMPLETED",
+  PURCHASE_PROTEST: "SUBSCRIPTION_REFUND_REQUESTED",
+  PURCHASE_EXPIRED: "SUBSCRIPTION_EXPIRED",
+  PURCHASE_BILLET_PRINTED: "SUBSCRIPTION_AWAITING_PAYMENT",
   SUBSCRIPTION_CANCELLATION: "SUBSCRIPTION_CANCELLATION",
+  SWITCH_PLAN: "SUBSCRIPTION_PLAN_CHANGED",
+  UPDATE_SUBSCRIPTION_CHARGE_DATE: "SUBSCRIPTION_BILLING_CHANGED",
 };
 
 // ---------------------------------------------------------------------------

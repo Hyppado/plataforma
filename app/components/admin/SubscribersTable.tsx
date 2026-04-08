@@ -15,6 +15,7 @@ import {
   Tabs,
   Tab,
   Tooltip,
+  Box,
 } from "@mui/material";
 import { PersonOutlined } from "@mui/icons-material";
 import type { Subscriber, SubscriptionMetrics } from "@/lib/types/admin";
@@ -26,11 +27,58 @@ function formatCurrency(cents: number): string {
   });
 }
 
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+
 const cardStyle = {
   background: "rgba(10, 15, 24, 0.8)",
   border: "1px solid rgba(255,255,255,0.06)",
   borderRadius: 3,
 };
+
+/** Map internal status to display label */
+function statusLabel(status: string): string {
+  const map: Record<string, string> = {
+    ACTIVE: "Ativo",
+    CANCELED: "Cancelado",
+    PAST_DUE: "Inadimplente",
+    PENDING: "Pendente",
+    EXPIRED: "Expirado",
+  };
+  return map[status] ?? status;
+}
+
+/** Map raw Hotmart status to a human-readable label */
+function hotmartStatusLabel(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  const map: Record<string, string> = {
+    ACTIVE: "Ativo",
+    CANCELLED_BY_CUSTOMER: "Cancelado pelo cliente",
+    CANCELLED_BY_SELLER: "Cancelado pelo vendedor",
+    CANCELLED_BY_ADMIN: "Cancelado pelo admin",
+    DELAYED: "Pagamento atrasado",
+    OVERDUE: "Inadimplente",
+    STARTED: "Iniciado (aguardando pgto)",
+    INACTIVE: "Inativo",
+  };
+  return map[raw] ?? raw.replace(/_/g, " ").toLowerCase();
+}
+
+/** Status chip color */
+function statusColor(status: string): { bg: string; fg: string } {
+  switch (status) {
+    case "ACTIVE":
+      return { bg: "rgba(76, 175, 80, 0.15)", fg: "#81C784" };
+    case "PAST_DUE":
+      return { bg: "rgba(255, 183, 77, 0.15)", fg: "#FFB74D" };
+    case "PENDING":
+      return { bg: "rgba(66, 165, 245, 0.15)", fg: "#42A5F5" };
+    default:
+      return { bg: "rgba(244, 67, 54, 0.15)", fg: "#EF5350" };
+  }
+}
 
 interface SubscribersTableProps {
   subscribers: Subscriber[];
@@ -53,6 +101,21 @@ export function SubscribersTable({
   onTabChange,
   onSearchChange,
 }: SubscribersTableProps) {
+  const cellSx = {
+    color: "rgba(255,255,255,0.6)",
+    borderColor: "rgba(255,255,255,0.06)",
+    fontSize: "0.8rem",
+    py: 1,
+  };
+
+  const headSx = {
+    color: "rgba(255,255,255,0.5)",
+    borderColor: "rgba(255,255,255,0.06)",
+    fontWeight: 600,
+    fontSize: "0.75rem",
+    whiteSpace: "nowrap" as const,
+  };
+
   return (
     <Grid item xs={12}>
       <Card sx={cardStyle}>
@@ -96,12 +159,8 @@ export function SubscribersTable({
             }}
           >
             <Tab label={`Ativos (${metrics?.activeSubscribers ?? "—"})`} />
-            <Tab
-              label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`}
-            />
-            <Tab
-              label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`}
-            />
+            <Tab label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`} />
+            <Tab label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`} />
           </Tabs>
 
           <TableContainer>
@@ -113,17 +172,12 @@ export function SubscribersTable({
                     "Email",
                     "Plano",
                     "Status",
-                    "Último Pgto",
+                    "Status Hotmart",
+                    "Próx. Cobrança",
+                    "Últ. Pgto",
                     "Desde",
                   ].map((h) => (
-                    <TableCell
-                      key={h}
-                      sx={{
-                        color: "rgba(255,255,255,0.5)",
-                        borderColor: "rgba(255,255,255,0.06)",
-                        fontWeight: 600,
-                      }}
-                    >
+                    <TableCell key={h} sx={headSx}>
                       {h}
                     </TableCell>
                   ))}
@@ -133,7 +187,7 @@ export function SubscribersTable({
                 {subscribers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={8}
                       sx={{
                         color: "rgba(255,255,255,0.4)",
                         borderColor: "rgba(255,255,255,0.06)",
@@ -147,108 +201,166 @@ export function SubscribersTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  subscribers.map((sub) => (
-                    <TableRow key={sub.id}>
-                      <TableCell
-                        sx={{
-                          color: "rgba(255,255,255,0.8)",
-                          borderColor: "rgba(255,255,255,0.06)",
-                        }}
-                      >
-                        {sub.name ?? "—"}
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          color: "rgba(255,255,255,0.6)",
-                          borderColor: "rgba(255,255,255,0.06)",
-                        }}
-                      >
-                        {sub.email ?? "—"}
-                      </TableCell>
-                      <TableCell sx={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                        <Tooltip
-                          title={`${sub.plan.code} — ${sub.plan.displayPrice ?? ""}`}
+                  subscribers.map((sub) => {
+                    const sc = statusColor(sub.status);
+                    const isCanceled =
+                      sub.status === "CANCELED" || sub.status === "EXPIRED";
+
+                    return (
+                      <TableRow key={sub.id}>
+                        {/* Nome */}
+                        <TableCell
+                          sx={{ ...cellSx, color: "rgba(255,255,255,0.8)" }}
                         >
+                          {sub.name ?? "—"}
+                          {sub.trial && (
+                            <Chip
+                              label="Trial"
+                              size="small"
+                              sx={{
+                                ml: 0.5,
+                                height: 18,
+                                fontSize: "0.65rem",
+                                background: "rgba(156,39,176,0.15)",
+                                color: "#CE93D8",
+                              }}
+                            />
+                          )}
+                        </TableCell>
+
+                        {/* Email */}
+                        <TableCell sx={cellSx}>{sub.email ?? "—"}</TableCell>
+
+                        {/* Plano */}
+                        <TableCell sx={{ ...cellSx, maxWidth: 160 }}>
+                          <Tooltip
+                            title={`${sub.plan.code} — ${sub.plan.displayPrice ?? ""}${sub.recurrencyPeriod ? " / " + sub.recurrencyPeriod : ""}${sub.maxChargeCycles ? " (×" + sub.maxChargeCycles + ")" : ""}`}
+                          >
+                            <Chip
+                              label={sub.plan.name}
+                              size="small"
+                              sx={{
+                                background: "rgba(45, 212, 255, 0.1)",
+                                color: "#2DD4FF",
+                                fontSize: "0.75rem",
+                                maxWidth: 150,
+                              }}
+                            />
+                          </Tooltip>
+                          {sub.plan.displayPrice && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                color: "rgba(255,255,255,0.35)",
+                                fontSize: "0.7rem",
+                                mt: 0.2,
+                              }}
+                            >
+                              {sub.plan.displayPrice}
+                            </Typography>
+                          )}
+                        </TableCell>
+
+                        {/* Status interno */}
+                        <TableCell sx={cellSx}>
                           <Chip
-                            label={sub.plan.name}
+                            label={statusLabel(sub.status)}
                             size="small"
                             sx={{
-                              background: "rgba(45, 212, 255, 0.1)",
-                              color: "#2DD4FF",
+                              background: sc.bg,
+                              color: sc.fg,
                               fontSize: "0.75rem",
                             }}
                           />
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell sx={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                        <Chip
-                          label={
-                            sub.status === "ACTIVE"
-                              ? "Ativo"
-                              : sub.status === "CANCELED"
-                                ? "Cancelado"
-                                : sub.status === "PAST_DUE"
-                                  ? "Inadimplente"
-                                  : sub.status
-                          }
-                          size="small"
-                          sx={{
-                            background:
-                              sub.status === "ACTIVE"
-                                ? "rgba(76, 175, 80, 0.15)"
-                                : sub.status === "PAST_DUE"
-                                  ? "rgba(255, 183, 77, 0.15)"
-                                  : "rgba(244, 67, 54, 0.15)",
-                            color:
-                              sub.status === "ACTIVE"
-                                ? "#81C784"
-                                : sub.status === "PAST_DUE"
-                                  ? "#FFB74D"
-                                  : "#EF5350",
-                            fontSize: "0.75rem",
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          color: "rgba(255,255,255,0.6)",
-                          borderColor: "rgba(255,255,255,0.06)",
-                        }}
-                      >
-                        {sub.lastPaymentAt
-                          ? new Date(sub.lastPaymentAt).toLocaleDateString(
-                              "pt-BR",
-                            )
-                          : "—"}
-                        {sub.lastPaymentAmount != null && (
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              display: "block",
-                              color: "rgba(255,255,255,0.4)",
-                            }}
-                          >
-                            {formatCurrency(sub.lastPaymentAmount)}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          color: "rgba(255,255,255,0.5)",
-                          borderColor: "rgba(255,255,255,0.06)",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        {sub.startedAt
-                          ? new Date(sub.startedAt).toLocaleDateString("pt-BR")
-                          : sub.createdAt
-                            ? new Date(sub.createdAt).toLocaleDateString(
-                                "pt-BR",
-                              )
+                        </TableCell>
+
+                        {/* Status Hotmart (raw) */}
+                        <TableCell sx={cellSx}>
+                          <Tooltip title={sub.hotmartStatus ?? "—"}>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "rgba(255,255,255,0.5)", fontSize: "0.75rem" }}
+                            >
+                              {hotmartStatusLabel(sub.hotmartStatus)}
+                            </Typography>
+                          </Tooltip>
+                        </TableCell>
+
+                        {/* Próx. Cobrança / Fim */}
+                        <TableCell sx={cellSx}>
+                          {isCanceled ? (
+                            <Box>
+                              <Typography
+                                variant="caption"
+                                sx={{ color: "#EF5350", fontSize: "0.75rem" }}
+                              >
+                                {sub.endDate
+                                  ? "Fim: " + formatDate(sub.endDate)
+                                  : "—"}
+                              </Typography>
+                              {sub.requestDate && (
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    display: "block",
+                                    color: "rgba(255,255,255,0.3)",
+                                    fontSize: "0.65rem",
+                                  }}
+                                >
+                                  Solicitado: {formatDate(sub.requestDate)}
+                                </Typography>
+                              )}
+                            </Box>
+                          ) : sub.nextChargeAt ? (
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "#81C784", fontSize: "0.75rem" }}
+                            >
+                              {formatDate(sub.nextChargeAt)}
+                            </Typography>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Últ. Pgto */}
+                        <TableCell sx={cellSx}>
+                          {sub.lastPaymentAt
+                            ? formatDate(sub.lastPaymentAt)
                             : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                          {sub.lastPaymentAmount != null && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                color: "rgba(255,255,255,0.4)",
+                              }}
+                            >
+                              {formatCurrency(sub.lastPaymentAmount)}
+                            </Typography>
+                          )}
+                        </TableCell>
+
+                        {/* Desde */}
+                        <TableCell sx={cellSx}>
+                          {formatDate(sub.startedAt ?? sub.createdAt)}
+                          {sub.subscriberCode && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                color: "rgba(255,255,255,0.25)",
+                                fontSize: "0.65rem",
+                              }}
+                            >
+                              {sub.subscriberCode}
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

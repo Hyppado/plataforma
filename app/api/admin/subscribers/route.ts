@@ -166,6 +166,16 @@ export async function GET(request: Request) {
         ? new Date(item.accession_date).toISOString()
         : null,
       cancelledAt: item.end_date ? new Date(item.end_date).toISOString() : null,
+      nextChargeAt: item.date_next_charge
+        ? new Date(item.date_next_charge).toISOString()
+        : null,
+      endDate: item.end_date ? new Date(item.end_date).toISOString() : null,
+      requestDate: item.request_date
+        ? new Date(item.request_date).toISOString()
+        : null,
+      trial: item.trial ?? false,
+      maxChargeCycles: item.plan?.max_charge_cycles ?? null,
+      recurrencyPeriod: item.plan?.recurrency_period ?? null,
       lastPaymentAt: null,
       lastPaymentAmount: item.price ? Math.round(item.price.value * 100) : null,
       lastPaymentCurrency: item.price?.currency_code ?? "BRL",
