@@ -134,7 +134,7 @@ function makeLogger(
 /**
  * Create a new structured logger.
  *
- * @param source - Component name (e.g. "echotik-cron", "hotmart-reconcile")
+ * @param source - Component name (e.g. "echotik-cron", "cron/sync-db")
  * @param correlationId - Optional; auto-generated UUID if omitted
  */
 export function createLogger(source: string, correlationId?: string): Logger {

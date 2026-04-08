@@ -48,7 +48,7 @@ hyppado/
 │   ├── api/                    # 37 route handlers
 │   │   ├── admin/              # 13 rotas admin (notifications, plans, users, etc)
 │   │   ├── auth/[...nextauth]  # NextAuth handler
-│   │   ├── cron/               # 2 crons (echotik, hotmart-reconcile)
+│   │   ├── cron/               # 3 crons (echotik, sync-db, transcribe)
 │   │   ├── echotik/            # 4 rotas (categories, products)
 │   │   ├── trending/           # 3 rotas (videos, products, creators)
 │   │   ├── webhooks/hotmart    # Webhook receiver
@@ -114,8 +114,8 @@ hyppado/
 
 | Rota                          | Horário          | Função                                           |
 | ----------------------------- | ---------------- | ------------------------------------------------ |
-| `/api/cron/echotik`           | 03:00 UTC diário | Ingestão de rankings, categorias, top lists      |
-| `/api/cron/hotmart-reconcile` | 06:00 UTC diário | Retry de falhas, detecção de subs stale, limpeza |
+| `/api/cron/echotik`           | */15 * * * *     | Ingestão de rankings, categorias, top lists      |
+| `/api/cron/sync-db`           | 0 6 * * *        | Sync prod → preview database com masking de PII  |
 
 ---
 
@@ -461,7 +461,6 @@ para acessar rankings de vídeos, produtos e creators. Dados vindos da API Echot
   Cron de ingestão em `lib/echotik/cron.ts` (diário 03:00 UTC).
   Budget: 10k req/mês.
 - **Hotmart**: webhooks em `/api/webhooks/hotmart/`, processador em `lib/hotmart/processor.ts`.
-  Reconciliação diária em `/api/cron/hotmart-reconcile`.
   Notificações automáticas via `lib/admin/notifications.ts`.
 
 ## Padrões de Qualidade
