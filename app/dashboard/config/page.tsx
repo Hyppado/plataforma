@@ -24,7 +24,6 @@ import { PromptsSection } from "@/app/components/admin/PromptsSection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
-import { NotificationsTab } from "@/app/components/admin/notifications/NotificationsTab";
 
 export default function ConfigPage() {
   const router = useRouter();
@@ -151,7 +150,6 @@ export default function ConfigPage() {
         <Tab label="Echotik" />
         <Tab label="Hotmart" />
         <Tab label="OpenAI" />
-        <Tab label="Notificações" />
       </Tabs>
 
       {/* Tab 0 — Geral (Limites + Prompts) */}
@@ -192,9 +190,6 @@ export default function ConfigPage() {
 
       {/* Tab 3 — OpenAI */}
       {activeTab === 3 && <OpenAITab />}
-
-      {/* Tab 4 — Notificações */}
-      {activeTab === 4 && <NotificationsTab />}
     </Box>
   );
 }

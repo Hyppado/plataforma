@@ -12,8 +12,10 @@ import {
 } from "@mui/material";
 import { KeyboardArrowDown } from "@mui/icons-material";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { REGION_FLAGS, getStoredRegion, setStoredRegion } from "@/lib/region";
 import { HeaderQuota } from "./HeaderQuota";
+import { HeaderNotifications } from "./HeaderNotifications";
 
 /**
  * AppTopHeader — header global das páginas /dashboard/*
@@ -26,6 +28,8 @@ export function AppTopHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
 
   // Inicia com getStoredRegion() para não piscar "BR" se URL já tem outro valor
   const [currentRegion, setCurrentRegion] = useState<string>(() =>
@@ -89,6 +93,13 @@ export function AppTopHeader() {
     >
       {/* Left side — push items to the right */}
       <Box sx={{ flex: 1 }} />
+
+      {/* Admin notifications bell */}
+      {isAdmin && (
+        <Box sx={{ mr: 1 }}>
+          <HeaderNotifications />
+        </Box>
+      )}
 
       {/* Quota usage */}
       <Box sx={{ display: { xs: "none", sm: "block" }, mr: 1.5 }}>
