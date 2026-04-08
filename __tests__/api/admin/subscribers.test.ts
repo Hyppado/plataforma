@@ -2,16 +2,22 @@
  * Tests: app/api/admin/subscribers/route.ts
  *
  * Priority: #2 (Admin — subscriber management)
- * Coverage: shape, filtering by status/source, pagination, errors
+ * Coverage: shape, filtering by status, search, pagination, errors
  *
- * Route now queries local DB (Subscription + User + Plan) instead of Hotmart API.
+ * Route now fetches subscribers from Hotmart API.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mockAuthenticatedAdmin } from "@tests/helpers/auth";
-import { prismaMock } from "@tests/helpers/prisma-mock";
 import { GET } from "@/app/api/admin/subscribers/route";
 
-vi.mock("@/lib/prisma");
+vi.mock("@/lib/hotmart/client");
+vi.mock("@/lib/settings");
+
+import { hotmartRequest } from "@/lib/hotmart/client";
+import { getSetting } from "@/lib/settings";
+
+const mockHotmartRequest = vi.mocked(hotmartRequest);
+const mockGetSetting = vi.mocked(getSetting);
 
 /** Helper: create Request with optional query params */
 function makeRequest(params: Record<string, string> = {}): Request {
@@ -22,46 +28,44 @@ function makeRequest(params: Record<string, string> = {}): Request {
   return new Request(url.toString());
 }
 
-/** Minimal DB subscription record for mocking */
-const mockSub = (overrides: Record<string, unknown> = {}) => ({
-  id: "sub-1",
+/** Minimal Hotmart subscription item for mocking */
+const mockHotmartItem = (overrides: Record<string, unknown> = {}) => ({
+  subscriber_code: "CODE1",
+  subscription_id: 12345,
   status: "ACTIVE",
-  source: "hotmart",
-  startedAt: new Date("2024-01-01"),
-  cancelledAt: null,
-  createdAt: new Date("2024-01-01"),
-  user: { id: "u1", name: "Eve Teste", email: "eve@example.com" },
-  plan: {
-    id: "plan-1",
-    code: "pro_mensal",
-    name: "Pro Mensal",
-    displayPrice: "R$ 99,90",
-    periodicity: "MENSAL",
-  },
-  hotmart: { subscriberCode: "CODE1", externalStatus: "ACTIVE" },
-  charges: [
-    {
-      paidAt: new Date("2024-02-01"),
-      amountCents: 9990,
-      currency: "BRL",
-    },
-  ],
+  accession_date: new Date("2024-01-01").getTime(),
+  end_date: undefined,
+  plan: { name: "Pro Mensal", id: 100, recurrency_period: "MONTHLY" },
+  price: { value: 99.9, currency_code: "BRL" },
+  subscriber: { name: "Eve Teste", email: "eve@example.com", ucode: "u1" },
   ...overrides,
+});
+
+/** Standard successful Hotmart API response */
+const mockResponse = (
+  items: ReturnType<typeof mockHotmartItem>[] = [mockHotmartItem()],
+  totalResults?: number,
+) => ({
+  items,
+  page_info: {
+    total_results: totalResults ?? items.length,
+    results_per_page: 50,
+  },
 });
 
 describe("GET /api/admin/subscribers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthenticatedAdmin();
+    mockGetSetting.mockResolvedValue("PROD123");
   });
 
   // ---------------------------------------------------------------------------
   // Response shape
   // ---------------------------------------------------------------------------
 
-  it("retorna subscriber com shape correto", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([mockSub()]);
-    prismaMock.subscription.count.mockResolvedValue(1);
+  it("retorna subscriber com shape correto vindo da Hotmart API", async () => {
+    mockHotmartRequest.mockResolvedValue(mockResponse());
 
     const res = await GET(makeRequest());
     const body = await res.json();
@@ -70,19 +74,20 @@ describe("GET /api/admin/subscribers", () => {
     expect(body.subscribers).toHaveLength(1);
 
     const sub = body.subscribers[0];
-    expect(sub.id).toBe("sub-1");
+    expect(sub.id).toBe("12345");
     expect(sub.name).toBe("Eve Teste");
     expect(sub.email).toBe("eve@example.com");
     expect(sub.status).toBe("ACTIVE");
     expect(sub.subscriberCode).toBe("CODE1");
     expect(sub.source).toBe("hotmart");
+    expect(sub.hotmartStatus).toBe("ACTIVE");
     expect(sub.lastPaymentAmount).toBe(9990);
     expect(sub.lastPaymentCurrency).toBe("BRL");
+    expect(sub.plan.name).toBe("Pro Mensal");
   });
 
-  it("retorna lista vazia quando DB não tem registros", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([]);
-    prismaMock.subscription.count.mockResolvedValue(0);
+  it("retorna lista vazia quando Hotmart não tem registros", async () => {
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
 
     const res = await GET(makeRequest());
     const body = await res.json();
@@ -92,64 +97,139 @@ describe("GET /api/admin/subscribers", () => {
     expect(body.pagination.total).toBe(0);
   });
 
-  it("fields opcionais são null quando subscription não tem hotmart/charges", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([
-      mockSub({ hotmart: null, charges: [] }),
-    ]);
-    prismaMock.subscription.count.mockResolvedValue(1);
+  it("mapeia campos opcionais como null quando ausentes", async () => {
+    mockHotmartRequest.mockResolvedValue(
+      mockResponse([
+        mockHotmartItem({
+          subscriber: { name: null, email: null, ucode: "u1" },
+          end_date: undefined,
+          price: undefined,
+        }),
+      ]),
+    );
 
     const { subscribers } = await (await GET(makeRequest())).json();
-    expect(subscribers[0].subscriberCode).toBeNull();
-    expect(subscribers[0].lastPaymentAt).toBeNull();
-    expect(subscribers[0].lastPaymentAmount).toBeNull();
+    expect(subscribers[0].name).toBeNull();
+    expect(subscribers[0].cancelledAt).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Status mapping
+  // ---------------------------------------------------------------------------
+
+  it("mapeia CANCELLED_BY_CUSTOMER para CANCELED", async () => {
+    mockHotmartRequest.mockResolvedValue(
+      mockResponse([mockHotmartItem({ status: "CANCELLED_BY_CUSTOMER" })]),
+    );
+
+    const { subscribers } = await (await GET(makeRequest())).json();
+    expect(subscribers[0].status).toBe("CANCELED");
+    expect(subscribers[0].hotmartStatus).toBe("CANCELLED_BY_CUSTOMER");
+  });
+
+  it("mapeia DELAYED para PAST_DUE", async () => {
+    mockHotmartRequest.mockResolvedValue(
+      mockResponse([mockHotmartItem({ status: "DELAYED" })]),
+    );
+
+    const { subscribers } = await (await GET(makeRequest())).json();
+    expect(subscribers[0].status).toBe("PAST_DUE");
   });
 
   // ---------------------------------------------------------------------------
   // Filtro por status
   // ---------------------------------------------------------------------------
 
-  it("filtra por status ACTIVE", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([]);
-    prismaMock.subscription.count.mockResolvedValue(0);
+  it("envia status ACTIVE para Hotmart quando filtro=active", async () => {
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
 
     await GET(makeRequest({ status: "active" }));
 
-    const call = prismaMock.subscription.findMany.mock.calls[0][0];
-    expect(call.where).toMatchObject({ status: "ACTIVE" });
+    expect(mockHotmartRequest).toHaveBeenCalledWith(
+      "/payments/api/v1/subscriptions",
+      expect.objectContaining({
+        params: expect.objectContaining({ status: "ACTIVE" }),
+      }),
+    );
   });
 
-  it("filtra por status CANCELLED", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([]);
-    prismaMock.subscription.count.mockResolvedValue(0);
+  it("envia status CANCELLED_BY_CUSTOMER para Hotmart quando filtro=canceled", async () => {
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
 
     await GET(makeRequest({ status: "canceled" }));
 
-    const call = prismaMock.subscription.findMany.mock.calls[0][0];
-    expect(call.where).toMatchObject({ status: "CANCELLED" });
-  });
-
-  it("ignora status inválido (não inclui where.status)", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([]);
-    prismaMock.subscription.count.mockResolvedValue(0);
-
-    await GET(makeRequest({ status: "nao_existe" }));
-
-    const call = prismaMock.subscription.findMany.mock.calls[0][0];
-    expect(call.where).not.toHaveProperty("status");
+    expect(mockHotmartRequest).toHaveBeenCalledWith(
+      "/payments/api/v1/subscriptions",
+      expect.objectContaining({
+        params: expect.objectContaining({
+          status: "CANCELLED_BY_CUSTOMER",
+        }),
+      }),
+    );
   });
 
   // ---------------------------------------------------------------------------
-  // Filtro por source
+  // Busca por email
   // ---------------------------------------------------------------------------
 
-  it("filtra por source=manual", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([]);
-    prismaMock.subscription.count.mockResolvedValue(0);
+  it("envia subscriber_email quando search contém @", async () => {
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
 
-    await GET(makeRequest({ source: "manual" }));
+    await GET(makeRequest({ search: "eve@example.com" }));
 
-    const call = prismaMock.subscription.findMany.mock.calls[0][0];
-    expect(call.where).toMatchObject({ source: "manual" });
+    expect(mockHotmartRequest).toHaveBeenCalledWith(
+      "/payments/api/v1/subscriptions",
+      expect.objectContaining({
+        params: expect.objectContaining({
+          subscriber_email: "eve@example.com",
+        }),
+      }),
+    );
+  });
+
+  it("filtra client-side por nome quando search não contém @", async () => {
+    mockHotmartRequest.mockResolvedValue(
+      mockResponse([
+        mockHotmartItem({ subscriber: { name: "Eve Teste", email: "eve@test.com", ucode: "u1" } }),
+        mockHotmartItem({ subscriber: { name: "João Silva", email: "joao@test.com", ucode: "u2" }, subscription_id: 999 }),
+      ]),
+    );
+
+    const { subscribers } = await (
+      await GET(makeRequest({ search: "eve" }))
+    ).json();
+
+    expect(subscribers).toHaveLength(1);
+    expect(subscribers[0].name).toBe("Eve Teste");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Product ID
+  // ---------------------------------------------------------------------------
+
+  it("envia product_id do Setting na requisição", async () => {
+    mockGetSetting.mockResolvedValue("MY_PRODUCT_123");
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
+
+    await GET(makeRequest());
+
+    expect(mockHotmartRequest).toHaveBeenCalledWith(
+      "/payments/api/v1/subscriptions",
+      expect.objectContaining({
+        params: expect.objectContaining({ product_id: "MY_PRODUCT_123" }),
+      }),
+    );
+  });
+
+  it("não envia product_id quando Setting retorna null", async () => {
+    mockGetSetting.mockResolvedValue(null);
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
+
+    await GET(makeRequest());
+
+    const call = mockHotmartRequest.mock.calls[0];
+    const params = call[1]?.params as Record<string, unknown>;
+    expect(params).not.toHaveProperty("product_id");
   });
 
   // ---------------------------------------------------------------------------
@@ -157,18 +237,20 @@ describe("GET /api/admin/subscribers", () => {
   // ---------------------------------------------------------------------------
 
   it("respeita o parâmetro limit (máx 200)", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([]);
-    prismaMock.subscription.count.mockResolvedValue(0);
+    mockHotmartRequest.mockResolvedValue(mockResponse([]));
 
     await GET(makeRequest({ limit: "300" }));
 
-    const call = prismaMock.subscription.findMany.mock.calls[0][0];
-    expect(call.take).toBe(200);
+    expect(mockHotmartRequest).toHaveBeenCalledWith(
+      "/payments/api/v1/subscriptions",
+      expect.objectContaining({
+        params: expect.objectContaining({ max_results: 200 }),
+      }),
+    );
   });
 
   it("inclui paginação na resposta", async () => {
-    prismaMock.subscription.findMany.mockResolvedValue([mockSub()]);
-    prismaMock.subscription.count.mockResolvedValue(50);
+    mockHotmartRequest.mockResolvedValue(mockResponse([mockHotmartItem()], 50));
 
     const { pagination } = await (
       await GET(makeRequest({ page: "1", limit: "10" }))
@@ -184,9 +266,9 @@ describe("GET /api/admin/subscribers", () => {
   // Erros
   // ---------------------------------------------------------------------------
 
-  it("retorna 500 quando DB lança erro", async () => {
-    prismaMock.subscription.findMany.mockRejectedValue(
-      new Error("DB connection lost"),
+  it("retorna 500 quando Hotmart API lança erro", async () => {
+    mockHotmartRequest.mockRejectedValue(
+      new Error("Hotmart API unreachable"),
     );
 
     const res = await GET(makeRequest());
@@ -194,6 +276,6 @@ describe("GET /api/admin/subscribers", () => {
 
     expect(res.status).toBe(500);
     expect(body.error).toBeTruthy();
-    expect(body.detail).toContain("DB connection lost");
+    expect(body.detail).toContain("Hotmart API unreachable");
   });
 });

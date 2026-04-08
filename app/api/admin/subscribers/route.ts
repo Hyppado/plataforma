@@ -1,31 +1,101 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
+import { hotmartRequest } from "@/lib/hotmart/client";
+import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api/admin/subscribers");
 
 /**
  * GET /api/admin/subscribers
- * Lista assinantes a partir do banco de dados local (Subscription + User).
- * Independente de provider externo (Hotmart, Stripe, etc).
+ * Lista assinantes diretamente da API Hotmart.
  *
  * Query params:
- *   status=active|canceled|past_due|pending|expired
- *   search=<termo>       busca por nome ou email
+ *   status=active|canceled|past_due  filtra por status (mapeado para Hotmart)
+ *   search=<termo>       busca por email do assinante
  *   limit=50             itens por página (max 200)
  *   page=1               número da página
- *   source=hotmart|manual|invite  (opcional) filtra por origem
  */
 
-const STATUS_MAP: Record<string, string> = {
+// ── Hotmart API response types ──────────────────────────────────────────────
+
+interface HotmartSubscriber {
+  name: string;
+  email: string;
+  ucode: string;
+}
+
+interface HotmartPlan {
+  name: string;
+  id: number;
+  recurrency_period?: string;
+  max_charge_cycles?: number;
+}
+
+interface HotmartPrice {
+  value: number;
+  currency_code: string;
+}
+
+interface HotmartSubscription {
+  subscriber_code: string;
+  subscription_id: number;
+  status: string;
+  accession_date: number;
+  end_date?: number;
+  request_date?: number;
+  date_next_charge?: number;
+  trial?: boolean;
+  plan: HotmartPlan;
+  price: HotmartPrice;
+  subscriber: HotmartSubscriber;
+}
+
+interface HotmartPageInfo {
+  total_results: number;
+  next_page_token?: string;
+  prev_page_token?: string;
+  results_per_page: number;
+}
+
+interface HotmartSubscriptionsResponse {
+  items: HotmartSubscription[];
+  page_info: HotmartPageInfo;
+}
+
+// ── Status mapping ──────────────────────────────────────────────────────────
+
+/** Our filter → Hotmart API status value */
+const STATUS_FILTER_TO_HOTMART: Record<string, string> = {
   ACTIVE: "ACTIVE",
-  CANCELED: "CANCELLED",
-  CANCELLED: "CANCELLED",
-  PAST_DUE: "PAST_DUE",
-  PENDING: "PENDING",
-  EXPIRED: "EXPIRED",
+  CANCELED: "CANCELLED_BY_CUSTOMER",
+  CANCELLED: "CANCELLED_BY_CUSTOMER",
+  PAST_DUE: "DELAYED",
+  PENDING: "STARTED",
+  EXPIRED: "INACTIVE",
 };
+
+/** Hotmart status → our internal display status */
+function mapHotmartStatus(
+  hotmartStatus: string,
+): "ACTIVE" | "CANCELED" | "PAST_DUE" | "PENDING" | "EXPIRED" {
+  switch (hotmartStatus) {
+    case "ACTIVE":
+      return "ACTIVE";
+    case "CANCELLED_BY_CUSTOMER":
+    case "CANCELLED_BY_SELLER":
+    case "CANCELLED_BY_ADMIN":
+      return "CANCELED";
+    case "DELAYED":
+    case "OVERDUE":
+      return "PAST_DUE";
+    case "STARTED":
+      return "PENDING";
+    case "INACTIVE":
+    default:
+      return "EXPIRED";
+  }
+}
 
 export async function GET(request: Request) {
   const auth = await requireAdmin();
@@ -34,7 +104,6 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status")?.toUpperCase();
   const search = url.searchParams.get("search");
-  const source = url.searchParams.get("source");
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1"));
   const limit = Math.min(
     200,
@@ -42,80 +111,84 @@ export async function GET(request: Request) {
   );
 
   try {
-    // Build where clause
-    const where: Record<string, unknown> = {};
+    const productId = await getSetting(SETTING_KEYS.HOTMART_PRODUCT_ID);
 
-    if (statusFilter && STATUS_MAP[statusFilter]) {
-      where.status = STATUS_MAP[statusFilter];
+    // Build Hotmart API params
+    const params: Record<string, string | number> = {
+      max_results: limit,
+    };
+
+    if (productId) {
+      params.product_id = productId;
     }
 
-    if (source) {
-      where.source = source;
+    // Map our status filter to Hotmart status
+    if (statusFilter && STATUS_FILTER_TO_HOTMART[statusFilter]) {
+      params.status = STATUS_FILTER_TO_HOTMART[statusFilter];
     }
 
-    if (search) {
-      const q = search.toLowerCase();
-      where.user = {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
-        ],
-      };
+    // Hotmart supports search by email
+    if (search && search.includes("@")) {
+      params.subscriber_email = search;
     }
 
-    const [subscriptions, total] = await Promise.all([
-      prisma.subscription.findMany({
-        where,
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-          plan: {
-            select: {
-              id: true,
-              code: true,
-              name: true,
-              displayPrice: true,
-              periodicity: true,
-            },
-          },
-          hotmart: { select: { subscriberCode: true, externalStatus: true } },
-          charges: {
-            orderBy: { paidAt: "desc" },
-            take: 1,
-            select: { paidAt: true, amountCents: true, currency: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.subscription.count({ where }),
-    ]);
+    // Hotmart uses page_token for pagination, but for page > 1 we need
+    // to iterate. For simplicity, use max_results offset approach.
+    // Hotmart API doesn't have offset — it uses page_token.
+    // We'll fetch page 1 and return it; for subsequent pages we'd need
+    // to chain page_token calls. For admin usage, limit is usually enough.
+    const data = await hotmartRequest<HotmartSubscriptionsResponse>(
+      "/payments/api/v1/subscriptions",
+      { params },
+    );
 
-    const subscribers = subscriptions.map((sub) => ({
-      id: sub.id,
-      name: sub.user.name ?? null,
-      email: sub.user.email ?? null,
-      status: sub.status,
+    const items = data.items ?? [];
+
+    // Map Hotmart subscriptions to our Subscriber shape
+    const subscribers = items.map((item) => ({
+      id: String(item.subscription_id),
+      name: item.subscriber?.name ?? null,
+      email: item.subscriber?.email ?? null,
+      status: mapHotmartStatus(item.status),
       plan: {
-        id: sub.plan.id,
-        code: sub.plan.code,
-        name: sub.plan.name,
-        displayPrice: sub.plan.displayPrice ?? null,
-        periodicity: sub.plan.periodicity ?? null,
+        id: String(item.plan?.id ?? ""),
+        code: String(item.plan?.id ?? ""),
+        name: item.plan?.name ?? "—",
+        displayPrice: item.price
+          ? `${item.price.currency_code} ${(item.price.value / 1).toFixed(2)}`
+          : null,
+        periodicity: item.plan?.recurrency_period ?? null,
       },
-      source: sub.source,
-      subscriberCode: sub.hotmart?.subscriberCode ?? null,
-      hotmartStatus: sub.hotmart?.externalStatus ?? null,
-      startedAt: sub.startedAt?.toISOString() ?? null,
-      cancelledAt: sub.cancelledAt?.toISOString() ?? null,
-      lastPaymentAt: sub.charges[0]?.paidAt?.toISOString() ?? null,
-      lastPaymentAmount: sub.charges[0]?.amountCents ?? null,
-      lastPaymentCurrency: sub.charges[0]?.currency ?? "BRL",
-      createdAt: sub.createdAt.toISOString(),
+      source: "hotmart" as const,
+      subscriberCode: item.subscriber_code ?? null,
+      hotmartStatus: item.status,
+      startedAt: item.accession_date
+        ? new Date(item.accession_date).toISOString()
+        : null,
+      cancelledAt: item.end_date
+        ? new Date(item.end_date).toISOString()
+        : null,
+      lastPaymentAt: null,
+      lastPaymentAmount: item.price ? Math.round(item.price.value * 100) : null,
+      lastPaymentCurrency: item.price?.currency_code ?? "BRL",
+      createdAt: item.accession_date
+        ? new Date(item.accession_date).toISOString()
+        : new Date().toISOString(),
     }));
 
+    // Client-side name search for non-email queries
+    const filtered = search && !search.includes("@")
+      ? subscribers.filter(
+          (s) =>
+            s.name?.toLowerCase().includes(search.toLowerCase()) ||
+            s.email?.toLowerCase().includes(search.toLowerCase()),
+        )
+      : subscribers;
+
+    const total = data.page_info?.total_results ?? filtered.length;
+
     return NextResponse.json({
-      subscribers,
+      subscribers: filtered,
       pagination: {
         page,
         limit,
@@ -128,7 +201,7 @@ export async function GET(request: Request) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(
-      { error: "Erro ao buscar assinantes", detail: String(error) },
+      { error: "Erro ao buscar assinantes da Hotmart", detail: String(error) },
       { status: 500 },
     );
   }

@@ -44,7 +44,7 @@ const hotmartPlan = {
   name: "Pro Mensal",
   description: "Plano mensal profissional",
   periodicity: "MONTHLY",
-  price: { value: 5990, currency_code: "BRL" },
+  price: { value: 59.9, currency_code: "BRL" },
   payment_mode: "SUBSCRIPTION",
   max_installments: 1,
 };
@@ -54,7 +54,7 @@ const hotmartPlanAnnual = {
   name: "Pro Anual",
   description: "Plano anual com desconto",
   periodicity: "ANNUAL",
-  price: { value: 59900, currency_code: "BRL" },
+  price: { value: 599.0, currency_code: "BRL" },
   payment_mode: "SUBSCRIPTION",
   max_installments: 12,
 };

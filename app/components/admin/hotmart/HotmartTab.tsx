@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import {
   Alert,
@@ -31,7 +31,6 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Close as CloseIcon,
-  Sync as SyncIcon,
   Webhook as WebhookIcon,
   Storefront as StorefrontIcon,
   ListAlt as ListAltIcon,
@@ -54,20 +53,10 @@ interface LocalPlan {
   hotmartPlanCode: string | null;
   transcriptsPerMonth: number;
   scriptsPerMonth: number;
-  insightTokensMonthlyMax: number;
-  scriptTokensMonthlyMax: number;
-  insightMaxOutputTokens: number;
-  scriptMaxOutputTokens: number;
 }
 
 interface PlansResponse {
   plans: LocalPlan[];
-}
-
-interface SyncResult {
-  created: number;
-  updated: number;
-  plans: { id: string; code: string; name: string; hotmartPlanCode: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -365,10 +354,6 @@ function ProductConfigCard() {
 interface QuotaEditState {
   transcriptsPerMonth: number;
   scriptsPerMonth: number;
-  insightTokensMonthlyMax: number;
-  scriptTokensMonthlyMax: number;
-  insightMaxOutputTokens: number;
-  scriptMaxOutputTokens: number;
 }
 
 function QuotaEditRow({
@@ -383,20 +368,12 @@ function QuotaEditRow({
   const [quotas, setQuotas] = useState<QuotaEditState>({
     transcriptsPerMonth: plan.transcriptsPerMonth,
     scriptsPerMonth: plan.scriptsPerMonth,
-    insightTokensMonthlyMax: plan.insightTokensMonthlyMax,
-    scriptTokensMonthlyMax: plan.scriptTokensMonthlyMax,
-    insightMaxOutputTokens: plan.insightMaxOutputTokens,
-    scriptMaxOutputTokens: plan.scriptMaxOutputTokens,
   });
 
   const startEdit = () => {
     setQuotas({
       transcriptsPerMonth: plan.transcriptsPerMonth,
       scriptsPerMonth: plan.scriptsPerMonth,
-      insightTokensMonthlyMax: plan.insightTokensMonthlyMax,
-      scriptTokensMonthlyMax: plan.scriptTokensMonthlyMax,
-      insightMaxOutputTokens: plan.insightMaxOutputTokens,
-      scriptMaxOutputTokens: plan.scriptMaxOutputTokens,
     });
     setEditing(true);
   };
@@ -499,45 +476,7 @@ function QuotaEditRow({
           plan.scriptsPerMonth
         )}
       </TableCell>
-      <TableCell sx={cellSx}>
-        {editing ? (
-          <Stack spacing={0.5}>
-            <TextField
-              size="small"
-              value={quotas.insightTokensMonthlyMax}
-              onChange={(e) =>
-                setField("insightTokensMonthlyMax", e.target.value)
-              }
-              sx={inputSx}
-              placeholder="Insight"
-            />
-            <TextField
-              size="small"
-              value={quotas.scriptTokensMonthlyMax}
-              onChange={(e) =>
-                setField("scriptTokensMonthlyMax", e.target.value)
-              }
-              sx={inputSx}
-              placeholder="Script"
-            />
-          </Stack>
-        ) : (
-          <Stack spacing={0}>
-            <Typography
-              variant="caption"
-              sx={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)" }}
-            >
-              I: {plan.insightTokensMonthlyMax.toLocaleString()}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)" }}
-            >
-              S: {plan.scriptTokensMonthlyMax.toLocaleString()}
-            </Typography>
-          </Stack>
-        )}
-      </TableCell>
+
       <TableCell sx={cellSx}>
         <Chip
           label={plan.isActive ? "Ativo" : "Inativo"}
@@ -596,35 +535,41 @@ function QuotaEditRow({
 // Plans card
 // ---------------------------------------------------------------------------
 
-function PlansCard() {
+export function PlansCard() {
   const plansSWR = useSWR<PlansResponse>("/api/admin/plans", fetcher);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const hotmartPlans = (plansSWR.data?.plans ?? []).filter(
     (p) => p.hotmartPlanCode,
   );
 
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    setSyncError(null);
-    setSyncResult(null);
-    try {
-      const res = await fetch("/api/admin/hotmart/plans", { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `${res.status}`);
+  // Auto-sync plans from Hotmart on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function syncOnLoad() {
+      setSyncing(true);
+      setSyncError(null);
+      try {
+        const res = await fetch("/api/admin/hotmart/plans", { method: "POST" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? `${res.status}`);
+        }
+        if (!cancelled) await plansSWR.mutate();
+      } catch (err) {
+        if (!cancelled)
+          setSyncError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setSyncing(false);
       }
-      const result: SyncResult = await res.json();
-      setSyncResult(result);
-      await plansSWR.mutate();
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncing(false);
     }
-  }, [plansSWR]);
+    syncOnLoad();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Card sx={cardStyle}>
@@ -634,45 +579,9 @@ function PlansCard() {
         subheader="Planos sincronizados da Hotmart com quotas configuráveis"
         titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
         subheaderTypographyProps={{ fontSize: "0.8rem" }}
-        action={
-          <Button
-            size="small"
-            onClick={handleSync}
-            disabled={syncing}
-            startIcon={
-              syncing ? (
-                <CircularProgress size={14} />
-              ) : (
-                <SyncIcon sx={{ fontSize: 16 }} />
-              )
-            }
-            sx={{
-              color: "#2DD4FF",
-              textTransform: "none",
-              fontSize: "0.78rem",
-            }}
-          >
-            Sincronizar
-          </Button>
-        }
       />
       <CardContent>
-        {plansSWR.isLoading && <LinearProgress sx={{ mb: 2 }} />}
-
-        {syncResult && (
-          <Alert
-            severity="success"
-            onClose={() => setSyncResult(null)}
-            sx={{
-              mb: 2,
-              background: "rgba(46,204,113,0.08)",
-              border: "1px solid rgba(46,204,113,0.2)",
-            }}
-          >
-            Sincronização concluída: {syncResult.created} criado(s),{" "}
-            {syncResult.updated} atualizado(s).
-          </Alert>
-        )}
+        {(plansSWR.isLoading || syncing) && <LinearProgress sx={{ mb: 2 }} />}
 
         {syncError && (
           <Alert
@@ -684,7 +593,7 @@ function PlansCard() {
           </Alert>
         )}
 
-        {hotmartPlans.length === 0 && !plansSWR.isLoading ? (
+        {hotmartPlans.length === 0 && !plansSWR.isLoading && !syncing ? (
           <Box
             sx={{
               p: 3,
@@ -693,18 +602,8 @@ function PlansCard() {
               borderRadius: 2,
             }}
           >
-            <Typography
-              variant="body2"
-              sx={{ color: "rgba(255,255,255,0.4)", mb: 1 }}
-            >
-              Nenhum plano sincronizado ainda.
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "rgba(255,255,255,0.3)" }}
-            >
-              Configure o Product ID acima e clique em{" "}
-              <strong>Sincronizar</strong> para importar os planos da Hotmart.
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.4)" }}>
+              Nenhum plano encontrado.
             </Typography>
           </Box>
         ) : (
@@ -717,7 +616,6 @@ function PlansCard() {
                   <TableCell sx={headerCellSx}>Período</TableCell>
                   <TableCell sx={headerCellSx}>Transcrições</TableCell>
                   <TableCell sx={headerCellSx}>Scripts</TableCell>
-                  <TableCell sx={headerCellSx}>Tokens/mês</TableCell>
                   <TableCell sx={headerCellSx}>Status</TableCell>
                   <TableCell sx={headerCellSx} width={80}>
                     Ações

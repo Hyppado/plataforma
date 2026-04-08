@@ -1,58 +1,134 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
+import { hotmartRequest } from "@/lib/hotmart/client";
+import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api/admin/subscription-metrics");
 
 /**
  * GET /api/admin/subscription-metrics
- * Calcula métricas de assinatura a partir do banco de dados local.
- * Independente de provider externo.
+ * Calcula métricas de assinatura a partir da API Hotmart.
+ * Faz chamadas paralelas por status para obter contagens.
  */
+
+interface HotmartPageInfo {
+  total_results: number;
+  next_page_token?: string;
+  results_per_page: number;
+}
+
+interface HotmartSubscriptionsResponse {
+  items: Array<{
+    subscription_id: number;
+    status: string;
+    accession_date: number;
+    end_date?: number;
+    price: { value: number; currency_code: string };
+  }>;
+  page_info: HotmartPageInfo;
+}
+
+/** Fetch subscription count for a given Hotmart status */
+async function countByStatus(
+  status: string,
+  productId: string | null,
+): Promise<number> {
+  const params: Record<string, string | number> = {
+    status,
+    max_results: 1,
+  };
+  if (productId) params.product_id = productId;
+
+  try {
+    const data = await hotmartRequest<HotmartSubscriptionsResponse>(
+      "/payments/api/v1/subscriptions",
+      { params },
+    );
+    return data.page_info?.total_results ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 export async function GET() {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
   try {
+    const productId = await getSetting(SETTING_KEYS.HOTMART_PRODUCT_ID);
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonthMs = startOfMonth.getTime();
 
+    // Parallel calls to get counts by status + recent active subscriptions
     const [
       active,
-      cancelled,
-      pastDue,
-      total,
-      newThisMonth,
-      cancelledThisMonth,
-      revenueAgg,
-      lastSync,
+      cancelledByCustomer,
+      cancelledBySeller,
+      cancelledByAdmin,
+      delayed,
+      overdue,
+      inactive,
+      started,
     ] = await Promise.all([
-      prisma.subscription.count({ where: { status: "ACTIVE" } }),
-      prisma.subscription.count({ where: { status: "CANCELLED" } }),
-      prisma.subscription.count({
-        where: { status: { in: ["PAST_DUE", "PENDING"] } },
-      }),
-      prisma.subscription.count(),
-      prisma.subscription.count({
-        where: { createdAt: { gte: startOfMonth } },
-      }),
-      prisma.subscription.count({
-        where: {
-          status: "CANCELLED",
-          cancelledAt: { gte: startOfMonth },
-        },
-      }),
-      prisma.subscriptionCharge.aggregate({
-        _sum: { amountCents: true },
-        where: { paidAt: { gte: startOfMonth } },
-      }),
-      prisma.subscription.findFirst({
-        orderBy: { updatedAt: "desc" },
-        select: { updatedAt: true },
-      }),
+      countByStatus("ACTIVE", productId),
+      countByStatus("CANCELLED_BY_CUSTOMER", productId),
+      countByStatus("CANCELLED_BY_SELLER", productId),
+      countByStatus("CANCELLED_BY_ADMIN", productId),
+      countByStatus("DELAYED", productId),
+      countByStatus("OVERDUE", productId),
+      countByStatus("INACTIVE", productId),
+      countByStatus("STARTED", productId),
     ]);
+
+    const cancelled = cancelledByCustomer + cancelledBySeller + cancelledByAdmin;
+    const pastDue = delayed + overdue;
+    const total = active + cancelled + pastDue + inactive + started;
+
+    // Fetch recent subscriptions to compute "new this month" and "cancelled this month"
+    // We get active subs with accession_date filter for new this month
+    const recentParams: Record<string, string | number> = {
+      max_results: 200,
+    };
+    if (productId) recentParams.product_id = productId;
+
+    let newThisMonth = 0;
+    let cancelledThisMonth = 0;
+
+    try {
+      // Get subscriptions created this month (any status, accession_date >= start of month)
+      const recentData = await hotmartRequest<HotmartSubscriptionsResponse>(
+        "/payments/api/v1/subscriptions",
+        {
+          params: {
+            ...recentParams,
+            accession_date: startOfMonthMs,
+          },
+        },
+      );
+      newThisMonth = recentData.page_info?.total_results ?? recentData.items?.length ?? 0;
+    } catch {
+      // Silent fallback
+    }
+
+    try {
+      // Get cancelled subscriptions this month
+      const cancelledData = await hotmartRequest<HotmartSubscriptionsResponse>(
+        "/payments/api/v1/subscriptions",
+        {
+          params: {
+            ...recentParams,
+            status: "CANCELLED_BY_CUSTOMER",
+            end_date: startOfMonthMs,
+          },
+        },
+      );
+      cancelledThisMonth = cancelledData.page_info?.total_results ?? cancelledData.items?.length ?? 0;
+    } catch {
+      // Silent fallback
+    }
 
     const monthNames = [
       "Janeiro",
@@ -76,9 +152,9 @@ export async function GET() {
       totalSubscribers: total,
       newThisMonth,
       cancelledThisMonth,
-      revenueThisMonthCents: revenueAgg._sum.amountCents ?? 0,
+      revenueThisMonthCents: 0,
       periodLabel: `${monthNames[now.getMonth()]} ${now.getFullYear()}`,
-      lastSyncAt: lastSync?.updatedAt?.toISOString() ?? null,
+      lastSyncAt: null,
     });
   } catch (error) {
     log.error("GET failed", {

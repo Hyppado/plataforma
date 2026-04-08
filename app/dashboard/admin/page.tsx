@@ -3,19 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Box,
-  Typography,
-  Card,
-  CardHeader,
-  CardContent,
-  Grid,
-  Button,
-  TextField,
-  LinearProgress,
-  Stack,
-} from "@mui/material";
-import { ConfirmationNumberOutlined } from "@mui/icons-material";
+import { Box, Typography, Grid, LinearProgress } from "@mui/material";
 import type { Subscriber, SubscriptionMetrics } from "@/lib/types/admin";
 import {
   getSubscribers,
@@ -23,12 +11,7 @@ import {
 } from "@/lib/admin/admin-client";
 import { MetricsCards } from "@/app/components/admin/MetricsCards";
 import { SubscribersTable } from "@/app/components/admin/SubscribersTable";
-
-const cardStyle = {
-  background: "rgba(10, 15, 24, 0.8)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  borderRadius: 3,
-};
+import { PlansCard } from "@/app/components/admin/hotmart/HotmartTab";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -104,58 +87,6 @@ export default function AdminPage() {
       <Grid container spacing={3}>
         <MetricsCards metrics={metrics} />
 
-        {/* Coupons (Coming Soon) */}
-        <Grid item xs={12} md={6} lg={4}>
-          <Card sx={cardStyle}>
-            <CardHeader
-              avatar={<ConfirmationNumberOutlined sx={{ color: "#2DD4FF" }} />}
-              title="Cupons"
-              subheader="Gerenciamento de cupons"
-              titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-              subheaderTypographyProps={{ fontSize: "0.8rem" }}
-            />
-            <CardContent>
-              <Stack spacing={2}>
-                <TextField
-                  label="Código do Cupom"
-                  placeholder="Ex: DESCONTO20"
-                  disabled
-                  fullWidth
-                  size="small"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      background: "rgba(0,0,0,0.2)",
-                    },
-                  }}
-                />
-                <TextField
-                  label="Desconto (%)"
-                  placeholder="Ex: 20"
-                  disabled
-                  fullWidth
-                  size="small"
-                  type="number"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      background: "rgba(0,0,0,0.2)",
-                    },
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  disabled
-                  sx={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.3)",
-                  }}
-                >
-                  Em breve
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
         <SubscribersTable
           subscribers={subscribers}
           totalSubscribers={totalSubscribers}
@@ -166,6 +97,9 @@ export default function AdminPage() {
           onTabChange={setSubscriberTab}
           onSearchChange={setSubscriberSearch}
         />
+        <Grid item xs={12}>
+          <PlansCard />
+        </Grid>
       </Grid>
     </Box>
   );

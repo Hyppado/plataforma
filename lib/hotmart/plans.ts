@@ -142,9 +142,7 @@ import prisma from "../prisma";
  * - Quotas existentes NÃO são sobrescritas (o admin ajusta localmente)
  * - Retorna array de planos locais (criados ou atualizados)
  */
-export async function syncPlansFromHotmart(
-  productUcode: string,
-): Promise<{
+export async function syncPlansFromHotmart(productUcode: string): Promise<{
   created: number;
   updated: number;
   plans: { id: string; code: string; name: string; hotmartPlanCode: string }[];
@@ -171,11 +169,11 @@ export async function syncPlansFromHotmart(
         where: { id: existing.id },
         data: {
           name: hp.name,
-          priceAmount: Math.round(hp.price.value),
+          priceAmount: Math.round(hp.price.value * 100),
           currency: hp.price.currency_code,
           periodicity: mapPeriodicity(hp.periodicity),
           displayPrice: formatDisplayPrice(
-            hp.price.value,
+            hp.price.value * 100,
             hp.price.currency_code,
           ),
           description: hp.description ?? existing.description,
@@ -201,10 +199,10 @@ export async function syncPlansFromHotmart(
           name: hp.name,
           description: hp.description,
           displayPrice: formatDisplayPrice(
-            hp.price.value,
+            hp.price.value * 100,
             hp.price.currency_code,
           ),
-          priceAmount: Math.round(hp.price.value),
+          priceAmount: Math.round(hp.price.value * 100),
           currency: hp.price.currency_code,
           periodicity: mapPeriodicity(hp.periodicity),
           hotmartPlanCode: hp.code,

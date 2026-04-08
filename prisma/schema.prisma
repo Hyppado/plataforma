@@ -142,7 +142,7 @@ model Subscription {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
-  user            User               @relation(fields: [userId], references: [id])
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan            Plan               @relation(fields: [planId], references: [id])
   hotmart         HotmartSubscription?
   charges         SubscriptionCharge[]
@@ -175,7 +175,7 @@ model HotmartSubscription {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  subscription           Subscription @relation(fields: [subscriptionId], references: [id])
+  subscription           Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([hotmartProductId])
   @@index([subscriberCode])
@@ -193,7 +193,7 @@ model SubscriptionCharge {
   chargeAt        DateTime?
   createdAt       DateTime     @default(now())
 
-  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([subscriptionId])
   @@index([transactionId])
@@ -231,7 +231,7 @@ model ExternalAccountLink {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  user                User     @relation(fields: [userId], references: [id])
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, externalCustomerId])
   @@index([provider, externalEmail])       // lookup only — email is mutable, NOT safe as unique
@@ -325,7 +325,7 @@ model AuditLog {
   after       Json?
   occurredAt  DateTime @default(now())
 
-  user        User?    @relation(fields: [userId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([action, occurredAt])
@@ -370,7 +370,7 @@ model ConsentRecord {
   userAgent     String?
   createdAt     DateTime @default(now())       // imutável (append-only)
 
-  user          User     @relation(fields: [userId], references: [id])
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, consentType])
 }
@@ -390,7 +390,7 @@ model DataErasureRequest {
   anonymizedFields Json?                        // campos anonimizados
   createdAt       DateTime      @default(now())
 
-  user            User          @relation(fields: [userId], references: [id])
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([userId])
