@@ -345,14 +345,8 @@ function NotificationRow({
                 {/* ---- User Info ---- */}
                 {n.user && (
                   <DetailSection label="Usuário">
-                    <DetailRow
-                      label="Nome"
-                      value={n.user.name ?? "—"}
-                    />
-                    <DetailRow
-                      label="E-mail"
-                      value={n.user.email ?? "—"}
-                    />
+                    <DetailRow label="Nome" value={n.user.name ?? "—"} />
+                    <DetailRow label="E-mail" value={n.user.email ?? "—"} />
                     {n.user.status && (
                       <DetailRow
                         label="Status da conta"
@@ -397,10 +391,7 @@ function NotificationRow({
                       }
                     />
                     {n.subscription.source && (
-                      <DetailRow
-                        label="Fonte"
-                        value={n.subscription.source}
-                      />
+                      <DetailRow label="Fonte" value={n.subscription.source} />
                     )}
                     {n.subscription.startedAt && (
                       <DetailRow
@@ -470,10 +461,7 @@ function NotificationRow({
                       />
                     )}
                     {n.event.productId && (
-                      <DetailRow
-                        label="Produto"
-                        value={n.event.productId}
-                      />
+                      <DetailRow label="Produto" value={n.event.productId} />
                     )}
                     {n.event.amountCents != null && (
                       <DetailRow
@@ -642,7 +630,7 @@ function DetailSection({
 const METADATA_LABELS: Record<string, string> = {
   eventType: "Tipo de evento",
   recurrenceNumber: "Nº da recorrência",
-  amountCents: "Valor (centavos)",
+  amountCents: "Valor",
   productId: "ID do produto",
   buyerEmail: "E-mail do comprador",
   subscriberCode: "Cód. do assinante",
@@ -727,8 +715,8 @@ function formatProcessingStatus(status: string): string {
   return map[status] ?? status;
 }
 
-function formatCurrency(cents: number): string {
-  return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
+function formatCurrency(value: number): string {
+  return `R$ ${value.toFixed(2).replace(".", ",")}`;
 }
 
 // ---------------------------------------------------------------------------
