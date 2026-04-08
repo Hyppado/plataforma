@@ -57,6 +57,23 @@ export async function GET(req: NextRequest) {
             accessGrants: true,
           },
         },
+        subscriptions: {
+          select: {
+            id: true,
+            status: true,
+            startedAt: true,
+            cancelledAt: true,
+            endedAt: true,
+            plan: { select: { name: true } },
+            charges: {
+              select: { status: true, paidAt: true, chargeAt: true },
+              orderBy: { createdAt: "desc" as const },
+              take: 1,
+            },
+          },
+          orderBy: { createdAt: "desc" as const },
+          take: 1,
+        },
       },
       orderBy: { createdAt: "desc" },
       skip,

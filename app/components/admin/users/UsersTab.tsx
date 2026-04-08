@@ -40,6 +40,16 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
+interface SubscriptionRow {
+  id: string;
+  status: string;
+  startedAt: string | null;
+  cancelledAt: string | null;
+  endedAt: string | null;
+  plan: { name: string } | null;
+  charges: { status: string; paidAt: string | null; chargeAt: string | null }[];
+}
+
 interface UserRow {
   id: string;
   email: string;
@@ -52,6 +62,7 @@ interface UserRow {
     subscriptions: number;
     accessGrants: number;
   };
+  subscriptions?: SubscriptionRow[];
 }
 
 interface UsersResponse {
@@ -98,6 +109,27 @@ const CATEGORY_CHIP: Record<
     bg: "rgba(76,175,80,0.12)",
   },
 };
+
+const SUB_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
+  ACTIVE: { color: "#4caf50", bg: "rgba(76,175,80,0.12)" },
+  PENDING: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
+  PAST_DUE: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
+  CANCELLED: { color: "#f44336", bg: "rgba(244,67,54,0.12)" },
+  EXPIRED: { color: "#9e9e9e", bg: "rgba(158,158,158,0.12)" },
+};
+
+const CHARGE_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
+  PAID: { color: "#4caf50", bg: "rgba(76,175,80,0.12)" },
+  PENDING: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
+  OVERDUE: { color: "#ff9800", bg: "rgba(255,152,0,0.12)" },
+  REFUNDED: { color: "#2196f3", bg: "rgba(33,150,243,0.12)" },
+  CANCELLED: { color: "#9e9e9e", bg: "rgba(158,158,158,0.12)" },
+  CHARGEBACK: { color: "#f44336", bg: "rgba(244,67,54,0.12)" },
+  FAILED: { color: "#f44336", bg: "rgba(244,67,54,0.12)" },
+  REFUND_REQUEST: { color: "#e91e63", bg: "rgba(233,30,99,0.12)" },
+};
+
+const defaultStatusStyle = { color: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.06)" };
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -726,8 +758,60 @@ export function UsersTab() {
                           }}
                         >
                           {u.email}
-                          {u.name ? "" : ""}
                         </Typography>
+                        {(() => {
+                          const sub = u.subscriptions?.[0];
+                          if (!sub) return null;
+                          const subStyle = SUB_STATUS_COLORS[sub.status] ?? defaultStatusStyle;
+                          const charge = sub.charges?.[0];
+                          const chargeStyle = charge
+                            ? (CHARGE_STATUS_COLORS[charge.status] ?? defaultStatusStyle)
+                            : null;
+                          return (
+                            <Stack direction="row" spacing={0.5} sx={{ mt: 0.3 }}>
+                              {sub.plan?.name && (
+                                <Chip
+                                  label={sub.plan.name}
+                                  size="small"
+                                  sx={{
+                                    height: 18,
+                                    fontSize: "0.65rem",
+                                    fontWeight: 600,
+                                    background: "rgba(45,212,255,0.10)",
+                                    color: "#2DD4FF",
+                                    border: "1px solid rgba(45,212,255,0.25)",
+                                  }}
+                                />
+                              )}
+                              <Chip
+                                label={`Assin: ${sub.status}`}
+                                size="small"
+                                sx={{
+                                  height: 18,
+                                  fontSize: "0.65rem",
+                                  fontWeight: 600,
+                                  background: subStyle.bg,
+                                  color: subStyle.color,
+                                  border: `1px solid ${subStyle.color}33`,
+                                }}
+                              />
+                              {chargeStyle && charge && (
+                                <Chip
+                                  label={`Cobr: ${charge.status}`}
+                                  size="small"
+                                  sx={{
+                                    height: 18,
+                                    fontSize: "0.65rem",
+                                    fontWeight: 600,
+                                    background: chargeStyle.bg,
+                                    color: chargeStyle.color,
+                                    border: `1px solid ${chargeStyle.color}33`,
+                                  }}
+                                />
+                              )}
+                            </Stack>
+                          );
+                        })()}
                       </Box>
 
                       {/* Dates */}
