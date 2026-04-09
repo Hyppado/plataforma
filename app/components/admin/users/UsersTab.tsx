@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  CardHeader,
   Chip,
   Dialog,
   DialogActions,
@@ -20,12 +21,14 @@ import {
   Pagination,
   Select,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -36,7 +39,7 @@ import {
   Edit as EditIcon,
   Key as KeyIcon,
   PersonAdd as PersonAddIcon,
-  Search as SearchIcon,
+  PersonOutlined,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
@@ -564,8 +567,11 @@ export function UsersTab() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [category, setCategory] = useState<UserCategory>("all");
+  const [tab, setTab] = useState(0);
   const [updating, startUpdating] = useTransition();
+
+  // Map tab index to category
+  const category: UserCategory = (["all", "admin", "subscriber"] as const)[tab];
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -630,111 +636,75 @@ export function UsersTab() {
 
   return (
     <Box>
-      {/* Header */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{ mb: 3 }}
-      >
-        <Box>
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 600, color: "#fff", mb: 0.5 }}
-          >
-            Usuários
-          </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
-            Gerencie usuários do sistema, crie contas e resete senhas.
-          </Typography>
-        </Box>
-        <Button
-          startIcon={<AddIcon />}
-          onClick={() => setCreateOpen(true)}
-          variant="contained"
-          size="small"
-          sx={{
-            background: "#2DD4FF",
-            color: "#0a0a0f",
-            fontWeight: 700,
-            textTransform: "none",
-            "&:hover": { background: "#5BE0FF" },
-          }}
-        >
-          Criar Usuário
-        </Button>
-      </Stack>
-
-      {/* Filters */}
-      <Stack direction="row" spacing={1.5} sx={{ mb: 2 }} flexWrap="wrap">
-        <TextField
-          size="small"
-          placeholder="Buscar por email ou nome..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon
-                  sx={{ fontSize: 18, color: "rgba(255,255,255,0.3)" }}
-                />
-              </InputAdornment>
-            ),
-          }}
-          sx={{
-            minWidth: 260,
-            "& .MuiOutlinedInput-root": {
-              color: "#fff",
-              fontSize: "0.85rem",
-              "& fieldset": { borderColor: "rgba(255,255,255,0.12)" },
-            },
-          }}
-        />
-        <Stack direction="row" spacing={0.5}>
-          {(
-            [
-              { value: "all", label: "Todos" },
-              { value: "admin", label: "Admins" },
-              { value: "subscriber", label: "Assinantes" },
-            ] as const
-          ).map((opt) => (
-            <Chip
-              key={opt.value}
-              label={opt.label}
-              size="small"
-              onClick={() => {
-                setCategory(opt.value);
-                setPage(1);
-              }}
-              variant={category === opt.value ? "filled" : "outlined"}
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                cursor: "pointer",
-                borderColor:
-                  category === opt.value ? "#2DD4FF" : "rgba(255,255,255,0.15)",
-                color:
-                  category === opt.value ? "#0a0a0f" : "rgba(255,255,255,0.6)",
-                background: category === opt.value ? "#2DD4FF" : "transparent",
-                "&:hover": {
-                  borderColor: "#2DD4FF",
-                  background:
-                    category === opt.value
-                      ? "#5BE0FF"
-                      : "rgba(45,212,255,0.08)",
-                },
-              }}
-            />
-          ))}
-        </Stack>
-      </Stack>
-
-      {(isLoading || updating) && <LinearProgress sx={{ mb: 1 }} />}
-
-      {/* Users table */}
       <Card sx={{ ...cardStyle, mb: 3 }}>
-        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+        <CardHeader
+          avatar={<PersonOutlined sx={{ color: "#2DD4FF" }} />}
+          title="Usuários"
+          subheader={`${data?.pagination.total ?? 0} usuário(s) encontrado(s)`}
+          titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
+          subheaderTypographyProps={{ fontSize: "0.8rem" }}
+          action={
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                placeholder="Buscar por nome ou email..."
+                size="small"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                sx={{
+                  width: 280,
+                  "& .MuiOutlinedInput-root": {
+                    background: "rgba(0,0,0,0.2)",
+                    "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
+                  },
+                  "& .MuiOutlinedInput-input": {
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                  },
+                }}
+              />
+              <Button
+                startIcon={<AddIcon />}
+                onClick={() => setCreateOpen(true)}
+                variant="contained"
+                size="small"
+                sx={{
+                  background: "#2DD4FF",
+                  color: "#0a0a0f",
+                  fontWeight: 700,
+                  textTransform: "none",
+                  whiteSpace: "nowrap",
+                  "&:hover": { background: "#5BE0FF" },
+                }}
+              >
+                Criar Usuário
+              </Button>
+            </Stack>
+          }
+        />
+        <CardContent>
+          <Tabs
+            value={tab}
+            onChange={(_, v) => {
+              setTab(v);
+              setPage(1);
+            }}
+            sx={{
+              mb: 2,
+              "& .MuiTab-root": {
+                color: "rgba(255,255,255,0.5)",
+                "&.Mui-selected": { color: "#2DD4FF" },
+              },
+              "& .MuiTabs-indicator": { background: "#2DD4FF" },
+            }}
+          >
+            <Tab label="Todos" />
+            <Tab label="Admins" />
+            <Tab label="Assinantes" />
+          </Tabs>
+
+          {(isLoading || updating) && <LinearProgress sx={{ mb: 1 }} />}
+
           <TableContainer>
             <Table size="small">
               <TableHead>
@@ -806,7 +776,9 @@ export function UsersTab() {
                         {/* Status */}
                         <TableCell sx={cellSx}>
                           {(() => {
-                            const sc = USER_STATUS_COLORS[u.status] ?? defaultStatusStyle;
+                            const sc =
+                              USER_STATUS_COLORS[u.status] ??
+                              defaultStatusStyle;
                             return (
                               <Chip
                                 label={USER_STATUS_LABEL[u.status] ?? u.status}
@@ -860,7 +832,10 @@ export function UsersTab() {
                         <TableCell sx={cellSx}>
                           {charge && chargeStyle ? (
                             <Chip
-                              label={CHARGE_STATUS_LABEL[charge.status] ?? charge.status}
+                              label={
+                                CHARGE_STATUS_LABEL[charge.status] ??
+                                charge.status
+                              }
                               size="small"
                               sx={{
                                 background: chargeStyle.bg,
