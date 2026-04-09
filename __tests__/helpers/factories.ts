@@ -20,6 +20,8 @@ export function buildUser(overrides: Record<string, unknown> = {}) {
     passwordHash: "$2a$10$fakebcrypthash",
     lastLoginAt: new Date(),
     deletedAt: null,
+    setupToken: null,
+    setupTokenExpiresAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

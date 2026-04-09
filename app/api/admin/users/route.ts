@@ -9,6 +9,7 @@ import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
+import { sendOnboardingEmail } from "@/lib/email/onboarding";
 
 export const runtime = "nodejs";
 
@@ -165,10 +166,12 @@ export async function POST(req: NextRequest) {
     email,
     name,
     role: userRole,
+    sendEmail: shouldSendEmail,
   } = body as {
     email?: string;
     name?: string;
     role?: string;
+    sendEmail?: boolean;
   };
 
   if (!email || !email.includes("@")) {
@@ -193,8 +196,16 @@ export async function POST(req: NextRequest) {
 
   const assignedRole =
     userRole === "ADMIN" ? "ADMIN" : ("USER" as "ADMIN" | "USER");
-  const plainPassword = generatePassword();
-  const passwordHash = await bcrypt.hash(plainPassword, 10);
+
+  // When sendEmail is true, create user without password and send onboarding email.
+  // Otherwise, generate a random password and return it once (legacy flow).
+  let plainPassword: string | null = null;
+  let passwordHash: string | null = null;
+
+  if (!shouldSendEmail) {
+    plainPassword = generatePassword();
+    passwordHash = await bcrypt.hash(plainPassword, 10);
+  }
 
   const user = await prisma.user.create({
     data: {
@@ -221,10 +232,31 @@ export async function POST(req: NextRequest) {
       action: "USER_CREATED",
       entityType: "User",
       entityId: user.id,
-      after: { email: user.email, role: user.role },
+      after: {
+        email: user.email,
+        role: user.role,
+        onboardingEmailSent: !!shouldSendEmail,
+      },
     },
   });
 
-  // Return password once — it is never stored in plain text
-  return NextResponse.json({ user, password: plainPassword }, { status: 201 });
+  // Send onboarding email if requested
+  let emailSent = false;
+  if (shouldSendEmail) {
+    const result = await sendOnboardingEmail({
+      userId: user.id,
+      force: true, // User just created, always send
+    });
+    emailSent = result.sent;
+  }
+
+  // Return password once (legacy) or email status (new flow)
+  return NextResponse.json(
+    {
+      user,
+      ...(plainPassword ? { password: plainPassword } : {}),
+      ...(shouldSendEmail ? { emailSent } : {}),
+    },
+    { status: 201 },
+  );
 }

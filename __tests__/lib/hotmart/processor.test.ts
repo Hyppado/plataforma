@@ -10,6 +10,7 @@ import { prismaMock } from "@tests/helpers/prisma-mock";
 import { buildPlan, buildUser } from "@tests/helpers/factories";
 import type { HotmartWebhookFields } from "@/lib/hotmart/webhook";
 import { createNotificationIfNeeded } from "@/lib/admin/notifications";
+import { sendOnboardingEmail } from "@/lib/email/onboarding";
 
 vi.mock("@/lib/prisma");
 
@@ -21,6 +22,11 @@ vi.mock("@/lib/admin/notifications", () => ({
 // Mock Hotmart plans: resolveOrSyncPlan returns null by default (falls to findFirst fallback)
 vi.mock("@/lib/hotmart/plans", () => ({
   resolveOrSyncPlan: vi.fn().mockResolvedValue(null),
+}));
+
+// Mock onboarding email (processor calls sendOnboardingEmail for first purchases)
+vi.mock("@/lib/email/onboarding", () => ({
+  sendOnboardingEmail: vi.fn().mockResolvedValue({ sent: true }),
 }));
 
 // Use fake timers to skip retry delays
@@ -1024,5 +1030,55 @@ describe("handleApproved() — PURCHASE_APPROVED provisioning", () => {
         eventType: "SUBSCRIPTION_ACTIVATED",
       }),
     );
+  });
+
+  // ── I. Onboarding email ───────────────────────────────────────────────
+
+  it("sends onboarding email for first purchase (non-renewal)", async () => {
+    const fields = makeFields({
+      eventType: "PURCHASE_APPROVED",
+      recurrenceNumber: 1,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(sendOnboardingEmail).toHaveBeenCalledWith({ userId: "user-1" });
+  });
+
+  it("does NOT send onboarding email for renewals", async () => {
+    const fields = makeFields({
+      eventType: "PURCHASE_APPROVED",
+      recurrenceNumber: 3,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(sendOnboardingEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not break provisioning if onboarding email fails", async () => {
+    vi.mocked(sendOnboardingEmail).mockRejectedValueOnce(
+      new Error("Resend down"),
+    );
+
+    const fields = makeFields({
+      eventType: "PURCHASE_APPROVED",
+      recurrenceNumber: 1,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    // Event should still be marked PROCESSED despite email failure
+    const updateCalls = prismaMock.hotmartWebhookEvent.update.mock.calls;
+    const processedCall = updateCalls.find(
+      (call: any) => call[0]?.data?.processingStatus === "PROCESSED",
+    );
+    expect(processedCall).toBeTruthy();
   });
 });

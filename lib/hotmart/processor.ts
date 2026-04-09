@@ -35,6 +35,7 @@ import type { HotmartWebhookFields } from "./webhook";
 import { createNotificationIfNeeded } from "../admin/notifications";
 import { createLogger } from "../logger";
 import { resolveOrSyncPlan } from "./plans";
+import { sendOnboardingEmail } from "../email/onboarding";
 
 const log = createLogger("hotmart/processor");
 
@@ -466,6 +467,18 @@ export async function handleApproved(
       },
     }).catch((err) => {
       log.warn("Failed to create activation notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  // I. Onboarding email — first-time purchases for users without a password.
+  //    Sends a secure link to create password / first access.
+  //    Skipped if user already has passwordHash (idempotent on duplicate webhooks).
+  if (!isRenewal) {
+    await sendOnboardingEmail({ userId: identity.userId }).catch((err) => {
+      log.warn("Failed to send onboarding email", {
+        userId: identity.userId,
         error: err instanceof Error ? err.message : String(err),
       });
     });

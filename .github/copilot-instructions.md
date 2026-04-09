@@ -82,6 +82,7 @@ app/
       users/
       webhook-events/
     auth/          → NextAuth handlers
+      setup-password/ → public token validation + password setting (GET + POST)
     cron/          → cron endpoints (echotik, sync-db, transcribe)
     echotik/       → Echotik data endpoints
     insights/      → on-demand video insight (POST + GET [videoExternalId])
@@ -117,6 +118,7 @@ app/
     trends/        → trend analysis
     videos/        → video ranking
     videos-salvos/ → saved videos
+  criar-senha/     → public password creation page (onboarding)
   login/           → login page
   theme.ts         → centralized MUI theme
 lib/
@@ -130,6 +132,12 @@ lib/
   crypto.ts        → AES-256-GCM encrypt/decrypt for secret settings
   auth.ts          → NextAuth config + callbacks
   categories.ts    → category mapping
+  email/           → transactional email (Resend)
+    client.ts      → Resend client singleton, sendEmail(), EMAIL_FROM/EMAIL_REPLY_TO
+    templates.ts   → HTML email templates (onboarding)
+    setup-token.ts → secure token generation, validation, consumption (SHA-256)
+    onboarding.ts  → sendOnboardingEmail() orchestrator
+    index.ts       → public re-exports
   echotik/
     client.ts      → HTTP client for Echotik API
     admin/         → admin-facing echotik services
@@ -216,6 +224,8 @@ __tests__/
       collections.test.ts
       notes.test.ts
       saved.test.ts
+    auth/
+      setup-password.test.ts
     webhooks/
       hotmart.test.ts
     transcripts/
@@ -237,6 +247,11 @@ __tests__/
     admin/
       admin-client.test.ts
       notifications.test.ts
+    email/
+      client.test.ts
+      onboarding.test.ts
+      setup-token.test.ts
+      templates.test.ts
     echotik/
       client.test.ts
       cron-config.test.ts
@@ -287,7 +302,7 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 
 ### Domain 1 — Identity & IAM
 
-- **User** — central identity; has role, status, LGPD fields, soft delete (`deletedAt`)
+- **User** — central identity; has role, status, LGPD fields, soft delete (`deletedAt`), setup token (`setupToken` + `setupTokenExpiresAt`) for password creation
 - **AccessGrant** — admin-issued access overrides (replaces subscription requirement)
 - **ConsentRecord** — append-only LGPD consent log
 - **DataErasureRequest** — LGPD erasure request tracking
@@ -502,6 +517,7 @@ The cron was refactored to a modular, region-scoped architecture to respect the 
   6. Access is runtime-driven (`lib/access/resolver.ts`) — no derived state persisted
   7. Audit log: `WEBHOOK_PURCHASE_APPROVED` (first purchase) or `WEBHOOK_PURCHASE_RENEWED` (renewal)
   8. Admin notification: `SUBSCRIPTION_ACTIVATED` for first-time purchases only; `SUSPENDED_USER_PURCHASE` if user is suspended
+  9. Onboarding email: `sendOnboardingEmail({userId})` for first-time purchases only (non-renewals), `.catch()` protected — never breaks provisioning
 - **Renewal**: `recurrenceNumber > 1` = renewal (no admin notification, audit action = `WEBHOOK_PURCHASE_RENEWED`)
 - **Idempotency**: webhook dedup by `idempotencyKey` (UNIQUE), subscription upsert by external ID, charge upsert by transactionId, notification dedup by dedupeKey
 - **User identity rule**: Hotmart is an external commercial source, NOT the primary user identity. `ExternalAccountLink` is optional/external, not identity-defining.
@@ -605,6 +621,52 @@ Depends on a transcript existing (auto-generates one if needed).
   - `rawResponseJson` stored for debug; `promptVersion` and `tokensUsed` tracked
   - New insight types must follow the same status lifecycle (PENDING → PROCESSING → READY | FAILED)
 
+## Email / Onboarding
+
+Transactional email via Resend for user onboarding and first-access password setup.
+Two trigger points: Hotmart PURCHASE_APPROVED (new users) and admin-created users (with `sendEmail: true`).
+
+- **Client**: `lib/email/client.ts`
+  - `sendEmail(options)` — sends via Resend, returns `{success, messageId?, error?}`
+  - Sender: `Hyppado <suporte@hyppado.com>` (EMAIL_FROM)
+  - Reply-To: `suportehyppado@gmail.com` (EMAIL_REPLY_TO)
+  - Graceful degradation: returns `{success: false}` when `RESEND_API_KEY` not set
+- **Templates**: `lib/email/templates.ts`
+  - `buildOnboardingEmail({name, setupUrl, expiresInHours})` → `{subject, html, text}`
+  - Inline styles, dark theme, Hyppado branding, XSS-safe (escapeHtml)
+  - Subject: "Seu acesso ao Hyppado está pronto!"
+- **Token Service**: `lib/email/setup-token.ts`
+  - `hashToken(raw)` → SHA-256 hex (stored in `User.setupToken`)
+  - `generateSetupToken(userId, expiryHours)` → raw token (32 bytes, base64url), persists hash + expiry
+  - `validateSetupToken(raw)` → hash lookup + expiry + status check
+  - `consumeSetupToken(userId, passwordHash)` → sets password + clears token atomically
+  - Constants: `ONBOARDING_TOKEN_EXPIRY_HOURS = 24`, `RESET_TOKEN_EXPIRY_HOURS = 1`
+- **Orchestrator**: `lib/email/onboarding.ts`
+  - `sendOnboardingEmail({userId, force?})` — checks user status + password, generates token, sends email
+  - Duplicate protection: skips if user already has `passwordHash` (unless `force=true`)
+  - URL: `{NEXTAUTH_URL}/criar-senha?token=<raw_token>`
+- **API Routes** (public — no session required):
+  - `GET /api/auth/setup-password?token=<raw>` — token validation preflight (valid + email)
+  - `POST /api/auth/setup-password` `{token, password}` — validates, hashes with bcrypt(10), consumes token, audit log
+- **Frontend**: `/criar-senha` page with loading/form/success/error states (Suspense-wrapped for `useSearchParams`)
+- **Integration Points**:
+  - `lib/hotmart/processor.ts` → step I in `handleApproved()`: sends for first purchases (non-renewals), `.catch()` protected
+  - `app/api/admin/users/route.ts` POST: `sendEmail: true` creates user without password and sends onboarding email
+- **Security Properties**:
+  - Only SHA-256 hash stored — raw token exists only in the email link
+  - One-time use (cleared on consumption)
+  - Token has configurable expiry (24h onboarding, 1h reset)
+  - Generic error messages — no user/email enumeration
+  - Password min length: 8 characters (server-enforced)
+- **Rules**:
+  - Do not send onboarding email to users who already have a password (unless force=true)
+  - Do not break Hotmart provisioning if email fails — always `.catch()`
+  - Do not store raw tokens in the database — store hash only
+  - `RESEND_API_KEY` must be configured in Vercel environment variables
+  - The `NEXTAUTH_URL` env var is used for building setup URLs
+  - New email templates must follow the existing `wrapTemplate()` pattern
+  - New transactional emails must use `lib/email/client.ts` — do not create alternate email services
+
 ## Admin Notifications
 
 Notifications generated by Hotmart events and system processes, visible to admins in the config panel.
@@ -687,9 +749,9 @@ Notifications generated by Hotmart events and system processes, visible to admin
 
 ### Current Counts (reference — April 2026)
 
-- **627 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **683 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
 - **63 component tests** (vitest, jsdom env, `__tests__/components/`)
-- **Total: 690 tests**, all passing
+- **Total: 746 tests**, all passing
 - Run `npm run test:all` to get exact current count
 
 ### Vitest Configs
@@ -856,7 +918,7 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 
 - Run `npx tsc --noEmit` and confirm zero type errors.
 - Run `npm run build` and confirm exit code 0.
-- Run `npm run test:all` and confirm that all tests pass (currently 680+).
+- Run `npm run test:all` and confirm that all tests pass (currently 746).
 - If the typecheck, build, or tests break, fix before committing.
 - **Never commit or push code with type errors, lint errors, test failures, or build failures — no exceptions.**
 - When creating or modifying test files, verify that fixture data matches the actual TypeScript interfaces. Do not guess property names — read the type definition first.

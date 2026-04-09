@@ -30,6 +30,10 @@ model User {
   updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
 
+  // Password setup / reset token (secure, one-time, expiring)
+  setupToken          String?   @unique       // SHA-256 hash do token enviado por email
+  setupTokenExpiresAt DateTime?               // expiração (24h para onboarding, 1h para reset)
+
   // LGPD
   lgpdConsentAt      DateTime?                // último consentimento LGPD
   lgpdConsentVersion String?                  // versão do termo aceito

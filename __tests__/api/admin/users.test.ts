@@ -12,12 +12,28 @@ import {
   mockAuthenticatedUser,
   makeGetRequest,
   makePatchRequest,
+  makePostRequest,
 } from "@tests/helpers/auth";
 import { buildUser } from "@tests/helpers/factories";
 
 vi.mock("@/lib/prisma");
 
-import { GET, PATCH } from "@/app/api/admin/users/route";
+// Mock onboarding email
+vi.mock("@/lib/email/onboarding", () => ({
+  sendOnboardingEmail: vi
+    .fn()
+    .mockResolvedValue({ sent: true, messageId: "msg-1" }),
+}));
+
+// Mock bcryptjs
+vi.mock("bcryptjs", () => ({
+  default: {
+    hash: vi.fn().mockResolvedValue("$2a$10$mockhash"),
+  },
+}));
+
+import { GET, PATCH, POST } from "@/app/api/admin/users/route";
+import { sendOnboardingEmail } from "@/lib/email/onboarding";
 
 describe("GET /api/admin/users", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -161,5 +177,157 @@ describe("PATCH /api/admin/users", () => {
     }) as any;
     const res = await PATCH(req);
     expect(res.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST — Create new user
+// ---------------------------------------------------------------------------
+
+describe("POST /api/admin/users", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.user.findUnique.mockResolvedValue(null); // no duplicate
+    prismaMock.auditLog.create.mockResolvedValue({} as never);
+  });
+
+  it("returns 401 for unauthenticated", async () => {
+    mockUnauthenticated();
+    const req = makePostRequest("/api/admin/users", {
+      email: "new@test.com",
+    }) as any;
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin", async () => {
+    mockAuthenticatedUser();
+    const req = makePostRequest("/api/admin/users", {
+      email: "new@test.com",
+    }) as any;
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 for missing email", async () => {
+    mockAuthenticatedAdmin();
+    const req = makePostRequest("/api/admin/users", { name: "Test" }) as any;
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 409 for duplicate email", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.user.findUnique.mockResolvedValue(buildUser() as never);
+    const req = makePostRequest("/api/admin/users", {
+      email: "dup@test.com",
+    }) as any;
+    const res = await POST(req);
+    expect(res.status).toBe(409);
+  });
+
+  it("creates user with password (legacy flow, sendEmail=false)", async () => {
+    mockAuthenticatedAdmin();
+    const createdUser = {
+      id: "u2",
+      email: "new@test.com",
+      name: "New User",
+      role: "USER",
+      status: "ACTIVE",
+      createdAt: new Date(),
+    };
+    prismaMock.user.create.mockResolvedValue(createdUser as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "new@test.com",
+      name: "New User",
+    }) as any;
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.password).toBeTruthy(); // password returned once
+    expect(body.user.email).toBe("new@test.com");
+    expect(sendOnboardingEmail).not.toHaveBeenCalled();
+  });
+
+  it("creates user without password and sends email (sendEmail=true)", async () => {
+    mockAuthenticatedAdmin();
+    const createdUser = {
+      id: "u3",
+      email: "email-flow@test.com",
+      name: "Email User",
+      role: "USER",
+      status: "ACTIVE",
+      createdAt: new Date(),
+    };
+    prismaMock.user.create.mockResolvedValue(createdUser as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "email-flow@test.com",
+      name: "Email User",
+      sendEmail: true,
+    }) as any;
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.password).toBeUndefined(); // no password returned
+    expect(body.emailSent).toBe(true);
+
+    // Onboarding email sent with force=true
+    expect(sendOnboardingEmail).toHaveBeenCalledWith({
+      userId: "u3",
+      force: true,
+    });
+  });
+
+  it("creates user with no passwordHash when sendEmail=true", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.user.create.mockResolvedValue({
+      id: "u4",
+      email: "nopass@test.com",
+    } as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "nopass@test.com",
+      sendEmail: true,
+    }) as any;
+    await POST(req);
+
+    // user.create should have null passwordHash
+    expect(prismaMock.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          passwordHash: null,
+        }),
+      }),
+    );
+  });
+
+  it("creates audit log with onboardingEmailSent flag", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.user.create.mockResolvedValue({
+      id: "u5",
+      email: "audit@test.com",
+      role: "USER",
+    } as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "audit@test.com",
+      sendEmail: true,
+    }) as any;
+    await POST(req);
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "USER_CREATED",
+          after: expect.objectContaining({
+            onboardingEmailSent: true,
+          }),
+        }),
+      }),
+    );
   });
 });
