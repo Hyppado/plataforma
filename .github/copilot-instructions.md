@@ -82,6 +82,7 @@ app/
       users/
       webhook-events/
     auth/          → NextAuth handlers
+      reset-password/ → public password reset request (POST — no auth, no enumeration)
       setup-password/ → public token validation + password setting (GET + POST)
     cron/          → cron endpoints (echotik, sync-db, transcribe)
     echotik/       → Echotik data endpoints
@@ -118,7 +119,8 @@ app/
     trends/        → trend analysis
     videos/        → video ranking
     videos-salvos/ → saved videos
-  criar-senha/     → public password creation page (onboarding)
+  criar-senha/     → public password creation page (onboarding + reset)
+  recuperar/       → public password reset request page (email form)
   login/           → login page
   theme.ts         → centralized MUI theme
 lib/
@@ -225,6 +227,7 @@ __tests__/
       notes.test.ts
       saved.test.ts
     auth/
+      reset-password.test.ts
       setup-password.test.ts
     webhooks/
       hotmart.test.ts
@@ -250,6 +253,7 @@ __tests__/
     email/
       client.test.ts
       onboarding.test.ts
+      password-reset.test.ts
       setup-token.test.ts
       templates.test.ts
     echotik/
@@ -437,6 +441,8 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 - **Cron routes** (`/api/cron/*`) — authenticated by `CRON_SECRET` in the `Authorization: Bearer` header.
   Do not accept user sessions. Do not expose to the browser.
 - **NextAuth handler** (`/api/auth/[...nextauth]`) — managed internally by NextAuth.
+- **Password reset** (`/api/auth/reset-password`) — public POST, receives `{ email }`, always returns 200.
+  Must NEVER reveal whether the email exists. No timing side-channels.
 
 ### Auth Helpers (`lib/auth.ts`)
 
@@ -621,10 +627,10 @@ Depends on a transcript existing (auto-generates one if needed).
   - `rawResponseJson` stored for debug; `promptVersion` and `tokensUsed` tracked
   - New insight types must follow the same status lifecycle (PENDING → PROCESSING → READY | FAILED)
 
-## Email / Onboarding
+## Email / Onboarding / Password Reset
 
-Transactional email via Resend for user onboarding and first-access password setup.
-Two trigger points: Hotmart PURCHASE_APPROVED (new users) and admin-created users (with `sendEmail: true`).
+Transactional email via Resend for user onboarding, first-access password setup, and password reset.
+Three trigger points: Hotmart PURCHASE_APPROVED (new users), admin-created users (with `sendEmail: true`), and self-service password reset (`/recuperar`).
 
 - **Client**: `lib/email/client.ts`
   - `sendEmail(options)` — sends via Resend, returns `{success, messageId?, error?}`
@@ -633,37 +639,50 @@ Two trigger points: Hotmart PURCHASE_APPROVED (new users) and admin-created user
   - Graceful degradation: returns `{success: false}` when `RESEND_API_KEY` not set
 - **Templates**: `lib/email/templates.ts`
   - `buildOnboardingEmail({name, setupUrl, expiresInHours})` → `{subject, html, text}`
+  - `buildPasswordResetEmail({name, resetUrl, expiresInHours})` → `{subject, html, text}`
   - Inline styles, dark theme, Hyppado branding, XSS-safe (escapeHtml)
-  - Subject: "Seu acesso ao Hyppado está pronto!"
+  - All templates must use the `wrapTemplate()` wrapper for consistent layout
 - **Token Service**: `lib/email/setup-token.ts`
   - `hashToken(raw)` → SHA-256 hex (stored in `User.setupToken`)
   - `generateSetupToken(userId, expiryHours)` → raw token (32 bytes, base64url), persists hash + expiry
   - `validateSetupToken(raw)` → hash lookup + expiry + status check
   - `consumeSetupToken(userId, passwordHash)` → sets password + clears token atomically
   - Constants: `ONBOARDING_TOKEN_EXPIRY_HOURS = 24`, `RESET_TOKEN_EXPIRY_HOURS = 1`
-- **Orchestrator**: `lib/email/onboarding.ts`
-  - `sendOnboardingEmail({userId, force?})` — checks user status + password, generates token, sends email
+- **Onboarding Orchestrator**: `lib/email/onboarding.ts`
+  - `sendOnboardingEmail({userId, force?})` — checks user status + password, generates 24h token, sends email
   - Duplicate protection: skips if user already has `passwordHash` (unless `force=true`)
   - URL: `{NEXTAUTH_URL}/criar-senha?token=<raw_token>`
+- **Password Reset Orchestrator**: `lib/email/password-reset.ts`
+  - `sendPasswordResetEmail({email})` — looks up user by email, generates 1h token, sends reset email
+  - NEVER reveals whether the email exists — returns `{ok: true}` for non-existent/inactive users
+  - Skips silently: user not found, user not active, user has no password (no enumeration)
+  - URL: `{NEXTAUTH_URL}/criar-senha?token=<raw_token>` (reuses same page)
 - **API Routes** (public — no session required):
+  - `POST /api/auth/reset-password` `{email}` — always returns 200 with generic message (no enumeration)
   - `GET /api/auth/setup-password?token=<raw>` — token validation preflight (valid + email)
   - `POST /api/auth/setup-password` `{token, password}` — validates, hashes with bcrypt(10), consumes token, audit log
-- **Frontend**: `/criar-senha` page with loading/form/success/error states (Suspense-wrapped for `useSearchParams`)
+- **Frontend**:
+  - `/recuperar` — email form for password reset request (always shows success, no enumeration)
+  - `/criar-senha` — token-based password creation/reset page (Suspense-wrapped for `useSearchParams`)
+  - Login page links to `/recuperar` via "Esqueceu sua senha?" link
 - **Integration Points**:
-  - `lib/hotmart/processor.ts` → step I in `handleApproved()`: sends for first purchases (non-renewals), `.catch()` protected
+  - `lib/hotmart/processor.ts` → step I in `handleApproved()`: sends onboarding for first purchases (non-renewals), `.catch()` protected
   - `app/api/admin/users/route.ts` POST: `sendEmail: true` creates user without password and sends onboarding email
+  - Login page → "Esqueceu sua senha?" → `/recuperar` → email → `/criar-senha?token=`
 - **Security Properties**:
   - Only SHA-256 hash stored — raw token exists only in the email link
   - One-time use (cleared on consumption)
   - Token has configurable expiry (24h onboarding, 1h reset)
-  - Generic error messages — no user/email enumeration
+  - Generic error messages — no user/email enumeration at any point in the flow
+  - Password reset API always returns 200 regardless of user existence
   - Password min length: 8 characters (server-enforced)
 - **Rules**:
   - Do not send onboarding email to users who already have a password (unless force=true)
   - Do not break Hotmart provisioning if email fails — always `.catch()`
   - Do not store raw tokens in the database — store hash only
+  - Do not reveal whether an email is registered during password reset — always return the same response
   - `RESEND_API_KEY` must be configured in Vercel environment variables
-  - The `NEXTAUTH_URL` env var is used for building setup URLs
+  - The `NEXTAUTH_URL` env var is used for building setup/reset URLs
   - New email templates must follow the existing `wrapTemplate()` pattern
   - New transactional emails must use `lib/email/client.ts` — do not create alternate email services
 
@@ -730,6 +749,21 @@ Notifications generated by Hotmart events and system processes, visible to admin
 - Theme centralized in `app/theme.ts` — do not create a new `createTheme()`.
 - Do not create scattered `UI = { ... }` objects with inline tokens.
 - Maintain the existing dark-first visual consistency.
+- **All colors that exist in the theme palette must be referenced via theme tokens** — never hardcode hex values that are already defined in the palette.
+- Use `"primary.main"`, `"secondary.main"`, `"secondary.dark"`, etc. in `sx` props instead of raw hex strings.
+
+### Palette Reference
+
+| Token             | Hex       | Usage                                                                                       |
+| ----------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `primary.main`    | `#2DD4FF` | Main brand color (cyan), links, active states                                               |
+| `primary.light`   | `#6BE0FF` | Lighter variant                                                                             |
+| `primary.dark`    | `#00B8E6` | Darker variant                                                                              |
+| `secondary.main`  | `#FF2D78` | Accent pink — dialog titles, accent buttons, focused input borders, small detail highlights |
+| `secondary.light` | `#FF5C9A` | Lighter pink variant                                                                        |
+| `secondary.dark`  | `#E0256A` | Darker pink — hover states for secondary buttons                                            |
+
+When adding new accent-colored UI, use `secondary.main` / `secondary.dark` / `secondary.light` from the theme — do not introduce new hardcoded pink hex values.
 
 ## Frontend Data Fetching
 
@@ -883,6 +917,7 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 
 - Do not create inline design token objects like `UI = { ... }`.
 - Do not create new divergent themes.
+- Do not hardcode hex colors (`#FF2D78`, `#2DD4FF`, etc.) in `sx` props when the color is already defined in the theme palette — use `"secondary.main"`, `"primary.main"`, etc. instead.
 - Do not create monolithic components with 500+ lines.
 - Do not duplicate quota logic.
 - Do not fetch from the server itself via HTTP in server-side context.

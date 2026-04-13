@@ -9,6 +9,7 @@ import {
   Chip,
   Stack,
   Divider,
+  Avatar,
 } from "@mui/material";
 import { KeyboardArrowDown } from "@mui/icons-material";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -16,6 +17,7 @@ import { useSession } from "next-auth/react";
 import { REGION_FLAGS, getStoredRegion, setStoredRegion } from "@/lib/region";
 import { HeaderQuota } from "./HeaderQuota";
 import { HeaderNotifications } from "./HeaderNotifications";
+import { ProfileDialog } from "./ProfileDialog";
 
 /**
  * AppTopHeader — header global das páginas /dashboard/*
@@ -30,6 +32,8 @@ export function AppTopHeader() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Inicia com getStoredRegion() para não piscar "BR" se URL já tem outro valor
   const [currentRegion, setCurrentRegion] = useState<string>(() =>
@@ -75,6 +79,16 @@ export function AppTopHeader() {
 
   const flag = REGION_FLAGS[currentRegion] ?? "🌎";
 
+  // Avatar initials
+  const userName = session?.user?.name;
+  const initials = (() => {
+    if (!userName) return "?";
+    const parts = userName.trim().split(/\s+/);
+    if (parts.length >= 2)
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0][0]?.toUpperCase() ?? "?";
+  })();
+
   return (
     <Box
       component="header"
@@ -93,13 +107,6 @@ export function AppTopHeader() {
     >
       {/* Left side — push items to the right */}
       <Box sx={{ flex: 1 }} />
-
-      {/* Admin notifications bell */}
-      {isAdmin && (
-        <Box sx={{ mr: 1 }}>
-          <HeaderNotifications />
-        </Box>
-      )}
 
       {/* Quota usage */}
       <Box sx={{ display: { xs: "none", sm: "block" }, mr: 1.5 }}>
@@ -218,6 +225,49 @@ export function AppTopHeader() {
           })}
         </Stack>
       </Popover>
+
+      {/* Admin notifications bell — next to avatar */}
+      {isAdmin && (
+        <Box sx={{ ml: 1.5 }}>
+          <HeaderNotifications />
+        </Box>
+      )}
+
+      {/* User avatar */}
+      <ButtonBase
+        onClick={() => setProfileOpen(true)}
+        aria-label="Perfil do usuário"
+        sx={{
+          ml: 1,
+          borderRadius: "50%",
+          "&:hover .MuiAvatar-root": {
+            borderColor: "rgba(255,255,255,0.3)",
+          },
+        }}
+      >
+        <Avatar
+          sx={{
+            width: 32,
+            height: 32,
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            bgcolor: "rgba(255,255,255,0.08)",
+            color: "rgba(255,255,255,0.7)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            transition: "border-color 150ms ease",
+          }}
+        >
+          {initials}
+        </Avatar>
+      </ButtonBase>
+
+      {/* Profile dialog */}
+      <ProfileDialog
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        userName={session?.user?.name}
+        userEmail={session?.user?.email}
+      />
     </Box>
   );
 }

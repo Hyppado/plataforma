@@ -5,6 +5,7 @@ import { Box, Chip } from "@mui/material";
 import { PlayArrowRounded } from "@mui/icons-material";
 import type { VideoDTO } from "@/lib/types/dto";
 import { useSavedVideos, useSavedProducts } from "@/lib/storage/saved";
+import { revalidateUserQuota } from "@/lib/swr/useUserQuota";
 import { TranscriptDialog } from "@/app/components/videos/TranscriptDialog";
 import {
   InsightDialog,
@@ -103,6 +104,8 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       setTranscriptStatus(data.status ?? "FAILED");
       setTranscriptText(data.transcriptText ?? null);
       setTranscriptError(data.errorMessage ?? null);
+      // Refresh quota display after consumption
+      revalidateUserQuota();
     } catch {
       setTranscriptStatus("FAILED");
       setTranscriptError(null);
@@ -126,6 +129,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
       setTranscriptStatus(data.status ?? "FAILED");
       setTranscriptText(data.transcriptText ?? null);
       setTranscriptError(data.errorMessage ?? null);
+      revalidateUserQuota();
     } catch {
       setTranscriptStatus("FAILED");
       setTranscriptError(null);
@@ -180,6 +184,8 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
         });
       }
       setInsightError(data.errorMessage ?? null);
+      // Refresh quota display after consumption
+      revalidateUserQuota();
     } catch {
       setInsightStatus("FAILED");
       setInsightError(null);
@@ -217,6 +223,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
         });
       }
       setInsightError(data.errorMessage ?? null);
+      revalidateUserQuota();
     } catch {
       setInsightStatus("FAILED");
       setInsightError(null);

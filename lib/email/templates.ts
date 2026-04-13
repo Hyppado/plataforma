@@ -145,3 +145,80 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+// ---------------------------------------------------------------------------
+// Password reset email
+// ---------------------------------------------------------------------------
+
+export interface PasswordResetEmailData {
+  /** User display name or email prefix */
+  name: string;
+  /** Full URL with token for password reset */
+  resetUrl: string;
+  /** Token expiration in hours */
+  expiresInHours: number;
+}
+
+/**
+ * Generates the HTML for the password reset email.
+ */
+export function buildPasswordResetEmail(data: PasswordResetEmailData): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const subject = "Redefinir sua senha — Hyppado";
+
+  const html = wrapTemplate(`
+    <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #ffffff;">
+      Redefinição de senha
+    </h1>
+    <p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+      Olá, <strong style="color: #ffffff;">${escapeHtml(data.name)}</strong>!
+    </p>
+    <p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+      Recebemos uma solicitação para redefinir a senha da sua conta no Hyppado.
+      Clique no botão abaixo para criar uma nova senha:
+    </p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
+      <tr>
+        <td align="center">
+          <a href="${escapeHtml(data.resetUrl)}"
+             target="_blank"
+             style="display: inline-block; padding: 14px 36px; background-color: #2DD4FF; color: #0a0a0f; font-size: 15px; font-weight: 700; text-decoration: none; border-radius: 8px;">
+            Redefinir minha senha
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin: 0 0 8px; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+      Este link é válido por <strong>${data.expiresInHours} hora${data.expiresInHours > 1 ? "s" : ""}</strong>.
+      Após esse prazo, solicite um novo link.
+    </p>
+    <p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+      Se você não solicitou esta redefinição, ignore este email.
+      Sua senha permanecerá inalterada.
+    </p>
+  `);
+
+  const text = [
+    "Redefinição de senha — Hyppado",
+    "",
+    `Olá, ${data.name}!`,
+    "",
+    "Recebemos uma solicitação para redefinir a senha da sua conta no Hyppado.",
+    "Para criar uma nova senha, acesse o link abaixo:",
+    "",
+    data.resetUrl,
+    "",
+    `Este link é válido por ${data.expiresInHours} hora${data.expiresInHours > 1 ? "s" : ""}.`,
+    "Após esse prazo, solicite um novo link.",
+    "",
+    "Se você não solicitou esta redefinição, ignore este email.",
+    "Sua senha permanecerá inalterada.",
+    "",
+    `© ${new Date().getFullYear()} Hyppado — Inteligência para TikTok Shop`,
+  ].join("\n");
+
+  return { subject, html, text };
+}

@@ -2,7 +2,10 @@
  * Tests: lib/email/templates.ts — email template rendering
  */
 import { describe, it, expect } from "vitest";
-import { buildOnboardingEmail } from "@/lib/email/templates";
+import {
+  buildOnboardingEmail,
+  buildPasswordResetEmail,
+} from "@/lib/email/templates";
 
 describe("buildOnboardingEmail()", () => {
   const data = {
@@ -66,5 +69,85 @@ describe("buildOnboardingEmail()", () => {
     expect(text).not.toContain("<");
     expect(text).toContain("Maria Silva");
     expect(text).toContain(data.setupUrl);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Password Reset Template
+// ---------------------------------------------------------------------------
+
+describe("buildPasswordResetEmail()", () => {
+  const data = {
+    name: "João Pereira",
+    resetUrl: "https://hyppado.com/criar-senha?token=reset123",
+    expiresInHours: 1,
+  };
+
+  it("returns subject, html, and text", () => {
+    const result = buildPasswordResetEmail(data);
+    expect(result.subject).toBeTruthy();
+    expect(result.html).toBeTruthy();
+    expect(result.text).toBeTruthy();
+  });
+
+  it("includes the user name in the HTML", () => {
+    const { html } = buildPasswordResetEmail(data);
+    expect(html).toContain("João Pereira");
+  });
+
+  it("includes the reset URL in both HTML and text", () => {
+    const { html, text } = buildPasswordResetEmail(data);
+    expect(html).toContain(data.resetUrl);
+    expect(text).toContain(data.resetUrl);
+  });
+
+  it('includes the CTA button text "Redefinir minha senha"', () => {
+    const { html } = buildPasswordResetEmail(data);
+    expect(html).toContain("Redefinir minha senha");
+  });
+
+  it("includes the expiry hours with correct singular form", () => {
+    const { html, text } = buildPasswordResetEmail(data);
+    expect(html).toContain("1 hora");
+    expect(text).toContain("1 hora");
+    // Should not say "horas" for 1
+    expect(html).not.toContain("1 horas");
+  });
+
+  it("uses plural for multiple hours", () => {
+    const { html, text } = buildPasswordResetEmail({
+      ...data,
+      expiresInHours: 2,
+    });
+    expect(html).toContain("2 horas");
+    expect(text).toContain("2 horas");
+  });
+
+  it("subject mentions password reset", () => {
+    const { subject } = buildPasswordResetEmail(data);
+    expect(subject).toContain("Redefinir");
+    expect(subject).toContain("Hyppado");
+  });
+
+  it("includes safety message about ignoring email", () => {
+    const { html, text } = buildPasswordResetEmail(data);
+    expect(html).toContain("não solicitou esta redefinição");
+    expect(text).toContain("não solicitou esta redefinição");
+  });
+
+  it("escapes HTML in user name to prevent XSS", () => {
+    const malicious = buildPasswordResetEmail({
+      ...data,
+      name: '<script>alert("xss")</script>',
+    });
+    expect(malicious.html).not.toContain("<script>");
+    expect(malicious.html).toContain("&lt;script&gt;");
+  });
+
+  it("text fallback is readable without HTML", () => {
+    const { text } = buildPasswordResetEmail(data);
+    expect(text).not.toContain("<");
+    expect(text).toContain("João Pereira");
+    expect(text).toContain(data.resetUrl);
   });
 });

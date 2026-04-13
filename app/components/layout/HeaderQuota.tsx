@@ -1,19 +1,19 @@
 "use client";
 
 import { Box, Typography } from "@mui/material";
-import { useQuotaUsage, formatQuotaDisplay } from "@/lib/admin/useQuotaUsage";
+import { useUserQuota } from "@/lib/swr/useUserQuota";
 
 /**
  * Compact inline quota display for the top header bar.
  * Shows transcripts + scripts usage as mini bars side by side.
  */
 export function HeaderQuota() {
-  const quota = useQuotaUsage();
+  const quota = useUserQuota();
   const t = quota.transcripts;
   const s = quota.scripts;
 
-  const pct = (used: number | null, max: number | null) =>
-    max && used ? Math.min(1, Math.max(0, used / max)) : 0;
+  const pct = (used: number, limit: number) =>
+    limit > 0 && used > 0 ? Math.min(1, used / limit) : 0;
 
   return (
     <Box
@@ -31,8 +31,8 @@ export function HeaderQuota() {
       <MiniQuotaBar
         label="Transcripts"
         used={t.used}
-        max={t.max}
-        pct={pct(t.used, t.max)}
+        max={t.limit}
+        pct={pct(t.used, t.limit)}
         color="#2DD4FF"
       />
       <Box
@@ -46,8 +46,8 @@ export function HeaderQuota() {
       <MiniQuotaBar
         label="Scripts"
         used={s.used}
-        max={s.max}
-        pct={pct(s.used, s.max)}
+        max={s.limit}
+        pct={pct(s.used, s.limit)}
         color="#C7A3FF"
       />
     </Box>
@@ -55,6 +55,12 @@ export function HeaderQuota() {
 }
 
 /* ---- internal ---- */
+
+function formatDisplay(used: number | null, max: number | null): string {
+  const usedStr = used !== null ? used.toLocaleString("pt-BR") : "—";
+  const maxStr = max !== null && max > 0 ? max.toLocaleString("pt-BR") : "∞";
+  return `${usedStr} / ${maxStr}`;
+}
 
 function MiniQuotaBar({
   label,
@@ -110,7 +116,7 @@ function MiniQuotaBar({
           textShadow: `0 0 10px ${color}20`,
         }}
       >
-        {formatQuotaDisplay(used, max)}
+        {formatDisplay(used, max)}
       </Typography>
     </Box>
   );

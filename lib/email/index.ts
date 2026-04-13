@@ -12,6 +12,12 @@ export type {
   SendOnboardingEmailResult,
 } from "./onboarding";
 
+export { sendPasswordResetEmail } from "./password-reset";
+export type {
+  SendPasswordResetOptions,
+  SendPasswordResetResult,
+} from "./password-reset";
+
 export {
   generateSetupToken,
   validateSetupToken,
@@ -22,5 +28,5 @@ export {
 } from "./setup-token";
 export type { TokenValidationResult } from "./setup-token";
 
-export { buildOnboardingEmail } from "./templates";
-export type { OnboardingEmailData } from "./templates";
+export { buildOnboardingEmail, buildPasswordResetEmail } from "./templates";
+export type { OnboardingEmailData, PasswordResetEmailData } from "./templates";

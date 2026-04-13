@@ -1,16 +1,16 @@
 "use client";
 
 import { Box, Typography } from "@mui/material";
-import { useQuotaUsage, formatQuotaDisplay } from "@/lib/admin/useQuotaUsage";
+import { useUserQuota } from "@/lib/swr/useUserQuota";
 
 /** Compact quota usage block for the sidebar */
 export function SidebarQuota() {
-  const quota = useQuotaUsage();
+  const quota = useUserQuota();
   const t = quota.transcripts;
   const s = quota.scripts;
 
-  const pct = (used: number | null, max: number | null) =>
-    max && used ? Math.min(1, Math.max(0, used / max)) : 0;
+  const pct = (used: number, limit: number) =>
+    limit > 0 && used > 0 ? Math.min(1, used / limit) : 0;
 
   return (
     <Box sx={{ mt: 2, px: 0.5 }}>
@@ -48,8 +48,8 @@ export function SidebarQuota() {
         <QuotaBar
           label="Transcripts"
           used={t.used}
-          max={t.max}
-          pct={pct(t.used, t.max)}
+          max={t.limit}
+          pct={pct(t.used, t.limit)}
           color="#2DD4FF"
         />
 
@@ -57,8 +57,8 @@ export function SidebarQuota() {
         <QuotaBar
           label="Scripts"
           used={s.used}
-          max={s.max}
-          pct={pct(s.used, s.max)}
+          max={s.limit}
+          pct={pct(s.used, s.limit)}
           color="#C7A3FF"
           isLast
         />
@@ -68,6 +68,12 @@ export function SidebarQuota() {
 }
 
 /* ---- internal ---- */
+
+function formatDisplay(used: number | null, max: number | null): string {
+  const usedStr = used !== null ? used.toLocaleString("pt-BR") : "—";
+  const maxStr = max !== null && max > 0 ? max.toLocaleString("pt-BR") : "∞";
+  return `${usedStr} / ${maxStr}`;
+}
 
 function QuotaBar({
   label,
@@ -110,7 +116,7 @@ function QuotaBar({
             textShadow: `0 0 14px ${color}30`,
           }}
         >
-          {formatQuotaDisplay(used, max)}
+          {formatDisplay(used, max)}
         </Typography>
       </Box>
       <Box sx={{ mt: 0.5, mb: isLast ? 0 : 1 }}>
