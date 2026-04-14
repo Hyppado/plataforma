@@ -139,9 +139,9 @@ function toFlatPatch(draft: EchotikConfig): Record<string, unknown> {
 }
 
 export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
-  // Only editable on production — on preview the cron is disabled, so changes
-  // would have no effect and could cause confusion.
-  const isEditable = process.env.NEXT_PUBLIC_VERCEL_ENV !== "preview";
+  // Only editable in production — the cron runs exclusively in production.
+  // On preview and local dev, changes would have no effect and could cause confusion.
+  const isEditable = process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
 
   const [draft, setDraft] = useState<EchotikConfig | null>(null);
   const [saved, setSaved] = useState(false);
@@ -252,8 +252,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                 "& .MuiAlert-icon": { color: "primary.main" },
               }}
             >
-              Configurações desabilitadas em ambiente de preview — o cron roda
-              apenas em produção.
+              Configurações desabilitadas fora de produção — o cron roda apenas
+              em produção. Alterações aqui não teriam efeito.
             </Alert>
           )}
 
@@ -447,6 +447,7 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                     value={current.detail.batchSize}
                     min={ECHOTIK_CONFIG_LIMITS.detailBatchSize.min}
                     max={ECHOTIK_CONFIG_LIMITS.detailBatchSize.max}
+                    helperText={`limite da API: ${ECHOTIK_CONFIG_LIMITS.detailBatchSize.max} IDs/chamada`}
                     onChange={(v) => updateDetail("batchSize", v)}
                   />
                 </Grid>
