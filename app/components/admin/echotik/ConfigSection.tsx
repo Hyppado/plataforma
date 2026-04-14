@@ -50,6 +50,20 @@ const INTERVAL_TASK_KEYS: Array<keyof EchotikConfig["intervals"]> = [
   "creators",
 ];
 
+/** Fixed Echotik API constraints — NOT configurable by admins. */
+const API_FIXED_LIMITS = [
+  {
+    label: "Itens por página",
+    value: 10,
+    description: "page_size fixo — imposto pela API",
+  },
+  {
+    label: "Máx. IDs por lote",
+    value: 10,
+    description: "batch de detalhes — imposto pela API",
+  },
+] as const;
+
 function NumberField({
   label,
   value,
@@ -57,6 +71,7 @@ function NumberField({
   max,
   onChange,
   unit,
+  helperText,
 }: {
   label: string;
   value: number;
@@ -64,6 +79,7 @@ function NumberField({
   max: number;
   onChange: (v: number) => void;
   unit?: string;
+  helperText?: string;
 }) {
   return (
     <TextField
@@ -72,6 +88,7 @@ function NumberField({
       size="small"
       fullWidth
       value={value}
+      helperText={helperText}
       inputProps={{ min, max, step: 1 }}
       onChange={(e) => {
         const v = parseInt(e.target.value, 10);
@@ -86,7 +103,14 @@ function NumberField({
             }
           : undefined
       }
-      sx={{ "& .MuiOutlinedInput-root": { background: "rgba(0,0,0,0.2)" } }}
+      sx={{
+        "& .MuiOutlinedInput-root": { background: "rgba(0,0,0,0.2)" },
+        "& .MuiFormHelperText-root": {
+          color: "rgba(255,255,255,0.35)",
+          fontSize: "0.7rem",
+          mt: 0.5,
+        },
+      }}
     />
   );
 }
@@ -232,6 +256,69 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
               apenas em produção.
             </Alert>
           )}
+
+          {/* API Limits — read-only, imposed by Echotik */}
+          <Box
+            sx={{
+              mb: 2,
+              p: 1.5,
+              borderRadius: 2,
+              background: "rgba(255, 193, 7, 0.05)",
+              border: "1px solid rgba(255, 193, 7, 0.15)",
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                color: "rgba(255, 193, 7, 0.7)",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                display: "block",
+                mb: 1,
+              }}
+            >
+              Limites impostos pela API Echotik (não configuráveis)
+            </Typography>
+            <Stack direction="row" flexWrap="wrap" gap={1}>
+              {API_FIXED_LIMITS.map(({ label, value, description }) => (
+                <Tooltip key={label} title={description}>
+                  <Box
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.75,
+                      px: 1.25,
+                      py: 0.4,
+                      borderRadius: 1.5,
+                      background: "rgba(255, 193, 7, 0.08)",
+                      border: "1px solid rgba(255, 193, 7, 0.2)",
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "0.72rem",
+                      }}
+                    >
+                      {label}:
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "rgba(255, 193, 7, 0.9)",
+                        fontWeight: 700,
+                        fontSize: "0.78rem",
+                      }}
+                    >
+                      {value}
+                    </Typography>
+                  </Box>
+                </Tooltip>
+              ))}
+            </Stack>
+          </Box>
           <Stack
             spacing={3}
             sx={{
@@ -303,10 +390,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                   mb: 0.5,
                 }}
               >
-                Quantas pág. são buscadas na API por vez. Cada pág. retorna
-                exatamente 10 itens (limite fixo da API). Máx.{" "}
-                {ECHOTIK_CONFIG_LIMITS.pages.max} págs. ={" "}
-                {ECHOTIK_CONFIG_LIMITS.pages.max * 10} itens.
+                Quantas páginas buscar por entidade em cada ciclo (1 pág. = 10
+                itens, fixo pela API).
               </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 {(
@@ -321,6 +406,7 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                       min={ECHOTIK_CONFIG_LIMITS.pages.min}
                       max={ECHOTIK_CONFIG_LIMITS.pages.max}
                       unit="pgs"
+                      helperText={`= ${current.pages[key] * 10} itens`}
                       onChange={(v) => updatePages(key, v)}
                     />
                   </Grid>
@@ -351,9 +437,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                   mb: 0.5,
                 }}
               >
-                Lote: IDs enviados por chamada à API (máx.{" "}
-                {ECHOTIK_CONFIG_LIMITS.detailBatchSize.max} — limite da API).
-                Idade: dias antes de re-buscar detalhes de um produto.
+                Lote: quantos IDs enviar por chamada. Idade: dias antes de
+                re-buscar detalhes de um produto já processado.
               </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 <Grid item xs={6}>
