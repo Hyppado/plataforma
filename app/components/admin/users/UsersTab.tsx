@@ -29,6 +29,7 @@ import {
   TableRow,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -884,83 +885,149 @@ export function UsersTab() {
                             spacing={1}
                             sx={{ whiteSpace: "nowrap" }}
                           >
-                            {isEditable && (
-                              <Typography
-                                component="button"
-                                onClick={() => setEditUser(u)}
-                                sx={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  color: "rgba(255,255,255,0.5)",
-                                  fontSize: "0.75rem",
-                                  p: 0,
-                                  "&:hover": { color: "#2DD4FF" },
-                                }}
-                              >
-                                Editar
-                              </Typography>
-                            )}
-                            <Typography
-                              component="button"
-                              onClick={() => handleResetPassword(u.id)}
-                              sx={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                color: "rgba(255,255,255,0.5)",
-                                fontSize: "0.75rem",
-                                p: 0,
-                                "&:hover": { color: "#ff9800" },
-                              }}
+                            {/* Editar */}
+                            <Tooltip
+                              title={
+                                isEditable
+                                  ? "Editar dados do usuário"
+                                  : "Assinantes não podem ser editados diretamente"
+                              }
+                              arrow
                             >
-                              Senha
-                            </Typography>
-                            {isEditable ? (
                               <Typography
-                                component="button"
-                                onClick={() =>
-                                  setConfirmDialog({
-                                    type: "delete",
-                                    user: u,
-                                  })
+                                component="span"
+                                role={isEditable ? "button" : undefined}
+                                onClick={
+                                  isEditable ? () => setEditUser(u) : undefined
                                 }
                                 sx={{
                                   background: "none",
                                   border: "none",
-                                  cursor: "pointer",
-                                  color: "rgba(255,255,255,0.5)",
+                                  cursor: isEditable
+                                    ? "pointer"
+                                    : "not-allowed",
+                                  color: isEditable
+                                    ? "primary.main"
+                                    : "text.disabled",
                                   fontSize: "0.75rem",
                                   p: 0,
-                                  "&:hover": { color: "#EF5350" },
+                                  "&:hover": isEditable
+                                    ? { color: "primary.light" }
+                                    : {},
+                                }}
+                              >
+                                Editar
+                              </Typography>
+                            </Tooltip>
+
+                            {/* Resetar Senha */}
+                            <Tooltip
+                              title="Gera uma senha temporária e envia por email"
+                              arrow
+                            >
+                              <Typography
+                                component="button"
+                                onClick={() => handleResetPassword(u.id)}
+                                sx={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: "secondary.main",
+                                  fontSize: "0.75rem",
+                                  p: 0,
+                                  "&:hover": { color: "secondary.light" },
+                                }}
+                              >
+                                Resetar Senha
+                              </Typography>
+                            </Tooltip>
+
+                            {/* Excluir */}
+                            <Tooltip
+                              title={
+                                isEditable
+                                  ? "Excluir permanentemente o usuário e seus dados"
+                                  : "Assinantes não podem ser excluídos"
+                              }
+                              arrow
+                            >
+                              <Typography
+                                component="span"
+                                role={isEditable ? "button" : undefined}
+                                onClick={
+                                  isEditable
+                                    ? () =>
+                                        setConfirmDialog({
+                                          type: "delete",
+                                          user: u,
+                                        })
+                                    : undefined
+                                }
+                                sx={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: isEditable
+                                    ? "pointer"
+                                    : "not-allowed",
+                                  color: isEditable
+                                    ? "error.light"
+                                    : "text.disabled",
+                                  fontSize: "0.75rem",
+                                  p: 0,
+                                  "&:hover": isEditable
+                                    ? { color: "error.main" }
+                                    : {},
                                 }}
                               >
                                 Excluir
                               </Typography>
-                            ) : (
-                              u.status === "ACTIVE" && (
-                                <Typography
-                                  component="button"
-                                  onClick={() =>
-                                    setConfirmDialog({
-                                      type: "deactivate",
-                                      user: u,
-                                    })
-                                  }
-                                  sx={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    color: "rgba(255,255,255,0.5)",
-                                    fontSize: "0.75rem",
-                                    p: 0,
-                                    "&:hover": { color: "#FFB74D" },
-                                  }}
-                                >
-                                  Desativar
-                                </Typography>
-                              )
-                            )}
+                            </Tooltip>
+
+                            {/* Desativar */}
+                            <Tooltip
+                              title={
+                                u.status !== "ACTIVE"
+                                  ? "Usuário já está inativo/suspenso"
+                                  : "Desativar impede o login, mas mantém os dados"
+                              }
+                              arrow
+                            >
+                              <Typography
+                                component="span"
+                                role={
+                                  u.status === "ACTIVE" ? "button" : undefined
+                                }
+                                onClick={
+                                  u.status === "ACTIVE"
+                                    ? () =>
+                                        setConfirmDialog({
+                                          type: "deactivate",
+                                          user: u,
+                                        })
+                                    : undefined
+                                }
+                                sx={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor:
+                                    u.status === "ACTIVE"
+                                      ? "pointer"
+                                      : "not-allowed",
+                                  color:
+                                    u.status === "ACTIVE"
+                                      ? "warning.main"
+                                      : "text.disabled",
+                                  fontSize: "0.75rem",
+                                  p: 0,
+                                  "&:hover":
+                                    u.status === "ACTIVE"
+                                      ? { color: "warning.light" }
+                                      : {},
+                                }}
+                              >
+                                Desativar
+                              </Typography>
+                            </Tooltip>
                           </Stack>
                         </TableCell>
                       </TableRow>

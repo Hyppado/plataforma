@@ -7,6 +7,21 @@
  */
 
 // ---------------------------------------------------------------------------
+// Environment-aware subject prefix
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a prefix for email subjects in non-production environments.
+ * Production → no prefix. Vercel Preview → "[PREVIEW] ". Local/dev → "[DEV] ".
+ */
+function envSubjectPrefix(): string {
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv === "production") return "";
+  if (vercelEnv === "preview") return "[PREVIEW] ";
+  return "[DEV] ";
+}
+
+// ---------------------------------------------------------------------------
 // Shared template wrapper
 // ---------------------------------------------------------------------------
 
@@ -27,17 +42,17 @@ function wrapTemplate(body: string): string {
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0a0a0f;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 520px; background-color: #12141c; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 580px; background-color: #12141c; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
           <!-- Logo + tagline -->
           <tr>
-            <td align="center" style="padding: 32px 40px 0;">
-              <table role="presentation" cellspacing="0" cellpadding="0">
+            <td style="padding: 32px 40px 0;">
+              <table role="presentation" cellspacing="0" cellpadding="0" width="100%">
                 <tr>
-                  <td style="vertical-align: middle; padding-right: 16px;">
+                  <td width="56" style="vertical-align: middle; padding-right: 16px;">
                     <img src="${logoUrl}" alt="Hyppado" width="56" height="56" style="display: block; width: 56px; height: 56px; border: 0;" />
                   </td>
                   <td style="vertical-align: middle;">
-                    <span style="font-size: 13px; color: rgba(255,255,255,0.5); letter-spacing: 0.5px;">Inteligência para TikTok Shop</span>
+                    <span style="font-size: 14px; color: rgba(255,255,255,0.5); letter-spacing: 0.5px;">Inteligência para TikTok Shop</span>
                   </td>
                 </tr>
               </table>
@@ -93,7 +108,7 @@ export function buildOnboardingEmail(data: OnboardingEmailData): {
   html: string;
   text: string;
 } {
-  const subject = "Seu acesso ao Hyppado está pronto!";
+  const subject = `${envSubjectPrefix()}Seu acesso ao Hyppado está pronto!`;
 
   const html = wrapTemplate(`
     <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #ffffff;">
@@ -181,7 +196,7 @@ export function buildPasswordResetEmail(data: PasswordResetEmailData): {
   html: string;
   text: string;
 } {
-  const subject = "Redefinir sua senha — Hyppado";
+  const subject = `${envSubjectPrefix()}Redefinir sua senha — Hyppado`;
 
   const html = wrapTemplate(`
     <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #ffffff;">
@@ -260,7 +275,7 @@ export function buildWelcomePasswordEmail(data: WelcomePasswordEmailData): {
   html: string;
   text: string;
 } {
-  const subject = "Seu acesso ao Hyppado — Senha temporária";
+  const subject = `${envSubjectPrefix()}Seu acesso ao Hyppado — Senha temporária`;
 
   const html = wrapTemplate(`
     <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #ffffff;">
