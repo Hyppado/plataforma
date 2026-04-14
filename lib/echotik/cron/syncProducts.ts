@@ -235,7 +235,11 @@ export async function syncProductRanklist(
 // Enrich ranklist products with detail cache
 // ---------------------------------------------------------------------------
 
-export async function syncRanklistProductDetails(log: Logger): Promise<number> {
+export async function syncRanklistProductDetails(
+  log: Logger,
+  batchSize: number = PRODUCT_DETAIL_BATCH_SIZE,
+  maxAgeDays: number = PRODUCT_DETAIL_MAX_AGE_DAYS,
+): Promise<number> {
   // 1. Collect product IDs from recent ranklist (last 3 days)
   const recentRanklist = await prisma.echotikProductTrendDaily.findMany({
     where: {
@@ -259,9 +263,7 @@ export async function syncRanklistProductDetails(log: Logger): Promise<number> {
   log.info("Ranklist product IDs collected", { count: allProductIds.size });
 
   // 2. Filter already cached
-  const freshCutoff = new Date(
-    Date.now() - PRODUCT_DETAIL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
-  );
+  const freshCutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);
   const existingProducts = await prisma.echotikProductDetail.findMany({
     where: {
       productExternalId: { in: Array.from(allProductIds) },
@@ -289,8 +291,8 @@ export async function syncRanklistProductDetails(log: Logger): Promise<number> {
   let enriched = 0;
   const failedIds: string[] = [];
 
-  for (let i = 0; i < missingIds.length; i += PRODUCT_DETAIL_BATCH_SIZE) {
-    const batch = missingIds.slice(i, i + PRODUCT_DETAIL_BATCH_SIZE);
+  for (let i = 0; i < missingIds.length; i += batchSize) {
+    const batch = missingIds.slice(i, i + batchSize);
     const idsParam = batch.join(",");
 
     try {
@@ -311,7 +313,7 @@ export async function syncRanklistProductDetails(log: Logger): Promise<number> {
       }
     } catch (err) {
       log.error("Ranklist product detail batch failed", {
-        batch: Math.floor(i / PRODUCT_DETAIL_BATCH_SIZE) + 1,
+        batch: Math.floor(i / batchSize) + 1,
         error: (err as Error).message,
       });
       failedIds.push(...batch);

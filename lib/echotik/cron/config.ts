@@ -11,7 +11,10 @@
  */
 
 import { getSetting, upsertSetting } from "@/lib/settings";
-import type { EchotikConfig } from "@/lib/types/echotik-admin";
+import {
+  type EchotikConfig,
+  ECHOTIK_CONFIG_LIMITS,
+} from "@/lib/types/echotik-admin";
 
 // ---------------------------------------------------------------------------
 // Setting keys
@@ -29,6 +32,9 @@ export const ECHOTIK_CONFIG_KEYS = {
   DETAIL_MAX_AGE_DAYS: "echotik:detail:max_age_days",
   TASKS_ENABLED: "echotik:tasks:enabled",
 } as const;
+
+// Re-export so existing callers (admin api route) can import from one place
+export { ECHOTIK_CONFIG_LIMITS } from "@/lib/types/echotik-admin";
 
 // ---------------------------------------------------------------------------
 // Defaults (mirrors current hardcoded constants — no behavior change on deploy)
@@ -81,10 +87,11 @@ export async function getEchotikConfig(): Promise<EchotikConfig> {
     getSetting(ECHOTIK_CONFIG_KEYS.TASKS_ENABLED),
   ]);
 
-  const toInt = (raw: string | null, def: number) => {
+  const clamp = (raw: string | null, def: number, min: number, max: number) => {
     if (!raw) return def;
     const n = parseInt(raw, 10);
-    return isNaN(n) || n <= 0 ? def : n;
+    if (isNaN(n)) return def;
+    return Math.min(Math.max(n, min), max);
   };
 
   const enabledTasksRaw =
@@ -96,33 +103,63 @@ export async function getEchotikConfig(): Promise<EchotikConfig> {
 
   return {
     intervals: {
-      categories: toInt(
+      categories: clamp(
         rawIntervalCategories,
         ECHOTIK_CONFIG_DEFAULTS.intervalCategories,
+        ECHOTIK_CONFIG_LIMITS.interval.min,
+        ECHOTIK_CONFIG_LIMITS.interval.max,
       ),
-      videos: toInt(rawIntervalVideos, ECHOTIK_CONFIG_DEFAULTS.intervalVideos),
-      products: toInt(
+      videos: clamp(
+        rawIntervalVideos,
+        ECHOTIK_CONFIG_DEFAULTS.intervalVideos,
+        ECHOTIK_CONFIG_LIMITS.interval.min,
+        ECHOTIK_CONFIG_LIMITS.interval.max,
+      ),
+      products: clamp(
         rawIntervalProducts,
         ECHOTIK_CONFIG_DEFAULTS.intervalProducts,
+        ECHOTIK_CONFIG_LIMITS.interval.min,
+        ECHOTIK_CONFIG_LIMITS.interval.max,
       ),
-      creators: toInt(
+      creators: clamp(
         rawIntervalCreators,
         ECHOTIK_CONFIG_DEFAULTS.intervalCreators,
+        ECHOTIK_CONFIG_LIMITS.interval.min,
+        ECHOTIK_CONFIG_LIMITS.interval.max,
       ),
     },
     pages: {
-      videos: toInt(rawPagesVideos, ECHOTIK_CONFIG_DEFAULTS.pagesVideos),
-      products: toInt(rawPagesProducts, ECHOTIK_CONFIG_DEFAULTS.pagesProducts),
-      creators: toInt(rawPagesCreators, ECHOTIK_CONFIG_DEFAULTS.pagesCreators),
+      videos: clamp(
+        rawPagesVideos,
+        ECHOTIK_CONFIG_DEFAULTS.pagesVideos,
+        ECHOTIK_CONFIG_LIMITS.pages.min,
+        ECHOTIK_CONFIG_LIMITS.pages.max,
+      ),
+      products: clamp(
+        rawPagesProducts,
+        ECHOTIK_CONFIG_DEFAULTS.pagesProducts,
+        ECHOTIK_CONFIG_LIMITS.pages.min,
+        ECHOTIK_CONFIG_LIMITS.pages.max,
+      ),
+      creators: clamp(
+        rawPagesCreators,
+        ECHOTIK_CONFIG_DEFAULTS.pagesCreators,
+        ECHOTIK_CONFIG_LIMITS.pages.min,
+        ECHOTIK_CONFIG_LIMITS.pages.max,
+      ),
     },
     detail: {
-      batchSize: toInt(
+      batchSize: clamp(
         rawDetailBatchSize,
         ECHOTIK_CONFIG_DEFAULTS.detailBatchSize,
+        ECHOTIK_CONFIG_LIMITS.detailBatchSize.min,
+        ECHOTIK_CONFIG_LIMITS.detailBatchSize.max,
       ),
-      maxAgeDays: toInt(
+      maxAgeDays: clamp(
         rawDetailMaxAgeDays,
         ECHOTIK_CONFIG_DEFAULTS.detailMaxAgeDays,
+        ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.min,
+        ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.max,
       ),
     },
     enabledTasksRaw,
@@ -298,31 +335,56 @@ export function validateEchotikConfigPatch(
   }> = [
     {
       field: "intervalCategories",
-      min: 1,
-      max: 720,
+      min: ECHOTIK_CONFIG_LIMITS.interval.min,
+      max: ECHOTIK_CONFIG_LIMITS.interval.max,
       label: "Interval: Categories",
     },
-    { field: "intervalVideos", min: 1, max: 720, label: "Interval: Videos" },
+    {
+      field: "intervalVideos",
+      min: ECHOTIK_CONFIG_LIMITS.interval.min,
+      max: ECHOTIK_CONFIG_LIMITS.interval.max,
+      label: "Interval: Videos",
+    },
     {
       field: "intervalProducts",
-      min: 1,
-      max: 720,
+      min: ECHOTIK_CONFIG_LIMITS.interval.min,
+      max: ECHOTIK_CONFIG_LIMITS.interval.max,
       label: "Interval: Products",
     },
     {
       field: "intervalCreators",
-      min: 1,
-      max: 720,
+      min: ECHOTIK_CONFIG_LIMITS.interval.min,
+      max: ECHOTIK_CONFIG_LIMITS.interval.max,
       label: "Interval: Creators",
     },
-    { field: "pagesVideos", min: 1, max: 50, label: "Pages: Videos" },
-    { field: "pagesProducts", min: 1, max: 50, label: "Pages: Products" },
-    { field: "pagesCreators", min: 1, max: 50, label: "Pages: Creators" },
-    { field: "detailBatchSize", min: 1, max: 50, label: "Detail Batch Size" },
+    {
+      field: "pagesVideos",
+      min: ECHOTIK_CONFIG_LIMITS.pages.min,
+      max: ECHOTIK_CONFIG_LIMITS.pages.max,
+      label: "Pages: Videos",
+    },
+    {
+      field: "pagesProducts",
+      min: ECHOTIK_CONFIG_LIMITS.pages.min,
+      max: ECHOTIK_CONFIG_LIMITS.pages.max,
+      label: "Pages: Products",
+    },
+    {
+      field: "pagesCreators",
+      min: ECHOTIK_CONFIG_LIMITS.pages.min,
+      max: ECHOTIK_CONFIG_LIMITS.pages.max,
+      label: "Pages: Creators",
+    },
+    {
+      field: "detailBatchSize",
+      min: ECHOTIK_CONFIG_LIMITS.detailBatchSize.min,
+      max: ECHOTIK_CONFIG_LIMITS.detailBatchSize.max,
+      label: "Detail Batch Size",
+    },
     {
       field: "detailMaxAgeDays",
-      min: 1,
-      max: 90,
+      min: ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.min,
+      max: ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.max,
       label: "Detail Max Age Days",
     },
   ];

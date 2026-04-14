@@ -41,6 +41,32 @@ export interface EchotikConfig {
   enabledTasks: string[];
 }
 
+/**
+ * Allowed ranges for each Echotik config field.
+ *
+ * These values match the Echotik API documentation:
+ * - page_size is fixed at 10 per API call (API-enforced)
+ * - page_num accepts up to 100,000 — we cap at 100 pages (1,000 items)
+ * - Batch detail endpoint accepts max 10 product IDs per request
+ *
+ * Used by both the server-side clamping (config.ts) and the admin UI (ConfigSection.tsx).
+ */
+export const ECHOTIK_CONFIG_LIMITS = {
+  /** Re-sync intervals in hours. Min 1h, max 168h (7 days). */
+  interval: { min: 1, max: 168 },
+  /**
+   * Ranklist pages per sync. Each page = 10 items (fixed API page_size).
+   * Max 100 pages = 1,000 items per ranklist.
+   */
+  pages: { min: 1, max: 100 },
+  /**
+   * Product detail batch size. API hard limit: max 10 IDs per request.
+   */
+  detailBatchSize: { min: 1, max: 10 },
+  /** Max age (days) before re-fetching product details. */
+  detailMaxAgeDays: { min: 1, max: 90 },
+} as const;
+
 // ---------------------------------------------------------------------------
 // Health & Operational Status
 // ---------------------------------------------------------------------------

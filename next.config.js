@@ -51,6 +51,12 @@ const nextConfig = {
       { protocol: "https", hostname: "*.tiktokcdn-us.com" },
     ],
   },
+  // ---------------------------------------------------------------------------
+  // Public environment variables — accessible in client components
+  // ---------------------------------------------------------------------------
+  env: {
+    NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? "",
+  },
 };
 
 module.exports = nextConfig;

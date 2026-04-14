@@ -155,7 +155,9 @@ export async function detectNextTask(
     cfg.enabledTasks.includes("details") ||
     !cfg.enabledTasks.length // default: all enabled
   ) {
-    return { task: "details", region: null };
+    if (force || !(await shouldSkip("echotik:details", 6))) {
+      return { task: "details", region: null };
+    }
   }
 
   // 6. Upload images to Vercel Blob (runs after data ingestion)
@@ -266,10 +268,14 @@ async function runCreators(
   return { creatorsSynced: synced, pagesProcessed };
 }
 
-async function runDetails(log: Logger): Promise<Partial<CronStats>> {
+async function runDetails(
+  log: Logger,
+  batchSize: number,
+  maxAgeDays: number,
+): Promise<Partial<CronStats>> {
   const [videoDetails, ranklistDetails] = await Promise.all([
-    syncVideoProductDetails(log),
-    syncRanklistProductDetails(log),
+    syncVideoProductDetails(log, batchSize, maxAgeDays),
+    syncRanklistProductDetails(log, batchSize, maxAgeDays),
   ]);
   return { productDetailsEnriched: videoDetails + ranklistDetails };
 }
@@ -453,12 +459,25 @@ export async function runEchotikCron(
   // Product details don't need an IngestionRun record
   if (task === "details") {
     try {
-      const partial = await runDetails(log);
+      const partial = await runDetails(
+        log,
+        config.detail.batchSize,
+        config.detail.maxAgeDays,
+      );
       const stats = {
         ...emptyStats(),
         ...partial,
         durationMs: Date.now() - start,
       };
+      // Write IngestionRun so shouldSkip can track this task
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:details",
+          status: "SUCCESS",
+          endedAt: new Date(),
+          statsJson: stats as any,
+        },
+      });
       log.info("Details enrichment done", {
         enriched: stats.productDetailsEnriched,
       });

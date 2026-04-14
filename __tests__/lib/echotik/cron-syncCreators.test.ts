@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const prismaMock = vi.hoisted(() => ({
   echotikCreatorTrendDaily: {
     upsert: vi.fn().mockResolvedValue({}),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   echotikRawResponse: {
     upsert: vi.fn().mockResolvedValue({}),

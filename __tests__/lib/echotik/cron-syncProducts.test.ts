@@ -14,6 +14,7 @@ const prismaMock = vi.hoisted(() => ({
   echotikProductTrendDaily: {
     upsert: vi.fn().mockResolvedValue({}),
     findMany: vi.fn().mockResolvedValue([]),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   echotikRawResponse: {
     upsert: vi.fn().mockResolvedValue({}),

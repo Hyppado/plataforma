@@ -168,7 +168,15 @@ describe("detectNextTask()", () => {
   });
 
   it("returns { task: 'details', region: null } when all main tasks are fresh", async () => {
-    shouldSkipMock.mockResolvedValue(true);
+    shouldSkipMock
+      .mockResolvedValueOnce(true) // categories
+      .mockResolvedValueOnce(true) // videos:BR
+      .mockResolvedValueOnce(true) // videos:US
+      .mockResolvedValueOnce(true) // products:BR
+      .mockResolvedValueOnce(true) // products:US
+      .mockResolvedValueOnce(true) // creators:BR
+      .mockResolvedValueOnce(true) // creators:US
+      .mockResolvedValueOnce(false); // echotik:details → not stale, run it
 
     const sel = await detectNextTask(false);
     expect(sel).toEqual({ task: "details", region: null });
@@ -354,8 +362,11 @@ describe("runEchotikCron() — explicit tasks", () => {
     expect(result.stats.productDetailsEnriched).toBe(8); // 5 + 3
     expect(syncVideoProductDetailsMock).toHaveBeenCalledTimes(1);
     expect(syncRanklistProductDetailsMock).toHaveBeenCalledTimes(1);
-    // Details don't create IngestionRun records
-    expect(prismaMock.ingestionRun.create).not.toHaveBeenCalled();
+    // Details writes one IngestionRun for shouldSkip tracking
+    expect(prismaMock.ingestionRun.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.ingestionRun.create.mock.calls[0][0].data.source).toBe(
+      "echotik:details",
+    );
   });
 });
 

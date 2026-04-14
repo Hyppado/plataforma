@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -22,7 +23,10 @@ import {
   Save as SaveIcon,
   SettingsOutlined,
 } from "@mui/icons-material";
-import type { EchotikConfig } from "@/lib/types/echotik-admin";
+import {
+  type EchotikConfig,
+  ECHOTIK_CONFIG_LIMITS,
+} from "@/lib/types/echotik-admin";
 
 const cardStyle = {
   background: "rgba(10, 15, 24, 0.8)",
@@ -111,6 +115,10 @@ function toFlatPatch(draft: EchotikConfig): Record<string, unknown> {
 }
 
 export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
+  // Only editable on production — on preview the cron is disabled, so changes
+  // would have no effect and could cause confusion.
+  const isEditable = process.env.NEXT_PUBLIC_VERCEL_ENV !== "preview";
+
   const [draft, setDraft] = useState<EchotikConfig | null>(null);
   const [saved, setSaved] = useState(false);
   const [, startTransition] = useTransition();
@@ -191,7 +199,7 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
             <Button
               variant="contained"
               size="small"
-              disabled={!draft}
+              disabled={!draft || !isEditable}
               startIcon={saved ? <CheckIcon /> : <SaveIcon />}
               onClick={handleSave}
               sx={{
@@ -208,7 +216,29 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
           }
         />
         <CardContent>
-          <Stack spacing={3}>
+          {!isEditable && (
+            <Alert
+              severity="info"
+              sx={{
+                mb: 2,
+                background: "rgba(45, 212, 255, 0.08)",
+                border: "1px solid rgba(45, 212, 255, 0.2)",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: "0.8rem",
+                "& .MuiAlert-icon": { color: "primary.main" },
+              }}
+            >
+              Configurações desabilitadas em ambiente de preview — o cron roda
+              apenas em produção.
+            </Alert>
+          )}
+          <Stack
+            spacing={3}
+            sx={{
+              opacity: isEditable ? 1 : 0.5,
+              pointerEvents: isEditable ? "auto" : "none",
+            }}
+          >
             {/* Intervalos */}
             <Box>
               <Typography
@@ -231,6 +261,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                 }}
               >
                 De quantas em quantas horas cada tipo de dado é re-coletado
+                (mín. {ECHOTIK_CONFIG_LIMITS.interval.min}h, máx.{" "}
+                {ECHOTIK_CONFIG_LIMITS.interval.max}h = 7 dias)
               </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 {INTERVAL_TASK_KEYS.map((task) => (
@@ -238,8 +270,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                     <NumberField
                       label={TASK_LABELS[task]}
                       value={current.intervals[task]}
-                      min={1}
-                      max={168}
+                      min={ECHOTIK_CONFIG_LIMITS.interval.min}
+                      max={ECHOTIK_CONFIG_LIMITS.interval.max}
                       unit="h"
                       onChange={(v) => updateIntervals(task, v)}
                     />
@@ -271,8 +303,10 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                   mb: 0.5,
                 }}
               >
-                Quantas páginas são buscadas na API por vez (cada página = 10
-                itens)
+                Quantas pág. são buscadas na API por vez. Cada pág. retorna
+                exatamente 10 itens (limite fixo da API). Máx.{" "}
+                {ECHOTIK_CONFIG_LIMITS.pages.max} págs. ={" "}
+                {ECHOTIK_CONFIG_LIMITS.pages.max * 10} itens.
               </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 {(
@@ -284,8 +318,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                     <NumberField
                       label={TASK_LABELS[key]}
                       value={current.pages[key]}
-                      min={1}
-                      max={50}
+                      min={ECHOTIK_CONFIG_LIMITS.pages.min}
+                      max={ECHOTIK_CONFIG_LIMITS.pages.max}
                       unit="pgs"
                       onChange={(v) => updatePages(key, v)}
                     />
@@ -317,16 +351,17 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                   mb: 0.5,
                 }}
               >
-                Busca dados extras de cada produto. Lote = quantos por vez;
-                Idade máx. = quando re-buscar
+                Lote: IDs enviados por chamada à API (máx.{" "}
+                {ECHOTIK_CONFIG_LIMITS.detailBatchSize.max} — limite da API).
+                Idade: dias antes de re-buscar detalhes de um produto.
               </Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 <Grid item xs={6}>
                   <NumberField
                     label="Itens por lote"
                     value={current.detail.batchSize}
-                    min={1}
-                    max={100}
+                    min={ECHOTIK_CONFIG_LIMITS.detailBatchSize.min}
+                    max={ECHOTIK_CONFIG_LIMITS.detailBatchSize.max}
                     onChange={(v) => updateDetail("batchSize", v)}
                   />
                 </Grid>
@@ -334,8 +369,8 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                   <NumberField
                     label="Max idade"
                     value={current.detail.maxAgeDays}
-                    min={1}
-                    max={90}
+                    min={ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.min}
+                    max={ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.max}
                     unit="dias"
                     onChange={(v) => updateDetail("maxAgeDays", v)}
                   />

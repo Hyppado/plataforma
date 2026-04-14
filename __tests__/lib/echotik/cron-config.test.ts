@@ -94,12 +94,10 @@ describe("getEchotikConfig()", () => {
     );
   });
 
-  it("ignores zero interval and uses default", async () => {
+  it("clamps zero interval to minimum (1h)", async () => {
     getSettingMock.mockResolvedValueOnce("0");
     const config = await getEchotikConfig();
-    expect(config.intervals.categories).toBe(
-      ECHOTIK_CONFIG_DEFAULTS.intervalCategories,
-    );
+    expect(config.intervals.categories).toBe(1);
   });
 
   it("respects custom tasksEnabled setting", async () => {
@@ -198,7 +196,7 @@ describe("validateEchotikConfigPatch()", () => {
     expect(errors[0].field).toBe("intervalCategories");
   });
 
-  it("returns error for interval above maximum (> 720)", () => {
+  it("returns error for interval above maximum (> 168)", () => {
     const errors = validateEchotikConfigPatch({ intervalVideos: 800 });
     expect(errors.length).toBeGreaterThan(0);
   });
