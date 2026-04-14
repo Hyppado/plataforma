@@ -11,7 +11,9 @@
  */
 
 import { echotikRequest } from "@/lib/echotik/client";
+import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
+import { DOWNLOAD_URL_MAX_AGE_HOURS } from "@/lib/echotik/cron/cacheDownloadUrls";
 
 const log = createLogger("transcription/media");
 
@@ -151,10 +153,68 @@ export async function getVideoCaptions(
 // ---------------------------------------------------------------------------
 
 /**
- * Gets the video download URLs from Echotik.
- * Uses the `/realtime/video/download-url` endpoint with a constructed TikTok URL.
+ * Gets the video download URLs — first checks the DB cache (pre-populated by
+ * the cron), then falls back to the Echotik API as a last resort.
  */
 export async function getVideoDownloadUrl(
+  videoExternalId: string,
+): Promise<VideoDownloadUrls | null> {
+  // 1. Check cached download URL from cron
+  const cached = await getCachedDownloadUrl(videoExternalId);
+  if (cached) {
+    log.info("Using cached download URL", { videoExternalId });
+    return cached;
+  }
+
+  // 2. Fallback: call Echotik API (will be removed once cron covers all videos)
+  log.info("No cached download URL, falling back to Echotik API", {
+    videoExternalId,
+  });
+  return getVideoDownloadUrlFromEchotik(videoExternalId);
+}
+
+/**
+ * Checks the database for a pre-cached download URL that isn't too stale.
+ */
+async function getCachedDownloadUrl(
+  videoExternalId: string,
+): Promise<VideoDownloadUrls | null> {
+  try {
+    const staleThreshold = new Date(
+      Date.now() - DOWNLOAD_URL_MAX_AGE_HOURS * 60 * 60 * 1000,
+    );
+
+    const record = await prisma.echotikVideoTrendDaily.findFirst({
+      where: {
+        videoExternalId,
+        downloadUrl: { not: null },
+        downloadUrlFetchedAt: { gte: staleThreshold },
+      },
+      select: { downloadUrl: true },
+      orderBy: { date: "desc" },
+    });
+
+    if (!record?.downloadUrl) return null;
+
+    return {
+      playUrl: null,
+      downloadUrl: null,
+      noWatermarkUrl: record.downloadUrl,
+    };
+  } catch (error) {
+    log.warn("Failed to check cached download URL", {
+      videoExternalId,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    return null;
+  }
+}
+
+/**
+ * Gets the video download URLs directly from Echotik.
+ * Uses the `/realtime/video/download-url` endpoint with a constructed TikTok URL.
+ */
+async function getVideoDownloadUrlFromEchotik(
   videoExternalId: string,
 ): Promise<VideoDownloadUrls | null> {
   try {

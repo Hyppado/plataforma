@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
         productExternalId: string;
         productName: string | null;
         coverUrl: string | null;
+        blobUrl: string | null;
         avgPrice: unknown;
         minPrice: unknown;
         commissionRate: unknown;
@@ -136,6 +137,7 @@ export async function GET(request: NextRequest) {
           productExternalId: true,
           productName: true,
           coverUrl: true,
+          blobUrl: true,
           avgPrice: true,
           minPrice: true,
           commissionRate: true,
@@ -159,9 +161,11 @@ export async function GET(request: NextRequest) {
         if (pd) {
           const price = Number(pd.avgPrice ?? pd.minPrice ?? 0) / 100;
           const rawImg = pd.coverUrl || "";
-          const proxyImg = rawImg
-            ? `/api/proxy/image?url=${encodeURIComponent(rawImg)}`
-            : "";
+          const proxyImg = pd.blobUrl
+            ? pd.blobUrl
+            : rawImg
+              ? `/api/proxy/image?url=${encodeURIComponent(rawImg)}`
+              : "";
           product = {
             id: pd.productExternalId,
             name: pd.productName || "Produto",

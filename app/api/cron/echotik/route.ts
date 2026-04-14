@@ -41,6 +41,17 @@ export async function GET(request: NextRequest) {
   const log = createLogger("cron/echotik");
 
   // -----------------------------------------------------------------------
+  // 0. Block execution in local environment
+  // -----------------------------------------------------------------------
+  if (!process.env.VERCEL) {
+    log.warn("Cron jobs are disabled in local environment");
+    return NextResponse.json(
+      { ok: false, error: "Cron jobs are disabled in local environment" },
+      { status: 403 },
+    );
+  }
+
+  // -----------------------------------------------------------------------
   // 1. Validar CRON_SECRET
   // -----------------------------------------------------------------------
   const cronSecret = process.env.CRON_SECRET;

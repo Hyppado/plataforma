@@ -18,11 +18,14 @@ import { buildUser } from "@tests/helpers/factories";
 
 vi.mock("@/lib/prisma");
 
-// Mock onboarding email
-vi.mock("@/lib/email/onboarding", () => ({
-  sendOnboardingEmail: vi
-    .fn()
-    .mockResolvedValue({ sent: true, messageId: "msg-1" }),
+// Mock email module
+vi.mock("@/lib/email", () => ({
+  sendEmail: vi.fn().mockResolvedValue({ success: true, messageId: "msg-1" }),
+  buildWelcomePasswordEmail: vi.fn().mockReturnValue({
+    subject: "Seu acesso ao Hyppado",
+    html: "<html>welcome</html>",
+    text: "welcome",
+  }),
 }));
 
 // Mock bcryptjs
@@ -33,7 +36,7 @@ vi.mock("bcryptjs", () => ({
 }));
 
 import { GET, PATCH, POST } from "@/app/api/admin/users/route";
-import { sendOnboardingEmail } from "@/lib/email/onboarding";
+import { sendEmail, buildWelcomePasswordEmail } from "@/lib/email";
 
 describe("GET /api/admin/users", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -246,66 +249,84 @@ describe("POST /api/admin/users", () => {
     const body = await res.json();
 
     expect(res.status).toBe(201);
-    expect(body.password).toBeTruthy(); // password returned once
+    expect(body.emailSent).toBe(true);
     expect(body.user.email).toBe("new@test.com");
-    expect(sendOnboardingEmail).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalled();
+    expect(buildWelcomePasswordEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "New User",
+        email: "new@test.com",
+      }),
+    );
   });
 
-  it("creates user without password and sends email (sendEmail=true)", async () => {
+  it("creates user with mustChangePassword=true", async () => {
     mockAuthenticatedAdmin();
-    const createdUser = {
+    prismaMock.user.create.mockResolvedValue({
       id: "u3",
-      email: "email-flow@test.com",
-      name: "Email User",
+      email: "temp@test.com",
+      name: "Temp User",
       role: "USER",
       status: "ACTIVE",
       createdAt: new Date(),
-    };
-    prismaMock.user.create.mockResolvedValue(createdUser as never);
-
-    const req = makePostRequest("/api/admin/users", {
-      email: "email-flow@test.com",
-      name: "Email User",
-      sendEmail: true,
-    }) as any;
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(201);
-    expect(body.password).toBeUndefined(); // no password returned
-    expect(body.emailSent).toBe(true);
-
-    // Onboarding email sent with force=true
-    expect(sendOnboardingEmail).toHaveBeenCalledWith({
-      userId: "u3",
-      force: true,
-    });
-  });
-
-  it("creates user with no passwordHash when sendEmail=true", async () => {
-    mockAuthenticatedAdmin();
-    prismaMock.user.create.mockResolvedValue({
-      id: "u4",
-      email: "nopass@test.com",
     } as never);
 
     const req = makePostRequest("/api/admin/users", {
-      email: "nopass@test.com",
-      sendEmail: true,
+      email: "temp@test.com",
+      name: "Temp User",
     }) as any;
     await POST(req);
 
-    // user.create should have null passwordHash
+    // user.create should have mustChangePassword=true
     expect(prismaMock.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          passwordHash: null,
+          mustChangePassword: true,
+          passwordHash: "$2a$10$mockhash",
         }),
       }),
     );
   });
 
-  it("creates audit log with onboardingEmailSent flag", async () => {
+  it("sends welcome email with temporary password", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.user.create.mockResolvedValue({
+      id: "u4",
+      email: "email-flow@test.com",
+      name: "Email User",
+      role: "USER",
+      status: "ACTIVE",
+      createdAt: new Date(),
+    } as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "email-flow@test.com",
+      name: "Email User",
+    }) as any;
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.emailSent).toBe(true);
+
+    // Welcome email sent with temporary password
+    expect(buildWelcomePasswordEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Email User",
+        email: "email-flow@test.com",
+        password: expect.any(String),
+        loginUrl: expect.stringContaining("/login"),
+      }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "email-flow@test.com",
+        subject: "Seu acesso ao Hyppado",
+      }),
+    );
+  });
+
+  it("creates audit log with welcomeEmailSent flag", async () => {
     mockAuthenticatedAdmin();
     prismaMock.user.create.mockResolvedValue({
       id: "u5",
@@ -315,7 +336,6 @@ describe("POST /api/admin/users", () => {
 
     const req = makePostRequest("/api/admin/users", {
       email: "audit@test.com",
-      sendEmail: true,
     }) as any;
     await POST(req);
 
@@ -324,7 +344,7 @@ describe("POST /api/admin/users", () => {
         data: expect.objectContaining({
           action: "USER_CREATED",
           after: expect.objectContaining({
-            onboardingEmailSent: true,
+            welcomeEmailSent: true,
           }),
         }),
       }),

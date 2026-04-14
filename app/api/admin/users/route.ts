@@ -1,6 +1,6 @@
 /**
  * GET   /api/admin/users — Lista usuários com filtros
- * POST  /api/admin/users — Cria um novo usuário (retorna senha one-time)
+ * POST  /api/admin/users — Cria um novo usuário e envia senha temporária por email
  * PATCH /api/admin/users — Atualiza status ou role de um usuário
  */
 
@@ -9,7 +9,8 @@ import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
-import { sendOnboardingEmail } from "@/lib/email/onboarding";
+import { sendEmail, buildWelcomePasswordEmail } from "@/lib/email";
+import { createLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -150,8 +151,10 @@ export async function PATCH(req: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST — Cria novo usuário com senha aleatória (one-time see)
+// POST — Cria novo usuário, envia senha temporária por email
 // ---------------------------------------------------------------------------
+
+const log = createLogger("api/admin/users");
 
 function generatePassword(): string {
   return randomBytes(12).toString("base64url").slice(0, 16);
@@ -166,12 +169,10 @@ export async function POST(req: NextRequest) {
     email,
     name,
     role: userRole,
-    sendEmail: shouldSendEmail,
   } = body as {
     email?: string;
     name?: string;
     role?: string;
-    sendEmail?: boolean;
   };
 
   if (!email || !email.includes("@")) {
@@ -197,15 +198,9 @@ export async function POST(req: NextRequest) {
   const assignedRole =
     userRole === "ADMIN" ? "ADMIN" : ("USER" as "ADMIN" | "USER");
 
-  // When sendEmail is true, create user without password and send onboarding email.
-  // Otherwise, generate a random password and return it once (legacy flow).
-  let plainPassword: string | null = null;
-  let passwordHash: string | null = null;
-
-  if (!shouldSendEmail) {
-    plainPassword = generatePassword();
-    passwordHash = await bcrypt.hash(plainPassword, 10);
-  }
+  // Generate temporary password — user must change on first login
+  const plainPassword = generatePassword();
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
 
   const user = await prisma.user.create({
     data: {
@@ -214,6 +209,7 @@ export async function POST(req: NextRequest) {
       role: assignedRole,
       status: "ACTIVE",
       passwordHash,
+      mustChangePassword: true,
     },
     select: {
       id: true,
@@ -225,6 +221,31 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Send welcome email with temporary password
+  const loginUrl = `${process.env.NEXTAUTH_URL ?? ""}/login`;
+  const displayName = user.name ?? user.email.split("@")[0];
+  const emailTemplate = buildWelcomePasswordEmail({
+    name: displayName,
+    email: user.email,
+    password: plainPassword,
+    loginUrl,
+  });
+
+  const emailResult = await sendEmail({
+    to: user.email,
+    subject: emailTemplate.subject,
+    html: emailTemplate.html,
+    text: emailTemplate.text,
+  });
+
+  if (!emailResult.success) {
+    log.warn("Welcome email failed", {
+      userId: user.id,
+      email: user.email,
+      error: emailResult.error,
+    });
+  }
+
   await prisma.auditLog.create({
     data: {
       userId: user.id,
@@ -235,27 +256,15 @@ export async function POST(req: NextRequest) {
       after: {
         email: user.email,
         role: user.role,
-        onboardingEmailSent: !!shouldSendEmail,
+        welcomeEmailSent: emailResult.success,
       },
     },
   });
 
-  // Send onboarding email if requested
-  let emailSent = false;
-  if (shouldSendEmail) {
-    const result = await sendOnboardingEmail({
-      userId: user.id,
-      force: true, // User just created, always send
-    });
-    emailSent = result.sent;
-  }
-
-  // Return password once (legacy) or email status (new flow)
   return NextResponse.json(
     {
       user,
-      ...(plainPassword ? { password: plainPassword } : {}),
-      ...(shouldSendEmail ? { emailSent } : {}),
+      emailSent: emailResult.success,
     },
     { status: 201 },
   );

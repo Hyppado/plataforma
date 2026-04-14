@@ -30,9 +30,12 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
 
-  // --- Mode 1: EchoTik cover image proxy via ?url= ---
+  // --- Mode 1: EchoTik cover image proxy via ?url= (fallback — prefer blob URLs) ---
   const imageUrl = searchParams.get("url");
   if (imageUrl) {
+    log.info("Proxy fallback hit — image not yet in blob storage", {
+      url: imageUrl.slice(0, 80),
+    });
     return proxyEchotikImage(imageUrl);
   }
 

@@ -16,6 +16,10 @@ export const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
  * Rewrites Echotik CDN image URLs through the local proxy to avoid CORS and
  * hotlinking issues. Returns the original URL for non-CDN URLs.
  *
+ * NOTE: This is the FALLBACK path for images not yet uploaded to Vercel Blob.
+ * Trending routes should prefer blobUrl/avatarBlobUrl when available.
+ * Once all images are migrated to Blob, proxy calls should drop to zero.
+ *
  * @param url  Original image URL (may be null or undefined)
  * @param fallback  Value to return when url is empty (default: "")
  */

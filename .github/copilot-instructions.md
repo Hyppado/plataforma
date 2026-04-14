@@ -104,6 +104,8 @@ app/
       openai/        → OpenAITab (API key mgmt)
     cards/         → video, product, creator, rank cards
     dashboard/     → authenticated dashboard components
+      ForcePasswordChange.tsx → full-screen modal forcing temporary password change
+      PasswordChangeGuard.tsx → session-aware guard that renders ForcePasswordChange when needed
     filters/       → CategoryFilter, TimeRangeSelect etc.
     landing/       → landing page components
     layout/        → shared layout (sidebar, header)
@@ -175,7 +177,8 @@ lib/
   region.ts        → region helpers
   settings.ts      → database-backed configuration + secret encryption helpers
   storage/         → file storage
-    saved.ts
+    saved.ts       → saved items storage
+    blob.ts        → Vercel Blob helpers (sign + download + upload images)
   transcription/   → on-demand video transcription system (Whisper-only pipeline)
     index.ts       → public re-exports
     service.ts     → requestTranscript, getTranscript, processPendingTranscripts, detectHallucination
@@ -218,6 +221,7 @@ __tests__/
       subscribers.test.ts
       subscription-metrics.test.ts
       users.test.ts
+      users-id.test.ts
     cron/
       echotik.test.ts
       transcribe.test.ts
@@ -306,7 +310,7 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 
 ### Domain 1 — Identity & IAM
 
-- **User** — central identity; has role, status, LGPD fields, soft delete (`deletedAt`), setup token (`setupToken` + `setupTokenExpiresAt`) for password creation
+- **User** — central identity; has role, status, LGPD fields, soft delete (`deletedAt`), setup token (`setupToken` + `setupTokenExpiresAt`) for password creation, `mustChangePassword` flag for admin-issued temporary passwords
 - **AccessGrant** — admin-issued access overrides (replaces subscription requirement)
 - **ConsentRecord** — append-only LGPD consent log
 - **DataErasureRequest** — LGPD erasure request tracking
@@ -440,6 +444,7 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
   Treat all input as untrusted. Apply idempotency.
 - **Cron routes** (`/api/cron/*`) — authenticated by `CRON_SECRET` in the `Authorization: Bearer` header.
   Do not accept user sessions. Do not expose to the browser.
+  **Blocked in local environment**: all cron routes check for the `VERCEL` env var (set automatically by Vercel). If absent, the route returns 403 immediately — no cron logic executes locally. This prevents accidental data mutations against the shared Neon database from a dev machine.
 - **NextAuth handler** (`/api/auth/[...nextauth]`) — managed internally by NextAuth.
 - **Password reset** (`/api/auth/reset-password`) — public POST, receives `{ email }`, always returns 200.
   Must NEVER reveal whether the email exists. No timing side-channels.
@@ -478,15 +483,37 @@ The Prisma schema is in `prisma/schema.prisma`. Current models:
 
 The cron was refactored to a modular, region-scoped architecture to respect the Vercel 60s limit.
 
+### Critical Rule — No Live Echotik API Calls from User-Facing Routes
+
+**No API route or page may call the Echotik external API (`echotikRequest`) to serve user data.**
+All user-facing data (videos, products, creators, categories, images) must come from the database or Vercel Blob, pre-ingested by the cron.
+
+- `echotikRequest` (from `lib/echotik/client.ts`) must ONLY be used by:
+  - **Cron ingestion modules** in `lib/echotik/cron/` — this is the intended data path
+  - **Image upload cron** (`lib/echotik/cron/uploadImages.ts`) — signs CDN URLs + uploads to Vercel Blob
+  - **Download URL caching cron** (`lib/echotik/cron/cacheDownloadUrls.ts`) — pre-fetches video download URLs
+  - **Image proxy** (`app/api/proxy/image/`) — **DEPRECATED FALLBACK** for images not yet in Vercel Blob
+  - **Transcription** (`lib/transcription/media.ts`) — **FALLBACK ONLY** when cached download URL is not available
+- **Image serving**: images are stored in Vercel Blob (`@vercel/blob`). Trending routes serve `blobUrl`/`avatarBlobUrl` when available, falling back to the proxy route for not-yet-uploaded images.
+- **Video download URLs**: pre-cached in `EchotikVideoTrendDaily.downloadUrl` by the cron. Transcription checks cache first, falls back to Echotik API.
+- User-facing data routes (`/api/trending/*`, `/api/echotik/categories`, etc.) must **always** read from Prisma/database
+- Do not create new routes or lib functions that call `echotikRequest` to serve user data
+- If new Echotik data is needed, add it to the cron ingestion pipeline first, then serve from DB
+
 - **HTTP Client**: `lib/echotik/client.ts`
 - **Orchestrator**: `lib/echotik/cron/orchestrator.ts`
   - `detectNextTask(force?)` → `{ task, region } | null`
-  - Iterates: categories → videos per region → products per region → creators per region → details
-  - Skip keys in the format `echotik:videos:BR`, `echotik:products:US`, etc.
+  - Iterates: categories → videos per region → products per region → creators per region → details → upload-images → cache-download-urls
+  - Skip keys in the format `echotik:videos:BR`, `echotik:products:US`, `echotik:upload-images`, `echotik:cache-download-urls`, etc.
 - **Sync functions**: each receives `(runId, region, log)` — one region per invocation
   - `syncVideoRanklist(runId, region, log)` in `syncVideos.ts`
   - `syncProductRanklist(runId, region, log)` in `syncProducts.ts`
   - `syncCreatorRanklist(runId, region, log)` in `syncCreators.ts`
+- **Post-ingestion tasks** (no region, run after all ranklists):
+  - `uploadPendingImages(log, deadlineMs)` in `uploadImages.ts` — signs CDN URLs + uploads to Vercel Blob
+  - `cachePendingDownloadUrls(log, deadlineMs)` in `cacheDownloadUrls.ts` — pre-fetches video download URLs
+- **Image storage**: `lib/storage/blob.ts` — Vercel Blob helpers (sign + download + upload)
+  - Requires `BLOB_READ_WRITE_TOKEN` env var in Vercel
 - **Regions**: read exclusively from the `Region` table in the database (`isActive=true`, `orderBy sortOrder`).
   Fallback to `["BR", "US", "JP"]` if the database returns empty.
   **Never use environment variables** for regions.
@@ -640,6 +667,7 @@ Three trigger points: Hotmart PURCHASE_APPROVED (new users), admin-created users
 - **Templates**: `lib/email/templates.ts`
   - `buildOnboardingEmail({name, setupUrl, expiresInHours})` → `{subject, html, text}`
   - `buildPasswordResetEmail({name, resetUrl, expiresInHours})` → `{subject, html, text}`
+  - `buildWelcomePasswordEmail({name, email, password, loginUrl})` → `{subject, html, text}` (admin-created users with temp password)
   - Inline styles, dark theme, Hyppado branding, XSS-safe (escapeHtml)
   - All templates must use the `wrapTemplate()` wrapper for consistent layout
 - **Token Service**: `lib/email/setup-token.ts`
@@ -668,7 +696,16 @@ Three trigger points: Hotmart PURCHASE_APPROVED (new users), admin-created users
 - **Integration Points**:
   - `lib/hotmart/processor.ts` → step I in `handleApproved()`: sends onboarding for first purchases (non-renewals), `.catch()` protected
   - `app/api/admin/users/route.ts` POST: `sendEmail: true` creates user without password and sends onboarding email
+  - `app/api/admin/users/[id]/route.ts` POST: admin password reset — generates temp password, sets `mustChangePassword=true`, sends `buildWelcomePasswordEmail`
+  - `app/api/admin/users/[id]/route.ts` DELETE: deletes non-subscriber users with cascade cleanup + audit log
   - Login page → "Esqueceu sua senha?" → `/recuperar` → email → `/criar-senha?token=`
+- **Temporary Password Flow (admin-issued)**:
+  - Admin resets a user's password via POST `/api/admin/users/[id]`
+  - User's `mustChangePassword` flag is set to `true` in the database
+  - NextAuth JWT callback propagates `mustChangePassword` into the session token
+  - `PasswordChangeGuard` renders `ForcePasswordChange` dialog when session has `mustChangePassword=true`
+  - User must change password via PUT `/api/me/password` — clears `mustChangePassword` flag
+  - Session reloads after password change (page reload to refresh JWT)
 - **Security Properties**:
   - Only SHA-256 hash stored — raw token exists only in the email link
   - One-time use (cleared on consumption)
@@ -783,9 +820,9 @@ When adding new accent-colored UI, use `secondary.main` / `secondary.dark` / `se
 
 ### Current Counts (reference — April 2026)
 
-- **683 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
+- **732 unit tests** (vitest, node env, `__tests__/lib/`, `__tests__/api/`, etc.)
 - **63 component tests** (vitest, jsdom env, `__tests__/components/`)
-- **Total: 746 tests**, all passing
+- **Total: 795 tests**, all passing
 - Run `npm run test:all` to get exact current count
 
 ### Vitest Configs
@@ -865,20 +902,42 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 - Local DB is secondary — supported but not the required path for schema evolution.
 - Do not rely on "run locally first" as the mandatory workflow.
 
+### Non-destructive migration principle
+
+**Migrations must never delete, drop, or truncate data unless explicitly requested by the user.**
+The default approach is always additive — add columns, add tables, add indexes.
+
+- **Adding a column**: always provide a `DEFAULT` value so existing rows are not affected.
+- **Renaming a column**: create the new column, copy data, then drop the old column in a **separate, later migration** only after confirming the new column works.
+- **Removing a column**: do NOT drop it immediately. First remove all code references, deploy, confirm nothing breaks, then create a separate migration to drop the column.
+- **Changing a column type**: add a new column with the new type, migrate data, update code to use the new column, then drop the old column in a later migration.
+- **Removing a table**: same as column removal — remove all references first, deploy, confirm, then drop.
+- **Removing an enum value**: never remove enum values that might still exist in rows. Migrate the data first.
+
+### Migration safety checklist (before committing)
+
+1. **Read the generated SQL** in `migration.sql` — never commit without reviewing.
+2. Confirm the SQL does NOT contain `DROP COLUMN`, `DROP TABLE`, `DELETE`, or `TRUNCATE` unless explicitly intended.
+3. Confirm every `ADD COLUMN` has a `DEFAULT` or is nullable.
+4. Run `prisma migrate deploy` locally (or `prisma migrate status`) to verify the migration applies cleanly.
+5. If the migration was generated with `--create-only`, verify the SQL file is NOT empty before committing.
+
 ### How schema changes work
 
 1. Edit `prisma/schema.prisma` with the desired change.
-2. Generate a migration file: `npm run db:migrate` (runs `prisma migrate dev`).
-   - This requires some DB to diff against. Use local or any dev DB.
+2. Generate a migration file: `npx prisma migrate dev --name <description> --create-only`.
+   - Always use `--create-only` to generate the SQL without auto-applying.
    - This creates a new SQL file in `prisma/migrations/<timestamp>_<name>/migration.sql`.
-3. Commit the migration SQL file alongside the schema change.
-4. On the next Vercel deploy, `prisma migrate deploy` applies the new migration automatically.
+3. **Review the generated SQL** — verify it is non-destructive and complete.
+4. Apply locally: `npx prisma migrate dev` (applies the pending migration).
+5. Commit the migration SQL file alongside the schema change.
+6. On the next Vercel deploy, `prisma migrate deploy` applies the new migration automatically.
 
 ### Commands
 
 | Script                | Command                 | Purpose                                      |
 | --------------------- | ----------------------- | -------------------------------------------- |
-| `npm run db:migrate`  | `prisma migrate dev`    | Create new migration (development)           |
+| `npm run db:migrate`  | `prisma migrate dev`    | Create + apply migration (development)       |
 | `npm run db:deploy`   | `prisma migrate deploy` | Apply pending migrations (safe, deploy-time) |
 | `npm run db:status`   | `prisma migrate status` | Check migration status vs DB                 |
 | `npm run db:generate` | `prisma generate`       | Regenerate Prisma client                     |
@@ -887,10 +946,18 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 
 - **Never use `prisma db push` in production** — it bypasses migration history and can lose data.
 - **Never use `prisma migrate reset`** on Preview or Production.
+- **Never run `--create-only` twice** for the same migration — the second run creates an empty file that overwrites the SQL.
 - `prisma migrate deploy` is the only safe deploy-time command — it only applies pending SQL files.
 - If a migration needs destructive changes (drop column, drop table), review the SQL manually before committing.
 - If `prisma migrate deploy` fails on Vercel, the build fails and the deploy is blocked — this is correct and safe.
 - The `directUrl` (unpooled connection) in `schema.prisma` is used by Prisma CLI for migrations automatically.
+
+### Neon backup and recovery
+
+- Neon provides **Point-in-Time Recovery (PITR)**: restore to any second within the retention window (7 days free, 30 days paid).
+- In the Neon Console: Project → Branches → select branch → **Restore**.
+- You can also **branch from a past timestamp** to inspect or copy data without affecting production.
+- After a data loss incident, check PITR first before attempting manual reconstruction.
 
 ## Security
 
@@ -934,10 +1001,14 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 - Do not add `Access-Control-Allow-Origin: *` on authenticated routes.
 - Do not use `prisma db push` on Preview or Production — use real migrations.
 - Do not skip committing migration SQL files — the deploy depends on them.
+- Do not run `prisma migrate dev --create-only` twice for the same migration — it overwrites the SQL with an empty file.
+- Do not commit a migration without reading the generated SQL — verify it is non-empty and non-destructive.
 - Do not improvise migration workflow — follow the documented process.
 - Do not use any brand name other than **Hyppe** or **Hyppado** — never invent feature brand names or adopt external terminology.
 - Do not commit or push code without running `npx tsc --noEmit`, `npm run build`, and `npm run test:all` first — all three must pass with zero errors.
 - Do not guess TypeScript property names in test fixtures — always read the actual interface/type definition before writing fixture data.
+- Do not remove the `VERCEL` env guard from cron routes — cron jobs must never run in local environments.
+- Do not call `echotikRequest` (the Echotik HTTP client) from user-facing API routes to serve data — all Echotik data must come from the database, pre-ingested by the cron. The only allowed exceptions are: cron ingestion modules, image upload cron, download URL caching cron, image proxy (deprecated fallback), and transcription (fallback when cached download URL is unavailable).
 
 ## Maintenance Priorities When Working on the Project
 
@@ -953,7 +1024,7 @@ If fast-forward is not possible (diverged histories), fails with instructions to
 
 - Run `npx tsc --noEmit` and confirm zero type errors.
 - Run `npm run build` and confirm exit code 0.
-- Run `npm run test:all` and confirm that all tests pass (currently 746).
+- Run `npm run test:all` and confirm that all tests pass (currently 795).
 - If the typecheck, build, or tests break, fix before committing.
 - **Never commit or push code with type errors, lint errors, test failures, or build failures — no exceptions.**
 - When creating or modifying test files, verify that fixture data matches the actual TypeScript interfaces. Do not guess property names — read the type definition first.

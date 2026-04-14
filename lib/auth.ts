@@ -90,6 +90,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name ?? undefined,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
@@ -99,6 +100,9 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.userId = user.id;
         token.role = (user as { role: "ADMIN" | "USER" }).role;
+        token.mustChangePassword =
+          (user as { mustChangePassword?: boolean }).mustChangePassword ??
+          false;
       }
       return token;
     },
@@ -106,6 +110,9 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.userId as string;
         session.user.role = token.role as "ADMIN" | "USER";
+        session.user.mustChangePassword = token.mustChangePassword as
+          | boolean
+          | undefined;
       }
       return session;
     },

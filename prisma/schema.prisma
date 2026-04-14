@@ -24,6 +24,7 @@ model User {
   email         String    @unique
   name          String?
   passwordHash  String?                       // bcrypt hash da senha
+  mustChangePassword Boolean @default(false)  // true = senha temporária, forçar troca no próximo login
   role          UserRole  @default(USER)
   status        UserStatus @default(ACTIVE)
   createdAt     DateTime  @default(now())
@@ -621,6 +622,8 @@ model EchotikVideoTrendDaily {
   country           String    @default("US")
   categoryId        String?                          // externalId da categoria
   extra             Json?
+  downloadUrl       String?                          // Cached video download URL (pre-fetched by cron)
+  downloadUrlFetchedAt DateTime?                     // When the download URL was cached
   syncedAt          DateTime  @default(now())
   createdAt         DateTime  @default(now())
 
@@ -680,6 +683,7 @@ model EchotikCreatorTrendDaily {
   uniqueId          String?                          // @handle do TikTok
   nickName          String?
   avatar            String?
+  avatarBlobUrl     String?                          // Vercel Blob URL for avatar image
   category          String?                          // categoria principal textual
   ecScore           Float     @default(0)
   followersCount    BigInt    @default(0)
@@ -711,6 +715,7 @@ model EchotikProductDetail {
   productExternalId String    @unique               // product_id da API
   productName       String?
   coverUrl          String?                          // Primeira imagem extraída do cover_url JSON
+  blobUrl           String?                          // Vercel Blob URL for cover image
   avgPrice          Decimal?  @db.Decimal(12, 2)
   minPrice          Decimal?  @db.Decimal(12, 2)
   maxPrice          Decimal?  @db.Decimal(12, 2)

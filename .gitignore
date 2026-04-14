@@ -19,6 +19,9 @@ scripts/cleanup-members.ts
 scripts/import-subscribers.ts
 scripts/sync-db.ts
 
+# Scratchpad / untitled files
+Untitled-*
+
 # Build output
 out/
 .vercel
@@ -29,3 +32,4 @@ coverage/
 # SQLite dev databases (if used locally)
 prisma/*.db
 prisma/*.db-journal
+.env*.local

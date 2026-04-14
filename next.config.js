@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // ---------------------------------------------------------------------------
+  // Server external packages — not bundled by webpack (resolved at runtime)
+  // ---------------------------------------------------------------------------
+  experimental: {
+    serverComponentsExternalPackages: ["@vercel/blob"],
+  },
+  // ---------------------------------------------------------------------------
   // Security headers
   // Applied to all routes. CSP is in report-only mode to avoid breaking
   // existing functionality — tighten to enforce mode progressively.

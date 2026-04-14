@@ -1,121 +1,51 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { ProductTable } from "@/app/components/dashboard/DataTable";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
-import type { ProductDTO } from "@/lib/types/dto";
-import {
-  normalizeRange,
-  rangeToDays,
-  type TimeRange,
-} from "@/lib/filters/timeRange";
-import {
-  fetchCategories,
-  matchesCategory,
-  ALL_CATEGORY_ID,
-  type Category,
-} from "@/lib/categories";
+import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
+import { matchesCategory, ALL_CATEGORY_ID } from "@/lib/categories";
+import { getStoredRegion } from "@/lib/region";
+import { useTrendingProducts } from "@/lib/swr/useTrending";
+import { useCategories } from "@/lib/swr/useCategories";
+
+const PAGE_SIZE = 100;
 
 function TrendsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [newProducts, setNewProducts] = useState<ProductDTO[]>([]);
-  const [allProducts, setAllProducts] = useState<ProductDTO[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  // Read from URL
   const timeRange = normalizeRange(searchParams.get("range"));
   const categoryFilter = searchParams.get("category") || "";
+  const regionFilter = (
+    searchParams.get("region") || getStoredRegion()
+  ).toUpperCase();
 
-  // Load categories on mount
-  useEffect(() => {
-    fetchCategories().then(setCategories);
-  }, []);
+  const { categories } = useCategories();
 
-  // Filter products by category (client-side, for categories not sent to API)
-  const filterByCategory = useCallback(
-    (items: ProductDTO[]): ProductDTO[] => {
-      if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
-      return items.filter((p) =>
-        matchesCategory(p.category || p.id, categoryFilter, categories),
-      );
-    },
-    [categoryFilter, categories],
-  );
+  const { items, total, isLoading, isValidating, error, mutate } =
+    useTrendingProducts({
+      range: timeRange,
+      region: regionFilter,
+      sort: "sales",
+      pageSize: PAGE_SIZE,
+    });
 
-  // ---- Fetch new products from Echotik Product List ----
-  const fetchData = useCallback(
-    async (pageNum = 1) => {
-      if (pageNum === 1) setLoading(true);
-      else setLoadingMore(true);
-      setError(null);
-      try {
-        const daysBack = rangeToDays(timeRange);
-        const params = new URLSearchParams({
-          daysBack: String(daysBack),
-          page: String(pageNum),
-          pageSize: "10",
-          sort: "1", // total_sale_cnt
-          order: "1", // desc
-        });
-        if (categoryFilter && categoryFilter !== ALL_CATEGORY_ID) {
-          params.set("category", categoryFilter);
-        }
-
-        const res = await fetch(`/api/echotik/products/new?${params}`);
-        const json = await res.json();
-
-        if (!res.ok || json?.success === false) {
-          setError(json?.error || `Erro HTTP ${res.status}`);
-          return;
-        }
-
-        const items: ProductDTO[] = json?.data?.items ?? [];
-
-        if (pageNum === 1) {
-          setAllProducts(items);
-          setNewProducts(filterByCategory(items));
-        } else {
-          setAllProducts((prev) => {
-            const merged = [...prev, ...items];
-            setNewProducts(filterByCategory(merged));
-            return merged;
-          });
-        }
-
-        // API retorna max 10 por página; se veio menos, não há mais
-        setHasMore(items.length >= 10);
-        setPage(pageNum);
-      } catch (err) {
-        console.error("Failed to fetch new products:", err);
-        setError("Erro ao carregar novos produtos. Tente novamente.");
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [timeRange, categoryFilter, filterByCategory],
-  );
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setPage(1);
-    setHasMore(true);
-    fetchData(1);
-  }, [fetchData]);
+  // Client-side category filtering
+  const filteredItems = useMemo(() => {
+    if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
+    return items.filter((p) =>
+      matchesCategory(p.category || p.id, categoryFilter, categories),
+    );
+  }, [items, categoryFilter, categories]);
 
   const handleTimeRangeChange = (range: TimeRange) => {
     const params = new URLSearchParams();
     params.set("range", range);
     if (categoryFilter) params.set("category", categoryFilter);
+    if (regionFilter) params.set("region", regionFilter);
     router.push(`/dashboard/trends?${params.toString()}`);
   };
 
@@ -123,10 +53,10 @@ function TrendsContent() {
     const params = new URLSearchParams();
     params.set("range", timeRange);
     if (category) params.set("category", category);
+    if (regionFilter) params.set("region", regionFilter);
     router.push(`/dashboard/trends?${params.toString()}`);
   };
 
-  // Get category name for display
   const getCategoryName = () => {
     if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return "";
     const cat = categories.find(
@@ -166,16 +96,16 @@ function TrendsContent() {
               lineHeight: 1.3,
             }}
           >
-            {allProducts.length > 0
-              ? `${newProducts.length} novos produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} detectados`
-              : `Novos produtos detectados no TikTok Shop — dados dos últimos ${rangeToDays(timeRange)} dias`}
+            {filteredItems.length > 0
+              ? `${filteredItems.length} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} em alta`
+              : `Produtos em alta no TikTok Shop`}
           </Typography>
         </Box>
         <DashboardHeader
           timeRange={timeRange}
           onTimeRangeChange={handleTimeRangeChange}
-          onRefresh={fetchData}
-          loading={loading}
+          onRefresh={() => mutate()}
+          loading={isLoading || isValidating}
           category={categoryFilter}
           onCategoryChange={handleCategoryChange}
           categories={categories}
@@ -203,39 +133,12 @@ function TrendsContent() {
           </Box>
         )}
 
-        {/* New Products Table */}
+        {/* Trending Products Table */}
         <ProductTable
-          products={newProducts}
-          loading={loading}
-          title="Novos Produtos Detectados"
-          showNewBadge
+          products={filteredItems}
+          loading={isLoading}
+          title="Produtos em Alta"
         />
-
-        {/* Load More */}
-        {!loading && hasMore && newProducts.length > 0 && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-            <Button
-              variant="outlined"
-              onClick={() => fetchData(page + 1)}
-              disabled={loadingMore}
-              sx={{
-                borderColor: "rgba(255,255,255,0.2)",
-                color: "rgba(255,255,255,0.7)",
-                "&:hover": {
-                  borderColor: "rgba(255,255,255,0.4)",
-                  background: "rgba(255,255,255,0.05)",
-                },
-                textTransform: "none",
-                px: 4,
-              }}
-            >
-              {loadingMore ? (
-                <CircularProgress size={20} sx={{ color: "inherit", mr: 1 }} />
-              ) : null}
-              {loadingMore ? "Carregando..." : "Carregar mais"}
-            </Button>
-          </Box>
-        )}
       </Box>
     </Box>
   );

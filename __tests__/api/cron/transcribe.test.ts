@@ -36,7 +36,19 @@ describe("GET /api/cron/transcribe", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env = { ...originalEnv, CRON_SECRET: "test-cron-secret" };
+    process.env = {
+      ...originalEnv,
+      CRON_SECRET: "test-cron-secret",
+      VERCEL: "1",
+    };
+  });
+
+  it("returns 403 when running in local environment", async () => {
+    delete process.env.VERCEL;
+    const res = await GET(makeRequest("test-cron-secret"));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Cron jobs are disabled in local environment");
   });
 
   it("returns 500 when CRON_SECRET not configured", async () => {

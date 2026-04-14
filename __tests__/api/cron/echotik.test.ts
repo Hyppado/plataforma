@@ -92,6 +92,7 @@ describe("GET /api/cron/echotik — route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "test-cron-secret";
+    process.env.VERCEL = "1";
   });
 
   async function importRoute() {
@@ -111,6 +112,19 @@ describe("GET /api/cron/echotik — route", () => {
       headers: { ...headers },
     });
   }
+
+  it("returns 403 when running in local environment", async () => {
+    delete process.env.VERCEL;
+    const { GET } = await importRoute();
+    const req = makeCronRequest(
+      {},
+      { authorization: "Bearer test-cron-secret" },
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Cron jobs are disabled in local environment");
+  });
 
   it("rejects request without CRON_SECRET", async () => {
     const { GET } = await importRoute();

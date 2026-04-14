@@ -11,6 +11,11 @@
 // ---------------------------------------------------------------------------
 
 function wrapTemplate(body: string): string {
+  // Email images must use a publicly accessible URL — never localhost.
+  // NEXTAUTH_URL may be localhost in dev, so we use a dedicated constant.
+  const emailAssetsBase = process.env.EMAIL_BASE_URL ?? "https://hyppado.com";
+  const logoUrl = `${emailAssetsBase}/logo/logo.png`;
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -23,10 +28,19 @@ function wrapTemplate(body: string): string {
     <tr>
       <td align="center" style="padding: 40px 20px;">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 520px; background-color: #12141c; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-          <!-- Logo -->
+          <!-- Logo + tagline -->
           <tr>
             <td align="center" style="padding: 32px 40px 0;">
-              <span style="font-size: 28px; font-weight: 800; color: #2DD4FF; letter-spacing: -0.5px;">Hyppado</span>
+              <table role="presentation" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="vertical-align: middle; padding-right: 16px;">
+                    <img src="${logoUrl}" alt="Hyppado" width="56" height="56" style="display: block; width: 56px; height: 56px; border: 0;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-size: 13px; color: rgba(255,255,255,0.5); letter-spacing: 0.5px;">Inteligência para TikTok Shop</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <!-- Content -->
@@ -216,6 +230,101 @@ export function buildPasswordResetEmail(data: PasswordResetEmailData): {
     "",
     "Se você não solicitou esta redefinição, ignore este email.",
     "Sua senha permanecerá inalterada.",
+    "",
+    `© ${new Date().getFullYear()} Hyppado — Inteligência para TikTok Shop`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
+// ---------------------------------------------------------------------------
+// Welcome email with temporary password
+// ---------------------------------------------------------------------------
+
+export interface WelcomePasswordEmailData {
+  /** User display name or email prefix */
+  name: string;
+  /** User email address */
+  email: string;
+  /** The temporary password */
+  password: string;
+  /** Login URL */
+  loginUrl: string;
+}
+
+/**
+ * Generates the HTML for the welcome email containing a temporary password.
+ */
+export function buildWelcomePasswordEmail(data: WelcomePasswordEmailData): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const subject = "Seu acesso ao Hyppado — Senha temporária";
+
+  const html = wrapTemplate(`
+    <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #ffffff;">
+      Bem-vindo(a) ao Hyppado!
+    </h1>
+    <p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+      Olá, <strong style="color: #ffffff;">${escapeHtml(data.name)}</strong>!
+    </p>
+    <p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+      Seu acesso à plataforma Hyppado foi criado. Use as credenciais abaixo para fazer seu primeiro login:
+    </p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0; background-color: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+      <tr>
+        <td style="padding: 20px 24px;">
+          <p style="margin: 0 0 10px; font-size: 13px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px;">
+            Email
+          </p>
+          <p style="margin: 0 0 16px; font-size: 15px; color: #ffffff; font-family: monospace;">
+            ${escapeHtml(data.email)}
+          </p>
+          <p style="margin: 0 0 10px; font-size: 13px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px;">
+            Senha temporária
+          </p>
+          <p style="margin: 0; font-size: 18px; color: #2DD4FF; font-family: monospace; font-weight: 700; letter-spacing: 1px;">
+            ${escapeHtml(data.password)}
+          </p>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 24px 0;">
+      <tr>
+        <td align="center">
+          <a href="${escapeHtml(data.loginUrl)}"
+             target="_blank"
+             style="display: inline-block; padding: 14px 36px; background-color: #2DD4FF; color: #0a0a0f; font-size: 15px; font-weight: 700; text-decoration: none; border-radius: 8px;">
+            Fazer login
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin: 0 0 8px; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+      <strong style="color: #FFB74D;">Importante:</strong> Após o primeiro login, você será solicitado(a) a trocar sua senha.
+    </p>
+    <p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+      Se você não solicitou este acesso, ignore este email com segurança.
+    </p>
+  `);
+
+  const text = [
+    "Bem-vindo(a) ao Hyppado!",
+    "",
+    `Olá, ${data.name}!`,
+    "",
+    "Seu acesso à plataforma Hyppado foi criado.",
+    "Use as credenciais abaixo para fazer seu primeiro login:",
+    "",
+    `Email: ${data.email}`,
+    `Senha temporária: ${data.password}`,
+    "",
+    `Login: ${data.loginUrl}`,
+    "",
+    "Importante: Após o primeiro login, você será solicitado(a) a trocar sua senha.",
+    "",
+    "Se você não solicitou este acesso, ignore este email com segurança.",
     "",
     `© ${new Date().getFullYear()} Hyppado — Inteligência para TikTok Shop`,
   ].join("\n");

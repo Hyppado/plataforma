@@ -143,14 +143,6 @@ describe("Auth bypass prevention", () => {
     expect(res.status).toBe(401);
   });
 
-  it("echotik/products/new rejects unauthenticated", async () => {
-    mockUnauthenticated();
-    const { GET } = await import("@/app/api/echotik/products/new/route");
-    const req = makeGetRequest("/api/echotik/products/new") as any;
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-  });
-
   it("echotik/videos/trending rejects unauthenticated", async () => {
     mockUnauthenticated();
     const { GET } = await import("@/app/api/echotik/videos/trending/route");

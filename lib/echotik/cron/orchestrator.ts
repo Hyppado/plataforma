@@ -34,6 +34,8 @@ import {
   syncRanklistProductDetails,
 } from "./syncProducts";
 import { syncCreatorRanklist } from "./syncCreators";
+import { uploadPendingImages } from "./uploadImages";
+import { cachePendingDownloadUrls } from "./cacheDownloadUrls";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -45,6 +47,8 @@ export type CronTask =
   | "products"
   | "creators"
   | "details"
+  | "upload-images"
+  | "cache-download-urls"
   | "auto";
 
 export interface CronOptions {
@@ -147,7 +151,25 @@ export async function detectNextTask(
   }
 
   // 5. Details (always worth trying — cheap when nothing is missing)
-  return { task: "details", region: null };
+  if (
+    cfg.enabledTasks.includes("details") ||
+    !cfg.enabledTasks.length // default: all enabled
+  ) {
+    return { task: "details", region: null };
+  }
+
+  // 6. Upload images to Vercel Blob (runs after data ingestion)
+  if (force || !(await shouldSkip("echotik:upload-images", 6))) {
+    return { task: "upload-images", region: null };
+  }
+
+  // 7. Cache download URLs for trending videos (runs after data ingestion)
+  if (force || !(await shouldSkip("echotik:cache-download-urls", 6))) {
+    return { task: "cache-download-urls", region: null };
+  }
+
+  // Nothing to do
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -356,6 +378,77 @@ export async function runEchotikCron(
   }
 
   const { task, region } = selection;
+
+  // Lightweight tasks use IngestionRun for skip tracking but no full run record
+  if (task === "upload-images") {
+    try {
+      const result = await uploadPendingImages(log, deadlineMs);
+      const total =
+        result.productImagesUploaded + result.creatorAvatarsUploaded;
+      const stats = {
+        ...emptyStats(),
+        durationMs: Date.now() - start,
+      };
+      // Record success for shouldSkip tracking
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:upload-images",
+          status: total > 0 ? "SUCCESS" : "SUCCESS",
+          endedAt: new Date(),
+          statsJson: result as any,
+        },
+      });
+      log.info("Image upload done", { ...result });
+      return {
+        runId: "",
+        status: total > 0 ? "SUCCESS" : "SKIPPED",
+        stats,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("Image upload failed", { error: errorMessage });
+      return {
+        runId: "",
+        status: "FAILED",
+        stats: { ...emptyStats(), durationMs: Date.now() - start },
+        error: errorMessage,
+      };
+    }
+  }
+
+  if (task === "cache-download-urls") {
+    try {
+      const result = await cachePendingDownloadUrls(log, deadlineMs);
+      const stats = {
+        ...emptyStats(),
+        durationMs: Date.now() - start,
+      };
+      // Record success for shouldSkip tracking
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:cache-download-urls",
+          status: result.cached > 0 ? "SUCCESS" : "SUCCESS",
+          endedAt: new Date(),
+          statsJson: result as any,
+        },
+      });
+      log.info("Download URL caching done", { ...result });
+      return {
+        runId: "",
+        status: result.cached > 0 ? "SUCCESS" : "SKIPPED",
+        stats,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("Download URL caching failed", { error: errorMessage });
+      return {
+        runId: "",
+        status: "FAILED",
+        stats: { ...emptyStats(), durationMs: Date.now() - start },
+        error: errorMessage,
+      };
+    }
+  }
 
   // Product details don't need an IngestionRun record
   if (task === "details") {

@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildOnboardingEmail,
   buildPasswordResetEmail,
+  buildWelcomePasswordEmail,
 } from "@/lib/email/templates";
 
 describe("buildOnboardingEmail()", () => {
@@ -149,5 +150,66 @@ describe("buildPasswordResetEmail()", () => {
     expect(text).not.toContain("<");
     expect(text).toContain("João Pereira");
     expect(text).toContain(data.resetUrl);
+  });
+});
+
+describe("buildWelcomePasswordEmail()", () => {
+  const data = {
+    name: "Ana Costa",
+    email: "ana@test.com",
+    password: "TempPass123!",
+    loginUrl: "https://hyppado.com/login",
+  };
+
+  it("returns subject, html, and text", () => {
+    const result = buildWelcomePasswordEmail(data);
+    expect(result.subject).toBeTruthy();
+    expect(result.html).toBeTruthy();
+    expect(result.text).toBeTruthy();
+  });
+
+  it("includes the user name in the HTML", () => {
+    const { html } = buildWelcomePasswordEmail(data);
+    expect(html).toContain("Ana Costa");
+  });
+
+  it("includes the email in both HTML and text", () => {
+    const { html, text } = buildWelcomePasswordEmail(data);
+    expect(html).toContain("ana@test.com");
+    expect(text).toContain("ana@test.com");
+  });
+
+  it("includes the temporary password in both HTML and text", () => {
+    const { html, text } = buildWelcomePasswordEmail(data);
+    expect(html).toContain("TempPass123!");
+    expect(text).toContain("TempPass123!");
+  });
+
+  it("includes the login URL", () => {
+    const { html, text } = buildWelcomePasswordEmail(data);
+    expect(html).toContain(data.loginUrl);
+    expect(text).toContain(data.loginUrl);
+  });
+
+  it("warns about forced password change", () => {
+    const { html, text } = buildWelcomePasswordEmail(data);
+    expect(html).toContain("trocar sua senha");
+    expect(text).toContain("trocar sua senha");
+  });
+
+  it("escapes HTML in user name to prevent XSS", () => {
+    const malicious = buildWelcomePasswordEmail({
+      ...data,
+      name: '<script>alert("xss")</script>',
+    });
+    expect(malicious.html).not.toContain("<script>");
+    expect(malicious.html).toContain("&lt;script&gt;");
+  });
+
+  it("text fallback is readable without HTML", () => {
+    const { text } = buildWelcomePasswordEmail(data);
+    expect(text).not.toContain("<");
+    expect(text).toContain("Ana Costa");
+    expect(text).toContain("TempPass123!");
   });
 });

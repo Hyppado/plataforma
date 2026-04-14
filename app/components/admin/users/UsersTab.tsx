@@ -14,12 +14,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
-  InputAdornment,
   LinearProgress,
   MenuItem,
   Pagination,
   Select,
+  Snackbar,
   Stack,
   Tab,
   Table,
@@ -30,18 +29,12 @@ import {
   TableRow,
   Tabs,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
   Add as AddIcon,
-  ContentCopy as CopyIcon,
-  Edit as EditIcon,
-  Key as KeyIcon,
   PersonAdd as PersonAddIcon,
   PersonOutlined,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
 
 // ---------------------------------------------------------------------------
@@ -202,96 +195,6 @@ function formatDate(iso: string | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// One-Time Password Dialog
-// ---------------------------------------------------------------------------
-
-function PasswordDialog({
-  open,
-  password,
-  title,
-  onClose,
-}: {
-  open: boolean;
-  password: string;
-  title: string;
-  onClose: () => void;
-}) {
-  const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [password]);
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          background: "#0d1422",
-          border: "1px solid rgba(255,255,255,0.08)",
-        },
-      }}
-    >
-      <DialogTitle sx={{ color: "#fff", fontWeight: 700 }}>{title}</DialogTitle>
-      <DialogContent>
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Esta senha só será exibida uma vez. Copie-a agora e envie ao usuário
-          de forma segura.
-        </Alert>
-        <TextField
-          fullWidth
-          value={visible ? password : "•".repeat(password.length)}
-          InputProps={{
-            readOnly: true,
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={() => setVisible(!visible)} size="small">
-                  {visible ? (
-                    <VisibilityOffIcon sx={{ fontSize: 18 }} />
-                  ) : (
-                    <VisibilityIcon sx={{ fontSize: 18 }} />
-                  )}
-                </IconButton>
-                <IconButton onClick={handleCopy} size="small">
-                  <CopyIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              fontFamily: "monospace",
-              fontSize: "1rem",
-              color: "#fff",
-              background: "rgba(0,0,0,0.3)",
-            },
-          }}
-        />
-        {copied && (
-          <Typography
-            variant="caption"
-            sx={{ color: "#4caf50", mt: 1, display: "block" }}
-          >
-            Copiado!
-          </Typography>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} sx={{ color: "rgba(255,255,255,0.6)" }}>
-          Fechar
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Create User Dialog
 // ---------------------------------------------------------------------------
 
@@ -302,7 +205,7 @@ function CreateUserDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreated: (password: string) => void;
+  onCreated: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -331,7 +234,7 @@ function CreateUserDialog({
       setEmail("");
       setName("");
       setRole("USER");
-      onCreated(data.password);
+      onCreated();
     } catch {
       setError("Erro de conexão");
     } finally {
@@ -560,6 +463,73 @@ function EditUserDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Confirmation Dialog (Delete / Deactivate)
+// ---------------------------------------------------------------------------
+
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel,
+  confirmColor,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirmColor: string;
+  loading: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: "#0d1422",
+          border: "1px solid rgba(255,255,255,0.08)",
+        },
+      }}
+    >
+      <DialogTitle sx={{ color: "#fff", fontWeight: 700 }}>{title}</DialogTitle>
+      <DialogContent>
+        <Typography sx={{ color: "rgba(255,255,255,0.7)", fontSize: "0.9rem" }}>
+          {message}
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button
+          onClick={onClose}
+          disabled={loading}
+          sx={{ color: "rgba(255,255,255,0.6)" }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          onClick={onConfirm}
+          disabled={loading}
+          variant="contained"
+          sx={{
+            bgcolor: confirmColor,
+            fontWeight: 700,
+            "&:hover": { bgcolor: confirmColor, filter: "brightness(0.85)" },
+          }}
+        >
+          {loading ? "Processando..." : confirmLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -576,10 +546,12 @@ export function UsersTab() {
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
-  const [passwordDialog, setPasswordDialog] = useState<{
-    title: string;
-    password: string;
+  const [confirmDialog, setConfirmDialog] = useState<{
+    type: "delete" | "deactivate";
+    user: UserRow;
   } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState<string | null>(null);
 
   // Build query params
   const params = new URLSearchParams({
@@ -614,10 +586,11 @@ export function UsersTab() {
         });
         const data = await res.json();
         if (res.ok) {
-          setPasswordDialog({
-            title: "Nova Senha",
-            password: data.password,
-          });
+          setSnackbar(
+            data.emailSent
+              ? "Nova senha enviada por email ao usuário."
+              : "Senha redefinida, mas o envio do email falhou.",
+          );
         }
       } catch {
         // ignore
@@ -625,14 +598,49 @@ export function UsersTab() {
     });
   }, []);
 
-  const handleCreated = useCallback(
-    (password: string) => {
-      setCreateOpen(false);
-      setPasswordDialog({ title: "Senha do Novo Usuário", password });
+  const handleConfirmAction = useCallback(async () => {
+    if (!confirmDialog) return;
+    setConfirmLoading(true);
+    try {
+      if (confirmDialog.type === "delete") {
+        const res = await fetch(`/api/admin/users/${confirmDialog.user.id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? "Erro ao excluir usuário");
+          return;
+        }
+      } else {
+        // deactivate = set status to INACTIVE
+        const res = await fetch("/api/admin/users", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: confirmDialog.user.id,
+            status: "INACTIVE",
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error ?? "Erro ao desativar usuário");
+          return;
+        }
+      }
       mutate();
-    },
-    [mutate],
-  );
+    } catch {
+      alert("Erro de conexão");
+    } finally {
+      setConfirmLoading(false);
+      setConfirmDialog(null);
+    }
+  }, [confirmDialog, mutate]);
+
+  const handleCreated = useCallback(() => {
+    setCreateOpen(false);
+    setSnackbar("Usuário criado! Email com senha temporária enviado.");
+    mutate();
+  }, [mutate]);
 
   return (
     <Box>
@@ -714,11 +722,8 @@ export function UsersTab() {
                     "Email",
                     "Perfil",
                     "Status",
-                    "Plano",
-                    "Assinatura",
-                    "Cobrança",
+                    "Plano / Assinatura",
                     "Criado",
-                    "Último Login",
                     "Ações",
                   ].map((h) => (
                     <TableCell key={h} sx={headCellSx}>
@@ -752,13 +757,30 @@ export function UsersTab() {
                       >
                         {/* Nome */}
                         <TableCell
-                          sx={{ ...cellSx, color: "rgba(255,255,255,0.8)" }}
+                          sx={{
+                            ...cellSx,
+                            color: "rgba(255,255,255,0.8)",
+                            maxWidth: 140,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
                         >
-                          {u.name ?? u.email}
+                          {u.name ?? "—"}
                         </TableCell>
 
                         {/* Email */}
-                        <TableCell sx={cellSx}>{u.email}</TableCell>
+                        <TableCell
+                          sx={{
+                            ...cellSx,
+                            maxWidth: 200,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {u.email}
+                        </TableCell>
 
                         {/* Perfil */}
                         <TableCell sx={cellSx}>
@@ -793,56 +815,58 @@ export function UsersTab() {
                           })()}
                         </TableCell>
 
-                        {/* Plano */}
+                        {/* Plano / Assinatura (merged) */}
                         <TableCell sx={cellSx}>
-                          {sub?.plan?.name ? (
-                            <Chip
-                              label={sub.plan.name}
-                              size="small"
-                              sx={{
-                                background: "rgba(45,212,255,0.1)",
-                                color: "#2DD4FF",
-                                fontSize: "0.75rem",
-                                maxWidth: 150,
-                              }}
-                            />
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-
-                        {/* Assinatura */}
-                        <TableCell sx={cellSx}>
-                          {sub && subStyle ? (
-                            <Chip
-                              label={SUB_STATUS_LABEL[sub.status] ?? sub.status}
-                              size="small"
-                              sx={{
-                                background: subStyle.bg,
-                                color: subStyle.color,
-                                fontSize: "0.75rem",
-                              }}
-                            />
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-
-                        {/* Cobrança */}
-                        <TableCell sx={cellSx}>
-                          {charge && chargeStyle ? (
-                            <Chip
-                              label={
-                                CHARGE_STATUS_LABEL[charge.status] ??
-                                charge.status
-                              }
-                              size="small"
-                              sx={{
-                                background: chargeStyle.bg,
-                                color: chargeStyle.color,
-                                fontSize: "0.75rem",
-                              }}
-                            />
+                          {sub ? (
+                            <Stack
+                              direction="row"
+                              spacing={0.5}
+                              alignItems="center"
+                              flexWrap="wrap"
+                              useFlexGap
+                            >
+                              {sub.plan?.name && (
+                                <Chip
+                                  label={sub.plan.name}
+                                  size="small"
+                                  sx={{
+                                    background: "rgba(45,212,255,0.1)",
+                                    color: "#2DD4FF",
+                                    fontSize: "0.7rem",
+                                    height: 22,
+                                  }}
+                                />
+                              )}
+                              {subStyle && (
+                                <Chip
+                                  label={
+                                    SUB_STATUS_LABEL[sub.status] ?? sub.status
+                                  }
+                                  size="small"
+                                  sx={{
+                                    background: subStyle.bg,
+                                    color: subStyle.color,
+                                    fontSize: "0.7rem",
+                                    height: 22,
+                                  }}
+                                />
+                              )}
+                              {charge && chargeStyle && (
+                                <Chip
+                                  label={
+                                    CHARGE_STATUS_LABEL[charge.status] ??
+                                    charge.status
+                                  }
+                                  size="small"
+                                  sx={{
+                                    background: chargeStyle.bg,
+                                    color: chargeStyle.color,
+                                    fontSize: "0.7rem",
+                                    height: 22,
+                                  }}
+                                />
+                              )}
+                            </Stack>
                           ) : (
                             "—"
                           )}
@@ -853,40 +877,90 @@ export function UsersTab() {
                           {formatDate(u.createdAt)}
                         </TableCell>
 
-                        {/* Último Login */}
+                        {/* Ações — text links */}
                         <TableCell sx={cellSx}>
-                          {formatDate(u.lastLoginAt)}
-                        </TableCell>
-
-                        {/* Ações */}
-                        <TableCell sx={cellSx}>
-                          <Stack direction="row" spacing={0.5}>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{ whiteSpace: "nowrap" }}
+                          >
                             {isEditable && (
-                              <Tooltip title="Editar">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => setEditUser(u)}
-                                  sx={{
-                                    color: "rgba(255,255,255,0.4)",
-                                    "&:hover": { color: "#2DD4FF" },
-                                  }}
-                                >
-                                  <EditIcon sx={{ fontSize: 18 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            <Tooltip title="Resetar senha">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleResetPassword(u.id)}
+                              <Typography
+                                component="button"
+                                onClick={() => setEditUser(u)}
                                 sx={{
-                                  color: "rgba(255,255,255,0.4)",
-                                  "&:hover": { color: "#ff9800" },
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: "rgba(255,255,255,0.5)",
+                                  fontSize: "0.75rem",
+                                  p: 0,
+                                  "&:hover": { color: "#2DD4FF" },
                                 }}
                               >
-                                <KeyIcon sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Tooltip>
+                                Editar
+                              </Typography>
+                            )}
+                            <Typography
+                              component="button"
+                              onClick={() => handleResetPassword(u.id)}
+                              sx={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                color: "rgba(255,255,255,0.5)",
+                                fontSize: "0.75rem",
+                                p: 0,
+                                "&:hover": { color: "#ff9800" },
+                              }}
+                            >
+                              Senha
+                            </Typography>
+                            {isEditable ? (
+                              <Typography
+                                component="button"
+                                onClick={() =>
+                                  setConfirmDialog({
+                                    type: "delete",
+                                    user: u,
+                                  })
+                                }
+                                sx={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: "rgba(255,255,255,0.5)",
+                                  fontSize: "0.75rem",
+                                  p: 0,
+                                  "&:hover": { color: "#EF5350" },
+                                }}
+                              >
+                                Excluir
+                              </Typography>
+                            ) : (
+                              u.status === "ACTIVE" && (
+                                <Typography
+                                  component="button"
+                                  onClick={() =>
+                                    setConfirmDialog({
+                                      type: "deactivate",
+                                      user: u,
+                                    })
+                                  }
+                                  sx={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    color: "rgba(255,255,255,0.5)",
+                                    fontSize: "0.75rem",
+                                    p: 0,
+                                    "&:hover": { color: "#FFB74D" },
+                                  }}
+                                >
+                                  Desativar
+                                </Typography>
+                              )
+                            )}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -895,7 +969,7 @@ export function UsersTab() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={7}
                       sx={{
                         color: "rgba(255,255,255,0.4)",
                         borderColor: "rgba(255,255,255,0.06)",
@@ -950,14 +1024,43 @@ export function UsersTab() {
         onSaved={() => mutate()}
       />
 
-      {passwordDialog && (
-        <PasswordDialog
+      {confirmDialog && (
+        <ConfirmDialog
           open
-          title={passwordDialog.title}
-          password={passwordDialog.password}
-          onClose={() => setPasswordDialog(null)}
+          title={
+            confirmDialog.type === "delete"
+              ? "Excluir Usuário"
+              : "Desativar Usuário"
+          }
+          message={
+            confirmDialog.type === "delete"
+              ? `Tem certeza que deseja excluir "${confirmDialog.user.name ?? confirmDialog.user.email}"? Esta ação é irreversível e todos os dados do usuário serão permanentemente removidos.`
+              : `Tem certeza que deseja desativar "${confirmDialog.user.name ?? confirmDialog.user.email}"? O usuário não poderá mais fazer login, mas seus dados serão mantidos.`
+          }
+          confirmLabel={
+            confirmDialog.type === "delete" ? "Excluir" : "Desativar"
+          }
+          confirmColor={confirmDialog.type === "delete" ? "#EF5350" : "#FFB74D"}
+          loading={confirmLoading}
+          onConfirm={handleConfirmAction}
+          onClose={() => setConfirmDialog(null)}
         />
       )}
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbar(null)}
+          severity="success"
+          sx={{ width: "100%" }}
+        >
+          {snackbar}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

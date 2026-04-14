@@ -1,7 +1,8 @@
 /**
- * GET  /api/admin/users/[id] — Detalhe completo de um usuário
- * POST /api/admin/users/[id] — Reset password (retorna senha one-time)
- * PATCH /api/admin/users/[id] — Atualiza nome/email de um usuário sem assinatura
+ * GET    /api/admin/users/[id] — Detalhe completo de um usuário
+ * POST   /api/admin/users/[id] — Reset password (retorna senha one-time)
+ * PATCH  /api/admin/users/[id] — Atualiza nome/email de um usuário sem assinatura
+ * DELETE /api/admin/users/[id] — Exclui usuário sem assinatura (subscribers: 403)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,6 +11,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 import { resolveUserAccess } from "@/lib/access/resolver";
+import { createLogger } from "@/lib/logger";
+import { sendEmail, buildWelcomePasswordEmail } from "@/lib/email";
+
+const log = createLogger("api/admin/users/[id]");
 
 export const runtime = "nodejs";
 
@@ -108,7 +113,7 @@ export async function POST(
 
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, email: true, role: true },
+    select: { id: true, email: true, name: true, role: true },
   });
 
   if (!user) {
@@ -120,7 +125,30 @@ export async function POST(
 
   await prisma.user.update({
     where: { id },
-    data: { passwordHash },
+    data: { passwordHash, mustChangePassword: true },
+  });
+
+  // Send email with the new password
+  const loginUrl = `${process.env.NEXTAUTH_URL ?? "https://hyppado.com"}/login`;
+  const displayName = user.name || user.email.split("@")[0];
+  const template = buildWelcomePasswordEmail({
+    name: displayName,
+    email: user.email,
+    password: plainPassword,
+    loginUrl,
+  });
+
+  const emailResult = await sendEmail({
+    to: user.email,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
+  }).catch((err) => {
+    log.error("Failed to send password reset email", {
+      userId: id,
+      error: err instanceof Error ? err.message : "Unknown",
+    });
+    return { success: false } as const;
   });
 
   await prisma.auditLog.create({
@@ -130,10 +158,20 @@ export async function POST(
       action: "USER_PASSWORD_RESET",
       entityType: "User",
       entityId: id,
+      after: { emailSent: emailResult.success },
     },
   });
 
-  return NextResponse.json({ password: plainPassword });
+  log.info("Password reset by admin", {
+    userId: id,
+    adminId: auth.userId,
+    emailSent: emailResult.success,
+  });
+
+  return NextResponse.json({
+    ok: true,
+    emailSent: emailResult.success,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -218,4 +256,79 @@ export async function PATCH(
   });
 
   return NextResponse.json({ user: updated });
+}
+
+// ---------------------------------------------------------------------------
+// DELETE — Exclui usuário sem assinatura
+// ---------------------------------------------------------------------------
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
+  const { id } = await params;
+
+  // Prevent self-deletion
+  if (id === auth.userId) {
+    return NextResponse.json(
+      { error: "Não é possível excluir a própria conta" },
+      { status: 400 },
+    );
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    include: {
+      subscriptions: { take: 1 },
+    },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  // Subscribers cannot be deleted — only deactivated (via PATCH status)
+  if (user.subscriptions.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Assinantes não podem ser excluídos. Use a opção de desativar para impedir o acesso.",
+      },
+      { status: 403 },
+    );
+  }
+
+  // Hard delete non-subscriber user and related data.
+  // Models with onDelete: Cascade (auto) — ExternalAccountLink, ConsentRecord,
+  // DataErasureRequest, SavedItem, Collection (+items), Note, Alert, VideoInsight.
+  // Models with onDelete: SetNull (auto) — AuditLog, AdminNotification.
+  // Models with Restrict (manual cleanup required) — AccessGrant, UsagePeriod, UsageEvent.
+  await prisma.$transaction(async (tx) => {
+    await tx.usageEvent.deleteMany({ where: { userId: id } });
+    await tx.usagePeriod.deleteMany({ where: { userId: id } });
+    await tx.accessGrant.deleteMany({ where: { userId: id } });
+    await tx.user.delete({ where: { id } });
+  });
+
+  // Audit log (actor-level, not user-level since user is gone)
+  await prisma.auditLog.create({
+    data: {
+      actorId: auth.userId,
+      action: "USER_DELETED",
+      entityType: "User",
+      entityId: id,
+      after: { email: user.email, name: user.name },
+    },
+  });
+
+  log.info("User deleted by admin", {
+    deletedUserId: id,
+    deletedEmail: user.email,
+    adminId: auth.userId,
+  });
+
+  return NextResponse.json({ success: true });
 }

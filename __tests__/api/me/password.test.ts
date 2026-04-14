@@ -68,8 +68,14 @@ describe("PUT /api/me/password", () => {
   // Validation
   // -------------------------------------------------------------------------
 
-  it("returns 400 when currentPassword is missing", async () => {
+  it("returns 400 when currentPassword is missing (normal user)", async () => {
     mockAuthenticatedUser();
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: "user-test-id",
+      passwordHash: "$2a$10$existinghash",
+      mustChangePassword: false,
+    } as never);
+
     const res = await PUT(makePutRequest({ newPassword: "newpass123" }));
     const body = await res.json();
 
@@ -137,6 +143,7 @@ describe("PUT /api/me/password", () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: "user-test-id",
       passwordHash: null,
+      mustChangePassword: false,
     } as never);
 
     const res = await PUT(
@@ -157,6 +164,7 @@ describe("PUT /api/me/password", () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: "user-test-id",
       passwordHash: "$2a$10$existinghash",
+      mustChangePassword: false,
     } as never);
     mockCompare.mockResolvedValue(false);
 
@@ -178,6 +186,7 @@ describe("PUT /api/me/password", () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: "user-test-id",
       passwordHash: "$2a$10$existinghash",
+      mustChangePassword: false,
     } as never);
     mockCompare.mockResolvedValue(true);
     mockHash.mockResolvedValue("$2a$10$freshnewhash");
@@ -194,10 +203,10 @@ describe("PUT /api/me/password", () => {
     expect(mockCompare).toHaveBeenCalledWith("correct", "$2a$10$existinghash");
     expect(mockHash).toHaveBeenCalledWith("newpass123", 10);
 
-    // Verify user update
+    // Verify user update clears mustChangePassword
     expect(prismaMock.user.update).toHaveBeenCalledWith({
       where: { id: "user-test-id" },
-      data: { passwordHash: "$2a$10$freshnewhash" },
+      data: { passwordHash: "$2a$10$freshnewhash", mustChangePassword: false },
     });
 
     // Verify audit log
@@ -207,6 +216,38 @@ describe("PUT /api/me/password", () => {
         action: "USER_PASSWORD_CHANGED",
         entityType: "User",
       }),
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // mustChangePassword flow (temporary password)
+  // -------------------------------------------------------------------------
+
+  it("allows password change without currentPassword when mustChangePassword=true", async () => {
+    mockAuthenticatedUser();
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: "user-test-id",
+      passwordHash: "$2a$10$temphash",
+      mustChangePassword: true,
+    } as never);
+    mockHash.mockResolvedValue("$2a$10$permanenthash");
+
+    const res = await PUT(makePutRequest({ newPassword: "permanent123" }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+
+    // Should NOT call bcrypt.compare (no current password to verify)
+    expect(mockCompare).not.toHaveBeenCalled();
+
+    // Should clear mustChangePassword
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-test-id" },
+      data: {
+        passwordHash: "$2a$10$permanenthash",
+        mustChangePassword: false,
+      },
     });
   });
 });

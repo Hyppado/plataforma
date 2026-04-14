@@ -97,7 +97,12 @@ export async function GET(request: NextRequest) {
     const productIds = rows.map((r) => r.productExternalId);
     const detailRows = await prisma.echotikProductDetail.findMany({
       where: { productExternalId: { in: productIds } },
-      select: { productExternalId: true, coverUrl: true, rating: true },
+      select: {
+        productExternalId: true,
+        coverUrl: true,
+        rating: true,
+        blobUrl: true,
+      },
     });
     const detailMap = new Map(detailRows.map((d) => [d.productExternalId, d]));
 
@@ -106,7 +111,8 @@ export async function GET(request: NextRequest) {
       return {
         id: r.productExternalId,
         name: r.productName || "",
-        imageUrl: proxyIfEchotikCdn(detail?.coverUrl ?? null),
+        imageUrl:
+          detail?.blobUrl || proxyIfEchotikCdn(detail?.coverUrl ?? null),
         category: r.categoryId ?? "",
         priceBRL: r.avgPrice,
         launchDate: r.date.toISOString(),

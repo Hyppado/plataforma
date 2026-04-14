@@ -7,6 +7,7 @@ import { Menu as MenuIcon, Close as CloseIcon } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import { AppTopHeader } from "@/app/components/layout/AppTopHeader";
 import { DashboardSidebar } from "@/app/components/dashboard/DashboardSidebar";
+import { PasswordChangeGuard } from "@/app/components/dashboard/PasswordChangeGuard";
 import { appTheme } from "@/app/theme";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -131,6 +132,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {children}
           </Box>
         </Box>
+
+        {/* Force password change modal for temp passwords */}
+        <PasswordChangeGuard />
       </Box>
     </ThemeProvider>
   );

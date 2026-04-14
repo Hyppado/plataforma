@@ -28,5 +28,13 @@ export {
 } from "./setup-token";
 export type { TokenValidationResult } from "./setup-token";
 
-export { buildOnboardingEmail, buildPasswordResetEmail } from "./templates";
-export type { OnboardingEmailData, PasswordResetEmailData } from "./templates";
+export {
+  buildOnboardingEmail,
+  buildPasswordResetEmail,
+  buildWelcomePasswordEmail,
+} from "./templates";
+export type {
+  OnboardingEmailData,
+  PasswordResetEmailData,
+  WelcomePasswordEmailData,
+} from "./templates";
