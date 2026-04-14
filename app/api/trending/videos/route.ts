@@ -6,6 +6,7 @@ import {
   rangeToCycles,
   resolveCycleAndDate,
   getAvailableRegions,
+  proxyIfEchotikCdn,
 } from "@/lib/echotik/trending";
 import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 import { createLogger } from "@/lib/logger";
@@ -208,7 +209,13 @@ export async function GET(request: NextRequest) {
         roas: 0,
         sourceUrl: "",
         tiktokUrl: `https://www.tiktok.com/@${r.authorName || "user"}/video/${r.videoExternalId}`,
-        thumbnailUrl: `/api/proxy/image?videoId=${r.videoExternalId}`,
+        thumbnailUrl:
+          proxyIfEchotikCdn(
+            (r.extra as Record<string, unknown> | null)?.reflow_cover as
+              | string
+              | null
+              | undefined,
+          ) || null,
         dateRange: range,
         categoryId: r.categoryId ?? undefined,
         product,
