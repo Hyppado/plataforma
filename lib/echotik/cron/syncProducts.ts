@@ -195,6 +195,7 @@ export async function syncProductRanklist(
   deadlineMs?: number,
 ): Promise<number> {
   log.info("Syncing products", { region, maxPages });
+  const runStart = new Date();
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
@@ -218,6 +219,15 @@ export async function syncProductRanklist(
       total += count;
     }
   }
+
+  // Prune rows from previous runs — keep only what was upserted in this run
+  const pruned = await prisma.echotikProductTrendDaily.deleteMany({
+    where: { country: region, syncedAt: { lt: runStart } },
+  });
+  if (pruned.count > 0) {
+    log.info("Pruned stale product rows", { region, pruned: pruned.count });
+  }
+
   return total;
 }
 

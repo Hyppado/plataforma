@@ -201,6 +201,7 @@ export async function syncCreatorRanklist(
   deadlineMs?: number,
 ): Promise<number> {
   log.info("Syncing creators", { region, maxPages });
+  const runStart = new Date();
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
@@ -224,5 +225,14 @@ export async function syncCreatorRanklist(
       total += count;
     }
   }
+
+  // Prune rows from previous runs — keep only what was upserted in this run
+  const pruned = await prisma.echotikCreatorTrendDaily.deleteMany({
+    where: { country: region, syncedAt: { lt: runStart } },
+  });
+  if (pruned.count > 0) {
+    log.info("Pruned stale creator rows", { region, pruned: pruned.count });
+  }
+
   return total;
 }

@@ -193,6 +193,7 @@ export async function syncVideoRanklist(
   deadlineMs?: number,
 ): Promise<number> {
   log.info("Syncing videos", { region, maxPages });
+  const runStart = new Date();
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
   for (const rankingCycle of rankingCycles) {
@@ -216,6 +217,15 @@ export async function syncVideoRanklist(
       total += count;
     }
   }
+
+  // Prune rows from previous runs — keep only what was upserted in this run
+  const pruned = await prisma.echotikVideoTrendDaily.deleteMany({
+    where: { country: region, syncedAt: { lt: runStart } },
+  });
+  if (pruned.count > 0) {
+    log.info("Pruned stale video rows", { region, pruned: pruned.count });
+  }
+
   return total;
 }
 
