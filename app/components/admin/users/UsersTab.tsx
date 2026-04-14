@@ -95,9 +95,10 @@ async function fetcher<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function getUserCategory(u: UserRow): "admin" | "subscriber" {
+function getUserCategory(u: UserRow): "admin" | "subscriber" | "user" {
   if (u.role === "ADMIN") return "admin";
-  return "subscriber";
+  if ((u._count?.subscriptions ?? 0) > 0) return "subscriber";
+  return "user";
 }
 
 const CATEGORY_CHIP: Record<
@@ -109,6 +110,11 @@ const CATEGORY_CHIP: Record<
     label: "Assinante",
     color: "#81C784",
     bg: "rgba(76,175,80,0.15)",
+  },
+  user: {
+    label: "Usuário",
+    color: "#7B93A8",
+    bg: "rgba(123,147,168,0.15)",
   },
 };
 

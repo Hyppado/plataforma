@@ -104,6 +104,16 @@ export const authOptions: NextAuthOptions = {
           (user as { mustChangePassword?: boolean }).mustChangePassword ??
           false;
       }
+      // Re-read mustChangePassword from DB when the token still carries true.
+      // This clears the flag mid-session after the user changes their password
+      // without requiring a full sign-out/sign-in cycle.
+      if (token.mustChangePassword && token.userId) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { mustChangePassword: true },
+        });
+        if (fresh) token.mustChangePassword = fresh.mustChangePassword;
+      }
       return token;
     },
     async session({ session, token }) {
