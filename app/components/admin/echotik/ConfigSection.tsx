@@ -258,67 +258,29 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
           )}
 
           {/* API Limits — read-only, imposed by Echotik */}
-          <Box
+          <Typography
+            variant="caption"
             sx={{
+              display: "block",
               mb: 2,
-              p: 1.5,
-              borderRadius: 2,
-              background: "rgba(255, 193, 7, 0.05)",
-              border: "1px solid rgba(255, 193, 7, 0.15)",
+              color: "rgba(255,255,255,0.35)",
+              fontSize: "0.7rem",
             }}
           >
-            <Typography
-              variant="caption"
-              sx={{
-                color: "rgba(255, 193, 7, 0.7)",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                display: "block",
-                mb: 1,
-              }}
-            >
-              Limites impostos pela API Echotik (não configuráveis)
-            </Typography>
-            <Stack direction="row" flexWrap="wrap" gap={1}>
-              {API_FIXED_LIMITS.map(({ label, value, description }) => (
-                <Tooltip key={label} title={description}>
-                  <Box
-                    sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 0.75,
-                      px: 1.25,
-                      py: 0.4,
-                      borderRadius: 1.5,
-                      background: "rgba(255, 193, 7, 0.08)",
-                      border: "1px solid rgba(255, 193, 7, 0.2)",
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "rgba(255,255,255,0.5)",
-                        fontSize: "0.72rem",
-                      }}
-                    >
-                      {label}:
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "rgba(255, 193, 7, 0.9)",
-                        fontWeight: 700,
-                        fontSize: "0.78rem",
-                      }}
-                    >
-                      {value}
-                    </Typography>
+            {API_FIXED_LIMITS.map(({ label, value, description }) => (
+              <Tooltip key={label} title={description}>
+                <Box component="span" sx={{ mr: 2 }}>
+                  {label}:{" "}
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {value}
                   </Box>
-                </Tooltip>
-              ))}
-            </Stack>
-          </Box>
+                </Box>
+              </Tooltip>
+            ))}
+            <Box component="span" sx={{ opacity: 0.6 }}>
+              — limites fixos da API Echotik
+            </Box>
+          </Typography>
           <Stack
             spacing={3}
             sx={{
