@@ -54,7 +54,7 @@ export function PromptsSection({
   onSave,
 }: PromptsSectionProps) {
   return (
-    <Grid item xs={12} md={6}>
+    <Grid item xs={12} md={8}>
       <Card sx={cardStyle}>
         <CardHeader
           avatar={<CodeOutlined sx={{ color: "#2DD4FF" }} />}

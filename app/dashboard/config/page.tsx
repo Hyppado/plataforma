@@ -12,14 +12,11 @@ import {
   Tab,
 } from "@mui/material";
 import {
-  getQuotaPolicy,
   getPromptConfig,
-  updateQuotaPolicy,
   updatePromptConfig,
 } from "@/lib/admin/admin-client";
 import { PROMPT_VARIABLES, getDefaultPromptConfig } from "@/lib/admin/config";
-import type { QuotaPolicy, QuotaUsage, PromptConfig } from "@/lib/types/admin";
-import { LimitsSection } from "@/app/components/admin/LimitsSection";
+import type { PromptConfig } from "@/lib/types/admin";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
@@ -33,31 +30,16 @@ export default function ConfigPage() {
   const [activeTab, setActiveTab] = useState(0);
 
   // Data state (for Geral tab)
-  const [quotaPolicy, setQuotaPolicyState] = useState<QuotaPolicy | null>(null);
-  const [quotaUsage, setQuotaUsage] = useState<QuotaUsage>({});
   const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null);
   const [promptTab, setPromptTab] = useState(0);
   const [savedPrompt, setSavedPrompt] = useState(false);
-  const [limitsSaved, setLimitsSaved] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [transcriptsLimit, setTranscriptsLimit] = useState("40");
-  const [scriptsLimit, setScriptsLimit] = useState("70");
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [policy, prompt, usageData] = await Promise.all([
-        getQuotaPolicy(),
-        getPromptConfig(),
-        fetch("/api/admin/quota-usage")
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null),
-      ]);
-      setQuotaPolicyState(policy);
-      setTranscriptsLimit(policy.transcriptsPerMonth.toString());
-      setScriptsLimit(policy.scriptsPerMonth.toString());
+      const prompt = await getPromptConfig();
       setPromptConfig(prompt);
-      if (usageData) setQuotaUsage(usageData);
     } catch (error) {
       console.error("Failed to load config data:", error);
     } finally {
@@ -73,24 +55,6 @@ export default function ConfigPage() {
     }
     loadData();
   }, [session, status, router, loadData]);
-
-  const saveLimits = useCallback(async () => {
-    if (!quotaPolicy) return;
-    const newPolicy: QuotaPolicy = {
-      ...quotaPolicy,
-      transcriptsPerMonth: parseInt(transcriptsLimit) || 40,
-      scriptsPerMonth: parseInt(scriptsLimit) || 70,
-    };
-    try {
-      await updateQuotaPolicy(newPolicy);
-      setQuotaPolicyState(newPolicy);
-      setLimitsSaved(true);
-      setTimeout(() => setLimitsSaved(false), 2000);
-      window.dispatchEvent(new Event("quota-policy-changed"));
-    } catch (error) {
-      console.error("Erro ao salvar limites:", error);
-    }
-  }, [quotaPolicy, transcriptsLimit, scriptsLimit]);
 
   const updatePromptTemplate = useCallback(
     (type: "insight" | "script", template: string) => {
@@ -154,22 +118,11 @@ export default function ConfigPage() {
         <Tab label="OpenAI" />
       </Tabs>
 
-      {/* Tab 0 — Geral (Limites + Prompts) */}
+      {/* Tab 0 — Geral (Prompts) */}
       {activeTab === 0 && (
         <>
           {loading && <LinearProgress sx={{ mb: 3 }} />}
           <Grid container spacing={3}>
-            <LimitsSection
-              quotaPolicy={quotaPolicy}
-              quotaUsage={quotaUsage}
-              transcriptsLimit={transcriptsLimit}
-              scriptsLimit={scriptsLimit}
-              limitsSaved={limitsSaved}
-              onTranscriptsLimitChange={setTranscriptsLimit}
-              onScriptsLimitChange={setScriptsLimit}
-              onSave={saveLimits}
-            />
-
             <PromptsSection
               promptConfig={promptConfig}
               promptTab={promptTab}
