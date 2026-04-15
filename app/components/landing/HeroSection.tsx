@@ -48,8 +48,9 @@ function HeroMedia({
     <Image
       src="/hero/influencer-hero.png"
       alt="Influenciadora usando a plataforma Hyppado"
-      width={560}
-      height={700}
+      width={4109}
+      height={2311}
+      unoptimized
       priority
       onError={onError}
       style={{
