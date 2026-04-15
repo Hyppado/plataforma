@@ -42,6 +42,33 @@ export const EMAIL_FROM = "Hyppado <suporte@hyppado.com>";
 export const EMAIL_REPLY_TO = "suportehyppado@gmail.com";
 
 // ---------------------------------------------------------------------------
+// Base URL
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the base URL for email links, respecting the current environment.
+ *
+ * - Vercel Production  → https://hyppado.com
+ * - Vercel Preview/Dev → https://dev.hyppado.com
+ * - Local (no VERCEL)  → NEXTAUTH_URL or http://localhost:3000
+ */
+export function getEmailBaseUrl(): string {
+  // On Vercel, use the deterministic domain based on environment
+  if (process.env.VERCEL_ENV === "production") {
+    return "https://hyppado.com";
+  }
+  if (process.env.VERCEL_ENV) {
+    // preview or development
+    return "https://dev.hyppado.com";
+  }
+  // Local development — fall back to NEXTAUTH_URL or localhost
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL.replace(/\/$/, "");
+  }
+  return "http://localhost:3000";
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 

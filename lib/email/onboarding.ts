@@ -13,6 +13,7 @@
  */
 
 import { sendEmail } from "./client";
+import { getEmailBaseUrl } from "./client";
 import {
   generateSetupToken,
   ONBOARDING_TOKEN_EXPIRY_HOURS,
@@ -101,7 +102,7 @@ export async function sendOnboardingEmail(
   );
 
   // Build the setup URL
-  const baseUrl = process.env.NEXTAUTH_URL ?? "https://hyppado.com";
+  const baseUrl = getEmailBaseUrl();
   const setupUrl = `${baseUrl}/criar-senha?token=${encodeURIComponent(rawToken)}`;
 
   // Build email content

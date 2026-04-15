@@ -3,7 +3,12 @@
  * Public re-exports for the email module.
  */
 
-export { sendEmail, EMAIL_FROM, EMAIL_REPLY_TO } from "./client";
+export {
+  sendEmail,
+  EMAIL_FROM,
+  EMAIL_REPLY_TO,
+  getEmailBaseUrl,
+} from "./client";
 export type { SendEmailOptions, SendEmailResult } from "./client";
 
 export { sendOnboardingEmail } from "./onboarding";

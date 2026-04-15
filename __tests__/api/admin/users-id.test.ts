@@ -60,6 +60,7 @@ const { sendEmailMock, buildWelcomePasswordEmailMock } = vi.hoisted(() => ({
 vi.mock("@/lib/email", () => ({
   sendEmail: sendEmailMock,
   buildWelcomePasswordEmail: buildWelcomePasswordEmailMock,
+  getEmailBaseUrl: vi.fn().mockReturnValue("https://hyppado.com"),
 }));
 
 import { DELETE, POST } from "@/app/api/admin/users/[id]/route";
@@ -283,7 +284,7 @@ describe("POST /api/admin/users/[id] — reset password", () => {
       expect.objectContaining({
         name: "Test User",
         email: "user@test.com",
-        loginUrl: "http://localhost:3000/login",
+        loginUrl: "https://hyppado.com/login",
       }),
     );
 

@@ -12,6 +12,11 @@ vi.mock("@/lib/email/client", () => ({
   sendEmail: vi.fn().mockResolvedValue({ success: true, messageId: "msg-1" }),
   EMAIL_FROM: "Hyppado <suporte@hyppado.com>",
   EMAIL_REPLY_TO: "suportehyppado@gmail.com",
+  getEmailBaseUrl: vi
+    .fn()
+    .mockImplementation(
+      () => process.env.NEXTAUTH_URL ?? "https://hyppado.com",
+    ),
 }));
 
 // Mock setup-token

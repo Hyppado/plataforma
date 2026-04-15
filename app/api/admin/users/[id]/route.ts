@@ -12,7 +12,11 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 import { resolveUserAccess } from "@/lib/access/resolver";
 import { createLogger } from "@/lib/logger";
-import { sendEmail, buildWelcomePasswordEmail } from "@/lib/email";
+import {
+  sendEmail,
+  buildWelcomePasswordEmail,
+  getEmailBaseUrl,
+} from "@/lib/email";
 
 const log = createLogger("api/admin/users/[id]");
 
@@ -129,7 +133,7 @@ export async function POST(
   });
 
   // Send email with the new password
-  const loginUrl = `${process.env.NEXTAUTH_URL ?? "https://hyppado.com"}/login`;
+  const loginUrl = `${getEmailBaseUrl()}/login`;
   const displayName = user.name || user.email.split("@")[0];
   const template = buildWelcomePasswordEmail({
     name: displayName,

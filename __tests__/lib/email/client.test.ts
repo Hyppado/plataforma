@@ -1,7 +1,7 @@
 /**
  * Tests: lib/email/client.ts — Resend email client
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
 // Mock Resend before importing the module
 const mockSend = vi.fn();
@@ -108,5 +108,62 @@ describe("sendEmail()", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ replyTo: "custom@reply.com" }),
     );
+  });
+});
+
+describe("getEmailBaseUrl()", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.VERCEL_ENV;
+    delete process.env.NEXTAUTH_URL;
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns hyppado.com when VERCEL_ENV is production", async () => {
+    process.env.VERCEL_ENV = "production";
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("https://hyppado.com");
+  });
+
+  it("returns dev.hyppado.com when VERCEL_ENV is preview", async () => {
+    process.env.VERCEL_ENV = "preview";
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("https://dev.hyppado.com");
+  });
+
+  it("returns dev.hyppado.com when VERCEL_ENV is development", async () => {
+    process.env.VERCEL_ENV = "development";
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("https://dev.hyppado.com");
+  });
+
+  it("returns NEXTAUTH_URL locally when set", async () => {
+    process.env.NEXTAUTH_URL = "http://localhost:3000";
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("http://localhost:3000");
+  });
+
+  it("strips trailing slash from NEXTAUTH_URL", async () => {
+    process.env.NEXTAUTH_URL = "http://localhost:3000/";
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("http://localhost:3000");
+  });
+
+  it("returns localhost fallback when no env is set", async () => {
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("http://localhost:3000");
+  });
+
+  it("VERCEL_ENV takes priority over NEXTAUTH_URL", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.NEXTAUTH_URL = "https://dev.hyppado.com";
+    const { getEmailBaseUrl } = await import("@/lib/email/client");
+    expect(getEmailBaseUrl()).toBe("https://hyppado.com");
   });
 });

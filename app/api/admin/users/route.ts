@@ -9,7 +9,11 @@ import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isAuthed } from "@/lib/auth";
-import { sendEmail, buildWelcomePasswordEmail } from "@/lib/email";
+import {
+  sendEmail,
+  buildWelcomePasswordEmail,
+  getEmailBaseUrl,
+} from "@/lib/email";
 import { createLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -222,7 +226,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Send welcome email with temporary password
-  const loginUrl = `${process.env.NEXTAUTH_URL ?? ""}/login`;
+  const loginUrl = `${getEmailBaseUrl()}/login`;
   const displayName = user.name ?? user.email.split("@")[0];
   const emailTemplate = buildWelcomePasswordEmail({
     name: displayName,

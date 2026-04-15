@@ -14,6 +14,7 @@
  */
 
 import { sendEmail } from "./client";
+import { getEmailBaseUrl } from "./client";
 import { generateSetupToken, RESET_TOKEN_EXPIRY_HOURS } from "./setup-token";
 import { buildPasswordResetEmail } from "./templates";
 import { createLogger } from "../logger";
@@ -101,7 +102,7 @@ export async function sendPasswordResetEmail(
   const rawToken = await generateSetupToken(user.id, RESET_TOKEN_EXPIRY_HOURS);
 
   // Build the reset URL — reuses /criar-senha with the same token mechanism
-  const baseUrl = process.env.NEXTAUTH_URL ?? "https://hyppado.com";
+  const baseUrl = getEmailBaseUrl();
   const resetUrl = `${baseUrl}/criar-senha?token=${encodeURIComponent(rawToken)}`;
 
   // Build email content

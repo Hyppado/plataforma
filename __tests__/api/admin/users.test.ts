@@ -26,6 +26,7 @@ vi.mock("@/lib/email", () => ({
     html: "<html>welcome</html>",
     text: "welcome",
   }),
+  getEmailBaseUrl: vi.fn().mockReturnValue("https://hyppado.com"),
 }));
 
 // Mock bcryptjs
