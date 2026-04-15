@@ -14,7 +14,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   LinearProgress,
+  Menu,
   MenuItem,
   Pagination,
   Select,
@@ -34,6 +36,7 @@ import {
 } from "@mui/material";
 import {
   Add as AddIcon,
+  MoreVert as MoreVertIcon,
   PersonAdd as PersonAddIcon,
   PersonOutlined,
 } from "@mui/icons-material";
@@ -189,7 +192,6 @@ const headCellSx = {
   borderColor: "rgba(255,255,255,0.06)",
   fontWeight: 600,
   fontSize: "0.75rem",
-  whiteSpace: "nowrap" as const,
 };
 
 function formatDate(iso: string | null): string {
@@ -537,6 +539,108 @@ function ConfirmDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Row Actions Dropdown
+// ---------------------------------------------------------------------------
+
+function RowActionsMenu({
+  user,
+  isEditable,
+  onEdit,
+  onResetPassword,
+  onDelete,
+  onDeactivate,
+}: {
+  user: UserRow;
+  isEditable: boolean;
+  onEdit: () => void;
+  onResetPassword: () => void;
+  onDelete: () => void;
+  onDeactivate: () => void;
+}) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const close = () => setAnchor(null);
+  return (
+    <>
+      <IconButton
+        size="small"
+        onClick={(e) => setAnchor(e.currentTarget)}
+        sx={{
+          color: "rgba(255,255,255,0.45)",
+          p: 0.5,
+          "&:hover": { color: "#fff" },
+        }}
+      >
+        <MoreVertIcon fontSize="small" />
+      </IconButton>
+      <Menu
+        anchorEl={anchor}
+        open={Boolean(anchor)}
+        onClose={close}
+        PaperProps={{
+          sx: {
+            background: "#0d1422",
+            border: "1px solid rgba(255,255,255,0.1)",
+            minWidth: 170,
+          },
+        }}
+        transformOrigin={{ horizontal: "right", vertical: "top" }}
+        anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+      >
+        <MenuItem
+          disabled={!isEditable}
+          onClick={() => {
+            close();
+            if (isEditable) onEdit();
+          }}
+          sx={{
+            fontSize: "0.82rem",
+            color: isEditable ? "secondary.main" : "text.disabled",
+          }}
+        >
+          Editar
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            close();
+            onResetPassword();
+          }}
+          sx={{ fontSize: "0.82rem", color: "secondary.main" }}
+        >
+          Resetar Senha
+        </MenuItem>
+        <MenuItem
+          disabled={!isEditable}
+          onClick={() => {
+            close();
+            if (isEditable) onDelete();
+          }}
+          sx={{
+            fontSize: "0.82rem",
+            color: isEditable ? "secondary.main" : "text.disabled",
+          }}
+        >
+          Excluir
+        </MenuItem>
+        <MenuItem
+          disabled={user.status !== "ACTIVE"}
+          onClick={() => {
+            close();
+            if (user.status === "ACTIVE") onDeactivate();
+          }}
+          sx={{
+            fontSize: "0.82rem",
+            color:
+              user.status === "ACTIVE" ? "secondary.main" : "text.disabled",
+          }}
+        >
+          Desativar
+        </MenuItem>
+      </Menu>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -720,20 +824,25 @@ export function UsersTab() {
 
           {(isLoading || updating) && <LinearProgress sx={{ mb: 1 }} />}
 
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ overflowX: "hidden" }}>
+            <Table size="small" sx={{ tableLayout: "fixed", width: "100%" }}>
               <TableHead>
                 <TableRow>
-                  {[
-                    "Nome",
-                    "Email",
-                    "Perfil",
-                    "Status",
-                    "Plano / Assinatura",
-                    "Criado",
-                    "Ações",
-                  ].map((h) => (
-                    <TableCell key={h} sx={headCellSx}>
+                  {(
+                    [
+                      ["Nome", "11%"],
+                      ["Email", "21%"],
+                      ["Perfil", "8%"],
+                      ["Status", "7%"],
+                      ["Plano", "9%"],
+                      ["Assinatura", "9%"],
+                      ["Mensalidade", "9%"],
+                      ["Acesso até", "9%"],
+                      ["Criado", "8%"],
+                      ["Ações", "9%"],
+                    ] as [string, string][]
+                  ).map(([h, w]) => (
+                    <TableCell key={h} sx={{ ...headCellSx, width: w }}>
                       {h}
                     </TableCell>
                   ))}
@@ -767,7 +876,6 @@ export function UsersTab() {
                           sx={{
                             ...cellSx,
                             color: "rgba(255,255,255,0.8)",
-                            maxWidth: 140,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -780,7 +888,6 @@ export function UsersTab() {
                         <TableCell
                           sx={{
                             ...cellSx,
-                            maxWidth: 200,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -822,58 +929,89 @@ export function UsersTab() {
                           })()}
                         </TableCell>
 
-                        {/* Plano / Assinatura (merged) */}
+                        {/* Plano */}
+                        <TableCell sx={cellSx}>
+                          {sub?.plan?.name ? (
+                            <Chip
+                              label={sub.plan.name}
+                              size="small"
+                              sx={{
+                                background: "rgba(45,212,255,0.1)",
+                                color: "#2DD4FF",
+                                fontSize: "0.7rem",
+                                height: 22,
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Assinatura */}
+                        <TableCell sx={cellSx}>
+                          {sub && subStyle ? (
+                            <Chip
+                              label={SUB_STATUS_LABEL[sub.status] ?? sub.status}
+                              size="small"
+                              sx={{
+                                background: subStyle.bg,
+                                color: subStyle.color,
+                                fontSize: "0.7rem",
+                                height: 22,
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Mensalidade */}
+                        <TableCell sx={cellSx}>
+                          {charge && chargeStyle ? (
+                            <Chip
+                              label={
+                                CHARGE_STATUS_LABEL[charge.status] ??
+                                charge.status
+                              }
+                              size="small"
+                              sx={{
+                                background: chargeStyle.bg,
+                                color: chargeStyle.color,
+                                fontSize: "0.7rem",
+                                height: 22,
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+
+                        {/* Acesso até */}
                         <TableCell sx={cellSx}>
                           {sub ? (
-                            <Stack
-                              direction="row"
-                              spacing={0.5}
-                              alignItems="center"
-                              flexWrap="wrap"
-                              useFlexGap
-                            >
-                              {sub.plan?.name && (
-                                <Chip
-                                  label={sub.plan.name}
-                                  size="small"
-                                  sx={{
-                                    background: "rgba(45,212,255,0.1)",
-                                    color: "#2DD4FF",
-                                    fontSize: "0.7rem",
-                                    height: 22,
-                                  }}
-                                />
-                              )}
-                              {subStyle && (
-                                <Chip
-                                  label={
-                                    SUB_STATUS_LABEL[sub.status] ?? sub.status
-                                  }
-                                  size="small"
-                                  sx={{
-                                    background: subStyle.bg,
-                                    color: subStyle.color,
-                                    fontSize: "0.7rem",
-                                    height: 22,
-                                  }}
-                                />
-                              )}
-                              {charge && chargeStyle && (
-                                <Chip
-                                  label={
-                                    CHARGE_STATUS_LABEL[charge.status] ??
-                                    charge.status
-                                  }
-                                  size="small"
-                                  sx={{
-                                    background: chargeStyle.bg,
-                                    color: chargeStyle.color,
-                                    fontSize: "0.7rem",
-                                    height: 22,
-                                  }}
-                                />
-                              )}
-                            </Stack>
+                            sub.endedAt ? (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color:
+                                    new Date(sub.endedAt) < new Date()
+                                      ? "#EF5350"
+                                      : "rgba(255,255,255,0.6)",
+                                  fontSize: "0.8rem",
+                                }}
+                              >
+                                {formatDate(sub.endedAt)}
+                              </Typography>
+                            ) : sub.status === "ACTIVE" ? (
+                              <Typography
+                                variant="caption"
+                                sx={{ color: "#81C784", fontSize: "0.8rem" }}
+                              >
+                                Em vigor
+                              </Typography>
+                            ) : (
+                              "—"
+                            )
                           ) : (
                             "—"
                           )}
@@ -884,157 +1022,20 @@ export function UsersTab() {
                           {formatDate(u.createdAt)}
                         </TableCell>
 
-                        {/* Ações — text links */}
-                        <TableCell sx={cellSx}>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{ whiteSpace: "nowrap" }}
-                          >
-                            {/* Editar */}
-                            <Tooltip
-                              title={
-                                isEditable
-                                  ? "Editar dados do usuário"
-                                  : "Assinantes não podem ser editados diretamente"
-                              }
-                              arrow
-                            >
-                              <Typography
-                                component="span"
-                                role={isEditable ? "button" : undefined}
-                                onClick={
-                                  isEditable ? () => setEditUser(u) : undefined
-                                }
-                                sx={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: isEditable
-                                    ? "pointer"
-                                    : "not-allowed",
-                                  color: isEditable
-                                    ? "primary.main"
-                                    : "text.disabled",
-                                  fontSize: "0.75rem",
-                                  p: 0,
-                                  "&:hover": isEditable
-                                    ? { color: "primary.light" }
-                                    : {},
-                                }}
-                              >
-                                Editar
-                              </Typography>
-                            </Tooltip>
-
-                            {/* Resetar Senha */}
-                            <Tooltip
-                              title="Gera uma senha temporária e envia por email"
-                              arrow
-                            >
-                              <Typography
-                                component="button"
-                                onClick={() => handleResetPassword(u.id)}
-                                sx={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  color: "secondary.main",
-                                  fontSize: "0.75rem",
-                                  p: 0,
-                                  "&:hover": { color: "secondary.light" },
-                                }}
-                              >
-                                Resetar Senha
-                              </Typography>
-                            </Tooltip>
-
-                            {/* Excluir */}
-                            <Tooltip
-                              title={
-                                isEditable
-                                  ? "Excluir permanentemente o usuário e seus dados"
-                                  : "Assinantes não podem ser excluídos"
-                              }
-                              arrow
-                            >
-                              <Typography
-                                component="span"
-                                role={isEditable ? "button" : undefined}
-                                onClick={
-                                  isEditable
-                                    ? () =>
-                                        setConfirmDialog({
-                                          type: "delete",
-                                          user: u,
-                                        })
-                                    : undefined
-                                }
-                                sx={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: isEditable
-                                    ? "pointer"
-                                    : "not-allowed",
-                                  color: isEditable
-                                    ? "error.light"
-                                    : "text.disabled",
-                                  fontSize: "0.75rem",
-                                  p: 0,
-                                  "&:hover": isEditable
-                                    ? { color: "error.main" }
-                                    : {},
-                                }}
-                              >
-                                Excluir
-                              </Typography>
-                            </Tooltip>
-
-                            {/* Desativar */}
-                            <Tooltip
-                              title={
-                                u.status !== "ACTIVE"
-                                  ? "Usuário já está inativo/suspenso"
-                                  : "Desativar impede o login, mas mantém os dados"
-                              }
-                              arrow
-                            >
-                              <Typography
-                                component="span"
-                                role={
-                                  u.status === "ACTIVE" ? "button" : undefined
-                                }
-                                onClick={
-                                  u.status === "ACTIVE"
-                                    ? () =>
-                                        setConfirmDialog({
-                                          type: "deactivate",
-                                          user: u,
-                                        })
-                                    : undefined
-                                }
-                                sx={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor:
-                                    u.status === "ACTIVE"
-                                      ? "pointer"
-                                      : "not-allowed",
-                                  color:
-                                    u.status === "ACTIVE"
-                                      ? "warning.main"
-                                      : "text.disabled",
-                                  fontSize: "0.75rem",
-                                  p: 0,
-                                  "&:hover":
-                                    u.status === "ACTIVE"
-                                      ? { color: "warning.light" }
-                                      : {},
-                                }}
-                              >
-                                Desativar
-                              </Typography>
-                            </Tooltip>
-                          </Stack>
+                        {/* Ações */}
+                        <TableCell sx={{ ...cellSx, textAlign: "center" }}>
+                          <RowActionsMenu
+                            user={u}
+                            isEditable={isEditable}
+                            onEdit={() => setEditUser(u)}
+                            onResetPassword={() => handleResetPassword(u.id)}
+                            onDelete={() =>
+                              setConfirmDialog({ type: "delete", user: u })
+                            }
+                            onDeactivate={() =>
+                              setConfirmDialog({ type: "deactivate", user: u })
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     );
@@ -1042,7 +1043,7 @@ export function UsersTab() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={10}
                       sx={{
                         color: "rgba(255,255,255,0.4)",
                         borderColor: "rgba(255,255,255,0.06)",

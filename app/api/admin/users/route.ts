@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         lastLoginAt: true,
         _count: {
           select: {
-            subscriptions: { where: { status: "ACTIVE" } },
+            subscriptions: true,
             accessGrants: true,
           },
         },
