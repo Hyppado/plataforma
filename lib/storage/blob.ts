@@ -7,7 +7,7 @@
  * Requires BLOB_READ_WRITE_TOKEN env var in Vercel.
  */
 
-import { put } from "@vercel/blob";
+import { put, del, list } from "@vercel/blob";
 import { echotikRequest } from "@/lib/echotik/client";
 import { createLogger } from "@/lib/logger";
 
@@ -154,4 +154,55 @@ export async function uploadEchotikImageToBlob(
   if (!signedUrl) return null;
 
   return uploadImageToBlob(signedUrl, blobPath);
+}
+
+// ---------------------------------------------------------------------------
+// Bulk delete
+// ---------------------------------------------------------------------------
+
+/**
+ * Deletes blobs from Vercel Blob Storage by URL in batches.
+ * Skips empty arrays silently.
+ *
+ * @param urls  Array of Vercel Blob URLs to delete
+ * @param batchSize  How many URLs to delete per API call (max 1000)
+ * @returns Number of URLs successfully submitted for deletion
+ */
+export async function deleteBlobs(
+  urls: string[],
+  batchSize = 100,
+): Promise<number> {
+  if (urls.length === 0) return 0;
+  let deleted = 0;
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize);
+    await del(batch);
+    deleted += batch.length;
+  }
+  return deleted;
+}
+
+// ---------------------------------------------------------------------------
+// List by prefix
+// ---------------------------------------------------------------------------
+
+export interface BlobEntry {
+  url: string;
+  pathname: string;
+}
+
+/**
+ * Returns all blobs under the given path prefix, following pagination cursors.
+ */
+export async function listBlobsByPrefix(prefix: string): Promise<BlobEntry[]> {
+  const entries: BlobEntry[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix, cursor });
+    for (const blob of page.blobs) {
+      entries.push({ url: blob.url, pathname: blob.pathname });
+    }
+    cursor = page.cursor;
+  } while (cursor);
+  return entries;
 }

@@ -36,6 +36,7 @@ import {
 import { syncCreatorRanklist } from "./syncCreators";
 import { uploadPendingImages } from "./uploadImages";
 import { cachePendingDownloadUrls } from "./cacheDownloadUrls";
+import { cleanupOrphanedBlobs } from "./cleanupOrphans";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -49,6 +50,7 @@ export type CronTask =
   | "details"
   | "upload-images"
   | "cache-download-urls"
+  | "cleanup-orphans"
   | "auto";
 
 export interface CronOptions {
@@ -168,6 +170,11 @@ export async function detectNextTask(
   // 7. Cache download URLs for trending videos (runs after data ingestion)
   if (force || !(await shouldSkip("echotik:cache-download-urls", 6))) {
     return { task: "cache-download-urls", region: null };
+  }
+
+  // 8. Cleanup orphaned blobs + product details (once per day)
+  if (force || !(await shouldSkip("echotik:cleanup-orphans", 24))) {
+    return { task: "cleanup-orphans", region: null };
   }
 
   // Nothing to do
@@ -447,6 +454,43 @@ export async function runEchotikCron(
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       log.error("Download URL caching failed", { error: errorMessage });
+      return {
+        runId: "",
+        status: "FAILED",
+        stats: { ...emptyStats(), durationMs: Date.now() - start },
+        error: errorMessage,
+      };
+    }
+  }
+
+  if (task === "cleanup-orphans") {
+    try {
+      const result = await cleanupOrphanedBlobs(log);
+      const stats = {
+        ...emptyStats(),
+        durationMs: Date.now() - start,
+      };
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:cleanup-orphans",
+          status: "SUCCESS",
+          endedAt: new Date(),
+          statsJson: result as any,
+        },
+      });
+      const total =
+        result.productDetailsDeleted +
+        result.productBlobsDeleted +
+        result.creatorBlobsDeleted;
+      log.info("Orphan cleanup done", { ...result });
+      return {
+        runId: "",
+        status: total > 0 ? "SUCCESS" : "SKIPPED",
+        stats,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("Orphan cleanup failed", { error: errorMessage });
       return {
         runId: "",
         status: "FAILED",
