@@ -15,11 +15,15 @@ export interface QuotaLimits {
  * sources in priority order:
  *
  *   1. Active AccessGrant with a linked plan (admin override)
- *   2. Active Subscription with a linked plan
+ *   2. Subscription with valid paid period (status ACTIVE/PAST_DUE, or
+ *      CANCELLED but endedAt not yet reached)
  *   3. null (no plan / no quota limits)
  *
  * This mirrors the priority chain in `lib/access/resolver.ts` so that
  * quota enforcement stays consistent with the access decision.
+ *
+ * Note: A CANCELLED subscription still grants quota access until endedAt,
+ * since the user has already paid for that period.
  */
 export async function getUserActivePlan(userId: string): Promise<Plan | null> {
   // 1. Check AccessGrant first (admin override, highest priority)
@@ -40,10 +44,26 @@ export async function getUserActivePlan(userId: string): Promise<Plan | null> {
     return grant.plan;
   }
 
-  // 2. Fall back to active subscription
+  // 2. Fall back to subscription with valid paid period
+  // Priority: ACTIVE > PAST_DUE > CANCELLED (with valid period)
   const subscription = await prisma.subscription.findFirst({
-    where: { userId, status: "ACTIVE" },
-    orderBy: { startedAt: "desc" },
+    where: {
+      userId,
+      OR: [
+        // Active or past due subscriptions
+        { status: { in: ["ACTIVE", "PAST_DUE"] } },
+        // Cancelled but paid period not yet expired
+        {
+          status: "CANCELLED",
+          endedAt: { gt: now },
+        },
+      ],
+    },
+    orderBy: [
+      // Prefer ACTIVE over others
+      { status: "asc" },
+      { startedAt: "desc" },
+    ],
     include: { plan: true },
   });
 

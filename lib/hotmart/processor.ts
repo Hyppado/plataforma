@@ -193,6 +193,12 @@ async function upsertSubscription(
     ? (fields.cancellationDate ?? occurredAt)
     : undefined;
 
+  // Para cancelamentos, o acesso continua até date_next_charge (accessExpiresAt)
+  // que representa o fim do período já pago
+  const effectiveEndedAt = isCancellation
+    ? (fields.accessExpiresAt ?? effectiveCancelledAt ?? occurredAt)
+    : (effectiveCancelledAt ?? occurredAt);
+
   // Busca HotmartSubscription existente por id externo ou subscriberCode
   const orWhere: { hotmartSubscriptionId?: string; subscriberCode?: string }[] =
     [];
@@ -218,7 +224,7 @@ async function upsertSubscription(
           fields.recurrenceNumber === 1 && { startedAt: occurredAt }),
         ...(isCancellation && { cancelledAt: effectiveCancelledAt }),
         ...((isExpiry || isCancellation) && {
-          endedAt: effectiveCancelledAt ?? occurredAt,
+          endedAt: effectiveEndedAt,
         }),
       },
     });

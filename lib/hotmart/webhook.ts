@@ -65,6 +65,8 @@ export interface HotmartWebhookFields {
   occurredAt?: Date;
   /** Data efetiva de cancelamento (epoch ms enviado pela Hotmart em data.cancellation_date) */
   cancellationDate?: Date;
+  /** Data até quando o acesso permanece válido (epoch ms enviado pela Hotmart em data.date_next_charge) */
+  accessExpiresAt?: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +216,9 @@ export function extractWebhookFields(
   // cancellation_date — epoch ms específico de SUBSCRIPTION_CANCELLATION
   const cancellationDate = parseDate(d?.cancellation_date);
 
+  // date_next_charge — fim do período pago (quando o acesso expira após cancelamento)
+  const accessExpiresAt = parseDate(d?.date_next_charge);
+
   return {
     payloadVersion,
     eventType,
@@ -238,6 +243,7 @@ export function extractWebhookFields(
     productName,
     occurredAt,
     cancellationDate,
+    accessExpiresAt,
   };
 }
 

@@ -113,13 +113,22 @@ export async function resolveUserAccess(
     };
   }
 
-  // 4. Check active subscription
+  // 4. Check subscription with valid paid period
+  // A CANCELLED subscription still grants access until endedAt
   const subscription = await prisma.subscription.findFirst({
     where: {
       userId,
-      status: { in: ["ACTIVE", "PAST_DUE"] },
+      OR: [
+        // Active or past due subscriptions
+        { status: { in: ["ACTIVE", "PAST_DUE"] } },
+        // Cancelled but paid period not yet expired
+        {
+          status: "CANCELLED",
+          endedAt: { gt: now },
+        },
+      ],
     },
-    orderBy: { startedAt: "desc" },
+    orderBy: [{ status: "asc" }, { startedAt: "desc" }],
     include: { plan: true },
   });
 
@@ -141,6 +150,18 @@ export async function resolveUserAccess(
       plan: subscription.plan,
       expiresAt: subscription.nextChargeAt,
       reason: `Pagamento em atraso: ${subscription.plan.name}`,
+      quotas: getQuotaLimits(subscription.plan),
+    };
+  }
+
+  // CANCELLED but still within paid period
+  if (subscription?.status === "CANCELLED" && subscription.endedAt) {
+    return {
+      status: "FULL_ACCESS",
+      source: "subscription",
+      plan: subscription.plan,
+      expiresAt: subscription.endedAt,
+      reason: `Assinatura cancelada, acesso até ${subscription.endedAt.toLocaleDateString("pt-BR")}`,
       quotas: getQuotaLimits(subscription.plan),
     };
   }
