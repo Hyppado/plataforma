@@ -149,11 +149,14 @@ lib/
       health.ts
     cron/          → ingestion cron modules
       orchestrator.ts  → detectNextTask() → {task, region} | null
-      helpers.ts       → getConfiguredRegions(), cleanupStaleRuns(), hasExcessiveFailures()
+      helpers.ts       → getConfiguredRegions(), cleanupStaleRuns(), hasExcessiveFailures(), shouldSkip()
       syncVideos.ts    → syncVideoRanklist(runId, region, log)
       syncProducts.ts  → syncProductRanklist(runId, region, log)
       syncCreators.ts  → syncCreatorRanklist(runId, region, log)
       syncCategories.ts
+      uploadImages.ts  → uploadPendingImages(log, deadlineMs) — signs CDN URLs + uploads to Vercel Blob
+      cacheDownloadUrls.ts → cachePendingDownloadUrls(log, deadlineMs) — pre-fetches video download URLs
+      cleanupOrphans.ts → cleanupOrphanedBlobs(log) — deletes orphaned blobs and product detail rows
       config.ts        → cron configuration
       index.ts
       types.ts
@@ -178,7 +181,7 @@ lib/
   settings.ts      → database-backed configuration + secret encryption helpers
   storage/         → file storage
     saved.ts       → saved items storage
-    blob.ts        → Vercel Blob helpers (sign + download + upload images)
+    blob.ts        → Vercel Blob helpers (sign + download + upload + delete + list images)
   transcription/   → on-demand video transcription system (Whisper-only pipeline)
     index.ts       → public re-exports
     service.ts     → requestTranscript, getTranscript, processPendingTranscripts, detectHallucination
@@ -503,16 +506,22 @@ All user-facing data (videos, products, creators, categories, images) must come 
 - **HTTP Client**: `lib/echotik/client.ts`
 - **Orchestrator**: `lib/echotik/cron/orchestrator.ts`
   - `detectNextTask(force?)` → `{ task, region } | null`
-  - Iterates: categories → videos per region → products per region → creators per region → details → upload-images → cache-download-urls
-  - Skip keys in the format `echotik:videos:BR`, `echotik:products:US`, `echotik:upload-images`, `echotik:cache-download-urls`, etc.
+  - Iterates in priority order: categories → videos per region → products per region → creators per region → details → upload-images → cache-download-urls → cleanup-orphans
+  - Skip keys in the format `echotik:videos:BR`, `echotik:products:US`, `echotik:upload-images`, `echotik:cache-download-urls`, `echotik:cleanup-orphans`, etc.
+  - **Skip interval applies only to successful runs.** `shouldSkip()` checks for a FAILED run on `echotik:run:<task>:<region>` that occurred *after* the last success — if found, returns false so the task retries immediately on the next tick, regardless of the configured interval. Persistent failures are still throttled by `hasExcessiveFailures()` (5 failures in 2h).
 - **Sync functions**: each receives `(runId, region, log)` — one region per invocation
   - `syncVideoRanklist(runId, region, log)` in `syncVideos.ts`
   - `syncProductRanklist(runId, region, log)` in `syncProducts.ts`
   - `syncCreatorRanklist(runId, region, log)` in `syncCreators.ts`
+  - Each sync prunes stale rows at the end: `deleteMany({ country: region, syncedAt: { lt: runStart } })` — only the current cycle survives in the trend table.
 - **Post-ingestion tasks** (no region, run after all ranklists):
-  - `uploadPendingImages(log, deadlineMs)` in `uploadImages.ts` — signs CDN URLs + uploads to Vercel Blob
+  - `uploadPendingImages(log, deadlineMs)` in `uploadImages.ts` — signs CDN URLs + uploads product covers and creator avatars to Vercel Blob; scoped to items in the latest ranking cycle only
   - `cachePendingDownloadUrls(log, deadlineMs)` in `cacheDownloadUrls.ts` — pre-fetches video download URLs
-- **Image storage**: `lib/storage/blob.ts` — Vercel Blob helpers (sign + download + upload)
+  - `cleanupOrphanedBlobs(log)` in `cleanupOrphans.ts` — runs once per 24h; deletes `EchotikProductDetail` rows (+ their Vercel Blob cover files) for products no longer in any trend row, and deletes `creators/` blob files for creators no longer in `EchotikCreatorTrendDaily`; blob deletion precedes DB deletion — any blob failure preserves the DB row for retry
+- **Image storage**: `lib/storage/blob.ts` — Vercel Blob helpers
+  - `uploadEchotikImageToBlob(cdnUrl, blobPath)` — sign + download + upload
+  - `deleteBlobs(urls, batchSize?)` — batched blob deletion
+  - `listBlobsByPrefix(prefix)` — paginated blob listing
   - Requires `BLOB_READ_WRITE_TOKEN` env var in Vercel
 - **Regions**: read exclusively from the `Region` table in the database (`isActive=true`, `orderBy sortOrder`).
   Fallback to `["BR", "US", "JP"]` if the database returns empty.
