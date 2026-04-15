@@ -164,7 +164,12 @@ export function getCandidateDates(rankingCycle: 1 | 2 | 3): Date[] {
 
 /**
  * Checks if a successful IngestionRun exists within the given interval.
- * Returns true → skip.
+ * Returns true → skip (i.e. task is still fresh, no need to re-run).
+ *
+ * Important: if a failure occurred AFTER the last success, the task is NOT
+ * skipped — it should retry on the next cron tick. The configured interval
+ * only gates re-runs after a clean success; failures always get an immediate
+ * retry regardless of how recent the previous success was.
  */
 export async function shouldSkip(
   source: string,
@@ -172,7 +177,7 @@ export async function shouldSkip(
 ): Promise<boolean> {
   const since = new Date(Date.now() - intervalHours * 60 * 60 * 1000);
 
-  const recent = await prisma.ingestionRun.findFirst({
+  const recentSuccess = await prisma.ingestionRun.findFirst({
     where: {
       source,
       status: "SUCCESS",
@@ -181,7 +186,24 @@ export async function shouldSkip(
     orderBy: { startedAt: "desc" },
   });
 
-  return !!recent;
+  if (!recentSuccess) return false;
+
+  // Check if there's been a failure on the corresponding run-record source
+  // (echotik:run:<task>:<region>) that is more recent than the last success.
+  // If so, the interval is irrelevant — the task needs to retry.
+  const runSource = source.replace(/^echotik:/, "echotik:run:");
+  const failureAfterSuccess = await prisma.ingestionRun.findFirst({
+    where: {
+      source: runSource,
+      status: "FAILED",
+      startedAt: { gt: recentSuccess.startedAt },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+
+  if (failureAfterSuccess) return false;
+
+  return true;
 }
 
 // ---------------------------------------------------------------------------

@@ -49,16 +49,78 @@ describe("shouldSkip()", () => {
     );
   });
 
-  it("returns true when a recent SUCCESS exists", async () => {
-    prismaMock.ingestionRun.findFirst.mockResolvedValue({
+  it("returns true when a recent SUCCESS exists and no subsequent failure", async () => {
+    const successRecord = {
       id: "run-1",
       source: "echotik:videos:BR",
       status: "SUCCESS",
       startedAt: new Date(),
-    });
+    };
+    // First call: success found; second call: no failure after success
+    prismaMock.ingestionRun.findFirst
+      .mockResolvedValueOnce(successRecord)
+      .mockResolvedValueOnce(null);
 
     const result = await shouldSkip("echotik:videos:BR", 24);
     expect(result).toBe(true);
+  });
+
+  it("returns false when a failure exists after the last success", async () => {
+    const successRecord = {
+      id: "run-1",
+      source: "echotik:videos:BR",
+      status: "SUCCESS",
+      startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2h ago
+    };
+    const failureRecord = {
+      id: "run-2",
+      source: "echotik:run:videos:BR",
+      status: "FAILED",
+      startedAt: new Date(Date.now() - 30 * 60 * 1000), // 30min ago
+    };
+    // First call: success found; second call: failure found after success
+    prismaMock.ingestionRun.findFirst
+      .mockResolvedValueOnce(successRecord)
+      .mockResolvedValueOnce(failureRecord);
+
+    const result = await shouldSkip("echotik:videos:BR", 24);
+    expect(result).toBe(false);
+    // Verify the failure check used the correct run source and timestamp
+    expect(prismaMock.ingestionRun.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          source: "echotik:run:videos:BR",
+          status: "FAILED",
+          startedAt: { gt: successRecord.startedAt },
+        }),
+      }),
+    );
+  });
+
+  it("derives run source correctly for categories (no region)", async () => {
+    const successRecord = {
+      id: "run-1",
+      source: "echotik:categories",
+      status: "SUCCESS",
+      startedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+    };
+    const failureRecord = {
+      id: "run-2",
+      source: "echotik:run:categories",
+      status: "FAILED",
+      startedAt: new Date(),
+    };
+    prismaMock.ingestionRun.findFirst
+      .mockResolvedValueOnce(successRecord)
+      .mockResolvedValueOnce(failureRecord);
+
+    const result = await shouldSkip("echotik:categories", 20);
+    expect(result).toBe(false);
+    expect(prismaMock.ingestionRun.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ source: "echotik:run:categories" }),
+      }),
+    );
   });
 });
 
