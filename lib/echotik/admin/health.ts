@@ -51,6 +51,7 @@ function parseSource(source: string): {
 
 function resolveHealthStatus(
   lastSuccessAt: Date | null,
+  lastFailureAt: Date | null,
   failures24h: number,
   expectedIntervalHours: number,
   isEnabled: boolean,
@@ -58,13 +59,35 @@ function resolveHealthStatus(
 ): HealthStatus {
   if (!isEnabled || !isRegionActive) return "inactive";
   if (!lastSuccessAt) return "never_run";
-  if (failures24h >= 3) return "failing";
+
+  // Only "failing" when there are 3+ recent failures AND the task has not yet
+  // recovered — i.e. the most recent run was a failure, not a success.
+  // Without the recovery check, tasks that failed but then succeeded still
+  // showed "failing" because the 24h failure window hadn't expired.
+  if (
+    failures24h >= 3 &&
+    lastFailureAt !== null &&
+    lastFailureAt > lastSuccessAt
+  ) {
+    return "failing";
+  }
 
   const ageMs = Date.now() - lastSuccessAt.getTime();
   const expectedMs = expectedIntervalHours * 60 * 60 * 1000;
   // stale if older than 1.5× the expected interval
   if (ageMs > expectedMs * 1.5) return "stale";
   return "healthy";
+}
+
+/** Derives the last run status from the latest success/failure timestamps. */
+function deriveLastRunStatus(
+  lastSuccessAt: Date | null,
+  lastFailureAt: Date | null,
+): string | null {
+  if (!lastSuccessAt && !lastFailureAt) return null;
+  if (!lastFailureAt) return "SUCCESS";
+  if (!lastSuccessAt) return "FAILED";
+  return lastSuccessAt >= lastFailureAt ? "SUCCESS" : "FAILED";
 }
 
 // ---------------------------------------------------------------------------
@@ -284,12 +307,13 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
       lastRunAt:
         (lastRun?._max.startedAt ?? lastRun?._max.endedAt)?.toISOString() ??
         null,
-      lastRunStatus: null,
+      lastRunStatus: deriveLastRunStatus(lastSuccess, lastFailure),
       hoursSinceSuccess,
       stalenessRatio,
       failures24h,
       status: resolveHealthStatus(
         lastSuccess,
+        lastFailure,
         failures24h,
         interval,
         isEnabled,
@@ -335,12 +359,13 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
           (
             latestRun?._max.startedAt ?? latestRun?._max.endedAt
           )?.toISOString() ?? null,
-        lastRunStatus: null,
+        lastRunStatus: deriveLastRunStatus(lastSuccess, lastFailure),
         hoursSinceSuccess,
         stalenessRatio,
         failures24h,
         status: resolveHealthStatus(
           lastSuccess,
+          lastFailure,
           failures24h,
           interval,
           isEnabled,
