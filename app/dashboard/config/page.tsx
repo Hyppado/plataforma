@@ -11,10 +11,7 @@ import {
   Tabs,
   Tab,
 } from "@mui/material";
-import {
-  getPromptConfig,
-  updatePromptConfig,
-} from "@/lib/admin/admin-client";
+import { getPromptConfig, updatePromptConfig } from "@/lib/admin/admin-client";
 import { PROMPT_VARIABLES, getDefaultPromptConfig } from "@/lib/admin/config";
 import type { PromptConfig } from "@/lib/types/admin";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
