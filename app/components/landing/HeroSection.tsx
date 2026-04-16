@@ -184,16 +184,14 @@ function HeroBackgroundVideo() {
 /* ============================================
    HERO SECTION — Exported composition
 ============================================ */
-export function HeroSection() {
+function HeroOverlays() {
   return (
-    <SectionShell id="inicio" variant="hero" tone="dark" backgroundSlot={<HeroBackgroundVideo />}>
-
+    <>
       {/* Overlay 1 — Contrast */}
       <Box
         sx={{
           position: "absolute",
           inset: 0,
-          zIndex: 1,
           pointerEvents: "none",
           background:
             "linear-gradient(to bottom, rgba(6,8,15,0.55) 0%, rgba(6,8,15,0.80) 55%, rgba(6,8,15,0.95) 80%, #06080F 100%)",
@@ -205,7 +203,6 @@ export function HeroSection() {
         sx={{
           position: "absolute",
           inset: 0,
-          zIndex: 2,
           pointerEvents: "none",
           background:
             "radial-gradient(ellipse at 18% 35%, rgba(56,189,248,0.12) 0%, rgba(56,189,248,0.05) 25%, transparent 60%)",
@@ -218,13 +215,29 @@ export function HeroSection() {
         sx={{
           position: "absolute",
           inset: 0,
-          zIndex: 3,
           pointerEvents: "none",
           background:
             "radial-gradient(ellipse at center, rgba(0,0,0,0) 35%, rgba(0,0,0,0.20) 85%)",
           opacity: 0.85,
         }}
       />
+    </>
+  );
+}
+
+export function HeroSection() {
+  return (
+    <SectionShell
+      id="inicio"
+      variant="hero"
+      tone="dark"
+      backgroundSlot={
+        <>
+          <HeroBackgroundVideo />
+          <HeroOverlays />
+        </>
+      }
+    >
 
       {/* Hero content */}
       <Container
