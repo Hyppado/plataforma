@@ -645,9 +645,7 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
                 onClick={handleToggleVisibility}
                 disabled={togglingVisibility}
                 sx={{
-                  color: localVisible
-                    ? "#2DD4FF"
-                    : "rgba(255,255,255,0.2)",
+                  color: localVisible ? "#2DD4FF" : "rgba(255,255,255,0.2)",
                   transition: "color 0.2s",
                 }}
               >

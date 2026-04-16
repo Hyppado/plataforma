@@ -26,6 +26,7 @@ type SectionTone = "dark" | "light";
 interface SectionShellProps {
   id: string;
   children: ReactNode;
+  backgroundSlot?: ReactNode;
   variant: SectionVariant;
   theme?: SectionTheme;
   tone?: SectionTone;
@@ -204,6 +205,7 @@ const toneStyles = {
 export function SectionShell({
   id,
   children,
+  backgroundSlot,
   variant,
   theme,
   tone,
@@ -305,6 +307,21 @@ export function SectionShell({
             background: styles.topFade,
           }}
         />
+      )}
+
+      {/* B2) Background slot — full-bleed, positioned absolutely, below content */}
+      {backgroundSlot && (
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            pointerEvents: "none",
+            overflow: "hidden",
+          }}
+        >
+          {backgroundSlot}
+        </Box>
       )}
 
       {/* E) Content wrapper */}

@@ -1,8 +1,6 @@
 import { Box, Container, Grid, Stack, Typography, Button } from "@mui/material";
-import { AutoAwesome } from "@mui/icons-material";
 import { SectionShell } from "./SectionShell";
 import { Reveal } from "./Reveal";
-import { ImageSlot } from "./ImageSlot";
 
 export function HowItWorksSection() {
   return (
@@ -152,19 +150,6 @@ export function HowItWorksSection() {
               </Grid>
             ))}
           </Grid>
-        </Reveal>
-
-        {/* Dashboard preview placeholder */}
-        <Reveal delay={150}>
-          <Box sx={{ mt: { xs: 6, md: 8 }, mx: "auto", maxWidth: 900 }}>
-            <ImageSlot
-              alt="Preview do dashboard Hyppado"
-              height={{ xs: 200, md: 320 }}
-              radius={16}
-              variant="card"
-              icon={<AutoAwesome sx={{ fontSize: 48, color: "#39D5FF" }} />}
-            />
-          </Box>
         </Reveal>
 
         {/* What you receive */}

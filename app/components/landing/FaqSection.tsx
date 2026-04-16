@@ -11,10 +11,9 @@ import {
   AccordionSummary,
   AccordionDetails,
 } from "@mui/material";
-import { ExpandMore as ExpandMoreIcon, AutoAwesome } from "@mui/icons-material";
+import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import { SectionShell } from "./SectionShell";
 import { Reveal } from "./Reveal";
-import { ImageSlot } from "./ImageSlot";
 
 const FAQ_ITEMS = [
   {
@@ -130,23 +129,6 @@ export function FaqSection() {
                   Fale com nosso suporte
                 </Button>
 
-                {/* Abstract illustration — md+ only */}
-                <Box
-                  sx={{
-                    display: { xs: "none", md: "block" },
-                    mt: 4,
-                  }}
-                >
-                  <ImageSlot
-                    alt="Ilustração abstrata"
-                    height={200}
-                    radius={16}
-                    variant="rounded"
-                    icon={
-                      <AutoAwesome sx={{ fontSize: 32, color: "#39D5FF" }} />
-                    }
-                  />
-                </Box>
               </Box>
             </Grid>
 

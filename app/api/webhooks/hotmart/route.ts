@@ -42,10 +42,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // 2. Valida assinatura — timing-safe, fail closed
   // Carrega webhook secret do banco (DB tem prioridade); fallback para env var tratado dentro de verifySignature
-  const dbWebhookSecret =
-    await getSecretSetting(SETTING_KEYS.HOTMART_WEBHOOK_SECRET).catch(
-      () => null,
-    );
+  const dbWebhookSecret = await getSecretSetting(
+    SETTING_KEYS.HOTMART_WEBHOOK_SECRET,
+  ).catch(() => null);
   try {
     verifySignature(req.headers, rawBuffer, dbWebhookSecret ?? undefined);
   } catch (err) {

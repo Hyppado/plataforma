@@ -186,8 +186,7 @@ function HeroBackgroundVideo() {
 ============================================ */
 export function HeroSection() {
   return (
-    <SectionShell id="inicio" variant="hero" tone="dark">
-      <HeroBackgroundVideo />
+    <SectionShell id="inicio" variant="hero" tone="dark" backgroundSlot={<HeroBackgroundVideo />}>
 
       {/* Overlay 1 — Contrast */}
       <Box

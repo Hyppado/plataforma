@@ -13,7 +13,6 @@ import { CheckCircleOutline } from "@mui/icons-material";
 import { type PlanDisplay } from "@/app/data/plans";
 import { SectionShell } from "./SectionShell";
 import { Reveal } from "./Reveal";
-import { ImageSlot } from "./ImageSlot";
 
 interface PricingSectionProps {
   plans: PlanDisplay[];
@@ -51,28 +50,6 @@ export function PricingSection({ plans }: PricingSectionProps) {
             Escolha o plano ideal para organizar ideias, transcrever vídeos e
             modelar criativos com mais direção.
           </Typography>
-        </Reveal>
-
-        {/* Trust badge */}
-        <Reveal delay={80}>
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              mb: { xs: 4, md: 6 },
-            }}
-          >
-            <ImageSlot
-              alt="Pagamento seguro"
-              height={48}
-              width={180}
-              radius={8}
-              variant="badge"
-              icon={
-                <CheckCircleOutline sx={{ fontSize: 24, color: "#39D5FF" }} />
-              }
-            />
-          </Box>
         </Reveal>
 
         <Reveal delay={100}>

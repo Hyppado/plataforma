@@ -1,10 +1,9 @@
 "use client";
 
 import { Box, Container, Grid, Stack, Typography, Button } from "@mui/material";
-import { CheckCircleOutline, AutoAwesomeOutlined } from "@mui/icons-material";
+import { CheckCircleOutline } from "@mui/icons-material";
 import { SectionShell } from "./SectionShell";
 import { Reveal } from "./Reveal";
-import { ImageSlot } from "./ImageSlot";
 
 export function ForWhoSection() {
   return (
@@ -194,21 +193,6 @@ export function ForWhoSection() {
               </Box>
             </Grid>
           </Grid>
-        </Reveal>
-
-        {/* Banner placeholder */}
-        <Reveal delay={150}>
-          <Box sx={{ my: { xs: 6, md: 8 } }}>
-            <ImageSlot
-              alt="Ilustração abstrata para criadores"
-              height={{ xs: 120, md: 160 }}
-              radius={20}
-              variant="banner"
-              icon={
-                <AutoAwesomeOutlined sx={{ fontSize: 36, color: "#39D5FF" }} />
-              }
-            />
-          </Box>
         </Reveal>
 
         {/* CTA */}
