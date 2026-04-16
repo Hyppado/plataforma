@@ -259,7 +259,7 @@ export default function LoginPage() {
             >
               Não tem uma assinatura?{" "}
               <Link
-                href="/cadastro"
+                href="/#planos"
                 style={{
                   color: "#2DD4FF",
                   textDecoration: "none",

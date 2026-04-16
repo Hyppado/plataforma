@@ -840,7 +840,13 @@ export function HowItWorksSection() {
             <Button
               variant="contained"
               size="large"
-              href="/login"
+              href="#planos"
+              onClick={(e) => {
+                e.preventDefault();
+                document
+                  .getElementById("planos")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
               sx={{
                 px: 5,
                 py: 1.5,
