@@ -425,8 +425,16 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
 
   // --- showOnLanding toggle ---
   const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const [localVisible, setLocalVisible] = useState(plan.showOnLanding);
+
+  // keep in sync when parent data refreshes
+  useEffect(() => {
+    setLocalVisible(plan.showOnLanding);
+  }, [plan.showOnLanding]);
 
   const handleToggleVisibility = async () => {
+    const next = !localVisible;
+    setLocalVisible(next); // optimistic — instant UI update
     setTogglingVisibility(true);
     try {
       const res = await fetch("/api/admin/plans", {
@@ -434,13 +442,13 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: plan.id,
-          showOnLanding: !plan.showOnLanding,
+          showOnLanding: next,
         }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
       onSaved();
     } catch {
-      // silently fail
+      setLocalVisible(!next); // revert on error
     } finally {
       setTogglingVisibility(false);
     }
@@ -626,7 +634,7 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
         <TableCell sx={cellSx}>
           <Tooltip
             title={
-              plan.showOnLanding
+              localVisible
                 ? "Ocultar da landing page"
                 : "Exibir na landing page"
             }
@@ -637,7 +645,7 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
                 onClick={handleToggleVisibility}
                 disabled={togglingVisibility}
                 sx={{
-                  color: plan.showOnLanding
+                  color: localVisible
                     ? "#2DD4FF"
                     : "rgba(255,255,255,0.2)",
                   transition: "color 0.2s",
@@ -645,7 +653,7 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
               >
                 {togglingVisibility ? (
                   <CircularProgress size={14} />
-                ) : plan.showOnLanding ? (
+                ) : localVisible ? (
                   <VisibilityOutlined sx={{ fontSize: 18 }} />
                 ) : (
                   <VisibilityOffOutlined sx={{ fontSize: 18 }} />
@@ -1032,9 +1040,12 @@ function CredentialsCard() {
     setSaving(true);
     try {
       const body: Record<string, unknown> = { clientId: clientId.trim() };
-      if (clientSecret.trim() && clientSecret !== SAVED) body.clientSecret = clientSecret.trim();
-      if (basicToken.trim() && basicToken !== SAVED) body.basicToken = basicToken.trim();
-      if (webhookSecret.trim() && webhookSecret !== SAVED) body.webhookSecret = webhookSecret.trim();
+      if (clientSecret.trim() && clientSecret !== SAVED)
+        body.clientSecret = clientSecret.trim();
+      if (basicToken.trim() && basicToken !== SAVED)
+        body.basicToken = basicToken.trim();
+      if (webhookSecret.trim() && webhookSecret !== SAVED)
+        body.webhookSecret = webhookSecret.trim();
 
       const res = await fetch("/api/admin/hotmart/credentials", {
         method: "PUT",
@@ -1061,12 +1072,18 @@ function CredentialsCard() {
     value,
     type: "password" as const,
     autoComplete: "new-password",
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value),
-    onFocus: () => { if (value === SAVED) onChange(""); },
-    onBlur: () => { if (value === "" && hasSaved) onChange(SAVED); },
-    InputProps: value === SAVED
-      ? { sx: { "& input": { color: "rgba(255,255,255,0.5)" } } }
-      : undefined,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange(e.target.value),
+    onFocus: () => {
+      if (value === SAVED) onChange("");
+    },
+    onBlur: () => {
+      if (value === "" && hasSaved) onChange(SAVED);
+    },
+    InputProps:
+      value === SAVED
+        ? { sx: { "& input": { color: "rgba(255,255,255,0.5)" } } }
+        : undefined,
   });
 
   return (
@@ -1074,9 +1091,17 @@ function CredentialsCard() {
       <CardHeader
         avatar={<VpnKeyIcon sx={{ fontSize: 20, color: "secondary.main" }} />}
         title="Credenciais Hotmart"
-        titleTypographyProps={{ variant: "subtitle1", fontWeight: 600, fontSize: "0.9rem" }}
+        titleTypographyProps={{
+          variant: "subtitle1",
+          fontWeight: 600,
+          fontSize: "0.9rem",
+        }}
         subheader="Configuradas no banco — têm prioridade sobre variáveis de ambiente"
-        subheaderTypographyProps={{ variant: "caption", color: "rgba(255,255,255,0.4)", fontSize: "0.72rem" }}
+        subheaderTypographyProps={{
+          variant: "caption",
+          color: "rgba(255,255,255,0.4)",
+          fontSize: "0.72rem",
+        }}
       />
       <CardContent>
         {isLoading ? (
@@ -1100,7 +1125,11 @@ function CredentialsCard() {
                   fullWidth
                   size="small"
                   placeholder="Inserir novo valor"
-                  {...secretFieldProps(clientSecret, setClientSecret, data?.hasClientSecret ?? false)}
+                  {...secretFieldProps(
+                    clientSecret,
+                    setClientSecret,
+                    data?.hasClientSecret ?? false,
+                  )}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -1109,7 +1138,11 @@ function CredentialsCard() {
                   fullWidth
                   size="small"
                   placeholder="Inserir novo valor"
-                  {...secretFieldProps(basicToken, setBasicToken, data?.hasBasicToken ?? false)}
+                  {...secretFieldProps(
+                    basicToken,
+                    setBasicToken,
+                    data?.hasBasicToken ?? false,
+                  )}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -1118,11 +1151,20 @@ function CredentialsCard() {
                   fullWidth
                   size="small"
                   placeholder="Inserir novo valor"
-                  {...secretFieldProps(webhookSecret, setWebhookSecret, data?.hasWebhookSecret ?? false)}
+                  {...secretFieldProps(
+                    webhookSecret,
+                    setWebhookSecret,
+                    data?.hasWebhookSecret ?? false,
+                  )}
                 />
               </Grid>
             </Grid>
-            <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="center"
+              justifyContent="flex-end"
+            >
               <Button
                 size="small"
                 variant="contained"
