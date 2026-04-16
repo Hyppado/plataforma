@@ -9,6 +9,7 @@ import {
   Divider,
 } from "@mui/material";
 import { Instagram as InstagramIcon } from "@mui/icons-material";
+import { BrandLogo } from "@/app/components/BrandLogo";
 
 export function LandingFooter() {
   return (
@@ -32,34 +33,9 @@ export function LandingFooter() {
         >
           {/* Brand */}
           <Grid item xs={12} md={5}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={1.25}
-              sx={{ mb: 2.5 }}
-            >
-              <Box
-                sx={{
-                  width: 20,
-                  height: 20,
-                  background:
-                    "linear-gradient(135deg, #39D5FF 0%, #0099CC 100%)",
-                  borderRadius: "4px",
-                  transform: "rotate(45deg)",
-                  boxShadow: "0 0 10px rgba(57, 213, 255, 0.4)",
-                }}
-              />
-              <Typography
-                sx={{
-                  fontWeight: 700,
-                  fontSize: "1.15rem",
-                  color: "#fff",
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                Hyppado
-              </Typography>
-            </Stack>
+            <Box sx={{ mb: 2.5 }}>
+              <BrandLogo size="sm" href="/" />
+            </Box>
             <Typography
               sx={{
                 fontSize: "0.875rem",
