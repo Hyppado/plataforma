@@ -57,7 +57,7 @@ function hotmartStatusLabel(raw: string | null | undefined): string {
     ACTIVE: "Ativo",
     CANCELLED_BY_CUSTOMER: "Cancelado pelo cliente",
     CANCELLED_BY_SELLER: "Cancelado pelo vendedor",
-    CANCELLED_BY_ADMIN: "Cancelado pelo admin",
+    CANCELLED_BY_ADMIN: "Reembolsado",
     DELAYED: "Pagamento atrasado",
     OVERDUE: "Inadimplente",
     STARTED: "Iniciado (aguardando pgto)",
@@ -160,6 +160,7 @@ export function SubscribersTable({
           >
             <Tab label={`Ativos (${metrics?.activeSubscribers ?? "—"})`} />
             <Tab label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`} />
+            <Tab label={`Reembolsados (${metrics?.refundedSubscribers ?? "—"})`} />
             <Tab label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`} />
           </Tabs>
 

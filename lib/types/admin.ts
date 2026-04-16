@@ -70,6 +70,7 @@ export interface SubscribersResponse {
 export interface SubscriptionMetrics {
   activeSubscribers: number;
   canceledSubscribers: number;
+  refundedSubscribers: number;
   pastDueSubscribers: number;
   totalSubscribers: number;
   newThisMonth: number;

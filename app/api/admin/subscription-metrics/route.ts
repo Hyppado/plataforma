@@ -83,10 +83,10 @@ export async function GET() {
       countByStatus("STARTED", productId),
     ]);
 
-    const cancelled =
-      cancelledByCustomer + cancelledBySeller + cancelledByAdmin;
+    const cancelled = cancelledByCustomer + cancelledBySeller;
+    const refunded = cancelledByAdmin;
     const pastDue = delayed + overdue;
-    const total = active + cancelled + pastDue + inactive + started;
+    const total = active + cancelled + refunded + pastDue + inactive + started;
 
     // Fetch recent subscriptions to compute "new this month" and "cancelled this month"
     // We get active subs with accession_date filter for new this month
@@ -153,6 +153,7 @@ export async function GET() {
     return NextResponse.json({
       activeSubscribers: active,
       canceledSubscribers: cancelled,
+      refundedSubscribers: refunded,
       pastDueSubscribers: pastDue,
       totalSubscribers: total,
       newThisMonth,
