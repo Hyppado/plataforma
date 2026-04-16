@@ -57,6 +57,12 @@ const DELAY_EVENTS = new Set(["PURCHASE_DELAYED"]);
 
 const EXPIRY_EVENTS = new Set(["PURCHASE_EXPIRED"]);
 
+// Eventos que revogam acesso IMEDIATAMENTE (sem honrar período pago)
+const IMMEDIATE_REVOCATION_EVENTS = new Set([
+  "PURCHASE_REFUNDED",
+  "PURCHASE_CHARGEBACK",
+]);
+
 // Eventos que não alteram estado de assinatura mas geram notificação + audit
 // Charge status pode ser atualizado, mas subscription status permanece inalterado.
 const STATUS_PRESERVING_EVENTS = new Set([
@@ -185,6 +191,7 @@ async function upsertSubscription(
   const occurredAt = fields.occurredAt ?? new Date();
   const isActivation = ACTIVATION_EVENTS.has(fields.eventType);
   const isCancellation = CANCELLATION_EVENTS.has(fields.eventType);
+  const isImmediateRevocation = IMMEDIATE_REVOCATION_EVENTS.has(fields.eventType);
   const isExpiry = EXPIRY_EVENTS.has(fields.eventType);
   const isSwitchPlan = fields.eventType === "SWITCH_PLAN";
 
@@ -193,10 +200,12 @@ async function upsertSubscription(
     ? (fields.cancellationDate ?? occurredAt)
     : undefined;
 
-  // Para cancelamentos, o acesso continua até date_next_charge (accessExpiresAt)
-  // que representa o fim do período já pago
+  // Para reembolsos e chargebacks: acesso encerra IMEDIATAMENTE (occurredAt)
+  // Para cancelamentos normais: acesso continua até date_next_charge (período já pago)
   const effectiveEndedAt = isCancellation
-    ? (fields.accessExpiresAt ?? effectiveCancelledAt ?? occurredAt)
+    ? isImmediateRevocation
+      ? occurredAt
+      : (fields.accessExpiresAt ?? effectiveCancelledAt ?? occurredAt)
     : (effectiveCancelledAt ?? occurredAt);
 
   // Busca HotmartSubscription existente por id externo ou subscriberCode

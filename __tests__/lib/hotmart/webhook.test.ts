@@ -138,6 +138,19 @@ describe("extractWebhookFields()", () => {
     expect(fields.occurredAt?.getTime()).toBe(epoch);
   });
 
+  it("converts seconds-format timestamp to ms (Hotmart mixed precision bug)", () => {
+    // Hotmart sometimes sends 10-digit timestamps in seconds instead of 13-digit ms.
+    // e.g. 1728000000 (seconds) = September 2024, not January 1970.
+    const epochSeconds = 1728000000; // 10 digits — seconds
+    const expectedMs = 1728000000 * 1000;
+    const payload = buildHotmartWebhookPayload({ creation_date: epochSeconds });
+    const fields = extractWebhookFields(payload);
+    expect(fields.occurredAt).toBeInstanceOf(Date);
+    expect(fields.occurredAt?.getTime()).toBe(expectedMs);
+    // Assert it's NOT the broken 1970 date
+    expect(fields.occurredAt!.getFullYear()).toBeGreaterThan(2000);
+  });
+
   // ── SUBSCRIPTION_CANCELLATION payload structure ─────────────────────
 
   it("extracts cancellationDate from data.cancellation_date", () => {

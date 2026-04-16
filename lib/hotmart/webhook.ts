@@ -144,8 +144,16 @@ function bool(v: any): boolean | undefined {
 
 function parseDate(raw: unknown): Date | undefined {
   if (raw == null) return undefined;
-  const d = typeof raw === "number" ? new Date(raw) : new Date(raw as string);
-  return isNaN(d.getTime()) ? undefined : d;
+  let ms: number;
+  if (typeof raw === "number") {
+    // Hotmart sometimes sends timestamps in seconds (10 digits) instead of ms (13 digits).
+    // A 10-digit Unix timestamp represents dates ~2001-2286; 13-digit is ms since epoch.
+    // Threshold: values < 10_000_000_000 are treated as seconds.
+    ms = raw < 10_000_000_000 ? raw * 1000 : raw;
+  } else {
+    ms = new Date(raw as string).getTime();
+  }
+  return isNaN(ms) ? undefined : new Date(ms);
 }
 
 /**

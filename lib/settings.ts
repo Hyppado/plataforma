@@ -7,6 +7,9 @@
 
 import prisma from "./prisma";
 import { encrypt, decrypt } from "./crypto";
+import { createLogger } from "./logger";
+
+const log = createLogger("settings");
 
 // ---------------------------------------------------------------------------
 // Leitura
@@ -97,7 +100,15 @@ export const SETTING_KEYS = {
 export async function getSecretSetting(key: string): Promise<string | null> {
   const row = await prisma.setting.findUnique({ where: { key } });
   if (!row?.value) return null;
-  return decrypt(row.value);
+  try {
+    return decrypt(row.value);
+  } catch (err) {
+    log.warn("Falha ao descriptografar setting — chave de criptografia incompatível.", {
+      key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
 /**
