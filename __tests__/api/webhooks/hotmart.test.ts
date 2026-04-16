@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildHotmartWebhookPayload } from "@tests/helpers/factories";
+import { getSecretSetting } from "@/lib/settings";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -32,10 +33,17 @@ vi.mock("@vercel/functions", () => ({
   waitUntil: vi.fn((promise: Promise<unknown>) => promise),
 }));
 
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/settings")>();
+  return {
+    ...actual,
+    getSecretSetting: vi.fn().mockResolvedValue("test-hottok-secret"),
+  };
+});
+
 describe("POST /api/webhooks/hotmart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.HOTMART_WEBHOOK_SECRET = "test-hottok-secret";
   });
 
   function makeWebhookRequest(
@@ -80,16 +88,14 @@ describe("POST /api/webhooks/hotmart", () => {
     expect(res.status).toBe(401);
   });
 
-  it("SECURITY: rejects when HOTMART_WEBHOOK_SECRET is not configured (fail closed)", async () => {
-    delete process.env.HOTMART_WEBHOOK_SECRET;
-    delete process.env.HOTTOK;
+  it("SECURITY: rejects when webhook secret is not in DB (fail closed)", async () => {
+    vi.mocked(getSecretSetting).mockResolvedValueOnce(null);
     const { POST } = await importRoute();
-    // Even a request matching the now-absent secret should be rejected
     const req = makeWebhookRequest(buildHotmartWebhookPayload(), {
       "x-hotmart-hottok": "any-token",
     });
     const res = await POST(req as any);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
   });
 
   // -----------------------------------------------------------------------

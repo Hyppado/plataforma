@@ -17,70 +17,58 @@ import {
 } from "@tests/helpers/factories";
 
 describe("verifySignature()", () => {
-  beforeEach(() => {
-    process.env.HOTMART_WEBHOOK_SECRET = "test-hottok-secret";
-    delete process.env.HOTTOK;
-  });
+  const SECRET = "test-hottok-secret";
 
   it("accepts valid HOTTOK", () => {
-    const headers = new Headers({ "x-hotmart-hottok": "test-hottok-secret" });
-    expect(() => verifySignature(headers, Buffer.from(""))).not.toThrow();
+    const headers = new Headers({ "x-hotmart-hottok": SECRET });
+    expect(() =>
+      verifySignature(headers, Buffer.from(""), SECRET),
+    ).not.toThrow();
   });
 
   it("rejects invalid HOTTOK", () => {
     const headers = new Headers({ "x-hotmart-hottok": "wrong-token" });
-    expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
+    expect(() => verifySignature(headers, Buffer.from(""), SECRET)).toThrow(
       "Token inválido",
     );
   });
 
   it("rejects missing HOTTOK header", () => {
     const headers = new Headers();
-    expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
+    expect(() => verifySignature(headers, Buffer.from(""), SECRET)).toThrow(
       "Token inválido",
     );
   });
 
-  it("uses HOTTOK env var as fallback", () => {
-    delete process.env.HOTMART_WEBHOOK_SECRET;
-    process.env.HOTTOK = "fallback-secret";
-    const headers = new Headers({ "x-hotmart-hottok": "fallback-secret" });
-    expect(() => verifySignature(headers, Buffer.from(""))).not.toThrow();
-  });
-
-  it("SECURITY: fails closed when no secret is configured", () => {
-    delete process.env.HOTMART_WEBHOOK_SECRET;
-    delete process.env.HOTTOK;
+  it("SECURITY: fails closed when secret is not provided", () => {
     const headers = new Headers({ "x-hotmart-hottok": "any-token" });
-    // Must reject — fail closed, not permissive
-    expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
-      "HOTMART_WEBHOOK_SECRET não configurado",
+    // Must reject — fail closed, never permissive
+    expect(() => verifySignature(headers, Buffer.from(""), "")).toThrow(
+      "Webhook secret não configurado",
     );
   });
 
-  it("SECURITY: rejects even empty header when no secret configured", () => {
-    delete process.env.HOTMART_WEBHOOK_SECRET;
-    delete process.env.HOTTOK;
+  it("SECURITY: rejects even empty header when no secret provided", () => {
     const headers = new Headers();
-    expect(() => verifySignature(headers, Buffer.from(""))).toThrow(
-      "HOTMART_WEBHOOK_SECRET não configurado",
+    expect(() => verifySignature(headers, Buffer.from(""), "")).toThrow(
+      "Webhook secret não configurado",
     );
   });
 
   it("SECURITY: rejects token with correct prefix but wrong suffix", () => {
     // Regression: timing-safe comparison must not leak prefix match
     const headers = new Headers({ "x-hotmart-hottok": "test-" });
-    expect(() => verifySignature(headers, Buffer.from(""))).toThrow();
+    expect(() => verifySignature(headers, Buffer.from(""), SECRET)).toThrow();
   });
 
   it("does not leak secret in error message", () => {
     const headers = new Headers({ "x-hotmart-hottok": "wrong" });
     try {
-      verifySignature(headers, Buffer.from(""));
+      verifySignature(headers, Buffer.from(""), SECRET);
     } catch (e) {
       const msg = (e as Error).message;
       // Must not contain any portion of the secret
-      expect(msg).not.toContain("test-hottok-secret");
+      expect(msg).not.toContain(SECRET);
       expect(msg).not.toContain("test-");
       expect(msg).not.toContain("test");
     }

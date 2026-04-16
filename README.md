@@ -79,22 +79,22 @@ O app estará rodando em `http://localhost:3000`.
 
 ### Variáveis de Ambiente
 
-| Variável                 | Obrigatória | Descrição                                     |
-| ------------------------ | :---------: | --------------------------------------------- |
-| `DATABASE_URL`           |     ✅      | URL de conexão PostgreSQL (pooler)            |
-| `DATABASE_URL_UNPOOLED`  |     ✅      | URL direta (usada pelo Prisma CLI/migrations) |
-| `NEXTAUTH_SECRET`        |     ✅      | Secret para assinatura de sessões NextAuth    |
-| `NEXTAUTH_URL`           |     ✅      | URL base da aplicação                         |
-| `ECHOTIK_USERNAME`       |     ✅      | Credencial da API Echotik                     |
-| `ECHOTIK_PASSWORD`       |     ✅      | Credencial da API Echotik                     |
-| `ECHOTIK_BASE_URL`       |     ✅      | URL base da API Echotik                       |
-| `CRON_SECRET`            |     ✅      | Secret para autenticar chamadas de cron       |
-| `RESEND_API_KEY`         |     ✅      | API key do Resend (email transacional)        |
-| `BLOB_READ_WRITE_TOKEN`  |     ✅      | Token do Vercel Blob (imagens)                |
-| `HOTMART_WEBHOOK_SECRET` | Condicional | Secret de validação do webhook Hotmart        |
-| `OPENAI_API_KEY`         | Condicional | Configurado via painel admin (não via .env)   |
+| Variável                 | Obrigatória | Descrição                                                          |
+| ------------------------ | :---------: | ------------------------------------------------------------------ |
+| `DATABASE_URL`           |     ✅      | URL de conexão PostgreSQL (pooler)                                 |
+| `DATABASE_URL_UNPOOLED`  |     ✅      | URL direta (usada pelo Prisma CLI/migrations)                      |
+| `NEXTAUTH_SECRET`        |     ✅      | Secret para assinatura de sessões NextAuth                         |
+| `NEXTAUTH_URL`           |     ✅      | URL base da aplicação                                              |
+| `ECHOTIK_USERNAME`       |     ✅      | Credencial da API Echotik                                          |
+| `ECHOTIK_PASSWORD`       |     ✅      | Credencial da API Echotik                                          |
+| `ECHOTIK_BASE_URL`       |     ✅      | URL base da API Echotik                                            |
+| `CRON_SECRET`            |     ✅      | Secret para autenticar chamadas de cron                            |
+| `RESEND_API_KEY`         |     ✅      | API key do Resend (email transacional)                             |
+| `BLOB_READ_WRITE_TOKEN`  |     ✅      | Token do Vercel Blob (imagens)                                     |
+| `HOTMART_WEBHOOK_SECRET` |     ✅      | Obrigatório — configurado via painel admin (banco), não via `.env` |
+| `OPENAI_API_KEY`         |     ✅      | Obrigatório — configurado via painel admin (banco), não via `.env` |
 
-> Credenciais Hotmart (client ID, client secret, basic token, webhook secret) são configuradas pelo painel admin e armazenadas criptografadas no banco — não precisam necessariamente estar no `.env`.
+> `HOTMART_WEBHOOK_SECRET` e `OPENAI_API_KEY` **não devem** ser definidos no `.env`. São armazenados criptografados no banco via painel admin. Demais credenciais Hotmart (client ID, client secret, basic token) seguem a mesma regra.
 
 ---
 

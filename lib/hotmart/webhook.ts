@@ -94,28 +94,24 @@ function timingSafeStringEqual(a: string, b: string): boolean {
  * O Hotmart envia um token estático configurado no painel Developers → Webhooks.
  * A validação usa comparação timing-safe para prevenir timing attacks.
  *
- * Variável de ambiente obrigatória: HOTMART_WEBHOOK_SECRET (ou HOTTOK legado).
- * Se não configurado, a requisição É REJEITADA — fail closed em qualquer ambiente.
+ * O secret deve ser carregado pelo caller a partir do banco (via painel admin).
+ * Nunca lê variáveis de ambiente — falha fechado se secret não for fornecido.
  *
- * Lança Error se: token ausente, incorreto, ou secret não configurado.
+ * Lança Error se: token ausente, incorreto, ou secret não fornecido.
  *
  * @param headers — headers da requisição recebida
  * @param _rawBody — corpo bruto (reservado para validação futura se Hotmart adotar HMAC)
+ * @param secret — webhook secret carregado do banco pelo caller (obrigatório)
  */
 export function verifySignature(
   headers: Headers,
   _rawBody: Buffer,
-  preloadedSecret?: string,
+  secret: string,
 ): void {
-  const secret =
-    preloadedSecret ??
-    process.env.HOTMART_WEBHOOK_SECRET ??
-    process.env.HOTTOK;
-
-  // Fail closed: sem secret configurado = rejeita tudo
+  // Fail closed: sem secret = rejeita tudo
   if (!secret) {
     throw new Error(
-      "[Hotmart Webhook] HOTMART_WEBHOOK_SECRET não configurado. Requisição rejeitada.",
+      "[Hotmart Webhook] Webhook secret não configurado. Configure via painel admin.",
     );
   }
 

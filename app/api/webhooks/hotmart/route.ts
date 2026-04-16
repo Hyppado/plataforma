@@ -41,12 +41,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawText = rawBuffer.toString("utf-8");
 
   // 2. Valida assinatura — timing-safe, fail closed
-  // Carrega webhook secret do banco (DB tem prioridade); fallback para env var tratado dentro de verifySignature
+  // Secret é obrigatório e deve estar configurado no banco via painel admin.
   const dbWebhookSecret = await getSecretSetting(
     SETTING_KEYS.HOTMART_WEBHOOK_SECRET,
   ).catch(() => null);
+  if (!dbWebhookSecret) {
+    log.error(
+      "Webhook secret não configurado no banco. Configure via painel admin.",
+    );
+    return NextResponse.json(
+      { error: "Webhook secret não configurado" },
+      { status: 500 },
+    );
+  }
   try {
-    verifySignature(req.headers, rawBuffer, dbWebhookSecret ?? undefined);
+    verifySignature(req.headers, rawBuffer, dbWebhookSecret);
   } catch (err) {
     log.warn("Token inválido", { error: (err as Error).message });
 
