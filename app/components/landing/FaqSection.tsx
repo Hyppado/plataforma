@@ -128,7 +128,6 @@ export function FaqSection() {
                 >
                   Fale com nosso suporte
                 </Button>
-
               </Box>
             </Grid>
 

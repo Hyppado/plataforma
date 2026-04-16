@@ -238,7 +238,6 @@ export function HeroSection() {
         </>
       }
     >
-
       {/* Hero content */}
       <Container
         maxWidth="lg"
