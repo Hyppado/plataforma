@@ -27,7 +27,7 @@ export async function hotmartRequest<T = unknown>(
   path: string,
   opts: RequestOptions = {},
 ): Promise<T> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const { method = "GET", params, body, retries = 1 } = opts;
 
   // Monta query string se houver parâmetros

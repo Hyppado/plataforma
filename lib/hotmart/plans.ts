@@ -145,6 +145,7 @@ import prisma from "../prisma";
 export async function syncPlansFromHotmart(productUcode: string): Promise<{
   created: number;
   updated: number;
+  deactivated: number;
   plans: { id: string; code: string; name: string; hotmartPlanCode: string }[];
 }> {
   const hotmartPlans = await listPlansForProduct(productUcode);
@@ -158,13 +159,28 @@ export async function syncPlansFromHotmart(productUcode: string): Promise<{
     hotmartPlanCode: string;
   }[] = [];
 
+  // Deactivate local plans whose hotmartPlanCode no longer exists in Hotmart
+  const activeCodes = new Set(hotmartPlans.map((hp) => hp.code));
+  const deactivatedResult = await prisma.plan.updateMany({
+    where: {
+      hotmartPlanCode: { not: null },
+      isActive: true,
+      NOT: { hotmartPlanCode: { in: Array.from(activeCodes) } },
+    },
+    data: { isActive: false },
+  });
+  const deactivated = deactivatedResult.count;
+  if (deactivated > 0) {
+    log.info("Deactivated plans no longer in Hotmart", { deactivated });
+  }
+
   for (const hp of hotmartPlans) {
     const existing = await prisma.plan.findUnique({
       where: { hotmartPlanCode: hp.code },
     });
 
     if (existing) {
-      // Atualiza metadata da Hotmart (nunca toca em quotas)
+      // Atualiza metadata da Hotmart (nunca toca em quotas ou campos locais do admin)
       await prisma.plan.update({
         where: { id: existing.id },
         data: {
@@ -177,6 +193,7 @@ export async function syncPlansFromHotmart(productUcode: string): Promise<{
             hp.price.currency_code,
           ),
           description: hp.description ?? existing.description,
+          isActive: true, // reactivate if it was previously deactivated
         },
       });
       updated++;
@@ -235,9 +252,10 @@ export async function syncPlansFromHotmart(productUcode: string): Promise<{
   log.info("Hotmart plan sync complete", {
     created,
     updated,
+    deactivated,
     total: hotmartPlans.length,
   });
-  return { created, updated, plans: results };
+  return { created, updated, deactivated, plans: results };
 }
 
 /**

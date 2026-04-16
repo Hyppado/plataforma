@@ -104,6 +104,14 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
+    // If setting this plan as highlighted, clear highlight on all others first
+    if (data.highlight === true) {
+      await prisma.plan.updateMany({
+        where: { id: { not: id } },
+        data: { highlight: false },
+      });
+    }
+
     const plan = await prisma.plan.update({
       where: { id },
       data,

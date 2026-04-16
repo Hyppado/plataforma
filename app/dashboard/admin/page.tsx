@@ -11,7 +11,6 @@ import {
 } from "@/lib/admin/admin-client";
 import { MetricsCards } from "@/app/components/admin/MetricsCards";
 import { SubscribersTable } from "@/app/components/admin/SubscribersTable";
-import { PlansCard } from "@/app/components/admin/hotmart/HotmartTab";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -97,9 +96,6 @@ export default function AdminPage() {
           onTabChange={setSubscriberTab}
           onSearchChange={setSubscriberSearch}
         />
-        <Grid item xs={12}>
-          <PlansCard />
-        </Grid>
       </Grid>
     </Box>
   );

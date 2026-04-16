@@ -75,6 +75,11 @@ export async function upsertSetting(
 export const SETTING_KEYS = {
   APP_NAME: "app.name",
   HOTMART_PRODUCT_ID: "hotmart.product_id",
+  HOTMART_CLIENT_ID: "hotmart.client_id",
+  HOTMART_CLIENT_SECRET: "hotmart.client_secret",
+  HOTMART_BASIC_TOKEN: "hotmart.basic_token",
+  HOTMART_WEBHOOK_SECRET: "hotmart.webhook_secret",
+  HOTMART_SANDBOX: "hotmart.sandbox",
   OPENAI_API_KEY: "openai.api_key",
   OPENAI_WHISPER_MODEL: "openai.whisper_model",
   OPENAI_WHISPER_LANGUAGE: "openai.whisper_language",

@@ -139,7 +139,11 @@ describe("listPlansForProduct()", () => {
 });
 
 describe("syncPlansFromHotmart()", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // updateMany is called to deactivate plans not in Hotmart; default to no-op
+    prismaMock.plan.updateMany.mockResolvedValue({ count: 0 });
+  });
 
   it("creates new plans from Hotmart API", async () => {
     mockHotmartRequest.mockResolvedValue({
@@ -251,6 +255,7 @@ describe("resolveOrSyncPlan()", () => {
       .mockResolvedValueOnce({ items: [hotmartProduct] }) // getProductByNumericId
       .mockResolvedValueOnce({ items: [hotmartPlan] }); // listPlansForProduct
 
+    prismaMock.plan.updateMany.mockResolvedValue({ count: 0 });
     prismaMock.plan.create.mockResolvedValue({
       id: "synced-plan",
       code: "hotmart_tz12qeev",
@@ -304,7 +309,11 @@ describe("resolveOrSyncPlan()", () => {
 });
 
 describe("syncPlansFromHotmart() — error handling", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // updateMany is called first; default to no-op so error from other mocks propagates
+    prismaMock.plan.updateMany.mockResolvedValue({ count: 0 });
+  });
 
   it("propagates Prisma findUnique error (missing column)", async () => {
     mockHotmartRequest.mockResolvedValue({

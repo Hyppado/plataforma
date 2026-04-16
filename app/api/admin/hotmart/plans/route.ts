@@ -89,6 +89,7 @@ export async function POST() {
     return NextResponse.json({
       created: result.created,
       updated: result.updated,
+      deactivated: result.deactivated,
       plans: result.plans,
     });
   } catch (err) {

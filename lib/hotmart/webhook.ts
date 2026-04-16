@@ -102,8 +102,15 @@ function timingSafeStringEqual(a: string, b: string): boolean {
  * @param headers — headers da requisição recebida
  * @param _rawBody — corpo bruto (reservado para validação futura se Hotmart adotar HMAC)
  */
-export function verifySignature(headers: Headers, _rawBody: Buffer): void {
-  const secret = process.env.HOTMART_WEBHOOK_SECRET ?? process.env.HOTTOK;
+export function verifySignature(
+  headers: Headers,
+  _rawBody: Buffer,
+  preloadedSecret?: string,
+): void {
+  const secret =
+    preloadedSecret ??
+    process.env.HOTMART_WEBHOOK_SECRET ??
+    process.env.HOTTOK;
 
   // Fail closed: sem secret configurado = rejeita tudo
   if (!secret) {

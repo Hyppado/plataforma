@@ -96,7 +96,9 @@ model Plan {
   highlight           Boolean  @default(false)  // destaque visual na página de planos
   badge               String?                   // "Mais escolhido", "Novo", etc.
   sortOrder           Int      @default(0)       // ordenação na UI
+  showOnLanding       Boolean  @default(true)    // exibir na landing page
   features            Json     @default("[]")    // ["40 transcripts / mês", "Suporte prioritário"]
+  checkoutUrl         String?                   // link de checkout para o botão da landing page
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

@@ -28,6 +28,7 @@ import {
 } from "@/lib/hotmart/webhook";
 import { processHotmartEvent } from "@/lib/hotmart/processor";
 import { createNotificationIfNeeded } from "@/lib/admin/notifications";
+import { getSecretSetting, SETTING_KEYS } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +41,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawText = rawBuffer.toString("utf-8");
 
   // 2. Valida assinatura — timing-safe, fail closed
+  // Carrega webhook secret do banco (DB tem prioridade); fallback para env var tratado dentro de verifySignature
+  const dbWebhookSecret =
+    await getSecretSetting(SETTING_KEYS.HOTMART_WEBHOOK_SECRET).catch(
+      () => null,
+    );
   try {
-    verifySignature(req.headers, rawBuffer);
+    verifySignature(req.headers, rawBuffer, dbWebhookSecret ?? undefined);
   } catch (err) {
     log.warn("Token inválido", { error: (err as Error).message });
 

@@ -19,7 +19,7 @@ let cache: TokenCache | null = null;
  * Nunca loga o token ou segredos.
  */
 export async function getAccessToken(): Promise<string> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const now = Date.now();
 
   // Cache hit: token ainda válido com margem de segurança

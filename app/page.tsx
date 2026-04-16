@@ -16,49 +16,12 @@ import {
 } from "./components/landing";
 
 /* ============================================
-   PLANS FALLBACK + HOOK
+   PLANS HOOK — dynamic from DB, no hardcoded fallback
 ============================================ */
-const PLANS_FALLBACK: PlanDisplay[] = [
-  {
-    id: "pro",
-    code: "pro_mensal",
-    name: "Pro",
-    displayPrice: "R$ 59,90",
-    period: "mês",
-    description: "Todas funcionalidades",
-    features: [
-      "40 transcripts / mês",
-      "70 insights / mês",
-      "Descoberta de vídeos e produtos em alta",
-      "Prompts avançados (gancho, roteiro e CTA)",
-      "Organização por categorias",
-    ],
-    highlight: false,
-  },
-  {
-    id: "premium",
-    code: "premium_anual",
-    name: "Premium",
-    displayPrice: "R$ 647,00",
-    period: "ano",
-    description: "Todas funcionalidades do PRO",
-    features: [
-      "Tudo do Pro incluso",
-      "Economia de 10% vs mensal",
-      "Acesso prioritário a novidades",
-      "Suporte prioritário",
-    ],
-    highlight: true,
-    badge: "Mais escolhido",
-  },
-];
-
-function usePlans(): PlanDisplay[] {
-  const [plans, setPlans] = useState<PlanDisplay[]>(PLANS_FALLBACK);
+function usePlans(): PlanDisplay[] | null {
+  const [plans, setPlans] = useState<PlanDisplay[] | null>(null);
   useEffect(() => {
-    fetchPlans().then((p) => {
-      if (p.length > 0) setPlans(p);
-    });
+    fetchPlans().then((p) => setPlans(p));
   }, []);
   return plans;
 }
@@ -85,7 +48,7 @@ export default function HomePage() {
         <HeroSection />
         <HowItWorksSection />
         <ForWhoSection />
-        <PricingSection plans={plans} />
+        <PricingSection plans={plans ?? []} />
         <FaqSection />
         <LandingFooter />
         <ScrollArrows />

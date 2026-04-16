@@ -86,8 +86,8 @@ export function PricingSection({ plans }: PricingSectionProps) {
               <Grid
                 item
                 xs={12}
-                sm={6}
-                md={5}
+                sm={4}
+                md={4}
                 key={plan.id}
                 sx={{ overflow: "visible" }}
               >
@@ -267,7 +267,9 @@ export function PricingSection({ plans }: PricingSectionProps) {
                   <Button
                     variant={plan.highlight ? "contained" : "outlined"}
                     fullWidth
-                    href="/login"
+                    href={plan.checkoutUrl ?? "/login"}
+                    target={plan.checkoutUrl ? "_blank" : undefined}
+                    rel={plan.checkoutUrl ? "noopener noreferrer" : undefined}
                     sx={{
                       py: 1.5,
                       fontSize: "0.95rem",
