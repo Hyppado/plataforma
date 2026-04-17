@@ -280,13 +280,15 @@ function ProductConfigCard() {
           if (syncData.ok) {
             setResyncMsg(
               `Ressincronizado. Planos criados: ${syncData.planSync?.created ?? 0}, ` +
-              `atualizados: ${syncData.planSync?.updated ?? 0}. ` +
-              `Assinantes importados: ${syncData.subscribers?.imported ?? 0}` +
-              (syncData.subscribers?.total ? `/${syncData.subscribers.total}` : "") +
-              ((syncData.subscribers?.errors ?? 0) > 0
-                ? ` (${syncData.subscribers!.errors} erros)`
-                : "") +
-              ".",
+                `atualizados: ${syncData.planSync?.updated ?? 0}. ` +
+                `Assinantes importados: ${syncData.subscribers?.imported ?? 0}` +
+                (syncData.subscribers?.total
+                  ? `/${syncData.subscribers.total}`
+                  : "") +
+                ((syncData.subscribers?.errors ?? 0) > 0
+                  ? ` (${syncData.subscribers!.errors} erros)`
+                  : "") +
+                ".",
             );
             setResyncStatus("done");
           } else {
@@ -295,7 +297,9 @@ function ProductConfigCard() {
           }
         } catch (syncErr) {
           setResyncMsg(
-            syncErr instanceof Error ? syncErr.message : "Erro na ressincronização.",
+            syncErr instanceof Error
+              ? syncErr.message
+              : "Erro na ressincronização.",
           );
           setResyncStatus("error");
         }
@@ -403,16 +407,23 @@ function ProductConfigCard() {
           {resyncStatus === "running" && (
             <Stack direction="row" spacing={1} alignItems="center">
               <CircularProgress size={12} />
-              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)", fontSize: "0.72rem" }}>
+              <Typography
+                variant="caption"
+                sx={{ color: "rgba(255,255,255,0.5)", fontSize: "0.72rem" }}
+              >
                 Ressincronizando planos e assinantes…
               </Typography>
             </Stack>
           )}
           {resyncStatus === "done" && resyncMsg && (
-            <Alert severity="success" sx={{ fontSize: "0.75rem", py: 0.5 }}>{resyncMsg}</Alert>
+            <Alert severity="success" sx={{ fontSize: "0.75rem", py: 0.5 }}>
+              {resyncMsg}
+            </Alert>
           )}
           {resyncStatus === "error" && resyncMsg && (
-            <Alert severity="error" sx={{ fontSize: "0.75rem", py: 0.5 }}>{resyncMsg}</Alert>
+            <Alert severity="error" sx={{ fontSize: "0.75rem", py: 0.5 }}>
+              {resyncMsg}
+            </Alert>
           )}
         </Stack>
       </CardContent>
@@ -703,7 +714,9 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
                 onClick={handleToggleVisibility}
                 disabled={togglingVisibility}
                 sx={{
-                  color: localVisible ? "primary.main" : "rgba(255,255,255,0.2)",
+                  color: localVisible
+                    ? "primary.main"
+                    : "rgba(255,255,255,0.2)",
                   transition: "color 0.2s",
                 }}
               >

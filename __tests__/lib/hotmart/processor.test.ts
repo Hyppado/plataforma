@@ -118,7 +118,7 @@ describe("processHotmartEvent()", () => {
     vi.useFakeTimers();
   });
 
-  it("processes PURCHASE_BILLET_PRINTED with notification (status-preserving)", async () => {
+  it("processes PURCHASE_BILLET_PRINTED with notification only (no user creation)", async () => {
     const fields = makeFields({ eventType: "PURCHASE_BILLET_PRINTED" });
 
     const promise = processHotmartEvent("event-1", fields);
@@ -134,9 +134,10 @@ describe("processHotmartEvent()", () => {
         }),
       }),
     );
-    // Should resolve identity (status-preserving events DO resolve identity)
-    expect(prismaMock.externalAccountLink.findFirst).toHaveBeenCalled();
-    // Should create notification
+    // Should NOT resolve identity (no user creation for billet events)
+    expect(prismaMock.externalAccountLink.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.user.upsert).not.toHaveBeenCalled();
+    // Should create admin notification
     expect(createNotificationIfNeeded).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "PURCHASE_BILLET_PRINTED",

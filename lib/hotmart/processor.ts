@@ -15,7 +15,7 @@
  *  PURCHASE_DELAYED           — renovação em atraso (grace period → PAST_DUE)
  *  PURCHASE_EXPIRED           — pagamento expirado (boleto/PIX não pago → EXPIRED)
  *  PURCHASE_PROTEST           — solicitação de reembolso/disputa (charge → REFUND_REQUEST)
- *  PURCHASE_BILLET_PRINTED    — boleto gerado (aguardando pagamento, notificação)
+ *  PURCHASE_BILLET_PRINTED    — boleto gerado (audit log + notificação admin apenas, sem criar usuário ou enviar email)
  *  PURCHASE_OUT_OF_SHOPPING_CART / CART_ABANDONMENT — carrinho abandonado (informacional)
  *  SUBSCRIPTION_CANCELLATION  — assinatura cancelada definitivamente
  *  SWITCH_PLAN                — mudança de plano
@@ -36,7 +36,6 @@ import { createNotificationIfNeeded } from "../admin/notifications";
 import { createLogger } from "../logger";
 import { resolveOrSyncPlan } from "./plans";
 import { sendOnboardingEmail } from "../email/onboarding";
-import { sendEmail, buildBilletEmail } from "../email";
 
 const log = createLogger("hotmart/processor");
 
@@ -69,7 +68,11 @@ const IMMEDIATE_REVOCATION_EVENTS = new Set([
 const STATUS_PRESERVING_EVENTS = new Set([
   "PURCHASE_PROTEST", // Solicitação de reembolso (disputa)
   "UPDATE_SUBSCRIPTION_CHARGE_DATE", // Nova data de cobrança
-  "PURCHASE_BILLET_PRINTED", // Boleto gerado (aguardando pagamento)
+]);
+
+// Eventos puramente informativos com notificação admin — sem criação de usuário, sem email
+const NOTIFICATION_ONLY_EVENTS = new Set([
+  "PURCHASE_BILLET_PRINTED", // Boleto gerado (aguardando pagamento) — apenas notificação
 ]);
 
 // Eventos puramente informativos — apenas audit log, sem notificação
@@ -615,6 +618,38 @@ async function _processEvent(
     return;
   }
 
+  // Eventos informativos — apenas audit log + notificação admin, sem criação de usuário ou email
+  if (NOTIFICATION_ONLY_EVENTS.has(eventType)) {
+    await prisma.auditLog.create({
+      data: {
+        actorId: "system",
+        action: `WEBHOOK_${eventType}`,
+        entityType: "HotmartWebhookEvent",
+        entityId: webhookEventId,
+        after: {
+          eventType,
+          subscriberCode: fields.subscriberCode,
+          transactionId: fields.transactionId,
+          productId: fields.productId,
+        },
+      },
+    });
+    await createNotificationIfNeeded({
+      eventType,
+      email: fields.buyerEmail ?? fields.subscriberEmail,
+      transactionId: fields.transactionId,
+      planCode: fields.planCode,
+      eventId: webhookEventId,
+      metadata: { eventType },
+    }).catch((err) => {
+      log.warn("Failed to create notification-only notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    await markProcessed(webhookEventId);
+    return;
+  }
+
   // Eventos que preservam status da assinatura (notificação + audit, sem mudança de estado)
   if (STATUS_PRESERVING_EVENTS.has(eventType)) {
     const identity = await resolveOrCreateIdentity(fields);
@@ -706,32 +741,6 @@ async function _processEvent(
         error: err instanceof Error ? err.message : String(err),
       });
     });
-
-    // Boleto printed → notify buyer with payment link
-    if (
-      eventType === "PURCHASE_BILLET_PRINTED" &&
-      (fields.buyerEmail ?? fields.subscriberEmail)
-    ) {
-      const recipientEmail = (fields.buyerEmail ?? fields.subscriberEmail)!;
-      const recipientName =
-        fields.buyerName ?? recipientEmail.split("@")[0] ?? "Cliente";
-      const billetEmail = buildBilletEmail({
-        name: recipientName,
-        planName: fields.planCode ?? null,
-        billetUrl: fields.billetUrl ?? null,
-      });
-      sendEmail({
-        to: recipientEmail,
-        subject: billetEmail.subject,
-        html: billetEmail.html,
-        text: billetEmail.text,
-      }).catch((err) => {
-        log.warn("Failed to send billet email", {
-          email: recipientEmail,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    }
 
     await markProcessed(webhookEventId);
     return;
