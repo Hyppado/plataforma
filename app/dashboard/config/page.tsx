@@ -18,6 +18,7 @@ import {
 } from "@/lib/admin/config-defaults";
 import type { PromptConfig } from "@/lib/types/admin";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
+import { PrivacyPolicySection } from "@/app/components/admin/PrivacyPolicySection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
@@ -142,6 +143,7 @@ export default function ConfigPage() {
               onRestoreDefaults={restoreDefaults}
               onSave={savePrompt}
             />
+            <PrivacyPolicySection />
           </Grid>
         </>
       )}
