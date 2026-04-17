@@ -78,18 +78,19 @@ O Hotmart é a plataforma de pagamentos. O Hyppado recebe eventos via webhook e 
 
 ### Credenciais
 
-Credenciais são armazenadas no banco (tabela `Setting`) com valores sensíveis criptografados (AES-256-GCM). São gerenciadas pelo painel admin em `CredentialsCard`.
+Credenciais são armazenadas **exclusivamente no banco** (tabela `Setting`) com valores sensíveis criptografados (AES-256-GCM). São gerenciadas pelo painel admin em `CredentialsCard`.
 
-Resolução via `getHotmartConfig()` em `lib/hotmart/config.ts`:
+Resolução via `getHotmartConfig()` em `lib/hotmart/config.ts` — sem fallback para variáveis de ambiente. Se qualquer credencial estiver ausente no banco, a operação falha com erro explícito.
 
-- Chaves não-sensíveis: banco primeiro, fallback para variável de ambiente
-- Chaves sensíveis: banco criptografado primeiro, fallback para variável de ambiente
+**Chave de criptografia:** derivada do `NEXTAUTH_SECRET` via SHA-256 (32 bytes). Se `NEXTAUTH_SECRET` for trocado, os secrets no banco ficam ilegíveis — executar `node scripts/reencrypt-hotmart-secrets.mjs` para re-criptografar com a nova chave.
+
+`getSecretSetting()` trata erros de descriptografia com try/catch — retorna `null` em vez de lançar exceção, permitindo que `getHotmartConfig()` produza uma mensagem de erro clara.
 
 ### Webhook
 
 Endpoint: `POST /api/webhooks/hotmart`
 
-**Validação:** token estático `X-Hotmart-Hottok` comparado com `timingSafeEqual`. Fail closed: se o secret não estiver configurado, a requisição é rejeitada.
+**Validação:** token estático `X-Hotmart-Hottok` comparado com `timingSafeEqual`. Fail closed: se o secret não estiver configurado **no banco**, a requisição é rejeitada com 500.
 
 **Idempotência:** dedup por `idempotencyKey` (SHA-256 determinístico). Eventos duplicados retornam 200 sem reprocessamento.
 
@@ -121,6 +122,16 @@ Fluxo ao receber `SUBSCRIPTION_CANCELLATION`:
 6. Audit log: `WEBHOOK_SUBSCRIPTION_CANCELLATION`
 7. Notificação admin: `SUBSCRIPTION_CANCELLATION` (severity: WARNING)
 
+### Eventos de revogação imediata
+
+Alguns eventos revogam o acesso imediatamente (sem período de graça), definindo `endedAt = occurredAt`:
+
+- `PURCHASE_REFUNDED`
+- `PURCHASE_CHARGEBACK`
+- `SUBSCRIPTION_CANCELLATION` com motivo de cancelamento administrativo (`CANCELLED_BY_ADMIN`)
+
+Os demais cancelamentos preservam `endedAt` original (fim do período pago).
+
 ### Planos e sincronização
 
 `lib/hotmart/plans.ts` gerencia a sincronização:
@@ -130,6 +141,8 @@ Fluxo ao receber `SUBSCRIPTION_CANCELLATION`:
 - `resolveOrSyncPlan(planCode)` — encontra plano local por `hotmartPlanCode`, sincroniza se não existir
 
 **Regra:** Quotas (`transcriptQuota`, `scriptQuota`) são locais. Só alteradas pelo admin. Nunca sobrescritas pela sincronização.
+
+**Produto configurado:** a sincronização usa o `HOTMART_PRODUCT_ID` salvo no banco para buscar o `ucode` do produto e listar apenas os planos desse produto. Planos de outros produtos nunca entram no banco.
 
 ---
 

@@ -84,10 +84,11 @@ ECHOTIK_BASE_URL
 CRON_SECRET
 RESEND_API_KEY
 BLOB_READ_WRITE_TOKEN
-HOTMART_WEBHOOK_SECRET    # opcional (também configurável via painel admin)
 ```
 
-> Credenciais Hotmart (client_id, client_secret, basic_token) são preferencialmente configuradas pelo painel admin do Hyppado e armazenadas criptografadas no banco — não precisam estar no Vercel.
+> Todas as credenciais Hotmart (client_id, client_secret, basic_token, webhook_secret) são configuradas exclusivamente pelo painel admin do Hyppado e armazenadas criptografadas no banco — **não devem estar nas variáveis de ambiente do Vercel**.
+
+> Se `NEXTAUTH_SECRET` for rotacionado, os secrets criptografados no banco ficam ilegíveis. Executar `node scripts/reencrypt-hotmart-secrets.mjs` apontando para o banco correto antes de aplicar a nova chave.
 
 ---
 

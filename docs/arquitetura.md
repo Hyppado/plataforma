@@ -12,6 +12,9 @@
 │    app/page.tsx      → Landing page pública                 │
 ├─────────────────────────────────────────────────────────────┤
 │  lib/**              → Lógica de negócio                    │
+│    lib/admin/        → Serviços admin (config, quotas)      │
+│      config.ts       → DB read/write (server-only)          │
+│      config-defaults.ts → Constantes client-safe            │
 │    lib/echotik/      → Ingestão de dados TikTok Shop        │
 │    lib/hotmart/      → Integração de pagamentos             │
 │    lib/insight/      → Geração de insight por IA            │
