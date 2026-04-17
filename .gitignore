@@ -39,3 +39,4 @@ coverage/
 prisma/*.db
 prisma/*.db-journal
 .env*.local
+clean-plans.js

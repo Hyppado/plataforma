@@ -103,10 +103,13 @@ export async function getSecretSetting(key: string): Promise<string | null> {
   try {
     return decrypt(row.value);
   } catch (err) {
-    log.warn("Falha ao descriptografar setting — chave de criptografia incompatível.", {
-      key,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    log.warn(
+      "Falha ao descriptografar setting — chave de criptografia incompatível.",
+      {
+        key,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    );
     return null;
   }
 }

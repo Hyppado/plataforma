@@ -12,13 +12,17 @@ import {
   Tab,
 } from "@mui/material";
 import { getPromptConfig, updatePromptConfig } from "@/lib/admin/admin-client";
-import { PROMPT_VARIABLES, getDefaultPromptConfig } from "@/lib/admin/config";
+import {
+  PROMPT_VARIABLES,
+  getDefaultPromptConfig,
+} from "@/lib/admin/config-defaults";
 import type { PromptConfig } from "@/lib/types/admin";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
 import { UsersTab } from "@/app/components/admin/users/UsersTab";
+import CircularProgress from "@mui/material/CircularProgress";
 
 export default function ConfigPage() {
   const router = useRouter();
@@ -82,7 +86,15 @@ export default function ConfigPage() {
     }
   }, [promptConfig]);
 
-  if (status === "loading" || !session || session.user?.role !== "ADMIN") {
+  if (status === "loading") {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", pt: 8 }}>
+        <CircularProgress sx={{ color: "primary.main" }} />
+      </Box>
+    );
+  }
+
+  if (!session || session.user?.role !== "ADMIN") {
     return null;
   }
 

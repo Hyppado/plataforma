@@ -191,7 +191,9 @@ async function upsertSubscription(
   const occurredAt = fields.occurredAt ?? new Date();
   const isActivation = ACTIVATION_EVENTS.has(fields.eventType);
   const isCancellation = CANCELLATION_EVENTS.has(fields.eventType);
-  const isImmediateRevocation = IMMEDIATE_REVOCATION_EVENTS.has(fields.eventType);
+  const isImmediateRevocation = IMMEDIATE_REVOCATION_EVENTS.has(
+    fields.eventType,
+  );
   const isExpiry = EXPIRY_EVENTS.has(fields.eventType);
   const isSwitchPlan = fields.eventType === "SWITCH_PLAN";
 

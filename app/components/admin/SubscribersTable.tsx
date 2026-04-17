@@ -159,9 +159,15 @@ export function SubscribersTable({
             }}
           >
             <Tab label={`Ativos (${metrics?.activeSubscribers ?? "—"})`} />
-            <Tab label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`} />
-            <Tab label={`Reembolsados (${metrics?.refundedSubscribers ?? "—"})`} />
-            <Tab label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`} />
+            <Tab
+              label={`Cancelados (${metrics?.canceledSubscribers ?? "—"})`}
+            />
+            <Tab
+              label={`Reembolsados (${metrics?.refundedSubscribers ?? "—"})`}
+            />
+            <Tab
+              label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`}
+            />
           </Tabs>
 
           <TableContainer>
@@ -281,7 +287,10 @@ export function SubscribersTable({
                           <Tooltip title={sub.hotmartStatus ?? "—"}>
                             <Typography
                               variant="caption"
-                              sx={{ color: "rgba(255,255,255,0.5)", fontSize: "0.75rem" }}
+                              sx={{
+                                color: "rgba(255,255,255,0.5)",
+                                fontSize: "0.75rem",
+                              }}
                             >
                               {hotmartStatusLabel(sub.hotmartStatus)}
                             </Typography>
