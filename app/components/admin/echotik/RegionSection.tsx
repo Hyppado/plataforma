@@ -107,7 +107,7 @@ export function RegionSection({
             fontSize: "0.7rem",
             fontWeight: 700,
             background: "rgba(45, 212, 255, 0.12)",
-            color: "#2DD4FF",
+            color: "primary.main",
           }}
         />
 
@@ -184,11 +184,11 @@ export function RegionSection({
                       "& .MuiSwitch-switchBase": { p: "2px" },
                       "& .MuiSwitch-thumb": { width: 14, height: 14 },
                       "& .MuiSwitch-switchBase.Mui-checked": {
-                        color: "#2DD4FF",
+                        color: "primary.main",
                       },
                       "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track":
                         {
-                          backgroundColor: "#2DD4FF",
+                          backgroundColor: "primary.main",
                         },
                     }}
                   />

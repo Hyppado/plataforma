@@ -27,22 +27,26 @@ export async function GET(
     );
   }
 
-  const transcript = await getTranscript(videoExternalId);
+  try {
+    const transcript = await getTranscript(videoExternalId);
 
-  if (!transcript) {
-    return NextResponse.json(
-      { error: "Transcrição não encontrada" },
-      { status: 404 },
-    );
+    if (!transcript) {
+      return NextResponse.json(
+        { error: "Transcrição não encontrada" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({
+      videoExternalId: transcript.videoExternalId,
+      status: transcript.status,
+      transcriptText: transcript.transcriptText,
+      language: transcript.language,
+      durationSeconds: transcript.durationSeconds,
+      readyAt: transcript.readyAt?.toISOString() ?? null,
+      createdAt: transcript.createdAt.toISOString(),
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    videoExternalId: transcript.videoExternalId,
-    status: transcript.status,
-    transcriptText: transcript.transcriptText,
-    language: transcript.language,
-    durationSeconds: transcript.durationSeconds,
-    readyAt: transcript.readyAt?.toISOString() ?? null,
-    createdAt: transcript.createdAt.toISOString(),
-  });
 }

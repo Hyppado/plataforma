@@ -52,7 +52,7 @@ function StatBox({
         textAlign: "center",
       }}
     >
-      <Typography variant="h5" sx={{ fontWeight: 700, color: "#2DD4FF" }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, color: "primary.main" }}>
         {typeof value === "number" ? value.toLocaleString("pt-BR") : value}
         {unit && (
           <Typography
@@ -102,7 +102,7 @@ export function EstimationSection({ data, loading }: EstimationSectionProps) {
     <Grid item xs={12} md={6}>
       <Card sx={cardStyle}>
         <CardHeader
-          avatar={<BarChartOutlined sx={{ color: "#2DD4FF" }} />}
+          avatar={<BarChartOutlined sx={{ color: "primary.main" }} />}
           title="Estimativa de Requisições"
           subheader={`Previsão de uso da API com ${data.input.activeRegions} ${data.input.activeRegions === 1 ? "região ativa" : "regiões ativas"}`}
           titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
@@ -248,7 +248,7 @@ export function EstimationSection({ data, loading }: EstimationSectionProps) {
                       <TableCell
                         align="right"
                         sx={{
-                          color: "#2DD4FF",
+                          color: "primary.main",
                           fontWeight: 600,
                           borderColor: "rgba(255,255,255,0.06)",
                         }}

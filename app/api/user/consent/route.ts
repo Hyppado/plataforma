@@ -40,25 +40,29 @@ export async function POST(req: NextRequest) {
     forwarded?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
 
-  const record = await prisma.consentRecord.create({
-    data: {
-      userId,
-      consentType,
-      version,
-      granted: granted !== false, // default true
-      ipAddress,
-      userAgent,
-    },
-  });
+  try {
+    const record = await prisma.consentRecord.create({
+      data: {
+        userId,
+        consentType,
+        version,
+        granted: granted !== false, // default true
+        ipAddress,
+        userAgent,
+      },
+    });
 
-  // Update user's consent timestamp
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      lgpdConsentAt: new Date(),
-      lgpdConsentVersion: version,
-    },
-  });
+    // Update user's consent timestamp
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        lgpdConsentAt: new Date(),
+        lgpdConsentVersion: version,
+      },
+    });
 
-  return NextResponse.json({ id: record.id }, { status: 201 });
+    return NextResponse.json({ id: record.id }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

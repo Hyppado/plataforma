@@ -269,7 +269,7 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
     <Grid item xs={12}>
       <Card sx={cardStyle}>
         <CardHeader
-          avatar={<CheckCircleOutlined sx={{ color: "#2DD4FF" }} />}
+          avatar={<CheckCircleOutlined sx={{ color: "primary.main" }} />}
           title="Visão Operacional"
           subheader={
             <Box
@@ -401,7 +401,7 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
                           fontWeight: 600,
                           color:
                             row.totalItems > 0
-                              ? "#2DD4FF"
+                              ? "primary.main"
                               : "rgba(255,255,255,0.3)",
                         }}
                       >

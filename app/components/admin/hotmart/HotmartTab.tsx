@@ -149,7 +149,7 @@ function WebhookEndpointCard() {
   return (
     <Card sx={cardStyle}>
       <CardHeader
-        avatar={<WebhookIcon sx={{ color: "#2DD4FF" }} />}
+        avatar={<WebhookIcon sx={{ color: "primary.main" }} />}
         title="Webhook Endpoint"
         subheader="URL para cadastrar no painel da Hotmart"
         titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
@@ -201,7 +201,7 @@ function WebhookEndpointCard() {
               sx={{
                 minWidth: "auto",
                 px: 1.5,
-                color: copied ? "#2ecc71" : "#2DD4FF",
+                color: copied ? "#2ecc71" : "primary.main",
                 fontSize: "0.75rem",
                 textTransform: "none",
                 whiteSpace: "nowrap",
@@ -266,7 +266,7 @@ function ProductConfigCard() {
   return (
     <Card sx={cardStyle}>
       <CardHeader
-        avatar={<StorefrontIcon sx={{ color: "#2DD4FF" }} />}
+        avatar={<StorefrontIcon sx={{ color: "primary.main" }} />}
         title="Produto Hotmart"
         subheader="ID numérico do produto (âncora para planos)"
         titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
@@ -303,7 +303,7 @@ function ProductConfigCard() {
                 <IconButton
                   size="small"
                   onClick={startEdit}
-                  sx={{ color: "#2DD4FF" }}
+                  sx={{ color: "primary.main" }}
                 >
                   <EditIcon sx={{ fontSize: 16 }} />
                 </IconButton>
@@ -645,7 +645,7 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
                 onClick={handleToggleVisibility}
                 disabled={togglingVisibility}
                 sx={{
-                  color: localVisible ? "#2DD4FF" : "rgba(255,255,255,0.2)",
+                  color: localVisible ? "primary.main" : "rgba(255,255,255,0.2)",
                   transition: "color 0.2s",
                 }}
               >
@@ -928,7 +928,7 @@ export function PlansCard() {
   return (
     <Card sx={cardStyle}>
       <CardHeader
-        avatar={<ListAltIcon sx={{ color: "#2DD4FF" }} />}
+        avatar={<ListAltIcon sx={{ color: "primary.main" }} />}
         title="Planos"
         subheader="Planos sincronizados da Hotmart com quotas configuráveis"
         titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}

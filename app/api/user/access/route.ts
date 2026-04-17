@@ -15,20 +15,24 @@ export async function GET() {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
-  const access = await resolveUserAccess(auth.userId);
+  try {
+    const access = await resolveUserAccess(auth.userId);
 
-  return NextResponse.json({
-    status: access.status,
-    source: access.source,
-    plan: access.plan
-      ? {
-          name: access.plan.name,
-          code: access.plan.code,
-          displayPrice: access.plan.displayPrice,
-        }
-      : null,
-    expiresAt: access.expiresAt?.toISOString() ?? null,
-    reason: access.reason,
-    quotas: access.quotas,
-  });
+    return NextResponse.json({
+      status: access.status,
+      source: access.source,
+      plan: access.plan
+        ? {
+            name: access.plan.name,
+            code: access.plan.code,
+            displayPrice: access.plan.displayPrice,
+          }
+        : null,
+      expiresAt: access.expiresAt?.toISOString() ?? null,
+      reason: access.reason,
+      quotas: access.quotas,
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

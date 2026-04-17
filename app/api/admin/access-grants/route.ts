@@ -29,16 +29,20 @@ export async function GET(req: NextRequest) {
     where.OR = [{ expiresAt: null }, { expiresAt: { gt: new Date() } }];
   }
 
-  const grants = await prisma.accessGrant.findMany({
-    where: where as never,
-    include: {
-      user: { select: { id: true, email: true, name: true } },
-      plan: { select: { id: true, name: true, code: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    const grants = await prisma.accessGrant.findMany({
+      where: where as never,
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+        plan: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-  return NextResponse.json({ grants });
+    return NextResponse.json({ grants });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -65,51 +69,55 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify user exists
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  // Verify plan if provided
-  if (planId) {
-    const plan = await prisma.plan.findUnique({ where: { id: planId } });
-    if (!plan) {
-      return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-  }
 
-  const adminId = auth.userId;
+    // Verify plan if provided
+    if (planId) {
+      const plan = await prisma.plan.findUnique({ where: { id: planId } });
+      if (!plan) {
+        return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+      }
+    }
 
-  const grant = await prisma.accessGrant.create({
-    data: {
-      userId,
-      grantedBy: adminId,
-      reason,
-      planId: planId ?? null,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
-    },
-    include: {
-      user: { select: { id: true, email: true, name: true } },
-      plan: { select: { id: true, name: true, code: true } },
-    },
-  });
+    const adminId = auth.userId;
 
-  await prisma.auditLog.create({
-    data: {
-      userId,
-      actorId: adminId,
-      action: "ACCESS_GRANT_CREATED",
-      entityType: "AccessGrant",
-      entityId: grant.id,
-      after: {
+    const grant = await prisma.accessGrant.create({
+      data: {
+        userId,
+        grantedBy: adminId,
         reason,
         planId: planId ?? null,
-        expiresAt: expiresAt ?? "permanent",
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
-    },
-  });
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+        plan: { select: { id: true, name: true, code: true } },
+      },
+    });
 
-  return NextResponse.json({ grant }, { status: 201 });
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        actorId: adminId,
+        action: "ACCESS_GRANT_CREATED",
+        entityType: "AccessGrant",
+        entityId: grant.id,
+        after: {
+          reason,
+          planId: planId ?? null,
+          expiresAt: expiresAt ?? "permanent",
+        },
+      },
+    });
+
+    return NextResponse.json({ grant }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -127,35 +135,39 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "grantId is required" }, { status: 400 });
   }
 
-  const grant = await prisma.accessGrant.findUnique({
-    where: { id: grantId },
-  });
-  if (!grant) {
-    return NextResponse.json({ error: "Grant not found" }, { status: 404 });
+  try {
+    const grant = await prisma.accessGrant.findUnique({
+      where: { id: grantId },
+    });
+    if (!grant) {
+      return NextResponse.json({ error: "Grant not found" }, { status: 404 });
+    }
+
+    const adminId = auth.userId;
+
+    await prisma.accessGrant.update({
+      where: { id: grantId },
+      data: {
+        isActive: false,
+        revokedAt: new Date(),
+        revokedBy: adminId,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: grant.userId,
+        actorId: adminId,
+        action: "ACCESS_GRANT_REVOKED",
+        entityType: "AccessGrant",
+        entityId: grantId,
+        before: { isActive: true },
+        after: { isActive: false },
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  const adminId = auth.userId;
-
-  await prisma.accessGrant.update({
-    where: { id: grantId },
-    data: {
-      isActive: false,
-      revokedAt: new Date(),
-      revokedBy: adminId,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      userId: grant.userId,
-      actorId: adminId,
-      action: "ACCESS_GRANT_REVOKED",
-      entityType: "AccessGrant",
-      entityId: grantId,
-      before: { isActive: true },
-      after: { isActive: false },
-    },
-  });
-
-  return NextResponse.json({ success: true });
 }

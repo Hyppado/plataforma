@@ -20,21 +20,25 @@ export async function GET() {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
-  const [plan, period] = await Promise.all([
-    getUserActivePlan(auth.userId),
-    getCurrentUsagePeriod(auth.userId),
-  ]);
+  try {
+    const [plan, period] = await Promise.all([
+      getUserActivePlan(auth.userId),
+      getCurrentUsagePeriod(auth.userId),
+    ]);
 
-  const limits = getQuotaLimits(plan);
-  const { start, end } = getPeriodBounds();
+    const limits = getQuotaLimits(plan);
+    const { start, end } = getPeriodBounds();
 
-  return NextResponse.json({
-    transcriptsUsed: period?.transcriptsUsed ?? 0,
-    scriptsUsed: period?.scriptsUsed ?? 0,
-    insightsUsed: period?.insightsUsed ?? 0,
-    transcriptsLimit: limits.transcriptsPerMonth,
-    scriptsLimit: limits.scriptsPerMonth,
-    periodStart: start.toISOString(),
-    periodEnd: end.toISOString(),
-  });
+    return NextResponse.json({
+      transcriptsUsed: period?.transcriptsUsed ?? 0,
+      scriptsUsed: period?.scriptsUsed ?? 0,
+      insightsUsed: period?.insightsUsed ?? 0,
+      transcriptsLimit: limits.transcriptsPerMonth,
+      scriptsLimit: limits.scriptsPerMonth,
+      periodStart: start.toISOString(),
+      periodEnd: end.toISOString(),
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

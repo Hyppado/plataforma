@@ -214,7 +214,7 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
     <Grid item xs={12} md={6}>
       <Card sx={cardStyle}>
         <CardHeader
-          avatar={<SettingsOutlined sx={{ color: "#2DD4FF" }} />}
+          avatar={<SettingsOutlined sx={{ color: "primary.main" }} />}
           title="Configuração do Cron"
           subheader="Intervalos, páginas e tarefas habilitadas"
           titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}

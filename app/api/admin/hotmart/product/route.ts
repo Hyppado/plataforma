@@ -16,9 +16,12 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
-  const productId = await getSetting(SETTING_KEYS.HOTMART_PRODUCT_ID);
-
-  return NextResponse.json({ productId });
+  try {
+    const productId = await getSetting(SETTING_KEYS.HOTMART_PRODUCT_ID);
+    return NextResponse.json({ productId });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -35,19 +38,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Valida que é um número
-  if (isNaN(parseInt(productId, 10))) {
-    return NextResponse.json(
-      { error: "productId deve ser numérico" },
-      { status: 400 },
-    );
+  try {
+    // Valida que é um número
+    if (isNaN(parseInt(productId, 10))) {
+      return NextResponse.json(
+        { error: "productId deve ser numérico" },
+        { status: 400 },
+      );
+    }
+
+    await upsertSetting(SETTING_KEYS.HOTMART_PRODUCT_ID, productId, {
+      label: "Hotmart Product ID",
+      group: "hotmart",
+      type: "text",
+    });
+
+    return NextResponse.json({ productId });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  await upsertSetting(SETTING_KEYS.HOTMART_PRODUCT_ID, productId, {
-    label: "Hotmart Product ID",
-    group: "hotmart",
-    type: "text",
-  });
-
-  return NextResponse.json({ productId });
 }

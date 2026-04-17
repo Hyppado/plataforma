@@ -28,26 +28,30 @@ export async function GET(
     );
   }
 
-  const insight = await getInsight(videoExternalId, auth.userId);
+  try {
+    const insight = await getInsight(videoExternalId, auth.userId);
 
-  if (!insight) {
-    return NextResponse.json(
-      { error: "Insight não encontrado" },
-      { status: 404 },
-    );
+    if (!insight) {
+      return NextResponse.json(
+        { error: "Insight não encontrado" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({
+      videoExternalId: insight.videoExternalId,
+      status: insight.status,
+      contextText: insight.contextText,
+      hookText: insight.hookText,
+      problemText: insight.problemText,
+      solutionText: insight.solutionText,
+      ctaText: insight.ctaText,
+      copyWorkedText: insight.copyWorkedText,
+      errorMessage: insight.errorMessage,
+      createdAt: insight.createdAt.toISOString(),
+      readyAt: insight.readyAt?.toISOString() ?? null,
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    videoExternalId: insight.videoExternalId,
-    status: insight.status,
-    contextText: insight.contextText,
-    hookText: insight.hookText,
-    problemText: insight.problemText,
-    solutionText: insight.solutionText,
-    ctaText: insight.ctaText,
-    copyWorkedText: insight.copyWorkedText,
-    errorMessage: insight.errorMessage,
-    createdAt: insight.createdAt.toISOString(),
-    readyAt: insight.readyAt?.toISOString() ?? null,
-  });
 }

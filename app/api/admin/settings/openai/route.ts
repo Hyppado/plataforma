@@ -20,17 +20,21 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
-  const [hasKey, model, language] = await Promise.all([
-    hasSecretSetting(SETTING_KEYS.OPENAI_API_KEY),
-    getSetting(SETTING_KEYS.OPENAI_WHISPER_MODEL),
-    getSetting(SETTING_KEYS.OPENAI_WHISPER_LANGUAGE),
-  ]);
+  try {
+    const [hasKey, model, language] = await Promise.all([
+      hasSecretSetting(SETTING_KEYS.OPENAI_API_KEY),
+      getSetting(SETTING_KEYS.OPENAI_WHISPER_MODEL),
+      getSetting(SETTING_KEYS.OPENAI_WHISPER_LANGUAGE),
+    ]);
 
-  return NextResponse.json({
-    configured: hasKey,
-    model: model ?? "whisper-1",
-    language: language ?? "auto",
-  });
+    return NextResponse.json({
+      configured: hasKey,
+      model: model ?? "whisper-1",
+      language: language ?? "auto",
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -47,31 +51,38 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    await upsertSecretSetting(SETTING_KEYS.OPENAI_API_KEY, apiKey.trim(), {
-      label: "OpenAI API Key",
-      group: "openai",
-    });
   }
 
-  if (model !== undefined) {
-    await upsertSetting(SETTING_KEYS.OPENAI_WHISPER_MODEL, String(model), {
-      label: "Whisper Model",
-      group: "openai",
-      type: "text",
-    });
-  }
+  try {
+    if (apiKey !== undefined) {
+      await upsertSecretSetting(SETTING_KEYS.OPENAI_API_KEY, apiKey.trim(), {
+        label: "OpenAI API Key",
+        group: "openai",
+      });
+    }
 
-  if (language !== undefined) {
-    await upsertSetting(
-      SETTING_KEYS.OPENAI_WHISPER_LANGUAGE,
-      String(language),
-      {
-        label: "Whisper Language",
+    if (model !== undefined) {
+      await upsertSetting(SETTING_KEYS.OPENAI_WHISPER_MODEL, String(model), {
+        label: "Whisper Model",
         group: "openai",
         type: "text",
-      },
-    );
-  }
+      });
+    }
 
-  return NextResponse.json({ ok: true });
+    if (language !== undefined) {
+      await upsertSetting(
+        SETTING_KEYS.OPENAI_WHISPER_LANGUAGE,
+        String(language),
+        {
+          label: "Whisper Language",
+          group: "openai",
+          type: "text",
+        },
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

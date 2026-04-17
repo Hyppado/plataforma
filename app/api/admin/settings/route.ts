@@ -14,15 +14,16 @@ export async function GET(req: NextRequest) {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
-  const settings = await getAllSettings();
-
-  // Mask secret values — never expose encrypted data to the frontend
-  const masked = settings.map((s) => ({
-    ...s,
-    value: s.type === "secret" ? "••••••••" : s.value,
-  }));
-
-  return NextResponse.json({ settings: masked });
+  try {
+    const settings = await getAllSettings();
+    const masked = settings.map((s) => ({
+      ...s,
+      value: s.type === "secret" ? "••••••••" : s.value,
+    }));
+    return NextResponse.json({ settings: masked });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -39,10 +40,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const setting = await upsertSetting(key, String(value), {
-    label,
-    group,
-    type,
-  });
-  return NextResponse.json({ setting });
+  try {
+    const setting = await upsertSetting(key, String(value), {
+      label,
+      group,
+      type,
+    });
+    return NextResponse.json({ setting });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

@@ -36,18 +36,22 @@ export async function PATCH(
     );
   }
 
-  const now = new Date();
-  const updated = await prisma.adminNotification.update({
-    where: { id: params.id },
-    data: {
-      status: status as "UNREAD" | "READ" | "ARCHIVED",
-      ...(status === "READ" ? { readAt: now } : {}),
-      ...(status === "ARCHIVED"
-        ? { archivedAt: now, resolvedAt: now, resolvedBy: auth.session.user.id }
-        : {}),
-      ...(status === "UNREAD" ? { readAt: null, archivedAt: null } : {}),
-    },
-  });
+  try {
+    const now = new Date();
+    const updated = await prisma.adminNotification.update({
+      where: { id: params.id },
+      data: {
+        status: status as "UNREAD" | "READ" | "ARCHIVED",
+        ...(status === "READ" ? { readAt: now } : {}),
+        ...(status === "ARCHIVED"
+          ? { archivedAt: now, resolvedAt: now, resolvedBy: auth.session.user.id }
+          : {}),
+        ...(status === "UNREAD" ? { readAt: null, archivedAt: null } : {}),
+      },
+    });
 
-  return NextResponse.json(updated);
+    return NextResponse.json(updated);
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

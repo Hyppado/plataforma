@@ -15,6 +15,7 @@ import { KeyboardArrowDown } from "@mui/icons-material";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { REGION_FLAGS, getStoredRegion, setStoredRegion } from "@/lib/region";
+import { useRegions } from "@/lib/swr/useRegions";
 import { HeaderQuota } from "./HeaderQuota";
 import { HeaderNotifications } from "./HeaderNotifications";
 import { ProfileDialog } from "./ProfileDialog";
@@ -40,16 +41,8 @@ export function AppTopHeader() {
     getStoredRegion(),
   );
 
-  // Lista de regiões disponíveis — carregada do banco via API
-  const [regions, setRegions] = useState<string[]>([getStoredRegion()]);
-  useEffect(() => {
-    fetch("/api/regions")
-      .then((r) => r.json())
-      .then((data: { regions: string[] }) => {
-        if (data.regions?.length) setRegions(data.regions);
-      })
-      .catch(() => {}); // silencia erros — fallback para a região atual
-  }, []);
+  // Lista de regiões disponíveis — carregada do banco via SWR
+  const regions = useRegions(getStoredRegion());
 
   // Sincroniza com URL quando ela muda (ex.: navegação direta com ?region=US)
   useEffect(() => {

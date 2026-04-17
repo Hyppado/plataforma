@@ -30,59 +30,63 @@ export async function GET(req: NextRequest) {
   if (severity) where.severity = severity;
   if (type) where.type = type;
 
-  const [items, total] = await Promise.all([
-    prisma.adminNotification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      include: {
-        user: { select: { id: true, email: true, name: true, status: true } },
-        subscription: {
-          select: {
-            id: true,
-            status: true,
-            source: true,
-            startedAt: true,
-            plan: { select: { name: true, hotmartPlanCode: true } },
-            hotmart: {
-              select: {
-                subscriberCode: true,
-                hotmartSubscriptionId: true,
-                buyerEmail: true,
-                externalStatus: true,
+  try {
+    const [items, total] = await Promise.all([
+      prisma.adminNotification.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: {
+          user: { select: { id: true, email: true, name: true, status: true } },
+          subscription: {
+            select: {
+              id: true,
+              status: true,
+              source: true,
+              startedAt: true,
+              plan: { select: { name: true, hotmartPlanCode: true } },
+              hotmart: {
+                select: {
+                  subscriberCode: true,
+                  hotmartSubscriptionId: true,
+                  buyerEmail: true,
+                  externalStatus: true,
+                },
               },
             },
           },
-        },
-        event: {
-          select: {
-            id: true,
-            eventType: true,
-            processingStatus: true,
-            transactionId: true,
-            subscriberCode: true,
-            buyerEmail: true,
-            productId: true,
-            amountCents: true,
-            occurredAt: true,
-            receivedAt: true,
-            processedAt: true,
-            errorMessage: true,
+          event: {
+            select: {
+              id: true,
+              eventType: true,
+              processingStatus: true,
+              transactionId: true,
+              subscriberCode: true,
+              buyerEmail: true,
+              productId: true,
+              amountCents: true,
+              occurredAt: true,
+              receivedAt: true,
+              processedAt: true,
+              errorMessage: true,
+            },
           },
         },
-      },
-    }),
-    prisma.adminNotification.count({ where }),
-  ]);
+      }),
+      prisma.adminNotification.count({ where }),
+    ]);
 
-  return NextResponse.json({
-    items,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  });
+    return NextResponse.json({
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -110,16 +114,20 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const now = new Date();
-  const result = await prisma.adminNotification.updateMany({
-    where: { id: { in: ids } },
-    data: {
-      status: status as "UNREAD" | "READ" | "ARCHIVED",
-      ...(status === "READ" ? { readAt: now } : {}),
-      ...(status === "ARCHIVED" ? { archivedAt: now, resolvedAt: now } : {}),
-      ...(status === "UNREAD" ? { readAt: null, archivedAt: null } : {}),
-    },
-  });
+  try {
+    const now = new Date();
+    const result = await prisma.adminNotification.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        status: status as "UNREAD" | "READ" | "ARCHIVED",
+        ...(status === "READ" ? { readAt: now } : {}),
+        ...(status === "ARCHIVED" ? { archivedAt: now, resolvedAt: now } : {}),
+        ...(status === "UNREAD" ? { readAt: null, archivedAt: null } : {}),
+      },
+    });
 
-  return NextResponse.json({ updated: result.count });
+    return NextResponse.json({ updated: result.count });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

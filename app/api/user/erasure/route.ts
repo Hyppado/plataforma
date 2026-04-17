@@ -12,15 +12,19 @@ export async function POST() {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
-  const requestId = await createErasureRequest(auth.userId);
+  try {
+    const requestId = await createErasureRequest(auth.userId);
 
-  return NextResponse.json(
-    {
-      requestId,
-      message:
-        "Sua solicitação de exclusão de dados foi registrada. " +
-        "Ela será analisada em até 15 dias úteis conforme a LGPD.",
-    },
-    { status: 201 },
-  );
+    return NextResponse.json(
+      {
+        requestId,
+        message:
+          "Sua solicitação de exclusão de dados foi registrada. " +
+          "Ela será analisada em até 15 dias úteis conforme a LGPD.",
+      },
+      { status: 201 },
+    );
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
