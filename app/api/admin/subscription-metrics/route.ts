@@ -155,6 +155,7 @@ export async function GET() {
       canceledSubscribers: cancelled,
       refundedSubscribers: refunded,
       pastDueSubscribers: pastDue,
+      pendingSubscribers: started,
       totalSubscribers: total,
       newThisMonth,
       cancelledThisMonth,

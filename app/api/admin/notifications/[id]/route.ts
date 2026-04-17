@@ -44,7 +44,11 @@ export async function PATCH(
         status: status as "UNREAD" | "READ" | "ARCHIVED",
         ...(status === "READ" ? { readAt: now } : {}),
         ...(status === "ARCHIVED"
-          ? { archivedAt: now, resolvedAt: now, resolvedBy: auth.session.user.id }
+          ? {
+              archivedAt: now,
+              resolvedAt: now,
+              resolvedBy: auth.session.user.id,
+            }
           : {}),
         ...(status === "UNREAD" ? { readAt: null, archivedAt: null } : {}),
       },
@@ -52,6 +56,9 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

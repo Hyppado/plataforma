@@ -22,14 +22,19 @@ export async function GET(req: NextRequest) {
   if (!isAuthed(auth)) return auth;
 
   try {
-    const [clientId, hasClientSecret, hasBasicToken, hasWebhookSecret, sandbox] =
-      await Promise.all([
-        getSetting(SETTING_KEYS.HOTMART_CLIENT_ID),
-        hasSecretSetting(SETTING_KEYS.HOTMART_CLIENT_SECRET),
-        hasSecretSetting(SETTING_KEYS.HOTMART_BASIC_TOKEN),
-        hasSecretSetting(SETTING_KEYS.HOTMART_WEBHOOK_SECRET),
-        getSetting(SETTING_KEYS.HOTMART_SANDBOX),
-      ]);
+    const [
+      clientId,
+      hasClientSecret,
+      hasBasicToken,
+      hasWebhookSecret,
+      sandbox,
+    ] = await Promise.all([
+      getSetting(SETTING_KEYS.HOTMART_CLIENT_ID),
+      hasSecretSetting(SETTING_KEYS.HOTMART_CLIENT_SECRET),
+      hasSecretSetting(SETTING_KEYS.HOTMART_BASIC_TOKEN),
+      hasSecretSetting(SETTING_KEYS.HOTMART_WEBHOOK_SECRET),
+      getSetting(SETTING_KEYS.HOTMART_SANDBOX),
+    ]);
 
     return NextResponse.json({
       clientId: clientId ?? "",
@@ -39,7 +44,10 @@ export async function GET(req: NextRequest) {
       sandbox: sandbox === "true",
     });
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -111,6 +119,9 @@ export async function PUT(req: NextRequest) {
     await Promise.all(ops);
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

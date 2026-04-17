@@ -72,6 +72,7 @@ export interface SubscriptionMetrics {
   canceledSubscribers: number;
   refundedSubscribers: number;
   pastDueSubscribers: number;
+  pendingSubscribers: number;
   totalSubscribers: number;
   newThisMonth: number;
   cancelledThisMonth: number;

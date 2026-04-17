@@ -33,7 +33,10 @@ export async function GET() {
       language: language ?? "auto",
     });
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -46,10 +49,7 @@ export async function POST(req: NextRequest) {
 
   if (apiKey !== undefined) {
     if (typeof apiKey !== "string" || apiKey.trim().length < 10) {
-      return NextResponse.json(
-        { error: "API key inválida" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "API key inválida" }, { status: 400 });
     }
   }
 
@@ -83,6 +83,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

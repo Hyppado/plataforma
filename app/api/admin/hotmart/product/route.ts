@@ -20,7 +20,10 @@ export async function GET() {
     const productId = await getSetting(SETTING_KEYS.HOTMART_PRODUCT_ID);
     return NextResponse.json({ productId });
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -55,6 +58,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ productId });
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

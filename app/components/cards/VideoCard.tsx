@@ -11,6 +11,7 @@ import {
   InsightDialog,
   type InsightData,
 } from "@/app/components/videos/InsightDialog";
+import { TikTokPlayerModal } from "@/app/components/videos/TikTokPlayerModal";
 import { UI } from "./videoCardConfig";
 import { RankBadge } from "./RankBadge";
 import { VideoCardSkeleton } from "./VideoCardSkeleton";
@@ -43,6 +44,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const [insightStatus, setInsightStatus] = useState<InsightUIStatus>("idle");
   const [insightData, setInsightData] = useState<InsightData | null>(null);
   const [insightError, setInsightError] = useState<string | null>(null);
+  const [playerOpen, setPlayerOpen] = useState(false);
 
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
@@ -233,7 +235,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const handleOpenTikTok = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!video || !hasTikTokUrl) return;
-    window.open(video.tiktokUrl, "_blank", "noopener,noreferrer");
+    setPlayerOpen(true);
   };
 
   if (isLoading || !video) return <VideoCardSkeleton />;
@@ -266,7 +268,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
         onClick={handleOpenTikTok}
         role="button"
         tabIndex={0}
-        aria-label={`Abrir vídeo ${video.title || video.id} no TikTok`}
+        aria-label={`Assistir vídeo ${video.title || video.id}`}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -430,6 +432,14 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
         errorMessage={insightError}
         onRetry={handleInsightRetry}
       />
+      {hasTikTokUrl && (
+        <TikTokPlayerModal
+          open={playerOpen}
+          onClose={() => setPlayerOpen(false)}
+          tiktokUrl={video.tiktokUrl}
+          videoTitle={video.title}
+        />
+      )}
     </Box>
   );
 }

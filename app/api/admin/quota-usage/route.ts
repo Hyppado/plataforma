@@ -60,6 +60,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(usage);
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
