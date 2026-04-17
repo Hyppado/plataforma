@@ -37,9 +37,11 @@ export {
   buildOnboardingEmail,
   buildPasswordResetEmail,
   buildWelcomePasswordEmail,
+  buildBilletEmail,
 } from "./templates";
 export type {
   OnboardingEmailData,
   PasswordResetEmailData,
   WelcomePasswordEmailData,
+  BilletEmailData,
 } from "./templates";

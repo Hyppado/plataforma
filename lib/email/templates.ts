@@ -163,6 +163,94 @@ export function buildOnboardingEmail(data: OnboardingEmailData): {
 }
 
 // ---------------------------------------------------------------------------
+// Boleto / billet printed email
+// ---------------------------------------------------------------------------
+
+export interface BilletEmailData {
+  /** Buyer name or email prefix */
+  name: string;
+  /** Plan name */
+  planName?: string | null;
+  /** URL to pay the boleto (sckPaymentLink) */
+  billetUrl?: string | null;
+}
+
+/**
+ * Generates the HTML for the boleto-printed email sent to the buyer.
+ */
+export function buildBilletEmail(data: BilletEmailData): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const subject = `${envSubjectPrefix()}Seu boleto Hyppado foi gerado`;
+
+  const ctaBlock = data.billetUrl
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
+      <tr>
+        <td align="center">
+          <a href="${escapeHtml(data.billetUrl)}"
+             target="_blank"
+             style="display: inline-block; padding: 14px 36px; background-color: #2DD4FF; color: #0a0a0f; font-size: 15px; font-weight: 700; text-decoration: none; border-radius: 8px;">
+            Pagar boleto
+          </a>
+        </td>
+      </tr>
+    </table>`
+    : "";
+
+  const planLine = data.planName
+    ? `<p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+        Plano: <strong style="color: #ffffff;">${escapeHtml(data.planName)}</strong>
+      </p>`
+    : "";
+
+  const html = wrapTemplate(`
+    <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #ffffff;">
+      Boleto gerado com sucesso!
+    </h1>
+    <p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+      Olá, <strong style="color: #ffffff;">${escapeHtml(data.name)}</strong>!
+    </p>
+    <p style="margin: 0 0 12px; font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6;">
+      Recebemos sua solicitação de assinatura do Hyppado. Seu boleto foi gerado
+      e está aguardando pagamento.
+    </p>
+    ${planLine}
+    ${ctaBlock}
+    <p style="margin: 0 0 8px; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+      Após a confirmação do pagamento (pode levar até 3 dias úteis), seu acesso
+      será liberado automaticamente e você receberá um novo email de boas-vindas.
+    </p>
+    <p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+      Se você não reconhece esta compra, ignore este email com segurança.
+    </p>
+  `);
+
+  const lines = [
+    "Boleto gerado com sucesso!",
+    "",
+    `Olá, ${data.name}!`,
+    "",
+    "Recebemos sua solicitação de assinatura do Hyppado.",
+    "Seu boleto foi gerado e está aguardando pagamento.",
+  ];
+  if (data.planName) lines.push("", `Plano: ${data.planName}`);
+  if (data.billetUrl) lines.push("", "Pagar boleto:", data.billetUrl);
+  lines.push(
+    "",
+    "Após a confirmação do pagamento (pode levar até 3 dias úteis),",
+    "seu acesso será liberado automaticamente.",
+    "",
+    "Se você não reconhece esta compra, ignore este email.",
+    "",
+    `© ${new Date().getFullYear()} Hyppado — Inteligência para TikTok Shop`,
+  );
+
+  return { subject, html, text: lines.join("\n") };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

@@ -36,6 +36,7 @@ import { createNotificationIfNeeded } from "../admin/notifications";
 import { createLogger } from "../logger";
 import { resolveOrSyncPlan } from "./plans";
 import { sendOnboardingEmail } from "../email/onboarding";
+import { sendEmail, buildBilletEmail } from "../email";
 
 const log = createLogger("hotmart/processor");
 
@@ -705,6 +706,32 @@ async function _processEvent(
         error: err instanceof Error ? err.message : String(err),
       });
     });
+
+    // Boleto printed → notify buyer with payment link
+    if (
+      eventType === "PURCHASE_BILLET_PRINTED" &&
+      (fields.buyerEmail ?? fields.subscriberEmail)
+    ) {
+      const recipientEmail = (fields.buyerEmail ?? fields.subscriberEmail)!;
+      const recipientName =
+        fields.buyerName ?? recipientEmail.split("@")[0] ?? "Cliente";
+      const billetEmail = buildBilletEmail({
+        name: recipientName,
+        planName: fields.planCode ?? null,
+        billetUrl: fields.billetUrl ?? null,
+      });
+      sendEmail({
+        to: recipientEmail,
+        subject: billetEmail.subject,
+        html: billetEmail.html,
+        text: billetEmail.text,
+      }).catch((err) => {
+        log.warn("Failed to send billet email", {
+          email: recipientEmail,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
 
     await markProcessed(webhookEventId);
     return;

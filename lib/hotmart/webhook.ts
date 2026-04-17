@@ -57,6 +57,10 @@ export interface HotmartWebhookFields {
   buyerEmail?: string;
   buyerName?: string;
 
+  // Boleto
+  /** URL de pagamento do boleto (data.purchase.sckPaymentLink) */
+  billetUrl?: string;
+
   // Produto
   productId?: string;
   productName?: string;
@@ -230,10 +234,14 @@ export function extractWebhookFields(
   // date_next_charge — fim do período pago (quando o acesso expira após cancelamento)
   const accessExpiresAt = parseDate(d?.date_next_charge);
 
+  // billet payment link
+  const billetUrl = str(purchase?.sckPaymentLink);
+
   return {
     payloadVersion,
     eventType,
     eventExternalId,
+    billetUrl,
     transactionId,
     purchaseStatus,
     isSubscription,
