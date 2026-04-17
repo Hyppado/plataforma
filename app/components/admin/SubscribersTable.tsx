@@ -168,9 +168,7 @@ export function SubscribersTable({
             <Tab
               label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`}
             />
-            <Tab
-              label={`Pendentes (${metrics?.pendingSubscribers ?? "—"})`}
-            />
+            <Tab label={`Pendentes (${metrics?.pendingSubscribers ?? "—"})`} />
           </Tabs>
 
           <TableContainer>

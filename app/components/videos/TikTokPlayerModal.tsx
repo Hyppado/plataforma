@@ -97,7 +97,10 @@ export function TikTokPlayerModal({
             href={tiktokUrl}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{ color: "rgba(255,255,255,0.45)", "&:hover": { color: "primary.main" } }}
+            sx={{
+              color: "rgba(255,255,255,0.45)",
+              "&:hover": { color: "primary.main" },
+            }}
           >
             <OpenInNew sx={{ fontSize: 16 }} />
           </IconButton>
@@ -107,7 +110,10 @@ export function TikTokPlayerModal({
           <IconButton
             size="small"
             onClick={onClose}
-            sx={{ color: "rgba(255,255,255,0.45)", "&:hover": { color: "text.primary" } }}
+            sx={{
+              color: "rgba(255,255,255,0.45)",
+              "&:hover": { color: "text.primary" },
+            }}
           >
             <Close sx={{ fontSize: 16 }} />
           </IconButton>
@@ -164,7 +170,11 @@ export function TikTokPlayerModal({
               target="_blank"
               rel="noopener noreferrer"
               variant="body2"
-              sx={{ color: "primary.main", textDecoration: "none", "&:hover": { textDecoration: "underline" } }}
+              sx={{
+                color: "primary.main",
+                textDecoration: "none",
+                "&:hover": { textDecoration: "underline" },
+              }}
             >
               Abrir no TikTok →
             </Typography>

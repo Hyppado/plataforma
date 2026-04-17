@@ -26,6 +26,11 @@ import {
   TextField,
   Tooltip,
   Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import {
   Check as CheckIcon,
@@ -43,6 +48,8 @@ import {
   Storefront as StorefrontIcon,
   ListAlt as ListAltIcon,
   VpnKey as VpnKeyIcon,
+  Sync as SyncIcon,
+  WarningAmber as WarningAmberIcon,
 } from "@mui/icons-material";
 
 // ---------------------------------------------------------------------------
@@ -1190,6 +1197,139 @@ function CredentialsCard() {
 }
 
 // ---------------------------------------------------------------------------
+// ResetResyncCard
+// ---------------------------------------------------------------------------
+
+function ResetResyncCard() {
+  const [open, setOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<null | {
+    ok: boolean;
+    cleared?: Record<string, number>;
+    planSync?: { created: number; updated: number; deactivated: number };
+    subscribers?: { total: number; imported: number; errors: number };
+    error?: string;
+    detail?: string;
+  }>(null);
+
+  const handleConfirm = async () => {
+    setOpen(false);
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/admin/hotmart/reset-resync", {
+        method: "POST",
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      setResult({
+        ok: false,
+        error: err instanceof Error ? err.message : "Erro desconhecido",
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        background: "rgba(239,83,80,0.04)",
+        border: "1px solid rgba(239,83,80,0.25)",
+        borderRadius: 2,
+      }}
+    >
+      <CardHeader
+        avatar={<WarningAmberIcon sx={{ color: "#EF5350", fontSize: 22 }} />}
+        title={
+          <Typography fontWeight={600} fontSize="0.9rem" color="#EF5350">
+            Reset & Ressincronizar Assinantes
+          </Typography>
+        }
+        subheader={
+          <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)" }}>
+            Use quando o Product ID mudar e o banco precisar ser recarregado da Hotmart.
+            Apaga planos, assinaturas e cobranças existentes antes de reimportar.
+          </Typography>
+        }
+      />
+      <CardContent>
+        <Stack spacing={2}>
+          {result && (
+            <Alert
+              severity={result.ok ? "success" : "error"}
+              sx={{ fontSize: "0.8rem" }}
+            >
+              {result.ok ? (
+                <>
+                  Concluído. Planos criados: {result.planSync?.created ?? 0},
+                  atualizados: {result.planSync?.updated ?? 0}.
+                  Assinantes importados: {result.subscribers?.imported ?? 0} /
+                  {result.subscribers?.total ?? 0}
+                  {(result.subscribers?.errors ?? 0) > 0 &&
+                    ` (${result.subscribers!.errors} erros)`}.
+                </>
+              ) : (
+                <>{result.error} {result.detail && `— ${result.detail}`}</>
+              )}
+            </Alert>
+          )}
+          <Stack direction="row" justifyContent="flex-end">
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              disabled={running}
+              startIcon={
+                running ? (
+                  <CircularProgress size={14} color="error" />
+                ) : (
+                  <SyncIcon sx={{ fontSize: 16 }} />
+                )
+              }
+              sx={{ textTransform: "none", fontSize: "0.8rem" }}
+              onClick={() => setOpen(true)}
+            >
+              {running ? "Processando…" : "Reset & Ressincronizar"}
+            </Button>
+          </Stack>
+        </Stack>
+      </CardContent>
+
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ color: "#EF5350", fontWeight: 700 }}>
+          Confirmar reset
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem" }}>
+            Isso vai apagar <strong>todos</strong> os planos, assinaturas e cobranças
+            do banco e reimportar da Hotmart usando o Product ID configurado.
+            <br /><br />
+            Esta ação não pode ser desfeita.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setOpen(false)} sx={{ textTransform: "none" }}>
+            Cancelar
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="error"
+            onClick={handleConfirm}
+            sx={{ textTransform: "none" }}
+          >
+            Confirmar reset
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -1220,6 +1360,9 @@ export function HotmartTab() {
         </Grid>
         <Grid item xs={12}>
           <PlansCard />
+        </Grid>
+        <Grid item xs={12}>
+          <ResetResyncCard />
         </Grid>
       </Grid>
     </Box>
