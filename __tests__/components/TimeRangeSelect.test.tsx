@@ -37,7 +37,7 @@ describe("TimeRangeSelect", () => {
     expect(screen.getByLabelText(/Período: Último dia/i)).toBeInTheDocument();
   });
 
-  it("renders all 4 time range options inside the select", () => {
+  it("renders all 3 time range options inside the select", () => {
     render(<TimeRangeSelect value="7d" onChange={vi.fn()} />);
     // Open the select to make options visible in DOM
     const select = screen.getByRole("combobox");
@@ -45,7 +45,7 @@ describe("TimeRangeSelect", () => {
 
     const listbox = screen.getByRole("listbox");
     const options = within(listbox).getAllByRole("option");
-    expect(options).toHaveLength(4);
+    expect(options).toHaveLength(3);
   });
 
   it("shows '7d' option as selected", () => {
@@ -76,20 +76,6 @@ describe("TimeRangeSelect", () => {
     expect(onChange).toHaveBeenCalledWith("30d");
   });
 
-  it("calls onChange with '90d' when that option is selected", () => {
-    const onChange = vi.fn();
-    render(<TimeRangeSelect value="7d" onChange={onChange} />);
-
-    const select = screen.getByRole("combobox");
-    fireEvent.mouseDown(select);
-
-    const listbox = screen.getByRole("listbox");
-    fireEvent.click(
-      within(listbox).getByRole("option", { name: "Últimos 90 dias" }),
-    );
-
-    expect(onChange).toHaveBeenCalledWith("90d");
-  });
 
   it("disables the select when disabled=true", () => {
     render(<TimeRangeSelect value="7d" onChange={vi.fn()} disabled />);

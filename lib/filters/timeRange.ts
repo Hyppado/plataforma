@@ -1,8 +1,14 @@
 /**
  * Time range utilities for filtering data by period
+ *
+ * NOTE: Echotik ranklist API only supports 3 ranking cycles:
+ *   rank_type 1 = daily  ("1d")
+ *   rank_type 2 = weekly ("7d")
+ *   rank_type 3 = monthly ("30d")
+ * There is no 90-day cycle — "90d" has been removed.
  */
 
-export type TimeRange = "1d" | "7d" | "30d" | "90d";
+export type TimeRange = "1d" | "7d" | "30d";
 
 export interface TimeRangeOption {
   value: TimeRange;
@@ -14,7 +20,6 @@ export const TIME_RANGES: TimeRangeOption[] = [
   { value: "1d", label: "Último dia", days: 1 },
   { value: "7d", label: "Últimos 7 dias", days: 7 },
   { value: "30d", label: "Últimos 30 dias", days: 30 },
-  { value: "90d", label: "Últimos 90 dias", days: 90 },
 ];
 
 /**
@@ -23,7 +28,7 @@ export const TIME_RANGES: TimeRangeOption[] = [
  * @returns Valid TimeRange, defaults to "7d"
  */
 export function normalizeRange(input?: string | null): TimeRange {
-  const valid: TimeRange[] = ["1d", "7d", "30d", "90d"];
+  const valid: TimeRange[] = ["1d", "7d", "30d"];
   if (input && valid.includes(input as TimeRange)) {
     return input as TimeRange;
   }

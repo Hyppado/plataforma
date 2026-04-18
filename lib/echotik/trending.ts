@@ -47,14 +47,15 @@ export function proxyIfEchotikCdn(
 // Cycle / date resolution
 // ---------------------------------------------------------------------------
 
-type RangeParam = "1d" | "7d" | "30d" | "90d";
+type RangeParam = "1d" | "7d" | "30d";
 type RankingCycle = 1 | 2 | 3;
 
 /**
- * Map a range string to the preferred rankingCycle.
- *   "1d" → 1 (daily)
- *   "7d" → 2 (weekly)   <- also falls back to 1
- *  "30d"|"90d" → 3 (monthly) <- also falls back to 2 then 1
+ * Map a range string to the Echotik ranking cycle.
+ * Echotik ranklist API only supports:
+ *   "1d"  → rank_type 1 (daily)
+ *   "7d"  → rank_type 2 (weekly, every Monday)
+ *   "30d" → rank_type 3 (monthly, first day of month)
  */
 export function rangeToCycles(range: RangeParam): {
   requested: RankingCycle;
