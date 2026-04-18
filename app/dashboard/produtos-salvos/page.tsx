@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Box, Container, Typography, Grid, Button } from "@mui/material";
 import { Inventory2, ShoppingBag } from "@mui/icons-material";
 import Link from "next/link";
 import { ProductCard } from "@/app/components/cards/ProductCard";
+import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
 import { useSavedProducts } from "@/lib/storage/saved";
+import type { ProductDTO } from "@/lib/types/dto";
 
 export default function ProdutosSalvosPage() {
   const savedProducts = useSavedProducts();
   const products = savedProducts.products.map((item) => item.product);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
   const isEmpty = products.length === 0;
 
   return (
@@ -145,15 +149,19 @@ export default function ProdutosSalvosPage() {
             <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
               <ProductCard
                 product={product}
-                onViewDetails={(p) => {
-                  if (p.sourceUrl) {
-                    window.open(p.sourceUrl, "_blank", "noopener,noreferrer");
-                  }
-                }}
+                onViewDetails={(p) => setSelectedProduct(p)}
               />
             </Grid>
           ))}
         </Grid>
+      )}
+
+      {selectedProduct && (
+        <ProductDetailsModal
+          open={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          product={selectedProduct}
+        />
       )}
     </Container>
   );

@@ -21,6 +21,10 @@ describe("middleware config", () => {
     expect(config.matcher).toContain("/api/admin/:path*");
   });
 
+  it("includes / so authenticated users are redirected to dashboard", () => {
+    expect(config.matcher).toContain("/");
+  });
+
   it("does NOT protect /api/trending/* via middleware (auth enforced in-handler)", () => {
     const matchers = config.matcher as string[];
     const protectsTrending = matchers.some((m) => m.includes("/api/trending"));

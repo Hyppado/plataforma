@@ -6,6 +6,11 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
+    // Redirect authenticated users away from the landing page
+    if (pathname === "/" && token) {
+      return NextResponse.redirect(new URL("/dashboard/videos", req.url));
+    }
+
     // Admin routes (UI and API) require ADMIN role
     if (
       (pathname.startsWith("/dashboard/admin") ||
@@ -32,12 +37,15 @@ export default withAuth(
   },
   {
     callbacks: {
-      // Require a valid JWT for all matched routes
-      authorized: ({ token }) => !!token,
+      // / is public; for everything else require a valid JWT
+      authorized: ({ token, req }) => {
+        if (req.nextUrl.pathname === "/") return true;
+        return !!token;
+      },
     },
   },
 );
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/admin/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/api/admin/:path*"],
 };
