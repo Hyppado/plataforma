@@ -1,58 +1,100 @@
 "use client";
 
-import { useMemo, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography } from "@mui/material";
-import { ProductTable } from "@/app/components/dashboard/DataTable";
+import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
+import { ProductCard } from "@/app/components/cards/ProductCard";
+import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
+import type { ProductDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
-import { matchesCategory, ALL_CATEGORY_ID } from "@/lib/categories";
+import { ExpandMore } from "@mui/icons-material";
+import {
+  pickCategoryByHash,
+  matchesCategory,
+  ALL_CATEGORY_ID,
+} from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
-import { useNewProducts } from "@/lib/swr/useTrending";
+import { PRODUCT_RANK_FIELDS } from "@/lib/echotik/rankFields";
+import { useTrendingProducts } from "@/lib/swr/useTrending";
 import { useCategories } from "@/lib/swr/useCategories";
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 24;
 
-function TrendsContent() {
+function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
+    null,
+  );
 
   const timeRange = normalizeRange(searchParams.get("range"));
   const categoryFilter = searchParams.get("category") || "";
   const regionFilter = (
     searchParams.get("region") || getStoredRegion()
   ).toUpperCase();
+  const sort = searchParams.get("sort") || "sales";
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [timeRange, categoryFilter, regionFilter, sort]);
+
+  const requestedRankingCycle: 1 | 2 | 3 =
+    timeRange === "1d" ? 1 : timeRange === "7d" ? 2 : 3;
+  const rankingCycleLabel: Record<1 | 2 | 3, string> = {
+    1: "diário",
+    2: "semanal",
+    3: "mensal",
+  };
 
   const { categories } = useCategories();
 
-  const { items, total, isLoading, isValidating, error, mutate } =
-    useNewProducts({
-      range: timeRange,
-      region: regionFilter,
-      pageSize: PAGE_SIZE,
-    });
+  const {
+    items,
+    effectiveRankingCycle,
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  } = useTrendingProducts({
+    range: timeRange,
+    region: regionFilter,
+    sort,
+    pageSize: 100,
+  });
 
   // Client-side category filtering
+  const getProductCategoryId = useCallback(
+    (product: ProductDTO): string => {
+      if (product.category) return product.category;
+      return pickCategoryByHash(product.id, categories);
+    },
+    [categories],
+  );
+
   const filteredItems = useMemo(() => {
     if (!categoryFilter || categoryFilter === ALL_CATEGORY_ID) return items;
     return items.filter((p) =>
-      matchesCategory(p.category || p.id, categoryFilter, categories),
+      matchesCategory(getProductCategoryId(p), categoryFilter, categories),
     );
-  }, [items, categoryFilter, categories]);
+  }, [items, categoryFilter, categories, getProductCategoryId]);
 
-  const handleTimeRangeChange = (range: TimeRange) => {
-    const params = new URLSearchParams();
-    params.set("range", range);
-    if (categoryFilter) params.set("category", categoryFilter);
-    if (regionFilter) params.set("region", regionFilter);
-    router.push(`/dashboard/trends?${params.toString()}`);
+  const displayedProducts = filteredItems.slice(0, displayCount);
+  const hasMore = displayedProducts.length < filteredItems.length;
+
+  const handleLoadMore = () => {
+    setDisplayCount((prev) => prev + PAGE_SIZE);
   };
 
-  const handleCategoryChange = (category: string) => {
+  const updateUrl = (overrides: Record<string, string>) => {
     const params = new URLSearchParams();
-    params.set("range", timeRange);
-    if (category) params.set("category", category);
-    if (regionFilter) params.set("region", regionFilter);
+    params.set("range", overrides.range ?? timeRange);
+    params.set("region", overrides.region ?? regionFilter);
+    params.set("sort", overrides.sort ?? sort);
+    const cat = overrides.category ?? categoryFilter;
+    if (cat) params.set("category", cat);
     router.push(`/dashboard/trends?${params.toString()}`);
   };
 
@@ -73,7 +115,6 @@ function TrendsContent() {
         overflow: "hidden",
       }}
     >
-      {/* Fixed Header */}
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
           <Typography
@@ -86,7 +127,7 @@ function TrendsContent() {
               lineHeight: 1.3,
             }}
           >
-            Novos Produtos
+            Produtos em Alta
           </Typography>
           <Typography
             sx={{
@@ -95,25 +136,58 @@ function TrendsContent() {
               lineHeight: 1.3,
             }}
           >
-            {filteredItems.length > 0
-              ? `${filteredItems.length} produtos novos${getCategoryName() ? ` em ${getCategoryName()}` : ""} nos últimos 3 dias`
-              : `Produtos descobertos nos últimos 3 dias no TikTok Shop`}
+            {items.length > 0
+              ? `${filteredItems.length} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} • Mostrando ${displayedProducts.length}${effectiveRankingCycle && effectiveRankingCycle !== requestedRankingCycle ? ` • dados ${rankingCycleLabel[effectiveRankingCycle]}` : ""}`
+              : "Explorando os produtos mais vendidos"}
           </Typography>
         </Box>
         <DashboardHeader
           timeRange={timeRange}
-          onTimeRangeChange={handleTimeRangeChange}
+          onTimeRangeChange={(r: TimeRange) => updateUrl({ range: r })}
           onRefresh={() => mutate()}
           loading={isLoading || isValidating}
           category={categoryFilter}
-          onCategoryChange={handleCategoryChange}
+          onCategoryChange={(c: string) => updateUrl({ category: c })}
           categories={categories}
         />
+        {/* Sort chips */}
+        <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
+          {PRODUCT_RANK_FIELDS.map((rf) => {
+            const active = sort === rf.key;
+            return (
+              <Box
+                key={rf.key}
+                component="button"
+                onClick={() => updateUrl({ sort: rf.key })}
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 99,
+                  border: active
+                    ? "1px solid #2DD4FF"
+                    : "1px solid rgba(255,255,255,0.15)",
+                  background: active
+                    ? "rgba(45,212,255,0.12)"
+                    : "rgba(255,255,255,0.05)",
+                  color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
+                  fontSize: "0.75rem",
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 150ms ease",
+                  "&:hover": {
+                    borderColor: "#2DD4FF",
+                    color: "#2DD4FF",
+                  },
+                }}
+              >
+                {rf.label}
+              </Box>
+            );
+          })}
+        </Box>
       </Box>
 
-      {/* Scrollable Content */}
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", mt: 2 }}>
-        {/* Error State */}
         {error && (
           <Box
             role="alert"
@@ -132,18 +206,85 @@ function TrendsContent() {
           </Box>
         )}
 
-        {/* Trending Products Table */}
-        <ProductTable
-          products={filteredItems}
-          loading={isLoading}
-          title="Novos Produtos"
-        />
+        <Grid container spacing={{ xs: 2, md: 2.5 }}>
+          {displayedProducts.map((product) => (
+            <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
+              <ProductCard
+                product={product}
+                onViewDetails={(p) => setSelectedProduct(p)}
+              />
+            </Grid>
+          ))}
+          {isLoading &&
+            Array.from({ length: 12 }).map((_, idx) => (
+              <Grid item xs={6} sm={6} md={4} lg={2.4} key={`skeleton-${idx}`}>
+                <ProductCard isLoading />
+              </Grid>
+            ))}
+        </Grid>
+
+        {!isLoading && hasMore && displayedProducts.length > 0 && (
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              mt: 4,
+              mb: 2,
+            }}
+          >
+            <Button
+              variant="outlined"
+              size="large"
+              endIcon={<ExpandMore />}
+              onClick={handleLoadMore}
+              sx={{
+                px: 4,
+                py: 1.25,
+                fontSize: "0.875rem",
+                fontWeight: 600,
+                textTransform: "none",
+                borderRadius: 3,
+                borderColor: "rgba(45,212,255,0.3)",
+                color: "#2DD4FF",
+                transition: "all 180ms ease",
+                "&:hover": {
+                  borderColor: "#2DD4FF",
+                  background: "rgba(45,212,255,0.08)",
+                },
+              }}
+            >
+              Carregar mais
+            </Button>
+          </Box>
+        )}
+
+        {!isLoading && displayedProducts.length === 0 && (
+          <Box
+            sx={{
+              textAlign: "center",
+              py: 8,
+              color: "rgba(255,255,255,0.5)",
+            }}
+          >
+            <Typography sx={{ fontSize: "0.95rem" }}>
+              Nenhum produto encontrado
+            </Typography>
+          </Box>
+        )}
       </Box>
+
+      {selectedProduct && (
+        <ProductDetailsModal
+          open={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          product={selectedProduct}
+        />
+      )}
     </Box>
   );
 }
 
-export default function TrendsPage() {
+export default function ProductsPage() {
   return (
     <Suspense
       fallback={
@@ -159,7 +300,7 @@ export default function TrendsPage() {
         </Box>
       }
     >
-      <TrendsContent />
+      <ProductsContent />
     </Suspense>
   );
 }

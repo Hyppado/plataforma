@@ -9,8 +9,8 @@ import type { Category } from "@/lib/categories";
 import type { ShopCategory } from "@/lib/types/echotik";
 
 interface DashboardHeaderProps {
-  timeRange: TimeRange;
-  onTimeRangeChange: (range: TimeRange) => void;
+  timeRange?: TimeRange;
+  onTimeRangeChange?: (range: TimeRange) => void;
   onRefresh?: () => void;
   loading?: boolean;
   // Category filter (opcional)
@@ -42,11 +42,13 @@ export function DashboardHeader({
     >
       {/* Time Range + Category Selector */}
       <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-        <TimeRangeSelect
-          value={timeRange}
-          onChange={onTimeRangeChange}
-          disabled={loading}
-        />
+        {timeRange !== undefined && onTimeRangeChange !== undefined && (
+          <TimeRangeSelect
+            value={timeRange}
+            onChange={onTimeRangeChange}
+            disabled={loading}
+          />
+        )}
         {hasCategoryFilter && (
           <CategoryFilter
             value={category || ""}
