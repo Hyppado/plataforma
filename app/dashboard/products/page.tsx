@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { ProductCard } from "@/app/components/cards/ProductCard";
+import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
 import type { ProductDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { ExpandMore } from "@mui/icons-material";
@@ -24,6 +25,9 @@ function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
+    null,
+  );
 
   const timeRange = normalizeRange(searchParams.get("range"));
   const categoryFilter = searchParams.get("category") || "";
@@ -205,7 +209,10 @@ function ProductsContent() {
         <Grid container spacing={{ xs: 2, md: 2.5 }}>
           {displayedProducts.map((product) => (
             <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
-              <ProductCard product={product} />
+              <ProductCard
+                product={product}
+                onViewDetails={(p) => setSelectedProduct(p)}
+              />
             </Grid>
           ))}
           {isLoading &&
@@ -265,6 +272,14 @@ function ProductsContent() {
           </Box>
         )}
       </Box>
+
+      {selectedProduct && (
+        <ProductDetailsModal
+          open={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          product={selectedProduct}
+        />
+      )}
     </Box>
   );
 }

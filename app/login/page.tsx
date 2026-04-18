@@ -127,6 +127,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
+                inputProps={{ style: { fontSize: "1rem" } }}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     height: 48,
@@ -158,6 +159,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Sua senha"
+                inputProps={{ style: { fontSize: "1rem" } }}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
