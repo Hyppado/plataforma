@@ -102,7 +102,7 @@ export function AppTopHeader() {
       <Box sx={{ flex: 1 }} />
 
       {/* Quota usage */}
-      <Box sx={{ display: { xs: "none", sm: "block" }, mr: 1.5 }}>
+      <Box sx={{ mr: { xs: 1, sm: 1.5 } }}>
         <HeaderQuota />
       </Box>
 

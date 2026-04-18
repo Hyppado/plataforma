@@ -312,16 +312,17 @@ export function ProductCard({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(3, 1fr)" },
-            gap: { xs: 0.75, md: 1 },
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: { xs: 0.5, md: 1 },
             mb: { xs: 1, md: 1.25 },
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-            <Paid sx={{ fontSize: { xs: 15, md: 16 }, color: UI.text.muted }} />
+            <Paid sx={{ fontSize: { xs: 13, md: 16 }, color: UI.text.muted, flexShrink: 0 }} />
             <Typography
+              noWrap
               sx={{
-                fontSize: { xs: "0.775rem", md: "0.8125rem" },
+                fontSize: { xs: "0.7rem", md: "0.8125rem" },
                 color: UI.text.secondary,
               }}
             >
@@ -331,11 +332,12 @@ export function ProductCard({
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
             <ShoppingCart
-              sx={{ fontSize: { xs: 15, md: 16 }, color: UI.text.muted }}
+              sx={{ fontSize: { xs: 13, md: 16 }, color: UI.text.muted, flexShrink: 0 }}
             />
             <Typography
+              noWrap
               sx={{
-                fontSize: { xs: "0.775rem", md: "0.8125rem" },
+                fontSize: { xs: "0.7rem", md: "0.8125rem" },
                 color: UI.text.secondary,
               }}
             >
@@ -345,11 +347,12 @@ export function ProductCard({
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
             <Person
-              sx={{ fontSize: { xs: 15, md: 16 }, color: UI.text.muted }}
+              sx={{ fontSize: { xs: 13, md: 16 }, color: UI.text.muted, flexShrink: 0 }}
             />
             <Typography
+              noWrap
               sx={{
-                fontSize: { xs: "0.775rem", md: "0.8125rem" },
+                fontSize: { xs: "0.7rem", md: "0.8125rem" },
                 color: UI.text.secondary,
               }}
             >
