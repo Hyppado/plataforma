@@ -21,6 +21,10 @@ const prismaMock = vi.hoisted(() => ({
     findFirst: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue({ id: "run-1" }),
   },
+  setting: {
+    // return null → translateCategories skips (no API key configured)
+    findUnique: vi.fn().mockResolvedValue(null),
+  },
 }));
 
 const echotikRequestMock = vi.hoisted(() => vi.fn());
