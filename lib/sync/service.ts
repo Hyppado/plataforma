@@ -253,7 +253,10 @@ export async function runSync(options: SyncOptions): Promise<SyncSummary> {
   };
   const ssl = { rejectUnauthorized: true };
   const prod = new Client({ connectionString: stripSslMode(prodUrl), ssl });
-  const preview = new Client({ connectionString: stripSslMode(previewUrl), ssl });
+  const preview = new Client({
+    connectionString: stripSslMode(previewUrl),
+    ssl,
+  });
 
   try {
     await prod.connect();

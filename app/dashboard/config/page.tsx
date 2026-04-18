@@ -19,6 +19,7 @@ import {
 import type { PromptConfig } from "@/lib/types/admin";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
 import { PrivacyPolicySection } from "@/app/components/admin/PrivacyPolicySection";
+import { SupportEmailSection } from "@/app/components/admin/SupportEmailSection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
@@ -133,6 +134,7 @@ export default function ConfigPage() {
         <>
           {loading && <LinearProgress sx={{ mb: 3 }} />}
           <Grid container spacing={3}>
+            <SupportEmailSection />
             <PromptsSection
               promptConfig={promptConfig}
               promptTab={promptTab}

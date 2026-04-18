@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Box,
   Container,
@@ -9,9 +10,9 @@ import {
   Grid,
   Stack,
 } from "@mui/material";
-import { EmailOutlined, HelpOutline } from "@mui/icons-material";
+import { EmailOutlined } from "@mui/icons-material";
 
-const SUPPORT_EMAIL = "suporte@hyppado.com";
+const DEFAULT_SUPPORT_EMAIL = "suporte@hyppado.com";
 
 // ============================================
 // Design Tokens
@@ -38,6 +39,19 @@ const UI = {
 // ============================================
 
 export default function SuportePage() {
+  const [supportEmail, setSupportEmail] = useState(DEFAULT_SUPPORT_EMAIL);
+
+  useEffect(() => {
+    fetch("/api/support-email")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.email) setSupportEmail(d.email);
+      })
+      .catch(() => {
+        // keep default
+      });
+  }, []);
+
   return (
     <Container maxWidth="xl" disableGutters>
       {/* Header */}
@@ -59,7 +73,7 @@ export default function SuportePage() {
             color: UI.text.secondary,
           }}
         >
-          Entre em contato conosco ou consulte a central de ajuda.
+          Entre em contato com nossa equipe.
         </Typography>
       </Box>
 
@@ -89,7 +103,7 @@ export default function SuportePage() {
               {/* Email */}
               <Button
                 component="a"
-                href={`mailto:${SUPPORT_EMAIL}`}
+                href={`mailto:${supportEmail}`}
                 variant="outlined"
                 fullWidth
                 startIcon={<EmailOutlined />}
@@ -112,37 +126,7 @@ export default function SuportePage() {
                   <Typography
                     sx={{ fontSize: "0.75rem", color: UI.text.secondary }}
                   >
-                    {SUPPORT_EMAIL}
-                  </Typography>
-                </Box>
-              </Button>
-
-              {/* Central de Ajuda */}
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<HelpOutline />}
-                disabled
-                sx={{
-                  justifyContent: "flex-start",
-                  textTransform: "none",
-                  borderColor: UI.card.border,
-                  color: UI.text.primary,
-                  py: 1.5,
-                  "&:hover": {
-                    borderColor: UI.accent,
-                    backgroundColor: "rgba(45,212,255,0.05)",
-                  },
-                }}
-              >
-                <Box sx={{ textAlign: "left", flex: 1 }}>
-                  <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>
-                    Central de Ajuda
-                  </Typography>
-                  <Typography
-                    sx={{ fontSize: "0.75rem", color: UI.text.secondary }}
-                  >
-                    Em breve
+                    {supportEmail}
                   </Typography>
                 </Box>
               </Button>
@@ -153,3 +137,4 @@ export default function SuportePage() {
     </Container>
   );
 }
+
