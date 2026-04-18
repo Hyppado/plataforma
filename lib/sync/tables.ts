@@ -13,12 +13,14 @@
 export interface TableDef {
   /** PostgreSQL table name (Prisma model name — quoted in queries) */
   table: string;
-  /** Group for filtering (echotik, billing, users, access, usage) */
+  /** Group for filtering (echotik, general) */
   group: string;
   /** Whether rows need PII masking */
   masked: boolean;
   /** Columns to force to NULL */
   nullColumns?: string[];
+  /** Optional SQL WHERE clause (no "WHERE" keyword) to filter rows on SELECT */
+  rowFilter?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -36,41 +38,13 @@ export const TABLE_DEFS: TableDef[] = [
   { table: "EchotikProductDetail", group: "echotik", masked: false },
   { table: "EchotikRawResponse", group: "echotik", masked: false },
 
-  // ── Plans / billing (no PII in these) ──────────────────────────────────
-  { table: "Plan", group: "billing", masked: false },
-
-  // ── Users (masked) ────────────────────────────────────────────────────
+  // ── General settings — only sync exchange rate; all other settings stay in prod ─
   {
-    table: "User",
-    group: "users",
-    masked: true,
-    nullColumns: ["image"],
+    table: "Setting",
+    group: "general",
+    masked: false,
+    rowFilter: "key = 'exchange.usd_brl'",
   },
-
-  // ── External account links (masked) ───────────────────────────────────
-  { table: "ExternalAccountLink", group: "users", masked: true },
-
-  // ── Consent (masked) ──────────────────────────────────────────────────
-  { table: "ConsentRecord", group: "users", masked: true },
-
-  // ── Erasure requests ──────────────────────────────────────────────────
-  { table: "DataErasureRequest", group: "users", masked: false },
-
-  // ── Subscriptions ─────────────────────────────────────────────────────
-  { table: "Subscription", group: "billing", masked: false },
-  { table: "HotmartSubscription", group: "billing", masked: true },
-  { table: "SubscriptionCharge", group: "billing", masked: false },
-
-  // ── Access ────────────────────────────────────────────────────────────
-  { table: "AccessGrant", group: "access", masked: false },
-  { table: "Invitation", group: "access", masked: true },
-
-  // ── Usage ─────────────────────────────────────────────────────────────
-  { table: "UsagePeriod", group: "usage", masked: false },
-  { table: "UsageEvent", group: "usage", masked: false },
-
-  // ── General settings (includes exchange.usd_brl and other app config) ─
-  { table: "Setting", group: "general", masked: false },
 ];
 
 // ---------------------------------------------------------------------------

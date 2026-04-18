@@ -164,9 +164,18 @@ export async function GET(
         (typeof extra?.product_name === "string" ? extra.product_name : "") ||
         "",
       images,
-      minPrice: Number(detail?.minPrice ?? trend?.minPrice ?? 0),
-      maxPrice: Number(detail?.maxPrice ?? trend?.maxPrice ?? 0),
-      avgPrice: Number(detail?.avgPrice ?? trend?.avgPrice ?? 0),
+      minPrice:
+        detail?.minPrice != null
+          ? Number(detail.minPrice) / 100 // EchotikProductDetail stores cents
+          : Number(trend?.minPrice ?? 0), // EchotikProductTrendDaily stores raw float
+      maxPrice:
+        detail?.maxPrice != null
+          ? Number(detail.maxPrice) / 100
+          : Number(trend?.maxPrice ?? 0),
+      avgPrice:
+        detail?.avgPrice != null
+          ? Number(detail.avgPrice) / 100
+          : Number(trend?.avgPrice ?? 0),
       currency,
       commissionRate,
       rating: Number(detail?.rating ?? extra?.product_rating ?? 0),

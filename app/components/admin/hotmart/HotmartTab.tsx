@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import {
   Alert,
   Box,
@@ -1126,6 +1126,13 @@ function CredentialsCard() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
       await mutate();
+      // Re-sync plans from Hotmart with the new credentials
+      try {
+        await fetch("/api/admin/hotmart/plans", { method: "POST" });
+        await globalMutate("/api/admin/plans");
+      } catch {
+        // non-critical — plans will sync on next page load
+      }
     } catch {
       // silently fail
     } finally {

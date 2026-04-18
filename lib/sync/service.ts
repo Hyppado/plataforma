@@ -115,9 +115,10 @@ async function syncTable(
 ): Promise<SyncTableResult> {
   const { table, masked, nullColumns } = def;
 
-  // Read all rows from production
+  // Read rows from production (apply optional filter)
+  const whereClause = def.rowFilter ? ` WHERE ${def.rowFilter}` : "";
   const readRes: QueryResult = await prod.query(
-    `SELECT * FROM "${table}" ORDER BY 1`,
+    `SELECT * FROM "${table}"${whereClause} ORDER BY 1`,
   );
   const totalRows = readRes.rows.length;
 
