@@ -49,6 +49,7 @@ export async function GET(request: Request) {
       ...dbCategories.map((c) => ({
         id: c.externalId,
         name: c.name,
+        namePt: c.namePt ?? undefined,
         parentId: c.parentExternalId,
         level: c.level,
         slug: c.slug ?? undefined,

@@ -589,6 +589,7 @@ model EchotikCategory {
   id                String    @id @default(uuid())
   externalId        String    @unique              // ID vindo da API EchoTik
   name              String
+  namePt            String?                        // tradução em português-brasileiro
   language          String    @default("en")       // ex: "en", "pt"
   level             Int       @default(1)           // nível na hierarquia (1 = raiz)
   parentExternalId  String?                         // FK lógica para categoria pai

@@ -8,6 +8,7 @@ import type { Logger } from "@/lib/logger";
 import type { EchotikApiResponse, EchotikCategoryItem } from "./types";
 import { CATEGORIES_L2L3_INTERVAL_HOURS } from "./types";
 import { saveRawResponse, shouldSkip } from "./helpers";
+import { translateCategories } from "./translateCategories";
 
 // ---------------------------------------------------------------------------
 // Sync a single category level
@@ -116,6 +117,14 @@ export async function syncAllCategories(
     });
   } else {
     log.info("L2/L3 categories: skip (recently synced)");
+  }
+
+  // Translate any newly added categories to Portuguese
+  const translated = await translateCategories();
+  if (translated > 0) {
+    log.info(`Translated ${translated} category names to Portuguese`, {
+      translated,
+    });
   }
 
   return l1 + l2 + l3;
