@@ -239,11 +239,21 @@ export async function runSync(options: SyncOptions): Promise<SyncSummary> {
   });
 
   // Connect to both databases
-  // Explicit ssl config silences the pg v8 deprecation warning about
-  // sslmode=require being treated as verify-full.
+  // Explicit ssl config silences the pg v8 deprecation warning.
+  // We also strip sslmode from the URL so pg-connection-string doesn't
+  // emit its own warning — ssl is fully governed by the object below.
+  const stripSslMode = (rawUrl: string): string => {
+    try {
+      const u = new URL(rawUrl);
+      u.searchParams.delete("sslmode");
+      return u.toString();
+    } catch {
+      return rawUrl;
+    }
+  };
   const ssl = { rejectUnauthorized: true };
-  const prod = new Client({ connectionString: prodUrl, ssl });
-  const preview = new Client({ connectionString: previewUrl, ssl });
+  const prod = new Client({ connectionString: stripSslMode(prodUrl), ssl });
+  const preview = new Client({ connectionString: stripSslMode(previewUrl), ssl });
 
   try {
     await prod.connect();

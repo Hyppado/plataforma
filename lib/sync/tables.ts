@@ -68,6 +68,9 @@ export const TABLE_DEFS: TableDef[] = [
   // ── Usage ─────────────────────────────────────────────────────────────
   { table: "UsagePeriod", group: "usage", masked: false },
   { table: "UsageEvent", group: "usage", masked: false },
+
+  // ── General settings (includes exchange.usd_brl and other app config) ─
+  { table: "Setting", group: "general", masked: false },
 ];
 
 // ---------------------------------------------------------------------------
