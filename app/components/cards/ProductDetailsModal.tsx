@@ -35,6 +35,7 @@ import type { ProductDTO } from "@/lib/types/dto";
 import type { ProductDetailResponse } from "@/app/api/trending/products/[id]/route";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { fetcher } from "@/lib/swr/fetcher";
+import { useExchangeRate } from "@/lib/swr/useExchangeRate";
 
 // ── palette ────────────────────────────────────────────────────
 const ACCENT = "#2DD4FF";
@@ -241,6 +242,7 @@ export function ProductDetailsModal({
     fetcher,
     { revalidateOnFocus: false },
   );
+  const usdToBrl = useExchangeRate();
 
   const images = detail?.images ?? (product.imageUrl ? [product.imageUrl] : []);
   const currency = detail?.currency ?? product.currency ?? "USD";
@@ -406,13 +408,13 @@ export function ProductDetailsModal({
                   }}
                 >
                   {detail
-                    ? formatCurrency(detail.avgPrice, currency)
-                    : formatCurrency(product.priceBRL, currency)}
+                    ? formatCurrency(detail.avgPrice, currency, usdToBrl)
+                    : formatCurrency(product.priceBRL, currency, usdToBrl)}
                 </Typography>
                 {detail && detail.minPrice !== detail.maxPrice && (
                   <Typography sx={{ fontSize: "0.8rem", color: TEXT_MUTED }}>
-                    {formatCurrency(detail.minPrice, currency)} –{" "}
-                    {formatCurrency(detail.maxPrice, currency)}
+                    {formatCurrency(detail.minPrice, currency, usdToBrl)} –{" "}
+                    {formatCurrency(detail.maxPrice, currency, usdToBrl)}
                   </Typography>
                 )}
               </Box>
@@ -537,7 +539,7 @@ export function ProductDetailsModal({
                     <MetricCell
                       icon={<Paid sx={{ fontSize: 13 }} />}
                       label="Receita total"
-                      value={formatCurrency(detail.gmvTotal, currency)}
+                      value={formatCurrency(detail.gmvTotal, currency, usdToBrl)}
                     />
                   </Grid>
                 )}
@@ -546,7 +548,7 @@ export function ProductDetailsModal({
                     <MetricCell
                       icon={<Paid sx={{ fontSize: 13 }} />}
                       label="Receita 7d"
-                      value={formatCurrency(detail.gmv7d, currency)}
+                      value={formatCurrency(detail.gmv7d, currency, usdToBrl)}
                     />
                   </Grid>
                 )}
@@ -555,7 +557,7 @@ export function ProductDetailsModal({
                     <MetricCell
                       icon={<Paid sx={{ fontSize: 13 }} />}
                       label="Receita 30d"
-                      value={formatCurrency(detail.gmv30d, currency)}
+                      value={formatCurrency(detail.gmv30d, currency, usdToBrl)}
                     />
                   </Grid>
                 )}
@@ -601,7 +603,7 @@ export function ProductDetailsModal({
                   <MetricCell
                     icon={<Paid sx={{ fontSize: 13 }} />}
                     label="Receita"
-                    value={formatCurrency(product.revenueBRL, currency)}
+                    value={formatCurrency(product.revenueBRL, currency, usdToBrl)}
                   />
                 </Grid>
                 <Grid item xs={6} sm={4}>

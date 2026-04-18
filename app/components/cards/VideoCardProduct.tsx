@@ -1,4 +1,10 @@
-import { Box, Typography, IconButton, Tooltip, ButtonBase } from "@mui/material";
+import {
+  Box,
+  Typography,
+  IconButton,
+  Tooltip,
+  ButtonBase,
+} from "@mui/material";
 import { Bookmark, BookmarkBorder } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import { formatCurrency } from "@/lib/format";
@@ -11,6 +17,7 @@ interface VideoCardProductProps {
   onSave: (e: React.MouseEvent) => void;
   hasRealProduct: boolean;
   onProductClick?: () => void;
+  usdToBrl?: number | null;
 }
 
 /** Product section inside VideoCard */
@@ -21,6 +28,7 @@ export function VideoCardProduct({
   onSave,
   hasRealProduct,
   onProductClick,
+  usdToBrl,
 }: VideoCardProductProps) {
   return (
     <ButtonBase
@@ -39,10 +47,12 @@ export function VideoCardProduct({
         textAlign: "left",
         cursor: onProductClick ? "pointer" : "default",
         transition: "background 150ms ease, border-color 150ms ease",
-        "&:hover": onProductClick ? {
-          background: "rgba(255,255,255,0.06)",
-          borderColor: "rgba(45,212,255,0.2)",
-        } : {},
+        "&:hover": onProductClick
+          ? {
+              background: "rgba(255,255,255,0.06)",
+              borderColor: "rgba(45,212,255,0.2)",
+            }
+          : {},
       }}
     >
       {/* Product thumbnail */}
@@ -86,7 +96,7 @@ export function VideoCardProduct({
             fontWeight: 600,
           }}
         >
-          {formatCurrency(product.priceBRL, product.currency)}
+          {formatCurrency(product.priceBRL, product.currency, usdToBrl)}
         </Typography>
       </Box>
 

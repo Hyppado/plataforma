@@ -4,7 +4,21 @@
  * Pure formatting helpers — no data fetching, no side effects.
  */
 
-export function formatCurrency(value: number, currency = "BRL"): string {
+export function formatCurrency(
+  value: number,
+  currency = "BRL",
+  usdToBrl?: number | null,
+): string {
+  // When a rate is provided and currency is USD, convert and display as BRL
+  if (usdToBrl && currency === "USD") {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value * usdToBrl);
+  }
+
   const locale = currency === "BRL" ? "pt-BR" : "en-US";
   return new Intl.NumberFormat(locale, {
     style: "currency",

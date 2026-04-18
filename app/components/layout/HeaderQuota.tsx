@@ -76,7 +76,9 @@ function MiniQuotaBar({
   color: string;
 }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 0.75 } }}>
+    <Box
+      sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 0.75 } }}
+    >
       <Typography
         sx={{
           display: { xs: "none", sm: "block" },

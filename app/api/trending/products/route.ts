@@ -30,10 +30,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const range = (searchParams.get("range") || "7d") as
-      | "1d"
-      | "7d"
-      | "30d";
+    const range = (searchParams.get("range") || "7d") as "1d" | "7d" | "30d";
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
     const pageSize = Math.min(
       Math.max(parseInt(searchParams.get("pageSize") || "24", 10), 1),

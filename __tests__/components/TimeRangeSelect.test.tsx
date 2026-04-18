@@ -76,7 +76,6 @@ describe("TimeRangeSelect", () => {
     expect(onChange).toHaveBeenCalledWith("30d");
   });
 
-
   it("disables the select when disabled=true", () => {
     render(<TimeRangeSelect value="7d" onChange={vi.fn()} disabled />);
     // MUI Select root gets the aria-disabled attribute when disabled

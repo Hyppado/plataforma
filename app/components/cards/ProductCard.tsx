@@ -22,6 +22,7 @@ import type { ProductDTO } from "@/lib/types/dto";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSavedProducts } from "@/lib/storage/saved";
+import { useExchangeRate } from "@/lib/swr/useExchangeRate";
 
 const UI = {
   card: {
@@ -53,6 +54,7 @@ export function ProductCard({
 }: ProductCardProps) {
   const savedProducts = useSavedProducts();
   const [isPressed, setIsPressed] = useState(false);
+  const usdToBrl = useExchangeRate();
 
   const saved = product ? savedProducts.isSaved(product.id) : false;
 
@@ -305,7 +307,7 @@ export function ProductCard({
             mb: { xs: 1, md: 1.25 },
           }}
         >
-          {formatCurrency(product.priceBRL, product.currency)}
+          {formatCurrency(product.priceBRL, product.currency, usdToBrl)}
         </Typography>
 
         {/* Metrics */}
@@ -318,7 +320,13 @@ export function ProductCard({
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-            <Paid sx={{ fontSize: { xs: 13, md: 16 }, color: UI.text.muted, flexShrink: 0 }} />
+            <Paid
+              sx={{
+                fontSize: { xs: 13, md: 16 },
+                color: UI.text.muted,
+                flexShrink: 0,
+              }}
+            />
             <Typography
               noWrap
               sx={{
@@ -326,13 +334,17 @@ export function ProductCard({
                 color: UI.text.secondary,
               }}
             >
-              {formatCurrency(product.revenueBRL, product.currency)}
+              {formatCurrency(product.revenueBRL, product.currency, usdToBrl)}
             </Typography>
           </Box>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
             <ShoppingCart
-              sx={{ fontSize: { xs: 13, md: 16 }, color: UI.text.muted, flexShrink: 0 }}
+              sx={{
+                fontSize: { xs: 13, md: 16 },
+                color: UI.text.muted,
+                flexShrink: 0,
+              }}
             />
             <Typography
               noWrap
@@ -347,7 +359,11 @@ export function ProductCard({
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
             <Person
-              sx={{ fontSize: { xs: 13, md: 16 }, color: UI.text.muted, flexShrink: 0 }}
+              sx={{
+                fontSize: { xs: 13, md: 16 },
+                color: UI.text.muted,
+                flexShrink: 0,
+              }}
             />
             <Typography
               noWrap

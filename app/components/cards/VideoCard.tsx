@@ -14,6 +14,7 @@ import {
 import { TikTokPlayerModal } from "@/app/components/videos/TikTokPlayerModal";
 import { ProductDetailsModal } from "./ProductDetailsModal";
 import { UI } from "./videoCardConfig";
+import { useExchangeRate } from "@/lib/swr/useExchangeRate";
 import { RankBadge } from "./RankBadge";
 import { VideoCardSkeleton } from "./VideoCardSkeleton";
 import { VideoCardProduct } from "./VideoCardProduct";
@@ -47,6 +48,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const [insightError, setInsightError] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
+  const usdToBrl = useExchangeRate();
 
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
@@ -397,7 +399,10 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
             isSaved={!!productSaved}
             onSave={handleProductSave}
             hasRealProduct={hasRealProduct}
-            onProductClick={hasRealProduct ? () => setProductModalOpen(true) : undefined}
+            onProductClick={
+              hasRealProduct ? () => setProductModalOpen(true) : undefined
+            }
+            usdToBrl={usdToBrl}
           />
         )}
 
@@ -406,6 +411,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
           views={video.views}
           sales={video.sales}
           currency={video.currency}
+          usdToBrl={usdToBrl}
         />
 
         <VideoCardActions

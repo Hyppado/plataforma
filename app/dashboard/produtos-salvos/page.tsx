@@ -12,7 +12,9 @@ import type { ProductDTO } from "@/lib/types/dto";
 export default function ProdutosSalvosPage() {
   const savedProducts = useSavedProducts();
   const products = savedProducts.products.map((item) => item.product);
-  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
+    null,
+  );
   const isEmpty = products.length === 0;
 
   return (

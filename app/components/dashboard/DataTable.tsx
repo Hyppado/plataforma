@@ -23,6 +23,7 @@ import {
 } from "@mui/icons-material";
 import type { ProductDTO, CreatorDTO } from "@/lib/types/dto";
 import { formatCurrency, formatNumber } from "@/lib/format";
+import { useExchangeRate } from "@/lib/swr/useExchangeRate";
 
 interface ProductTableProps {
   products: ProductDTO[];
@@ -92,6 +93,7 @@ export function ProductTable({
   showNewBadge = false,
   onProductClick,
 }: ProductTableProps) {
+  const usdToBrl = useExchangeRate();
   return (
     <Box
       sx={{
@@ -253,7 +255,11 @@ export function ProductTable({
                     </Box>
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
-                    {formatCurrency(product.priceBRL, product.currency)}
+                    {formatCurrency(
+                      product.priceBRL,
+                      product.currency,
+                      usdToBrl,
+                    )}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
                     {formatNumber(product.sales)}
@@ -266,7 +272,11 @@ export function ProductTable({
                         fontSize: "0.85rem",
                       }}
                     >
-                      {formatCurrency(product.revenueBRL, product.currency)}
+                      {formatCurrency(
+                        product.revenueBRL,
+                        product.currency,
+                        usdToBrl,
+                      )}
                     </Typography>
                   </TableCell>
                   <TableCell sx={tableCellSx} align="right">
@@ -340,6 +350,7 @@ export function CreatorTable({
   title,
   onCreatorClick,
 }: CreatorTableProps) {
+  const usdToBrl = useExchangeRate();
   return (
     <Box
       sx={{
@@ -471,7 +482,11 @@ export function CreatorTable({
                         fontSize: "0.85rem",
                       }}
                     >
-                      {formatCurrency(creator.revenueBRL, creator.currency)}
+                      {formatCurrency(
+                        creator.revenueBRL,
+                        creator.currency,
+                        usdToBrl,
+                      )}
                     </Typography>
                   </TableCell>
                   <TableCell sx={tableCellSx} align="center">

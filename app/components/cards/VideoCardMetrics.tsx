@@ -7,6 +7,7 @@ interface VideoCardMetricsProps {
   views: number;
   sales: number;
   currency?: string;
+  usdToBrl?: number | null;
 }
 
 /** Metrics row (revenue, views, sales) for VideoCard */
@@ -15,6 +16,7 @@ export function VideoCardMetrics({
   views,
   sales,
   currency,
+  usdToBrl,
 }: VideoCardMetricsProps) {
   return (
     <Box
@@ -27,7 +29,9 @@ export function VideoCardMetrics({
       }}
     >
       <MetricCell
-        value={revenueBRL > 0 ? formatCurrency(revenueBRL, currency) : "-"}
+        value={
+          revenueBRL > 0 ? formatCurrency(revenueBRL, currency, usdToBrl) : "-"
+        }
         label="Receita"
         color={UI.accent}
       />
