@@ -67,12 +67,8 @@ export function ProductCard({
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!product) return;
-    if (product.tiktokUrl) {
-      window.open(product.tiktokUrl, "_blank", "noopener,noreferrer");
-    } else if (product.sourceUrl) {
-      window.open(product.sourceUrl, "_blank", "noopener,noreferrer");
-    }
+    if (!product || !product.tiktokUrl) return;
+    window.open(product.tiktokUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleViewDetails = () => {

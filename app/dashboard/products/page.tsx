@@ -1,20 +1,25 @@
 "use client";
 
-import { useMemo, Suspense } from "react";
+import { useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography } from "@mui/material";
 import { ProductTable } from "@/app/components/dashboard/DataTable";
+import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { matchesCategory, ALL_CATEGORY_ID } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
 import { useNewProducts } from "@/lib/swr/useTrending";
 import { useCategories } from "@/lib/swr/useCategories";
+import type { ProductDTO } from "@/lib/types/dto";
 
 const PAGE_SIZE = 100;
 
 function TrendsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
+    null,
+  );
 
   const categoryFilter = searchParams.get("category") || "";
   const regionFilter = (
@@ -124,8 +129,17 @@ function TrendsContent() {
           products={filteredItems}
           loading={isLoading}
           title="Novos Produtos"
+          onProductClick={setSelectedProduct}
         />
       </Box>
+
+      {selectedProduct && (
+        <ProductDetailsModal
+          open={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          product={selectedProduct}
+        />
+      )}
     </Box>
   );
 }

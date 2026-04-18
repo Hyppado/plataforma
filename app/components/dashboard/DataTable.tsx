@@ -311,27 +311,6 @@ export function ProductTable({
                           </IconButton>
                         </Tooltip>
                       )}
-                      {product.sourceUrl && product.sourceUrl !== "—" && (
-                        <Tooltip title="Ver detalhes">
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(
-                                product.sourceUrl,
-                                "_blank",
-                                "noopener,noreferrer",
-                              );
-                            }}
-                            sx={{
-                              color: "rgba(255,255,255,0.5)",
-                              "&:hover": { color: "#2DD4FF" },
-                            }}
-                          >
-                            <TrendingUp sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -515,27 +494,6 @@ export function CreatorTable({
                             }}
                           >
                             <OpenInNew sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {creator.sourceUrl && creator.sourceUrl !== "—" && (
-                        <Tooltip title="Ver detalhes">
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(
-                                creator.sourceUrl,
-                                "_blank",
-                                "noopener,noreferrer",
-                              );
-                            }}
-                            sx={{
-                              color: "rgba(255,255,255,0.5)",
-                              "&:hover": { color: "#2DD4FF" },
-                            }}
-                          >
-                            <TrendingUp sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
                       )}
