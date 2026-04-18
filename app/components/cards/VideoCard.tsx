@@ -12,6 +12,7 @@ import {
   type InsightData,
 } from "@/app/components/videos/InsightDialog";
 import { TikTokPlayerModal } from "@/app/components/videos/TikTokPlayerModal";
+import { ProductDetailsModal } from "./ProductDetailsModal";
 import { UI } from "./videoCardConfig";
 import { RankBadge } from "./RankBadge";
 import { VideoCardSkeleton } from "./VideoCardSkeleton";
@@ -45,6 +46,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const [insightData, setInsightData] = useState<InsightData | null>(null);
   const [insightError, setInsightError] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [productModalOpen, setProductModalOpen] = useState(false);
 
   const hasTikTokUrl = !!video?.tiktokUrl;
   const hasThumbnail = !!video?.thumbnailUrl;
@@ -395,6 +397,7 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
             isSaved={!!productSaved}
             onSave={handleProductSave}
             hasRealProduct={hasRealProduct}
+            onProductClick={hasRealProduct ? () => setProductModalOpen(true) : undefined}
           />
         )}
 
@@ -438,6 +441,13 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
           onClose={() => setPlayerOpen(false)}
           tiktokUrl={video.tiktokUrl}
           videoTitle={video.title}
+        />
+      )}
+      {hasRealProduct && displayProduct && (
+        <ProductDetailsModal
+          open={productModalOpen}
+          onClose={() => setProductModalOpen(false)}
+          product={displayProduct}
         />
       )}
     </Box>

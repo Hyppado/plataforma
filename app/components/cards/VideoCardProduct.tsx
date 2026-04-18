@@ -1,4 +1,4 @@
-import { Box, Typography, IconButton, Tooltip } from "@mui/material";
+import { Box, Typography, IconButton, Tooltip, ButtonBase } from "@mui/material";
 import { Bookmark, BookmarkBorder } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import { formatCurrency } from "@/lib/format";
@@ -10,6 +10,7 @@ interface VideoCardProductProps {
   isSaved: boolean;
   onSave: (e: React.MouseEvent) => void;
   hasRealProduct: boolean;
+  onProductClick?: () => void;
 }
 
 /** Product section inside VideoCard */
@@ -19,9 +20,12 @@ export function VideoCardProduct({
   isSaved,
   onSave,
   hasRealProduct,
+  onProductClick,
 }: VideoCardProductProps) {
   return (
-    <Box
+    <ButtonBase
+      onClick={onProductClick}
+      disabled={!onProductClick}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -31,6 +35,14 @@ export function VideoCardProduct({
         borderRadius: 3,
         background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(255,255,255,0.06)",
+        width: "100%",
+        textAlign: "left",
+        cursor: onProductClick ? "pointer" : "default",
+        transition: "background 150ms ease, border-color 150ms ease",
+        "&:hover": onProductClick ? {
+          background: "rgba(255,255,255,0.06)",
+          borderColor: "rgba(45,212,255,0.2)",
+        } : {},
       }}
     >
       {/* Product thumbnail */}
@@ -105,6 +117,6 @@ export function VideoCardProduct({
           </IconButton>
         </Tooltip>
       )}
-    </Box>
+    </ButtonBase>
   );
 }
