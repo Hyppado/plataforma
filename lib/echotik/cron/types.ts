@@ -79,6 +79,7 @@ export interface EchotikVideoRankItem {
   total_video_sale_cnt: number;
   total_video_sale_gmv_amt: number;
   total_views_cnt: number;
+  total_views_history_cnt?: number; // lifetime views — prefer this over total_views_cnt
   video_products: string;
   [key: string]: unknown;
 }

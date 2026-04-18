@@ -87,10 +87,11 @@ export function useTrendingProducts(params: TrendingParams) {
   return useTrending<ProductDTO>("/api/trending/products", params);
 }
 
-export function useNewProducts(params: Omit<TrendingParams, "sort">) {
+export function useNewProducts(params: Omit<TrendingParams, "sort" | "range">) {
   return useTrending<ProductDTO>("/api/trending/new-products", {
     ...params,
     sort: "",
+    range: "3d", // fixed window for new products
   });
 }
 
