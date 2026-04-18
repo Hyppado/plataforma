@@ -176,6 +176,7 @@ describe("detectNextTask()", () => {
       .mockResolvedValueOnce(true) // products:US
       .mockResolvedValueOnce(true) // creators:BR
       .mockResolvedValueOnce(true) // creators:US
+      .mockResolvedValueOnce(true) // echotik:new-products → fresh
       .mockResolvedValueOnce(false); // echotik:details → not stale, run it
 
     const sel = await detectNextTask(false);

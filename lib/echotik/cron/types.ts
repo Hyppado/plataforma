@@ -148,6 +148,33 @@ export interface EchotikProductDetailItem {
   [key: string]: unknown;
 }
 
+/** Item de product/list (T+1 offline, inclui first_crawl_dt) */
+export interface EchotikProductListItem {
+  product_id: string;
+  product_name?: string;
+  cover_url?: string;
+  spu_avg_price?: number;
+  min_price?: number;
+  max_price?: number;
+  product_rating?: number;
+  product_commission_rate?: number;
+  category_id?: string;
+  category_l2_id?: string;
+  category_l3_id?: string;
+  region?: string;
+  first_crawl_dt?: number; // yyyyMMdd integer
+  [key: string]: unknown;
+}
+
+/** Intervalo de sincronização de novos produtos (horas) */
+export const NEW_PRODUCTS_INTERVAL_HOURS = 24;
+
+/** Janela de dias para "novos produtos" */
+export const NEW_PRODUCTS_DAYS_BACK = 3;
+
+/** Páginas máximas por região para product/list */
+export const NEW_PRODUCTS_MAX_PAGES = 20; // 20 × 10 = 200 products per region
+
 // ---------------------------------------------------------------------------
 // Cron result
 // ---------------------------------------------------------------------------

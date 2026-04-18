@@ -327,12 +327,22 @@ export async function getConfiguredRegions(): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 export async function upsertProductDetail(
-  item: import("./types").EchotikProductDetailItem,
+  item:
+    | import("./types").EchotikProductDetailItem
+    | import("./types").EchotikProductListItem,
+  firstCrawlDt?: number,
 ): Promise<void> {
-  const coverUrl = extractFirstCoverUrl(item.cover_url);
+  const coverUrl = extractFirstCoverUrl(
+    (item as { cover_url?: string }).cover_url,
+  );
   const avgPriceCents = Math.round((item.spu_avg_price ?? 0) * 100);
   const minPriceCents = Math.round((item.min_price ?? 0) * 100);
   const maxPriceCents = Math.round((item.max_price ?? 0) * 100);
+  // Accept firstCrawlDt from param or from item itself (EchotikProductListItem)
+  const crawlDt =
+    firstCrawlDt ??
+    (item as { first_crawl_dt?: number }).first_crawl_dt ??
+    null;
 
   await prisma.echotikProductDetail.upsert({
     where: { productExternalId: String(item.product_id) },
@@ -347,6 +357,7 @@ export async function upsertProductDetail(
       commissionRate: item.product_commission_rate ?? 0,
       categoryId: item.category_id || null,
       region: item.region || null,
+      firstCrawlDt: crawlDt,
       extra: item as any,
     },
     update: {
@@ -359,6 +370,8 @@ export async function upsertProductDetail(
       commissionRate: item.product_commission_rate ?? 0,
       categoryId: item.category_id || undefined,
       region: item.region || undefined,
+      // Only update firstCrawlDt if we have a value (don't overwrite with null)
+      ...(crawlDt !== null ? { firstCrawlDt: crawlDt } : {}),
       extra: item as any,
       fetchedAt: new Date(),
     },

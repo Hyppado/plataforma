@@ -87,6 +87,13 @@ export function useTrendingProducts(params: TrendingParams) {
   return useTrending<ProductDTO>("/api/trending/products", params);
 }
 
+export function useNewProducts(params: Omit<TrendingParams, "sort">) {
+  return useTrending<ProductDTO>("/api/trending/new-products", {
+    ...params,
+    sort: "",
+  });
+}
+
 export function useTrendingCreators(params: TrendingParams) {
   return useTrending<CreatorDTO>("/api/trending/creators", params);
 }

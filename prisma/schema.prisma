@@ -726,11 +726,13 @@ model EchotikProductDetail {
   commissionRate    Decimal?  @db.Decimal(5, 4)
   categoryId        String?
   region            String?
+  firstCrawlDt      Int?                             // first_crawl_dt da API (yyyyMMdd, ex: 20260418)
   extra             Json?                            // Payload completo da API
   fetchedAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   @@index([fetchedAt])
+  @@index([firstCrawlDt])
 }
 
 /// Payload bruto armazenado para reprodutibilidade / debug

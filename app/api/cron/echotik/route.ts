@@ -30,6 +30,7 @@ export const maxDuration = 300;
 
 const VALID_TASKS = new Set<CronTask>([
   "categories",
+  "new-products",
   "videos",
   "products",
   "creators",

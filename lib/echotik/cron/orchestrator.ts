@@ -34,6 +34,7 @@ import {
   syncRanklistProductDetails,
 } from "./syncProducts";
 import { syncCreatorRanklist } from "./syncCreators";
+import { syncNewProducts } from "./syncNewProducts";
 import { uploadPendingImages } from "./uploadImages";
 import { cachePendingDownloadUrls } from "./cacheDownloadUrls";
 import { cleanupOrphanedBlobs } from "./cleanupOrphans";
@@ -44,6 +45,7 @@ import { cleanupOrphanedBlobs } from "./cleanupOrphans";
 
 export type CronTask =
   | "categories"
+  | "new-products"
   | "videos"
   | "products"
   | "creators"
@@ -152,7 +154,12 @@ export async function detectNextTask(
     }
   }
 
-  // 5. Details (always worth trying — cheap when nothing is missing)
+  // 5. New products (region-agnostic aggregate, runs once per day)
+  if (force || !(await shouldSkip("echotik:new-products", 24))) {
+    return { task: "new-products", region: null };
+  }
+
+  // 6. Details (always worth trying — cheap when nothing is missing)
   if (
     cfg.enabledTasks.includes("details") ||
     !cfg.enabledTasks.length // default: all enabled
@@ -491,6 +498,36 @@ export async function runEchotikCron(
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       log.error("Orphan cleanup failed", { error: errorMessage });
+      return {
+        runId: "",
+        status: "FAILED",
+        stats: { ...emptyStats(), durationMs: Date.now() - start },
+        error: errorMessage,
+      };
+    }
+  }
+
+  if (task === "new-products") {
+    try {
+      const synced = await syncNewProducts(log, force);
+      const stats = { ...emptyStats(), durationMs: Date.now() - start };
+      await prisma.ingestionRun.create({
+        data: {
+          source: "echotik:new-products",
+          status: "SUCCESS",
+          endedAt: new Date(),
+          statsJson: { synced } as any,
+        },
+      });
+      log.info("New products sync done", { synced });
+      return {
+        runId: "",
+        status: synced > 0 ? "SUCCESS" : "SKIPPED",
+        stats,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("New products sync failed", { error: errorMessage });
       return {
         runId: "",
         status: "FAILED",

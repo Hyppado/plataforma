@@ -8,7 +8,7 @@ import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
 import { matchesCategory, ALL_CATEGORY_ID } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
-import { useTrendingProducts } from "@/lib/swr/useTrending";
+import { useNewProducts } from "@/lib/swr/useTrending";
 import { useCategories } from "@/lib/swr/useCategories";
 
 const PAGE_SIZE = 100;
@@ -26,10 +26,9 @@ function TrendsContent() {
   const { categories } = useCategories();
 
   const { items, total, isLoading, isValidating, error, mutate } =
-    useTrendingProducts({
+    useNewProducts({
       range: timeRange,
       region: regionFilter,
-      sort: "sales",
       pageSize: PAGE_SIZE,
     });
 
@@ -87,7 +86,7 @@ function TrendsContent() {
               lineHeight: 1.3,
             }}
           >
-            Tendências
+            Novos Produtos
           </Typography>
           <Typography
             sx={{
@@ -97,8 +96,8 @@ function TrendsContent() {
             }}
           >
             {filteredItems.length > 0
-              ? `${filteredItems.length} produtos${getCategoryName() ? ` em ${getCategoryName()}` : ""} em alta`
-              : `Produtos em alta no TikTok Shop`}
+              ? `${filteredItems.length} produtos novos${getCategoryName() ? ` em ${getCategoryName()}` : ""} nos últimos 3 dias`
+              : `Produtos descobertos nos últimos 3 dias no TikTok Shop`}
           </Typography>
         </Box>
         <DashboardHeader
@@ -137,7 +136,7 @@ function TrendsContent() {
         <ProductTable
           products={filteredItems}
           loading={isLoading}
-          title="Produtos em Alta"
+          title="Novos Produtos"
         />
       </Box>
     </Box>

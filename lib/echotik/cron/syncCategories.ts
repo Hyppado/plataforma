@@ -101,6 +101,9 @@ export async function syncAllCategories(
     CATEGORIES_L2L3_INTERVAL_HOURS,
   );
 
+  // Record start time before any upserts — used for pruning stale rows
+  const syncStart = new Date();
+
   const l1 = await syncCategoriesForLevel(1, runId, log);
 
   let l2 = 0;
@@ -115,11 +118,22 @@ export async function syncAllCategories(
         endedAt: new Date(),
       },
     });
+
+    // Prune categories that were not touched in this full sync cycle
+    // (only safe when all 3 levels ran — avoids deleting L2/L3 on daily-only runs)
+    const pruned = await prisma.echotikCategory.deleteMany({
+      where: { syncedAt: { lt: syncStart } },
+    });
+    if (pruned.count > 0) {
+      log.info(`Pruned ${pruned.count} stale categories`, {
+        count: pruned.count,
+      });
+    }
   } else {
     log.info("L2/L3 categories: skip (recently synced)");
   }
 
-  // Translate any newly added categories to Portuguese
+  // Translate newly added categories to Portuguese (skips already-translated rows)
   const translated = await translateCategories();
   if (translated > 0) {
     log.info(`Translated ${translated} category names to Portuguese`, {
