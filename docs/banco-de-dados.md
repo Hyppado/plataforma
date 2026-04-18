@@ -149,7 +149,7 @@ Snapshot diário do ranking de creators por região.
 
 #### `EchotikProductDetail`
 
-Cache de detalhes de produto (enriquecimento).
+Cache de detalhes de produto (enriquecimento). O campo `extra` armazena o payload completo da API Echotik como JSON, incluindo `cover_url` (array `[{url, index}]`), `specification` e métricas de receita. Lido pelo endpoint `GET /api/trending/products/[id]` para popular o `ProductDetailsModal`.
 
 #### `EchotikCategory`
 

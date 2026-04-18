@@ -27,7 +27,7 @@ Visualizar os top vídeos com mais receita, vendas ou visualizações nos últim
 
 ### 2. Encontrar produtos em alta
 
-Ranking de produtos por revenue, vendas, taxa de comissão ou crescimento, com détalhes de preço, creators envolvidos e canais de receita (live, vídeo, shopping).
+Ranking de produtos por revenue, vendas, taxa de comissão ou crescimento, com detalhes de preço, creators envolvidos e canais de receita (live, vídeo, shopping). Clicar em "Ver Detalhes" em qualquer produto abre um modal com carrossel de imagens, métricas de vendas e GMV (7d/30d/90d/total), especificações e link para o TikTok Shop.
 
 ### 3. Identificar creators de sucesso
 

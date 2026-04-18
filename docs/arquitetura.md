@@ -73,13 +73,14 @@ app/
     regions/           → regiões ativas
     transcripts/       → transcrição sob demanda
     trending/          → dados de tendências (vídeos, produtos, creators)
+      products/[id]/   → detalhes de produto (lê EchotikProductDetail + trend diário)
     usage/             → quotas do usuário
     webhooks/
       hotmart/         → webhook de eventos Hotmart
   components/
     BrandLogo.tsx      → logo responsivo (next/image)
     admin/             → componentes do painel admin
-    cards/             → VideoCard, ProductCard, CreatorCard, RankCard
+    cards/             → VideoCard, ProductCard, CreatorCard, RankCard, ProductDetailsModal
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
       PasswordChangeGuard.tsx → guarda de sessão para troca de senha
