@@ -34,7 +34,7 @@ import {
   syncRanklistProductDetails,
 } from "./syncProducts";
 import { syncCreatorRanklist } from "./syncCreators";
-import { syncNewProducts } from "./syncNewProducts";
+import { syncNewProductsForRegion } from "./syncNewProducts";
 import { uploadPendingImages } from "./uploadImages";
 import { cachePendingDownloadUrls } from "./cacheDownloadUrls";
 import { cleanupOrphanedBlobs } from "./cleanupOrphans";
@@ -90,6 +90,7 @@ export async function detectNextTask(
   const videosInterval = cfg.intervals.videos;
   const productsInterval = cfg.intervals.products;
   const creatorsInterval = cfg.intervals.creators;
+  const newProductsInterval = cfg.newProducts.intervalHours;
 
   // 1. Categories (region-agnostic, runs once per interval)
   if (
@@ -154,9 +155,16 @@ export async function detectNextTask(
     }
   }
 
-  // 5. New products (region-agnostic aggregate, runs once per day)
-  if (force || !(await shouldSkip("echotik:new-products", 24))) {
-    return { task: "new-products", region: null };
+  // 5. New products — per region
+  if (cfg.enabledTasks.includes("new-products")) {
+    for (const region of regions) {
+      if (
+        force ||
+        !(await shouldSkip(`echotik:new-products:${region}`, newProductsInterval))
+      ) {
+        return { task: "new-products", region };
+      }
+    }
   }
 
   // 6. Details (always worth trying — cheap when nothing is missing)
@@ -349,7 +357,8 @@ export async function runEchotikCron(
     requestedRegion === undefined &&
     (requestedTask === "videos" ||
       requestedTask === "products" ||
-      requestedTask === "creators")
+      requestedTask === "creators" ||
+      requestedTask === "new-products")
   ) {
     // Explicit ranklist task but no region provided: auto-pick the first region
     // needing sync (or the first region if force=true).
@@ -358,6 +367,7 @@ export async function runEchotikCron(
       videos: config.intervals.videos,
       products: config.intervals.products,
       creators: config.intervals.creators,
+      "new-products": config.newProducts.intervalHours,
     };
     const interval = intervalMap[requestedTask];
     let pickedRegion = regions[0] ?? null;
@@ -508,18 +518,24 @@ export async function runEchotikCron(
   }
 
   if (task === "new-products") {
+    const newProductsRegion = region ?? "";
     try {
-      const synced = await syncNewProducts(log, force);
+      const daysBack = config.newProducts.daysBack;
+      const synced = await syncNewProductsForRegion(
+        newProductsRegion,
+        log,
+        daysBack,
+      );
       const stats = { ...emptyStats(), durationMs: Date.now() - start };
       await prisma.ingestionRun.create({
         data: {
-          source: "echotik:new-products",
+          source: `echotik:new-products:${newProductsRegion}`,
           status: "SUCCESS",
           endedAt: new Date(),
           statsJson: { synced } as any,
         },
       });
-      log.info("New products sync done", { synced });
+      log.info("New products sync done", { region: newProductsRegion, synced });
       return {
         runId: "",
         status: synced > 0 ? "SUCCESS" : "SKIPPED",
@@ -527,7 +543,10 @@ export async function runEchotikCron(
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      log.error("New products sync failed", { error: errorMessage });
+      log.error("New products sync failed", {
+        region: newProductsRegion,
+        error: errorMessage,
+      });
       return {
         runId: "",
         status: "FAILED",

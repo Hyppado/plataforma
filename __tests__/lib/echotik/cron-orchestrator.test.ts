@@ -88,12 +88,17 @@ vi.mock("@/lib/echotik/cron/syncCreators", () => ({
   syncCreatorRanklist: syncCreatorRanklistMock,
 }));
 
+vi.mock("@/lib/echotik/cron/syncNewProducts", () => ({
+  syncNewProductsForRegion: vi.fn().mockResolvedValue(5),
+}));
+
 const getEchotikConfigMock = vi.hoisted(() => vi.fn());
 
 const DEFAULT_ECHOTIK_CONFIG = {
   intervals: { categories: 24, videos: 24, products: 24, creators: 24 },
   pages: { videos: 10, products: 10, creators: 10 },
   detail: { batchSize: 5, maxAgeDays: 7 },
+  newProducts: { daysBack: 3, intervalHours: 24 },
   enabledTasksRaw: "categories,videos,products,creators,details",
   enabledTasks: ["categories", "videos", "products", "creators", "details"],
 };
@@ -176,7 +181,6 @@ describe("detectNextTask()", () => {
       .mockResolvedValueOnce(true) // products:US
       .mockResolvedValueOnce(true) // creators:BR
       .mockResolvedValueOnce(true) // creators:US
-      .mockResolvedValueOnce(true) // echotik:new-products → fresh
       .mockResolvedValueOnce(false); // echotik:details → not stale, run it
 
     const sel = await detectNextTask(false);
