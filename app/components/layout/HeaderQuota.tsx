@@ -81,8 +81,7 @@ function MiniQuotaBar({
     >
       <Typography
         sx={{
-          display: { xs: "none", sm: "block" },
-          fontSize: "0.65rem",
+          fontSize: { xs: "0.6rem", sm: "0.65rem" },
           fontWeight: 600,
           color: "rgba(255,255,255,0.55)",
           whiteSpace: "nowrap",
