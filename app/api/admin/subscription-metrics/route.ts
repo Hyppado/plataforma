@@ -72,6 +72,7 @@ export async function GET() {
       overdue,
       inactive,
       started,
+      expired,
     ] = await Promise.all([
       countByStatus("ACTIVE", productId),
       countByStatus("CANCELLED_BY_CUSTOMER", productId),
@@ -81,12 +82,14 @@ export async function GET() {
       countByStatus("OVERDUE", productId),
       countByStatus("INACTIVE", productId),
       countByStatus("STARTED", productId),
+      countByStatus("EXPIRED", productId),
     ]);
 
     const cancelled = cancelledByCustomer + cancelledBySeller;
     const refunded = cancelledByAdmin;
     const pastDue = delayed + overdue;
-    const total = active + cancelled + refunded + pastDue + inactive + started;
+    const pending = started + expired;
+    const total = active + cancelled + refunded + pastDue + inactive + pending;
 
     // Fetch recent subscriptions to compute "new this month" and "cancelled this month"
     // We get active subs with accession_date filter for new this month
@@ -155,7 +158,7 @@ export async function GET() {
       canceledSubscribers: cancelled,
       refundedSubscribers: refunded,
       pastDueSubscribers: pastDue,
-      pendingSubscribers: started,
+      pendingSubscribers: pending,
       totalSubscribers: total,
       newThisMonth,
       cancelledThisMonth,
