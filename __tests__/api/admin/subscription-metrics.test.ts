@@ -32,9 +32,9 @@ describe("GET /api/admin/subscription-metrics", () => {
   });
 
   /**
-   * Setup mocks for the 9 status count calls + 2 date-range calls.
+   * Setup mocks for the 8 status count calls + 2 date-range calls.
    * Order: ACTIVE, CANCELLED_BY_CUSTOMER, CANCELLED_BY_SELLER,
-   *        CANCELLED_BY_ADMIN, DELAYED, OVERDUE, INACTIVE, STARTED, EXPIRED,
+   *        CANCELLED_BY_ADMIN, DELAYED, OVERDUE, INACTIVE, STARTED,
    *        newThisMonth, cancelledThisMonth
    */
   function setupCountMocks({
@@ -46,7 +46,6 @@ describe("GET /api/admin/subscription-metrics", () => {
     overdue = 0,
     inactive = 2,
     started = 0,
-    expired = 0,
     newMonth = 3,
     cancelledMonth = 1,
   } = {}) {
@@ -59,7 +58,6 @@ describe("GET /api/admin/subscription-metrics", () => {
       .mockResolvedValueOnce(mockCountResponse(overdue))
       .mockResolvedValueOnce(mockCountResponse(inactive))
       .mockResolvedValueOnce(mockCountResponse(started))
-      .mockResolvedValueOnce(mockCountResponse(expired))
       .mockResolvedValueOnce(mockCountResponse(newMonth))
       .mockResolvedValueOnce(mockCountResponse(cancelledMonth));
   }
@@ -110,8 +108,8 @@ describe("GET /api/admin/subscription-metrics", () => {
     setupCountMocks();
     await GET();
 
-    // The first 9 calls are status counts; each should include product_id
-    for (let i = 0; i < 9; i++) {
+    // The first 8 calls are status counts; each should include product_id
+    for (let i = 0; i < 8; i++) {
       const call = mockHotmartRequest.mock.calls[i];
       expect(call[1]).toEqual(
         expect.objectContaining({

@@ -32,7 +32,14 @@ const DEFAULT_CONFIG: EchotikConfig = {
   detail: { batchSize: 5, maxAgeDays: 7 },
   newProducts: { daysBack: 3, intervalHours: 24 },
   enabledTasksRaw: "categories,videos,products,creators,details,new-products",
-  enabledTasks: ["categories", "videos", "products", "creators", "details", "new-products"],
+  enabledTasks: [
+    "categories",
+    "videos",
+    "products",
+    "creators",
+    "details",
+    "new-products",
+  ],
 };
 
 vi.mock("@/lib/echotik/cron/config", () => ({

@@ -37,7 +37,13 @@ function parseSource(source: string): {
   const withoutPrefix = source.replace(/^echotik:/, "");
   const withoutRun = withoutPrefix.replace(/^run:/, "");
   const parts = withoutRun.split(":");
-  const knownTasks = ["categories", "videos", "products", "creators", "new-products"] as const;
+  const knownTasks = [
+    "categories",
+    "videos",
+    "products",
+    "creators",
+    "new-products",
+  ] as const;
   const task = knownTasks.includes(parts[0] as IngestionTaskType)
     ? (parts[0] as IngestionTaskType)
     : null;

@@ -464,7 +464,14 @@ export function validateEchotikConfigPatch(
   }
 
   if (patch.tasksEnabled !== undefined) {
-    const valid = ["categories", "videos", "products", "creators", "details", "new-products"];
+    const valid = [
+      "categories",
+      "videos",
+      "products",
+      "creators",
+      "details",
+      "new-products",
+    ];
     const provided = String(patch.tasksEnabled)
       .split(",")
       .map((s) => s.trim())

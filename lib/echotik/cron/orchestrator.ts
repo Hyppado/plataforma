@@ -160,7 +160,10 @@ export async function detectNextTask(
     for (const region of regions) {
       if (
         force ||
-        !(await shouldSkip(`echotik:new-products:${region}`, newProductsInterval))
+        !(await shouldSkip(
+          `echotik:new-products:${region}`,
+          newProductsInterval,
+        ))
       ) {
         return { task: "new-products", region };
       }
