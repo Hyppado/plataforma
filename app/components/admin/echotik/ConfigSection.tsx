@@ -40,6 +40,7 @@ const TASK_LABELS: Record<string, string> = {
   products: "Produtos",
   creators: "Criadores",
   details: "Detalhes",
+  "new-products": "Novos Produtos",
 };
 
 // Only these 4 tasks have configurable intervals (details runs on every tick)
@@ -135,6 +136,8 @@ function toFlatPatch(draft: EchotikConfig): Record<string, unknown> {
     detailBatchSize: draft.detail.batchSize,
     detailMaxAgeDays: draft.detail.maxAgeDays,
     tasksEnabled: draft.enabledTasks.join(","),
+    newProductsDaysBack: draft.newProducts.daysBack,
+    newProductsIntervalHours: draft.newProducts.intervalHours,
   };
 }
 
@@ -174,6 +177,18 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
   function updateDetail(key: keyof EchotikConfig["detail"], value: number) {
     update({
       detail: { ...(current?.detail ?? config!.detail), [key]: value },
+    });
+  }
+
+  function updateNewProducts(
+    key: keyof EchotikConfig["newProducts"],
+    value: number,
+  ) {
+    update({
+      newProducts: {
+        ...(current?.newProducts ?? config!.newProducts),
+        [key]: value,
+      },
     });
   }
 
@@ -421,6 +436,58 @@ export function ConfigSection({ config, loading, onSave }: ConfigSectionProps) {
                     max={ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.max}
                     unit="dias"
                     onChange={(v) => updateDetail("maxAgeDays", v)}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
+
+            {/* Novos Produtos */}
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                Novos Produtos
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.35)",
+                  display: "block",
+                  mb: 0.5,
+                }}
+              >
+                Janela de dias e intervalo de sincronização para a aba "Novos
+                Produtos" (filtra por first_crawl_dt na API Echotik).
+              </Typography>
+              <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                <Grid item xs={6}>
+                  <NumberField
+                    label="Janela (dias)"
+                    value={current.newProducts.daysBack}
+                    min={ECHOTIK_CONFIG_LIMITS.newProductsDaysBack.min}
+                    max={ECHOTIK_CONFIG_LIMITS.newProductsDaysBack.max}
+                    unit="dias"
+                    helperText="produtos dos últimos N dias"
+                    onChange={(v) => updateNewProducts("daysBack", v)}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <NumberField
+                    label="Intervalo"
+                    value={current.newProducts.intervalHours}
+                    min={ECHOTIK_CONFIG_LIMITS.newProductsIntervalHours.min}
+                    max={ECHOTIK_CONFIG_LIMITS.newProductsIntervalHours.max}
+                    unit="h"
+                    helperText="horas entre re-sincronizações"
+                    onChange={(v) => updateNewProducts("intervalHours", v)}
                   />
                 </Grid>
               </Grid>

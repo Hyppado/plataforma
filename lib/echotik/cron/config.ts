@@ -31,6 +31,8 @@ export const ECHOTIK_CONFIG_KEYS = {
   DETAIL_BATCH_SIZE: "echotik:detail:batch_size",
   DETAIL_MAX_AGE_DAYS: "echotik:detail:max_age_days",
   TASKS_ENABLED: "echotik:tasks:enabled",
+  NEW_PRODUCTS_DAYS_BACK: "echotik:new-products:days_back",
+  NEW_PRODUCTS_INTERVAL_HOURS: "echotik:new-products:interval_hours",
 } as const;
 
 // Re-export so existing callers (admin api route) can import from one place
@@ -50,7 +52,9 @@ export const ECHOTIK_CONFIG_DEFAULTS = {
   pagesCreators: 10,
   detailBatchSize: 5,
   detailMaxAgeDays: 7,
-  tasksEnabled: "categories,videos,products,creators,details",
+  tasksEnabled: "categories,videos,products,creators,details,new-products",
+  newProductsDaysBack: 3,
+  newProductsIntervalHours: 24,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -74,6 +78,8 @@ export async function getEchotikConfig(): Promise<EchotikConfig> {
     rawDetailBatchSize,
     rawDetailMaxAgeDays,
     rawTasksEnabled,
+    rawNewProductsDaysBack,
+    rawNewProductsIntervalHours,
   ] = await Promise.all([
     getSetting(ECHOTIK_CONFIG_KEYS.INTERVAL_CATEGORIES),
     getSetting(ECHOTIK_CONFIG_KEYS.INTERVAL_VIDEOS),
@@ -85,6 +91,8 @@ export async function getEchotikConfig(): Promise<EchotikConfig> {
     getSetting(ECHOTIK_CONFIG_KEYS.DETAIL_BATCH_SIZE),
     getSetting(ECHOTIK_CONFIG_KEYS.DETAIL_MAX_AGE_DAYS),
     getSetting(ECHOTIK_CONFIG_KEYS.TASKS_ENABLED),
+    getSetting(ECHOTIK_CONFIG_KEYS.NEW_PRODUCTS_DAYS_BACK),
+    getSetting(ECHOTIK_CONFIG_KEYS.NEW_PRODUCTS_INTERVAL_HOURS),
   ]);
 
   const clamp = (raw: string | null, def: number, min: number, max: number) => {
@@ -164,6 +172,20 @@ export async function getEchotikConfig(): Promise<EchotikConfig> {
     },
     enabledTasksRaw,
     enabledTasks,
+    newProducts: {
+      daysBack: clamp(
+        rawNewProductsDaysBack,
+        ECHOTIK_CONFIG_DEFAULTS.newProductsDaysBack,
+        ECHOTIK_CONFIG_LIMITS.newProductsDaysBack.min,
+        ECHOTIK_CONFIG_LIMITS.newProductsDaysBack.max,
+      ),
+      intervalHours: clamp(
+        rawNewProductsIntervalHours,
+        ECHOTIK_CONFIG_DEFAULTS.newProductsIntervalHours,
+        ECHOTIK_CONFIG_LIMITS.newProductsIntervalHours.min,
+        ECHOTIK_CONFIG_LIMITS.newProductsIntervalHours.max,
+      ),
+    },
   };
 }
 
@@ -187,6 +209,8 @@ export async function saveEchotikConfig(
     detailBatchSize: number;
     detailMaxAgeDays: number;
     tasksEnabled: string;
+    newProductsDaysBack: number;
+    newProductsIntervalHours: number;
   }>,
 ): Promise<void> {
   const updates: Promise<unknown>[] = [];
@@ -309,6 +333,32 @@ export async function saveEchotikConfig(
       }),
     );
   }
+  if (patch.newProductsDaysBack !== undefined) {
+    updates.push(
+      upsertSetting(
+        ECHOTIK_CONFIG_KEYS.NEW_PRODUCTS_DAYS_BACK,
+        String(patch.newProductsDaysBack),
+        {
+          label: "Novos Produtos: Days Back",
+          group: "echotik",
+          type: "number",
+        },
+      ),
+    );
+  }
+  if (patch.newProductsIntervalHours !== undefined) {
+    updates.push(
+      upsertSetting(
+        ECHOTIK_CONFIG_KEYS.NEW_PRODUCTS_INTERVAL_HOURS,
+        String(patch.newProductsIntervalHours),
+        {
+          label: "Novos Produtos: Interval Hours",
+          group: "echotik",
+          type: "number",
+        },
+      ),
+    );
+  }
 
   await Promise.all(updates);
 }
@@ -387,6 +437,18 @@ export function validateEchotikConfigPatch(
       max: ECHOTIK_CONFIG_LIMITS.detailMaxAgeDays.max,
       label: "Detail Max Age Days",
     },
+    {
+      field: "newProductsDaysBack",
+      min: ECHOTIK_CONFIG_LIMITS.newProductsDaysBack.min,
+      max: ECHOTIK_CONFIG_LIMITS.newProductsDaysBack.max,
+      label: "Novos Produtos: Days Back",
+    },
+    {
+      field: "newProductsIntervalHours",
+      min: ECHOTIK_CONFIG_LIMITS.newProductsIntervalHours.min,
+      max: ECHOTIK_CONFIG_LIMITS.newProductsIntervalHours.max,
+      label: "Novos Produtos: Interval Hours",
+    },
   ];
 
   for (const { field, min, max, label } of numericFields) {
@@ -402,7 +464,7 @@ export function validateEchotikConfigPatch(
   }
 
   if (patch.tasksEnabled !== undefined) {
-    const valid = ["categories", "videos", "products", "creators", "details"];
+    const valid = ["categories", "videos", "products", "creators", "details", "new-products"];
     const provided = String(patch.tasksEnabled)
       .split(",")
       .map((s) => s.trim())

@@ -37,7 +37,7 @@ function parseSource(source: string): {
   const withoutPrefix = source.replace(/^echotik:/, "");
   const withoutRun = withoutPrefix.replace(/^run:/, "");
   const parts = withoutRun.split(":");
-  const knownTasks = ["categories", "videos", "products", "creators"] as const;
+  const knownTasks = ["categories", "videos", "products", "creators", "new-products"] as const;
   const task = knownTasks.includes(parts[0] as IngestionTaskType)
     ? (parts[0] as IngestionTaskType)
     : null;
@@ -112,7 +112,9 @@ function extractStats(statsJson: unknown): {
           ? s.creatorsSynced
           : typeof s.categoriesSynced === "number"
             ? s.categoriesSynced
-            : null;
+            : typeof s.synced === "number"
+              ? s.synced
+              : null;
   const pages = typeof s.pagesProcessed === "number" ? s.pagesProcessed : null;
   const durationMs = typeof s.durationMs === "number" ? s.durationMs : null;
   return { items, pages, durationMs };
@@ -275,6 +277,8 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
         return config.intervals.products;
       case "creators":
         return config.intervals.creators;
+      case "new-products":
+        return config.newProducts.intervalHours;
     }
   };
 
@@ -298,6 +302,54 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     tasks.push({
       source,
       task: "categories",
+      region: null,
+      regionName: null,
+      isRegionActive: true,
+      isTaskEnabled: isEnabled,
+      lastSuccessAt: lastSuccess?.toISOString() ?? null,
+      lastFailureAt: lastFailure?.toISOString() ?? null,
+      lastRunAt:
+        (lastRun?._max.startedAt ?? lastRun?._max.endedAt)?.toISOString() ??
+        null,
+      lastRunStatus: deriveLastRunStatus(lastSuccess, lastFailure),
+      hoursSinceSuccess,
+      stalenessRatio,
+      failures24h,
+      status: resolveHealthStatus(
+        lastSuccess,
+        lastFailure,
+        failures24h,
+        interval,
+        isEnabled,
+        true,
+      ),
+      lastErrorMessage: recentErrorMap.get(source) ?? null,
+      lastItemsProcessed: stats.items,
+      lastPagesProcessed: stats.pages,
+      lastDurationMs: stats.durationMs,
+    });
+  }
+
+  // New products (region-agnostic, like categories)
+  {
+    const source = "echotik:new-products";
+    const lastSuccess = successMap.get(source) ?? null;
+    const lastFailure = failureMap.get(source) ?? null;
+    const failures24h = failures24hMap.get(source) ?? 0;
+    const interval = intervalFor("new-products");
+    const isEnabled = config.enabledTasks.includes("new-products");
+    const ageMs = lastSuccess ? Date.now() - lastSuccess.getTime() : null;
+    const hoursSinceSuccess = ageMs != null ? ageMs / (60 * 60 * 1000) : null;
+    const stalenessRatio =
+      hoursSinceSuccess != null ? hoursSinceSuccess / interval : null;
+    const lastRun = latestBySource.find(
+      (r) => r.source === source || r.source.replace(":run:", ":") === source,
+    );
+    const stats = extractStats(recentStatsMap.get(source));
+
+    tasks.push({
+      source,
+      task: "new-products",
       region: null,
       regionName: null,
       isRegionActive: true,

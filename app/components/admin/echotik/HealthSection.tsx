@@ -137,6 +137,7 @@ const TASK_LABELS: Record<string, string> = {
   videos: "Vídeos",
   products: "Produtos",
   creators: "Criadores",
+  "new-products": "Novos Produtos",
 };
 
 const STATUS_PRIORITY: Record<HealthStatus, number> = {
@@ -162,6 +163,9 @@ function aggregateByRegion(tasks: TaskRegionHealth[]): RegionRow[] {
   // Also include categories (region-agnostic) data
   const catTask = tasks.find(
     (t: TaskRegionHealth) => t.task === "categories" && t.isTaskEnabled,
+  );
+  const newProductsTask = tasks.find(
+    (t: TaskRegionHealth) => t.task === "new-products" && t.isTaskEnabled,
   );
 
   const rows: RegionRow[] = [];
@@ -226,6 +230,27 @@ function aggregateByRegion(tasks: TaskRegionHealth[]): RegionRow[] {
           status: catTask.status,
           lastSuccessAt: catTask.lastSuccessAt,
           items: catTask.lastItemsProcessed,
+        },
+      ],
+    });
+  }
+
+  // If new-products exists, prepend after categories
+  if (newProductsTask) {
+    const insertIdx = catTask ? 1 : 0;
+    rows.splice(insertIdx, 0, {
+      code: "—",
+      name: "Novos Produtos (global)",
+      worstStatus: newProductsTask.status,
+      lastSuccessAt: newProductsTask.lastSuccessAt,
+      lastFailureAt: newProductsTask.lastFailureAt,
+      totalItems: newProductsTask.lastItemsProcessed ?? 0,
+      taskBreakdown: [
+        {
+          task: "new-products",
+          status: newProductsTask.status,
+          lastSuccessAt: newProductsTask.lastSuccessAt,
+          items: newProductsTask.lastItemsProcessed,
         },
       ],
     });

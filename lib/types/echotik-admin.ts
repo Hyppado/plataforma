@@ -27,6 +27,13 @@ export interface EchotikDetailConfig {
   maxAgeDays: number;
 }
 
+export interface EchotikNewProductsConfig {
+  /** How many days back to fetch new products from Echotik. */
+  daysBack: number;
+  /** Minimum hours between new-products syncs. */
+  intervalHours: number;
+}
+
 /** All configurable parameters for the Echotik ingestion system. */
 export interface EchotikConfig {
   /** Expected re-sync interval per task type, in hours. */
@@ -35,6 +42,8 @@ export interface EchotikConfig {
   pages: EchotikPageConfig;
   /** Product detail enrichment settings. */
   detail: EchotikDetailConfig;
+  /** Novos Produtos sync settings. */
+  newProducts: EchotikNewProductsConfig;
   /** Comma-separated list of enabled tasks. */
   enabledTasksRaw: string;
   /** Parsed set of enabled tasks. */
@@ -65,6 +74,10 @@ export const ECHOTIK_CONFIG_LIMITS = {
   detailBatchSize: { min: 1, max: 10 },
   /** Max age (days) before re-fetching product details. */
   detailMaxAgeDays: { min: 1, max: 90 },
+  /** Days back window for Novos Produtos sync. */
+  newProductsDaysBack: { min: 1, max: 30 },
+  /** Interval in hours between Novos Produtos syncs. */
+  newProductsIntervalHours: { min: 1, max: 168 },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -75,7 +88,8 @@ export type IngestionTaskType =
   | "categories"
   | "videos"
   | "products"
-  | "creators";
+  | "creators"
+  | "new-products";
 
 export type HealthStatus =
   | "healthy"

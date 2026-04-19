@@ -166,6 +166,7 @@ describe("configToEstimationInput()", () => {
       },
       enabledTasksRaw: "categories,videos",
       enabledTasks: ["categories", "videos"],
+      newProducts: { daysBack: 3, intervalHours: 24 },
     };
     const input = configToEstimationInput(config, 2);
     expect(input.activeRegions).toBe(2);

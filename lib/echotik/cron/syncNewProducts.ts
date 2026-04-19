@@ -15,11 +15,7 @@
 import { echotikRequest } from "@/lib/echotik/client";
 import type { Logger } from "@/lib/logger";
 import type { EchotikApiResponse, EchotikProductListItem } from "./types";
-import {
-  NEW_PRODUCTS_INTERVAL_HOURS,
-  NEW_PRODUCTS_DAYS_BACK,
-  NEW_PRODUCTS_MAX_PAGES,
-} from "./types";
+import { NEW_PRODUCTS_MAX_PAGES } from "./types";
 import {
   shouldSkip,
   getConfiguredRegions,
@@ -27,6 +23,7 @@ import {
 } from "./helpers";
 import { newProductDateWindow } from "@/lib/echotik/dates";
 import { prisma } from "@/lib/prisma";
+import { getEchotikConfig } from "./config";
 
 // ---------------------------------------------------------------------------
 // Sync a single region
@@ -35,10 +32,11 @@ import { prisma } from "@/lib/prisma";
 export async function syncNewProductsForRegion(
   region: string,
   log: Logger,
+  daysBack: number,
   maxPages = NEW_PRODUCTS_MAX_PAGES,
 ): Promise<number> {
   const endpoint = "/api/v3/echotik/product/list";
-  const { min, max } = newProductDateWindow(NEW_PRODUCTS_DAYS_BACK);
+  const { min, max } = newProductDateWindow(daysBack);
 
   log.info(`Syncing new products`, { region, min, max });
 
@@ -89,7 +87,7 @@ export async function syncNewProductsForRegion(
   }
 
   // Purge rows outside the current window so the table only has the latest batch
-  const { min: minDt } = newProductDateWindow(NEW_PRODUCTS_DAYS_BACK);
+  const { min: minDt } = newProductDateWindow(daysBack);
   const minDtInt = parseInt(minDt, 10);
   const deleted = await prisma.echotikProductDetail.deleteMany({
     where: {
@@ -113,8 +111,12 @@ export async function syncNewProducts(
   log: Logger,
   force = false,
 ): Promise<number> {
+  const config = await getEchotikConfig();
+  const intervalHours = config.newProducts.intervalHours;
+  const daysBack = config.newProducts.daysBack;
+
   const skipKey = "echotik:new-products";
-  if (!force && (await shouldSkip(skipKey, NEW_PRODUCTS_INTERVAL_HOURS))) {
+  if (!force && (await shouldSkip(skipKey, intervalHours))) {
     log.info("New products: skip (recently synced)");
     return -1; // sentinel: skipped
   }
@@ -124,7 +126,7 @@ export async function syncNewProducts(
 
   for (const region of regions) {
     try {
-      const count = await syncNewProductsForRegion(region, log);
+      const count = await syncNewProductsForRegion(region, log, daysBack);
       total += count;
     } catch (err) {
       log.error("New products region sync failed", {
