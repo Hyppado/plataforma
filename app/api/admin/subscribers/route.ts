@@ -123,27 +123,38 @@ export async function GET(request: Request) {
       params.product_id = productId;
     }
 
-    // Map our status filter to Hotmart status
-    if (statusFilter && STATUS_FILTER_TO_HOTMART[statusFilter]) {
-      params.status = STATUS_FILTER_TO_HOTMART[statusFilter];
-    }
-
     // Hotmart supports search by email
     if (search && search.includes("@")) {
       params.subscriber_email = search;
     }
 
-    // Hotmart uses page_token for pagination, but for page > 1 we need
-    // to iterate. For simplicity, use max_results offset approach.
-    // Hotmart API doesn't have offset — it uses page_token.
-    // We'll fetch page 1 and return it; for subsequent pages we'd need
-    // to chain page_token calls. For admin usage, limit is usually enough.
-    const data = await hotmartRequest<HotmartSubscriptionsResponse>(
-      "/payments/api/v1/subscriptions",
-      { params },
-    );
+    let items: HotmartSubscription[];
 
-    const items = data.items ?? [];
+    if (statusFilter === "NAO_FINALIZADAS") {
+      // Fetch both STARTED (boleto in window) and INACTIVE (boleto expired) in parallel
+      const [startedData, inactiveData] = await Promise.all([
+        hotmartRequest<HotmartSubscriptionsResponse>(
+          "/payments/api/v1/subscriptions",
+          { params: { ...params, status: "STARTED" } },
+        ),
+        hotmartRequest<HotmartSubscriptionsResponse>(
+          "/payments/api/v1/subscriptions",
+          { params: { ...params, status: "INACTIVE" } },
+        ),
+      ]);
+      items = [...(startedData.items ?? []), ...(inactiveData.items ?? [])];
+    } else {
+      // Map our status filter to Hotmart status
+      if (statusFilter && STATUS_FILTER_TO_HOTMART[statusFilter]) {
+        params.status = STATUS_FILTER_TO_HOTMART[statusFilter];
+      }
+
+      const data = await hotmartRequest<HotmartSubscriptionsResponse>(
+        "/payments/api/v1/subscriptions",
+        { params },
+      );
+      items = data.items ?? [];
+    }
 
     // Map Hotmart subscriptions to our Subscriber shape
     const subscribers = items.map((item) => ({
@@ -195,7 +206,7 @@ export async function GET(request: Request) {
           )
         : subscribers;
 
-    const total = data.page_info?.total_results ?? filtered.length;
+    const total = filtered.length;
 
     return NextResponse.json({
       subscribers: filtered,

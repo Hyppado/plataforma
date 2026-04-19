@@ -5,10 +5,8 @@ import {
   Stack,
   Typography,
   Link,
-  IconButton,
   Divider,
 } from "@mui/material";
-import { Instagram as InstagramIcon } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 
 export function LandingFooter() {
@@ -71,7 +69,7 @@ export function LandingFooter() {
                 { label: "Para quem é", href: "#para-quem-e" },
                 { label: "Planos", href: "#planos" },
                 { label: "FAQ", href: "#faq" },
-                { label: "Suporte", href: "mailto:suporte@hyppado.com" },
+                { label: "Suporte", href: "/suporte" },
               ].map((link) => (
                 <Link
                   key={link.label}
@@ -118,7 +116,7 @@ export function LandingFooter() {
             </Typography>
             <Stack spacing={1.5}>
               <Link
-                href="#"
+                href="/termos"
                 underline="none"
                 sx={{
                   fontSize: "0.875rem",
@@ -132,7 +130,7 @@ export function LandingFooter() {
                 Termos de Uso
               </Link>
               <Link
-                href="#"
+                href="/privacidade"
                 underline="none"
                 sx={{
                   fontSize: "0.875rem",
@@ -157,49 +155,15 @@ export function LandingFooter() {
         />
 
         {/* Bottom */}
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "center", sm: "center" }}
-          spacing={2}
+        <Typography
+          sx={{
+            fontSize: "0.8rem",
+            color: "#6A7A8A",
+            textAlign: { xs: "center", sm: "left" },
+          }}
         >
-          <Typography
-            sx={{
-              fontSize: "0.8rem",
-              color: "#6A7A8A",
-            }}
-          >
-            © Hyppado 2026. Todos os direitos reservados.
-          </Typography>
-
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Typography
-              sx={{
-                fontSize: "0.8rem",
-                color: "#6A7A8A",
-                display: { xs: "none", sm: "block" },
-              }}
-            >
-              Siga-nos nas redes sociais:
-            </Typography>
-            <IconButton
-              aria-label="Instagram da Hyppado"
-              href="https://instagram.com/hyppado"
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{
-                color: "#9AA8B8",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  color: "#39D5FF",
-                  background: "rgba(57, 213, 255, 0.1)",
-                },
-              }}
-            >
-              <InstagramIcon fontSize="small" />
-            </IconButton>
-          </Stack>
-        </Stack>
+          © Hyppado 2026. Todos os direitos reservados.
+        </Typography>
       </Container>
     </Box>
   );

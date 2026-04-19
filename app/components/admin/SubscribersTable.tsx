@@ -60,10 +60,24 @@ function hotmartStatusLabel(raw: string | null | undefined): string {
     CANCELLED_BY_ADMIN: "Reembolsado",
     DELAYED: "Pagamento atrasado",
     OVERDUE: "Inadimplente",
-    STARTED: "Iniciado (aguardando pgto)",
-    INACTIVE: "Inativo",
+    STARTED: "Aguardando pagamento",
+    INACTIVE: "Boleto expirado",
   };
   return map[raw] ?? raw.replace(/_/g, " ").toLowerCase();
+}
+
+/** Color for raw Hotmart status badge */
+function hotmartStatusColor(
+  raw: string | null | undefined,
+): { bg: string; fg: string } | null {
+  switch (raw) {
+    case "STARTED":
+      return { bg: "rgba(66, 165, 245, 0.15)", fg: "#42A5F5" };
+    case "INACTIVE":
+      return { bg: "rgba(255, 152, 0, 0.15)", fg: "#FFA726" };
+    default:
+      return null;
+  }
 }
 
 /** Status chip color */
@@ -168,7 +182,9 @@ export function SubscribersTable({
             <Tab
               label={`Inadimplentes (${metrics?.pastDueSubscribers ?? "—"})`}
             />
-            <Tab label={`Pendentes (${metrics?.pendingSubscribers ?? "—"})`} />
+            <Tab
+              label={`Compra não finalizada (${metrics?.pendingSubscribers ?? "—"})`}
+            />
           </Tabs>
 
           <TableContainer>
@@ -285,17 +301,32 @@ export function SubscribersTable({
 
                         {/* Status Hotmart (raw) */}
                         <TableCell sx={cellSx}>
-                          <Tooltip title={sub.hotmartStatus ?? "—"}>
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: "rgba(255,255,255,0.5)",
-                                fontSize: "0.75rem",
-                              }}
-                            >
-                              {hotmartStatusLabel(sub.hotmartStatus)}
-                            </Typography>
-                          </Tooltip>
+                          {(() => {
+                            const hc = hotmartStatusColor(sub.hotmartStatus);
+                            return hc ? (
+                              <Chip
+                                label={hotmartStatusLabel(sub.hotmartStatus)}
+                                size="small"
+                                sx={{
+                                  background: hc.bg,
+                                  color: hc.fg,
+                                  fontSize: "0.75rem",
+                                }}
+                              />
+                            ) : (
+                              <Tooltip title={sub.hotmartStatus ?? "—"}>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: "rgba(255,255,255,0.5)",
+                                    fontSize: "0.75rem",
+                                  }}
+                                >
+                                  {hotmartStatusLabel(sub.hotmartStatus)}
+                                </Typography>
+                              </Tooltip>
+                            );
+                          })()}
                         </TableCell>
 
                         {/* Próx. Cobrança / Fim */}

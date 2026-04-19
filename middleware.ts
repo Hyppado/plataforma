@@ -6,11 +6,6 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
-    // Redirect authenticated users away from the landing page
-    if (pathname === "/" && token) {
-      return NextResponse.redirect(new URL("/dashboard/videos", req.url));
-    }
-
     // Admin routes (UI and API) require ADMIN role
     if (
       (pathname.startsWith("/dashboard/admin") ||

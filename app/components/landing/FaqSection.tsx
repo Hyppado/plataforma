@@ -98,14 +98,7 @@ export function FaqSection() {
                 <Button
                   variant="contained"
                   size="medium"
-                  href="#planos"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    document.getElementById("planos")?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "start",
-                    });
-                  }}
+                  href="/suporte"
                   sx={{
                     px: 3,
                     py: 1.25,

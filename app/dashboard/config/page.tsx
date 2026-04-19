@@ -19,6 +19,7 @@ import {
 import type { PromptConfig } from "@/lib/types/admin";
 import { PromptsSection } from "@/app/components/admin/PromptsSection";
 import { PrivacyPolicySection } from "@/app/components/admin/PrivacyPolicySection";
+import { TermsOfUseSection } from "@/app/components/admin/TermsOfUseSection";
 import { SupportEmailSection } from "@/app/components/admin/SupportEmailSection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
@@ -146,6 +147,7 @@ export default function ConfigPage() {
               onSave={savePrompt}
             />
             <PrivacyPolicySection />
+            <TermsOfUseSection />
           </Grid>
         </>
       )}

@@ -54,7 +54,13 @@ export async function getHotmartConnection(): Promise<HotmartConnection> {
  * Returns paginated response with subscriber details.
  */
 export async function getSubscribers(
-  status?: "active" | "canceled" | "refunded" | "past_due" | "pending",
+  status?:
+    | "active"
+    | "canceled"
+    | "refunded"
+    | "past_due"
+    | "pending"
+    | "nao_finalizadas",
   page = 1,
   limit = 50,
   search?: string,

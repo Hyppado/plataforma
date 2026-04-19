@@ -35,7 +35,7 @@ export default function AdminPage() {
               ? "refunded"
               : subscriberTab === 3
                 ? "past_due"
-                : "pending";
+                : "nao_finalizadas";
       const [subsData, metricsData] = await Promise.all([
         getSubscribers(statusFilter, 1, 100, subscriberSearch || undefined),
         getSubscriptionMetrics(),
