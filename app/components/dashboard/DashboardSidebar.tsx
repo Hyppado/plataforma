@@ -74,9 +74,13 @@ const NAV_SECTIONS = [
 
 interface DashboardSidebarProps {
   onNavigate?: () => void;
+  inDrawer?: boolean;
 }
 
-export function DashboardSidebar({ onNavigate }: DashboardSidebarProps) {
+export function DashboardSidebar({
+  onNavigate,
+  inDrawer,
+}: DashboardSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
@@ -91,9 +95,9 @@ export function DashboardSidebar({ onNavigate }: DashboardSidebarProps) {
       className="app-sidebar"
       sx={{
         width: 260,
-        height: { xs: "100dvh", md: "100dvh" },
-        minHeight: { xs: "100dvh", md: "100dvh" },
-        maxHeight: { xs: "100dvh", md: "100dvh" },
+        height: inDrawer ? "100%" : { xs: "100dvh", md: "100dvh" },
+        minHeight: inDrawer ? 0 : { xs: "100dvh", md: "100dvh" },
+        maxHeight: inDrawer ? "100%" : { xs: "100dvh", md: "100dvh" },
         background: "#0A0F18",
         borderRight: "1px solid rgba(255,255,255,0.06)",
         display: "flex",
@@ -172,7 +176,14 @@ export function DashboardSidebar({ onNavigate }: DashboardSidebarProps) {
       </Box>
 
       {/* Bottom actions */}
-      <Box sx={{ flexShrink: 0, px: 1.25, pb: 0.75, pt: 0.75 }}>
+      <Box
+        sx={{
+          flexShrink: 0,
+          px: 1.25,
+          pb: { xs: 4, md: 2 },
+          pt: 0.75,
+        }}
+      >
         {isAdmin && (
           <Box sx={{ mb: 0.6 }}>
             <SectionLabel text="ADMIN" />

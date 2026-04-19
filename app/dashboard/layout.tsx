@@ -57,16 +57,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               width: 260,
               height: "100dvh",
               maxHeight: "100dvh",
+              display: "flex",
+              flexDirection: "column",
               overflow: "hidden",
             },
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "flex-end", p: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              p: 1,
+              flexShrink: 0,
+            }}
+          >
             <IconButton onClick={handleDrawerToggle} sx={{ color: "#fff" }}>
               <CloseIcon />
             </IconButton>
           </Box>
-          <DashboardSidebar onNavigate={closeMobile} />
+          <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <DashboardSidebar onNavigate={closeMobile} inDrawer />
+          </Box>
         </Drawer>
 
         {/* Main Content */}

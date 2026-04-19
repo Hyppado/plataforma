@@ -417,7 +417,7 @@ export function CreatorTable({
                       sx={{ display: "flex", alignItems: "center", gap: 1.5 }}
                     >
                       <Avatar
-                        src={undefined}
+                        src={creator.avatarUrl}
                         alt={creator.name}
                         sx={{ width: 36, height: 36 }}
                       >
