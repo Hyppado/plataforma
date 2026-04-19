@@ -1,9 +1,13 @@
 /**
  * lib/echotik/cron/syncNewProducts.ts — "Novos Produtos" ingestion
  *
- * Calls the Echotik product/list endpoint filtered by first_crawl_dt (last 3
- * days) and upserts the results into EchotikProductDetail so the
- * /api/trending/new-products route can serve them.
+ * Calls the Echotik product/list endpoint filtered by first_crawl_dt (last N
+ * days), upserts the results into EchotikProductDetail, then purges rows
+ * outside the current window so the table always contains only the latest
+ * batch of new products.
+ *
+ * The API route (/api/trending/new-products) just returns everything in the
+ * table for a given region — no date filtering at query time.
  *
  * Runs 1×/day per region. Safe to re-run (upsert on productExternalId).
  */
@@ -22,6 +26,7 @@ import {
   upsertProductDetail,
 } from "./helpers";
 import { newProductDateWindow } from "@/lib/echotik/dates";
+import { prisma } from "@/lib/prisma";
 
 // ---------------------------------------------------------------------------
 // Sync a single region
@@ -81,6 +86,19 @@ export async function syncNewProductsForRegion(
 
     // If fewer than page_size returned, we've reached the end
     if (items.length < 10) break;
+  }
+
+  // Purge rows outside the current window so the table only has the latest batch
+  const { min: minDt } = newProductDateWindow(NEW_PRODUCTS_DAYS_BACK);
+  const minDtInt = parseInt(minDt, 10);
+  const deleted = await prisma.echotikProductDetail.deleteMany({
+    where: {
+      region,
+      firstCrawlDt: { lt: minDtInt },
+    },
+  });
+  if (deleted.count > 0) {
+    log.info(`Purged stale new products`, { region, deleted: deleted.count });
   }
 
   log.info(`New products synced`, { region, synced });

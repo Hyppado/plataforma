@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { proxyIfEchotikCdn } from "@/lib/echotik/trending";
-import { newProductDateWindow } from "@/lib/echotik/dates";
 import type { ProductDTO } from "@/lib/types/dto";
 import { createLogger } from "@/lib/logger";
 
@@ -13,8 +12,9 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/trending/new-products
  *
- * Returns products first crawled by Echotik in the last 3 days.
- * Data comes from EchotikProductDetail.firstCrawlDt (populated by syncNewProducts cron).
+ * Returns all products currently in EchotikProductDetail for the given region.
+ * The cron (syncNewProducts) is responsible for keeping only the most recent
+ * window of new products in the table — this route just serves whatever is there.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -28,23 +28,13 @@ export async function GET(request: NextRequest) {
       Math.max(parseInt(searchParams.get("pageSize") || "24", 10), 1),
       100,
     );
-    const daysBack = Math.min(
-      Math.max(parseInt(searchParams.get("days") || "3", 10), 1),
-      30,
-    );
 
-    const { min } = newProductDateWindow(daysBack);
-    const minDt = parseInt(min, 10);
-
-    const where = {
-      firstCrawlDt: { gte: minDt },
-      region: region,
-    };
+    const where = { region };
 
     const [rows, total] = await Promise.all([
       prisma.echotikProductDetail.findMany({
         where,
-        orderBy: { firstCrawlDt: "desc" },
+        orderBy: { fetchedAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -72,7 +62,7 @@ export async function GET(request: NextRequest) {
       creatorConversionRate: 0,
       sourceUrl: `https://echotik.live/products/${r.productExternalId}`,
       tiktokUrl: `https://www.tiktok.com/view/product/${r.productExternalId}`,
-      dateRange: `${daysBack}d`,
+      dateRange: "new",
     }));
 
     return NextResponse.json({
@@ -83,8 +73,6 @@ export async function GET(request: NextRequest) {
         page,
         pageSize,
         hasMore: page * pageSize < total,
-        range: `${daysBack}d`,
-        availableRegions: ["US"],
       },
     });
   } catch (err) {
