@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import {
@@ -24,6 +24,16 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supportEmail, setSupportEmail] = useState("suporte@hyppado.com");
+
+  useEffect(() => {
+    fetch("/api/public/support-email")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.email) setSupportEmail(d.email);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -282,8 +292,8 @@ export default function LoginPage() {
               }}
             >
               Precisa de ajuda?{" "}
-              <Link
-                href="/suporte"
+              <a
+                href={`mailto:${supportEmail}`}
                 style={{
                   color: "#2DD4FF",
                   textDecoration: "none",
@@ -291,7 +301,7 @@ export default function LoginPage() {
                 }}
               >
                 Fale com nosso suporte
-              </Link>
+              </a>
             </Typography>
           </Box>
         </Container>
