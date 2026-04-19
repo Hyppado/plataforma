@@ -129,6 +129,7 @@ export async function GET(request: Request) {
     }
 
     let items: HotmartSubscription[];
+    let hotmartTotal: number | null = null;
 
     if (statusFilter === "NAO_FINALIZADAS") {
       // Fetch both STARTED (boleto in window) and INACTIVE (boleto expired) in parallel
@@ -143,6 +144,7 @@ export async function GET(request: Request) {
         ),
       ]);
       items = [...(startedData.items ?? []), ...(inactiveData.items ?? [])];
+      // No reliable single total_results when merging two requests
     } else {
       // Map our status filter to Hotmart status
       if (statusFilter && STATUS_FILTER_TO_HOTMART[statusFilter]) {
@@ -154,6 +156,7 @@ export async function GET(request: Request) {
         { params },
       );
       items = data.items ?? [];
+      hotmartTotal = data.page_info?.total_results ?? null;
     }
 
     // Map Hotmart subscriptions to our Subscriber shape
@@ -206,7 +209,7 @@ export async function GET(request: Request) {
           )
         : subscribers;
 
-    const total = filtered.length;
+    const total = hotmartTotal ?? filtered.length;
 
     return NextResponse.json({
       subscribers: filtered,
