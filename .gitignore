@@ -15,15 +15,7 @@ node_modules/
 
 # Local-only scripts
 Makefile
-scripts/cleanup-members.ts
-scripts/import-subscribers.ts
-scripts/sync-db.ts
-scripts/check-db-freshness.mjs
-scripts/check-db-freshness2.mjs
-scripts/check-prod-freshness.mjs
-scripts/debug-email.mjs
-scripts/test-cron-tasks.ts
-scripts/test-echotik-endpoints.mjs
+scripts/
 
 # Scratchpad / untitled files
 Untitled-*

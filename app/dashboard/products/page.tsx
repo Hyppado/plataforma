@@ -42,7 +42,6 @@ function TrendsContent() {
     );
   }, [items, categoryFilter, categories]);
 
-
   const handleCategoryChange = (category: string) => {
     const params = new URLSearchParams();
     if (category) params.set("category", category);

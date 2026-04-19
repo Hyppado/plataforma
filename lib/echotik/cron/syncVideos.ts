@@ -136,7 +136,9 @@ export async function syncVideoRanklistForRegion(
           title: item.video_desc || null,
           authorName: item.nick_name || null,
           authorExternalId: item.user_id || null,
-          views: BigInt(item.total_views_history_cnt ?? item.total_views_cnt ?? 0),
+          views: BigInt(
+            item.total_views_history_cnt ?? item.total_views_cnt ?? 0,
+          ),
           likes: BigInt(item.total_digg_cnt ?? 0),
           comments: BigInt(item.total_comments_cnt ?? 0),
           favorites: BigInt(item.total_favorites_cnt ?? 0),
@@ -153,7 +155,9 @@ export async function syncVideoRanklistForRegion(
           title: item.video_desc || undefined,
           authorName: item.nick_name || undefined,
           authorExternalId: item.user_id || undefined,
-          views: BigInt(item.total_views_history_cnt ?? item.total_views_cnt ?? 0),
+          views: BigInt(
+            item.total_views_history_cnt ?? item.total_views_cnt ?? 0,
+          ),
           likes: BigInt(item.total_digg_cnt ?? 0),
           comments: BigInt(item.total_comments_cnt ?? 0),
           favorites: BigInt(item.total_favorites_cnt ?? 0),
