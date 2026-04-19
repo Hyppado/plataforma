@@ -1,6 +1,8 @@
 import { Box, Container, Typography } from "@mui/material";
 import { getSetting } from "@/lib/settings";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Política de Privacidade — Hyppado",
   description: "Política de privacidade e uso de dados da plataforma Hyppado.",

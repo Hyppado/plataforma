@@ -1,6 +1,8 @@
 import { Box, Container, Typography } from "@mui/material";
 import { getSetting } from "@/lib/settings";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Termos de Uso — Hyppado",
   description: "Termos de uso da plataforma Hyppado.",
