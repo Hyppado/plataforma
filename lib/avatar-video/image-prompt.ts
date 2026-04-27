@@ -229,7 +229,7 @@ async function _callImageGenerationAPI(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60_000);
+  const timeout = setTimeout(() => controller.abort(), 110_000);
 
   let response: Response;
   try {
@@ -243,15 +243,15 @@ async function _callImageGenerationAPI(
         model: "gpt-image-1",
         prompt: promptText,
         n: 1,
-        size: "1024x1536", // portrait — closest to 9:16 for TikTok
-        quality: "high",
+        size: "1024x1024",
+        quality: "medium",
       }),
       signal: controller.signal,
     });
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Tempo limite da OpenAI excedido (60s)");
+      throw new Error("Tempo limite da OpenAI excedido (110s)");
     }
     throw err;
   }
