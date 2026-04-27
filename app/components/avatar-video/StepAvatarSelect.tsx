@@ -98,7 +98,12 @@ function AvatarCard({
         <img
           src={avatar.thumbnailUrl ?? avatar.imageUrl}
           alt={avatar.name}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
         />
       </Box>
 
@@ -150,7 +155,10 @@ function AvatarGallerySkeleton() {
     >
       {Array.from({ length: 6 }).map((_, i) => (
         <Box key={i} sx={{ borderRadius: 2, overflow: "hidden" }}>
-          <Skeleton variant="rectangular" sx={{ aspectRatio: "1/1", width: "100%" }} />
+          <Skeleton
+            variant="rectangular"
+            sx={{ aspectRatio: "1/1", width: "100%" }}
+          />
           <Skeleton variant="text" sx={{ mt: 0.5, mx: 0.5 }} />
         </Box>
       ))}
@@ -194,7 +202,9 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
   const { avatars, isLoading: loadingAvatars } = useAvatarProfiles();
 
   // Initialise mode from creation state
-  const initialMode: Mode = creation.uploadedAvatarImageUrl ? "upload" : "gallery";
+  const initialMode: Mode = creation.uploadedAvatarImageUrl
+    ? "upload"
+    : "gallery";
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(
@@ -267,8 +277,7 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
   };
 
   const canContinue =
-    !saving &&
-    (mode === "gallery" ? !!selectedAvatarId : !!uploadedPreviewUrl);
+    !saving && (mode === "gallery" ? !!selectedAvatarId : !!uploadedPreviewUrl);
 
   const handleContinue = async () => {
     if (!canContinue) return;
@@ -277,19 +286,18 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
 
     try {
       if (mode === "gallery") {
-        const res = await fetch(
-          `/api/avatar-video/creations/${creation.id}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              avatarId: selectedAvatarId,
-              uploadedAvatarImageUrl: null,
-            }),
-          },
-        );
+        const res = await fetch(`/api/avatar-video/creations/${creation.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            avatarId: selectedAvatarId,
+            uploadedAvatarImageUrl: null,
+          }),
+        });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(data.error ?? "Erro ao salvar avatar");
         }
       } else {
@@ -304,10 +312,14 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
             { method: "POST", body: formData },
           );
           if (!uploadRes.ok) {
-            const data = (await uploadRes.json().catch(() => ({}))) as { error?: string };
+            const data = (await uploadRes.json().catch(() => ({}))) as {
+              error?: string;
+            };
             throw new Error(data.error ?? "Erro ao fazer upload da imagem");
           }
-          const body = (await uploadRes.json()) as { uploadedAvatarImageUrl: string };
+          const body = (await uploadRes.json()) as {
+            uploadedAvatarImageUrl: string;
+          };
           avatarImageUrl = body.uploadedAvatarImageUrl;
         }
 
@@ -323,7 +335,9 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
           },
         );
         if (!patchRes.ok) {
-          const data = (await patchRes.json().catch(() => ({}))) as { error?: string };
+          const data = (await patchRes.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(data.error ?? "Erro ao salvar imagem");
         }
       }
@@ -337,7 +351,7 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
       {/* Header */}
       <Box>
         <Typography
@@ -443,18 +457,31 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
           {/* Dropzone / preview */}
           {uploadedPreviewUrl ? (
             <Box sx={{ position: "relative", borderRadius: 2, overflow: "hidden" }}>
+              {/* Fixed-height contain container — no cropping */}
               <Box
-                component="img"
-                src={uploadedPreviewUrl}
-                alt="Pré-visualização da imagem enviada"
                 sx={{
                   width: "100%",
-                  maxHeight: 220,
-                  objectFit: "cover",
-                  display: "block",
+                  height: 160,
+                  background: "rgba(255,255,255,0.04)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   borderRadius: 2,
+                  overflow: "hidden",
                 }}
-              />
+              >
+                <Box
+                  component="img"
+                  src={uploadedPreviewUrl}
+                  alt="Pré-visualização da imagem enviada"
+                  sx={{
+                    maxWidth: "100%",
+                    maxHeight: 160,
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                />
+              </Box>
               <Box
                 component="button"
                 type="button"
@@ -502,11 +529,17 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
                 },
               }}
             >
-              <UploadFile sx={{ fontSize: 36, color: "primary.main", opacity: 0.8 }} />
-              <Typography sx={{ fontSize: "0.8125rem", color: "#fff", fontWeight: 600 }}>
+              <UploadFile
+                sx={{ fontSize: 36, color: "primary.main", opacity: 0.8 }}
+              />
+              <Typography
+                sx={{ fontSize: "0.8125rem", color: "#fff", fontWeight: 600 }}
+              >
                 Clique para selecionar uma imagem
               </Typography>
-              <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
+              <Typography
+                sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}
+              >
                 JPG, PNG ou WEBP · máx. 5 MB
               </Typography>
             </Box>

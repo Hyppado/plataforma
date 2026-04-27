@@ -51,7 +51,10 @@ export async function POST(
   });
 
   if (!creation) {
-    return NextResponse.json({ error: "Criação não encontrada" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Criação não encontrada" },
+      { status: 404 },
+    );
   }
 
   try {
@@ -84,7 +87,11 @@ export async function POST(
 
     const blob = await put(pathname, file, { access: "public" });
 
-    log.info("Avatar image uploaded", { userId: auth.userId, creationId, url: blob.url });
+    log.info("Avatar image uploaded", {
+      userId: auth.userId,
+      creationId,
+      url: blob.url,
+    });
 
     return NextResponse.json({ uploadedAvatarImageUrl: blob.url });
   } catch (err) {

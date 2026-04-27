@@ -52,7 +52,8 @@ function AvatarVideoCreationContent() {
 
   const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm
 
-  const handleContinue = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  const handleContinue = () =>
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const handleChangeProduct = () => router.back();
   const handleCancel = () => router.push("/dashboard/trends");
 
@@ -95,7 +96,7 @@ function AvatarVideoCreationContent() {
       </Box>
 
       {/* Stepper */}
-      <Box sx={{ flexShrink: 0, mb: 4 }}>
+      <Box sx={{ flexShrink: 0, mb: 2 }}>
         <Stepper
           activeStep={step}
           alternativeLabel
@@ -140,9 +141,7 @@ function AvatarVideoCreationContent() {
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
+          pb: 2,
         }}
       >
         {/* Error state */}
@@ -157,8 +156,8 @@ function AvatarVideoCreationContent() {
               border: "1px solid rgba(239,68,68,0.25)",
               color: "#ef4444",
               fontSize: "0.8125rem",
-              width: "100%",
               maxWidth: 480,
+              mx: "auto",
             }}
           >
             {error}
@@ -169,8 +168,8 @@ function AvatarVideoCreationContent() {
         {isLoading && (
           <Box
             sx={{
-              width: "100%",
               maxWidth: 480,
+              mx: "auto",
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(45,212,255,0.08)",
               borderRadius: 4,
@@ -185,8 +184,8 @@ function AvatarVideoCreationContent() {
         {!isLoading && !error && creation && step === 0 && (
           <Box
             sx={{
-              width: "100%",
               maxWidth: 480,
+              mx: "auto",
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(45,212,255,0.08)",
               borderRadius: 4,
@@ -206,8 +205,8 @@ function AvatarVideoCreationContent() {
         {!isLoading && !error && creation && step === 1 && (
           <Box
             sx={{
-              width: "100%",
               maxWidth: 480,
+              mx: "auto",
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(45,212,255,0.08)",
               borderRadius: 4,
@@ -226,8 +225,8 @@ function AvatarVideoCreationContent() {
         {!isLoading && !error && creation && step > 1 && (
           <Box
             sx={{
-              width: "100%",
               maxWidth: 480,
+              mx: "auto",
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(45,212,255,0.08)",
               borderRadius: 4,
