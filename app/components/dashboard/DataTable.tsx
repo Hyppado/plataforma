@@ -149,17 +149,20 @@ export function ProductTable({
                 Creators
               </TableCell>
               <TableCell sx={tableHeaderSx} align="center">
-                Links
+                TikTok
+              </TableCell>
+              <TableCell sx={tableHeaderSx} align="center">
+                Criar vídeo
               </TableCell>
             </TableRow>
           </TableHead>
           {loading ? (
-            <TableSkeleton rows={5} cols={6} />
+            <TableSkeleton rows={5} cols={7} />
           ) : products.length === 0 ? (
             <TableBody>
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   sx={{ ...tableCellSx, textAlign: "center", py: 4 }}
                 >
                   Nenhum produto encontrado.
@@ -289,50 +292,46 @@ export function ProductTable({
                     {formatNumber(product.creatorCount)}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="center">
-                    <Box
-                      sx={{
-                        display: "flex",
-                        gap: 0.5,
-                        justifyContent: "center",
-                      }}
-                    >
-                      {product.tiktokUrl && product.tiktokUrl !== "—" && (
-                        <Tooltip title="Abrir no TikTok">
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(
-                                product.tiktokUrl,
-                                "_blank",
-                                "noopener,noreferrer",
-                              );
-                            }}
-                            sx={{
-                              color: "rgba(255,255,255,0.5)",
-                              "&:hover": { color: "#2DD4FF" },
-                            }}
-                          >
-                            <OpenInNew sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Criar vídeo com avatar">
+                    {product.tiktokUrl && product.tiktokUrl !== "—" ? (
+                      <Tooltip title="Ver no TikTok">
                         <IconButton
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setAvatarProduct(product);
+                            window.open(
+                              product.tiktokUrl,
+                              "_blank",
+                              "noopener,noreferrer",
+                            );
                           }}
                           sx={{
                             color: "rgba(255,255,255,0.5)",
-                            "&:hover": { color: "#FF2D78" },
+                            "&:hover": { color: "primary.main" },
                           }}
                         >
-                          <Videocam sx={{ fontSize: 16 }} />
+                          <OpenInNew sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Tooltip>
-                    </Box>
+                    ) : (
+                      <Typography sx={{ color: "rgba(255,255,255,0.2)", fontSize: "0.75rem" }}>—</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell sx={tableCellSx} align="center">
+                    <Tooltip title="Criar vídeo com avatar">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAvatarProduct(product);
+                        }}
+                        sx={{
+                          color: "rgba(255,255,255,0.5)",
+                          "&:hover": { color: "secondary.main" },
+                        }}
+                      >
+                        <Videocam sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
