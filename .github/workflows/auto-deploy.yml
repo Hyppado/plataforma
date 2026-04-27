@@ -1,17 +1,12 @@
 # .github/workflows/auto-deploy.yml
 #
-# Fast-forward main to develop after CI passes.
+# Opens a PR from develop → main after CI passes.
 #
 # Strategy:
 #   1. Triggered on every push to `develop`
 #   2. Waits for `ci.yml` to pass on the same SHA
-#   3. Fast-forwards `main` to the exact SHA of `develop` (no new commits)
-#   4. If fast-forward is not possible (diverged histories), fails with clear instructions
-#
-# Why fast-forward?
-#   - `main` ends up on the SAME SHA as `develop` — zero divergence
-#   - No merge commits, no rebased SHAs, no history duplication
-#   - `git pull` on any local branch always works cleanly
+#   3. Creates (or updates) a PR from develop → main
+#      Auto-merge is intentionally disabled — merge must be done manually.
 #
 # Requirements:
 #   - Only `GITHUB_TOKEN` — no PAT needed
@@ -28,12 +23,13 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
   actions: read
+  pull-requests: write
 
 jobs:
   fast-forward-main:
-    name: Fast-forward main to develop
+    name: Open PR develop → main
     runs-on: ubuntu-latest
     steps:
       - name: Wait for CI to pass on this commit
@@ -85,38 +81,38 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout (full history)
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Configure git bot identity
+      - name: Create or update PR develop → main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          SHA="${GITHUB_SHA}"
+          SHORT_SHA="${SHA:0:7}"
+          TITLE="chore: deploy develop → main (${SHORT_SHA})"
+          BODY="Automated PR opened after CI passed on \`develop\` @ \`${SHA}\`.\n\n⚠️ Auto-merge is disabled. Review and merge manually when ready."
 
-      - name: Fast-forward main to develop
-        run: |
-          git fetch origin main develop
-          git checkout main
-          git merge --ff-only "origin/develop"
+          # Check if an open PR already exists
+          EXISTING=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head develop \
+            --state open \
+            --json number \
+            --jq '.[0].number')
 
-          if [ $? -ne 0 ]; then
-            echo ""
-            echo "══════════════════════════════════════════════════════════════"
-            echo "ERRO: develop divergiu de main — fast-forward não é possível."
-            echo ""
-            echo "Resolva localmente com:"
-            echo "  git fetch origin"
-            echo "  git rebase origin/main develop"
-            echo "  git push origin develop"
-            echo ""
-            echo "Depois, o próximo push em develop disparará este workflow."
-            echo "══════════════════════════════════════════════════════════════"
-            exit 1
+          if [ -n "$EXISTING" ]; then
+            echo "🔄 Updating existing PR #${EXISTING}..."
+            gh pr edit "$EXISTING" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --body "$BODY"
+            echo "✅ PR #${EXISTING} updated."
+          else
+            echo "➕ Creating new PR..."
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head develop \
+              --title "$TITLE" \
+              --body "$BODY"
+            echo "✅ PR created."
           fi
-
-          git push origin main
-          echo ""
-          echo "✅ main avançou via fast-forward para $(git rev-parse HEAD)"
-          echo "   develop e main agora apontam para o mesmo SHA."
