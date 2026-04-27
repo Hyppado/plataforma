@@ -546,8 +546,14 @@ describe("selectImageVariation()", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("saves selectedImageVariationId when variation belongs to the creation", async () => {
-    const variation = buildAvatarVideoImageVariation({ id: "var-1", status: "READY" });
-    const creation = makeDraft({ status: "IMAGES_READY", imageVariations: [variation] });
+    const variation = buildAvatarVideoImageVariation({
+      id: "var-1",
+      status: "READY",
+    });
+    const creation = makeDraft({
+      status: "IMAGES_READY",
+      imageVariations: [variation],
+    });
     const updated = { ...creation, selectedImageVariationId: "var-1" };
 
     (
@@ -574,7 +580,11 @@ describe("selectImageVariation()", () => {
       prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
     ).mockResolvedValue(creation);
 
-    const result = await selectImageVariation("user-1", "creation-1", "no-such-id");
+    const result = await selectImageVariation(
+      "user-1",
+      "creation-1",
+      "no-such-id",
+    );
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("not_found");

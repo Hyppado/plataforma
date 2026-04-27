@@ -16,7 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import { getSecretSetting, SETTING_KEYS } from "@/lib/settings";
-import { uploadImageToBlob } from "@/lib/storage/blob";
+import { uploadBufferToBlob } from "@/lib/storage/blob";
 import type {
   AvatarVideoCreation,
   AvatarProfile,
@@ -51,37 +51,84 @@ export function isImageGenerationError(
 
 /**
  * Assembles the text prompt sent to the image generation model.
- * Combines product context, avatar description, and optional scenario hint.
+ *
+ * The prompt describes a photorealistic editorial scene where the avatar model
+ * is actively wearing, holding, or interacting with the product in the chosen
+ * scenario — not just a side-by-side listing of data points.
  */
 export function buildImagePromptText(
   creation: AvatarVideoCreation,
   avatar: AvatarProfile | null,
   scenario: VideoScenario | null,
 ): string {
-  const parts: string[] = [];
+  // Subject — the person in the image
+  const subject = avatar
+    ? `${avatar.name}${avatar.description ? `, ${avatar.description}` : ""}`
+    : "uma pessoa jovem, estilo criador de conteúdo digital";
 
-  if (avatar) {
-    parts.push(`Avatar: ${avatar.name}.`);
-    if (avatar.description) parts.push(avatar.description);
+  // Interaction verb — how the person relates to the product, based on category
+  const product = creation.productName ?? "o produto";
+  const cat = (creation.productCategory ?? "").toLowerCase();
+
+  let interaction: string;
+  if (
+    cat.includes("roupa") ||
+    cat.includes("moda") ||
+    cat.includes("fashion") ||
+    cat.includes("vestuário") ||
+    cat.includes("clothing")
+  ) {
+    interaction = `vestindo e exibindo ${product}`;
+  } else if (
+    cat.includes("acessório") ||
+    cat.includes("joia") ||
+    cat.includes("joalheria") ||
+    cat.includes("jewelry") ||
+    cat.includes("bolsa")
+  ) {
+    interaction = `usando ${product} como acessório, com destaque para o item`;
+  } else if (
+    cat.includes("beleza") ||
+    cat.includes("cosmét") ||
+    cat.includes("skincare") ||
+    cat.includes("maquiagem") ||
+    cat.includes("beauty")
+  ) {
+    interaction = `segurando ${product} próximo ao rosto, produto claramente visível`;
+  } else if (
+    cat.includes("tecnologia") ||
+    cat.includes("eletrôn") ||
+    cat.includes("tech") ||
+    cat.includes("gadget")
+  ) {
+    interaction = `usando e demonstrando ${product} nas mãos`;
+  } else if (
+    cat.includes("alimento") ||
+    cat.includes("bebida") ||
+    cat.includes("food") ||
+    cat.includes("snack")
+  ) {
+    interaction = `segurando e apresentando ${product} de forma apetitosa`;
+  } else {
+    interaction = `segurando e apresentando ${product} com naturalidade`;
   }
 
-  if (creation.productName) {
-    parts.push(`Produto: ${creation.productName}.`);
-  }
-
-  if (creation.productCategory) {
-    parts.push(`Categoria: ${creation.productCategory}.`);
-  }
-
+  // Setting / environment
+  let setting: string;
   if (scenario?.promptHint) {
-    parts.push(`Contexto: ${scenario.promptHint}`);
+    setting = scenario.promptHint;
+  } else if (creation.customScenarioDescription) {
+    setting = creation.customScenarioDescription;
+  } else {
+    setting = "ambiente interno luminoso e moderno";
   }
 
-  parts.push(
-    "Gere uma imagem de referência de alta qualidade, fundo neutro, iluminação profissional, adequada para vídeo UGC de TikTok Shop.",
-  );
-
-  return parts.join(" ");
+  return [
+    `Fotografia publicitária realista no estilo UGC para TikTok Shop.`,
+    `${subject}, ${interaction}, no cenário: ${setting}.`,
+    `O produto está bem visível e integrado à cena de forma natural e autêntica.`,
+    `Orientação vertical (formato 9:16), iluminação natural e profissional, altamente fotorrealista, sem texto ou marcas d'água.`,
+  ].join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -156,14 +203,17 @@ export async function generateImageVariation(
 }
 
 // ---------------------------------------------------------------------------
-// DALL-E 3 image generation + Vercel Blob upload
+// gpt-image-1 image generation + Vercel Blob upload
 // ---------------------------------------------------------------------------
 
 /**
- * @internal Calls DALL-E 3 to generate a reference image, then uploads the
- * result to Vercel Blob for permanent storage.
+ * @internal Calls the OpenAI Images API (gpt-image-1) to generate a reference
+ * image, then uploads the base64-encoded result directly to Vercel Blob.
  *
- * @param promptText   Assembled prompt for DALL-E 3
+ * gpt-image-1 has stronger instruction-following than DALL-E 3 and produces
+ * more photorealistic outputs — important for avatar + product composition.
+ *
+ * @param promptText   Assembled prompt from `buildImagePromptText`
  * @param variationId  AvatarVideoImageVariation.id — used as the blob file name
  * @returns            Permanent Vercel Blob URL
  */
@@ -190,12 +240,11 @@ async function _callImageGenerationAPI(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "dall-e-3",
+        model: "gpt-image-1",
         prompt: promptText,
         n: 1,
-        size: "1024x1024",
-        quality: "standard",
-        response_format: "url",
+        size: "1024x1536", // portrait — closest to 9:16 for TikTok
+        quality: "high",
       }),
       signal: controller.signal,
     });
@@ -215,16 +264,18 @@ async function _callImageGenerationAPI(
     );
   }
 
-  const data = (await response.json()) as { data?: Array<{ url?: string }> };
-  const imageUrl = data.data?.[0]?.url;
-  if (!imageUrl || typeof imageUrl !== "string") {
-    throw new Error("OpenAI retornou resposta inválida (sem URL de imagem)");
+  const data = (await response.json()) as {
+    data?: Array<{ b64_json?: string }>;
+  };
+  const b64 = data.data?.[0]?.b64_json;
+  if (!b64 || typeof b64 !== "string") {
+    throw new Error("OpenAI retornou resposta inválida (sem imagem base64)");
   }
 
-  // Download and re-upload to Vercel Blob for permanent storage
-  // (DALL-E URLs expire after ~1 hour)
+  // Decode base64 → Buffer and upload directly (no second HTTP request)
+  const buffer = Buffer.from(b64, "base64");
   const blobPath = `avatar-video/${variationId}.png`;
-  const blobUrl = await uploadImageToBlob(imageUrl, blobPath);
+  const blobUrl = await uploadBufferToBlob(buffer, blobPath, "image/png");
 
   if (!blobUrl) {
     throw new Error(

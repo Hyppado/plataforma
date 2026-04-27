@@ -131,6 +131,40 @@ export async function uploadImageToBlob(
   }
 }
 
+/**
+ * Uploads a raw image buffer directly to Vercel Blob Storage.
+ * Use this when the image data is already in memory (e.g. decoded from base64).
+ *
+ * @param buffer       Image data as a Node.js Buffer
+ * @param blobPath     Path/name for the blob (e.g. "avatar-video/abc123.png")
+ * @param contentType  MIME type (defaults to "image/png")
+ * @returns            Permanent Vercel Blob URL, or null on failure
+ */
+export async function uploadBufferToBlob(
+  buffer: Buffer,
+  blobPath: string,
+  contentType = "image/png",
+): Promise<string | null> {
+  if (buffer.byteLength === 0) {
+    log.warn("Empty buffer, skipping blob upload", { blobPath });
+    return null;
+  }
+  try {
+    const blob = await put(blobPath, buffer, {
+      access: "public",
+      contentType,
+      addRandomSuffix: false,
+    });
+    return blob.url;
+  } catch (error) {
+    log.error("Blob upload failed", {
+      error: error instanceof Error ? error.message : String(error),
+      blobPath,
+    });
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Combined: sign + upload
 // ---------------------------------------------------------------------------

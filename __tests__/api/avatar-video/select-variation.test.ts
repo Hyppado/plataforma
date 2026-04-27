@@ -71,7 +71,10 @@ function makeCreation() {
 describe("PATCH select-variation — auth", () => {
   it("returns 401 when not authenticated", async () => {
     mockUnauthenticated();
-    const res = await PATCH(makeRequest({ variationId: VARIATION_ID }), makeParams());
+    const res = await PATCH(
+      makeRequest({ variationId: VARIATION_ID }),
+      makeParams(),
+    );
     expect(res.status).toBe(401);
   });
 });
@@ -108,7 +111,11 @@ describe("PATCH select-variation — body validation", () => {
     });
     const res = await PATCH(makeRequest({ variationId: null }), makeParams());
     expect(res.status).toBe(200);
-    expect(selectImageVariationMock).toHaveBeenCalledWith(USER_ID, CREATION_ID, null);
+    expect(selectImageVariationMock).toHaveBeenCalledWith(
+      USER_ID,
+      CREATION_ID,
+      null,
+    );
   });
 });
 
@@ -127,7 +134,10 @@ describe("PATCH select-variation — success", () => {
     const creation = makeCreation();
     selectImageVariationMock.mockResolvedValue({ ok: true, data: creation });
 
-    const res = await PATCH(makeRequest({ variationId: VARIATION_ID }), makeParams());
+    const res = await PATCH(
+      makeRequest({ variationId: VARIATION_ID }),
+      makeParams(),
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -163,7 +173,10 @@ describe("PATCH select-variation — service error mapping", () => {
       code,
     });
 
-    const res = await PATCH(makeRequest({ variationId: VARIATION_ID }), makeParams());
+    const res = await PATCH(
+      makeRequest({ variationId: VARIATION_ID }),
+      makeParams(),
+    );
     expect(res.status).toBe(expectedStatus);
   });
 });

@@ -33,11 +33,13 @@ vi.mock("@/lib/settings", () => ({
   SETTING_KEYS: { OPENAI_API_KEY: "openai.api_key" },
 }));
 
-const { uploadImageToBlobMock } = vi.hoisted(() => ({
+const { uploadImageToBlobMock, uploadBufferToBlobMock } = vi.hoisted(() => ({
   uploadImageToBlobMock: vi.fn(),
+  uploadBufferToBlobMock: vi.fn(),
 }));
 vi.mock("@/lib/storage/blob", () => ({
   uploadImageToBlob: uploadImageToBlobMock,
+  uploadBufferToBlob: uploadBufferToBlobMock,
 }));
 
 import {
@@ -86,16 +88,16 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, avatar, null);
 
-      expect(text).toContain("Avatar: Maria.");
+      expect(text).toContain("Maria");
       expect(text).toContain("Lifestyle influencer");
     });
 
-    it("omits avatar section when avatar is null", () => {
+    it("uses generic subject when avatar is null", () => {
       const creation = buildAvatarVideoCreation() as any;
 
       const text = buildImagePromptText(creation, null, null);
 
-      expect(text).not.toContain("Avatar:");
+      expect(text).toContain("uma pessoa jovem");
     });
 
     it("includes product name when set on creation", () => {
@@ -105,17 +107,19 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, null, null);
 
-      expect(text).toContain("Produto: Serum X.");
+      expect(text).toContain("Serum X");
     });
 
-    it("includes product category when set", () => {
+    it("uses category-appropriate interaction for skincare", () => {
       const creation = buildAvatarVideoCreation({
+        productName: "Creme X",
         productCategory: "Skincare",
       }) as any;
 
       const text = buildImagePromptText(creation, null, null);
 
-      expect(text).toContain("Categoria: Skincare.");
+      expect(text).toContain("Creme X");
+      expect(text).toContain("segurando");
     });
 
     it("includes scenario promptHint when provided", () => {
@@ -126,7 +130,7 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, null, scenario);
 
-      expect(text).toContain("Contexto: Fale sobre os benefícios");
+      expect(text).toContain("Fale sobre os benefícios");
     });
 
     it("omits scenario context when promptHint is null", () => {
@@ -135,7 +139,8 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, null, scenario);
 
-      expect(text).not.toContain("Contexto:");
+      expect(text).not.toContain("Fale sobre os benefícios");
+      expect(text).toContain("no cenário:");
     });
 
     it("always appends the quality suffix", () => {
@@ -143,7 +148,7 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, null, null);
 
-      expect(text).toContain("fundo neutro");
+      expect(text).toContain("fotorrealista");
       expect(text).toContain("TikTok Shop");
     });
 
@@ -162,11 +167,11 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, avatar, scenario);
 
-      expect(text).toContain("Avatar: João.");
+      expect(text).toContain("João");
       expect(text).toContain("Tech reviewer");
-      expect(text).toContain("Produto: Creme facial.");
-      expect(text).toContain("Categoria: Beleza.");
-      expect(text).toContain("Contexto: Mostre o produto em uso");
+      expect(text).toContain("Creme facial");
+      expect(text).toContain("Mostre o produto em uso");
+      expect(text).toContain("fotorrealista");
     });
   });
 
@@ -269,7 +274,7 @@ describe("lib/avatar-video/image-prompt", () => {
 
     it("persists blobUrl and returns ok on successful generation", async () => {
       getSecretSettingMock.mockResolvedValue("sk-test-key");
-      uploadImageToBlobMock.mockResolvedValue(
+      uploadBufferToBlobMock.mockResolvedValue(
         "https://blob.vercel.app/avatar-video/var-ok.png",
       );
 
@@ -285,16 +290,13 @@ describe("lib/avatar-video/image-prompt", () => {
         status: "READY",
       });
 
+      // gpt-image-1 returns base64-encoded image data
       vi.stubGlobal(
         "fetch",
         vi.fn().mockResolvedValue({
           ok: true,
           json: async () => ({
-            data: [
-              {
-                url: "https://oaidalleapiprodscus.blob.core.windows.net/img.png",
-              },
-            ],
+            data: [{ b64_json: "AAAA" }], // minimal valid base64
           }),
         }),
       );
@@ -312,9 +314,10 @@ describe("lib/avatar-video/image-prompt", () => {
         );
         expect(result.data.variationId).toBe("var-ok");
       }
-      expect(uploadImageToBlobMock).toHaveBeenCalledWith(
-        "https://oaidalleapiprodscus.blob.core.windows.net/img.png",
+      expect(uploadBufferToBlobMock).toHaveBeenCalledWith(
+        expect.any(Buffer),
         "avatar-video/var-ok.png",
+        "image/png",
       );
       expect(prismaMock.avatarVideoImageVariation.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -358,7 +361,7 @@ describe("lib/avatar-video/image-prompt", () => {
 
     it("marks variation FAILED when blob upload returns null", async () => {
       getSecretSettingMock.mockResolvedValue("sk-test-key");
-      uploadImageToBlobMock.mockResolvedValue(null);
+      uploadBufferToBlobMock.mockResolvedValue(null);
 
       const variation = buildAvatarVideoImageVariation({ id: "var-blobfail" });
       (
@@ -373,11 +376,7 @@ describe("lib/avatar-video/image-prompt", () => {
         vi.fn().mockResolvedValue({
           ok: true,
           json: async () => ({
-            data: [
-              {
-                url: "https://oaidalleapiprodscus.blob.core.windows.net/img.png",
-              },
-            ],
+            data: [{ b64_json: "AAAA" }],
           }),
         }),
       );

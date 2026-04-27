@@ -225,7 +225,11 @@ function InfoCallout({ children }: { children: React.ReactNode }) {
         sx={{ fontSize: 16, color: "primary.main", flexShrink: 0, mt: "1px" }}
       />
       <Typography
-        sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}
+        sx={{
+          fontSize: "0.75rem",
+          color: "rgba(255,255,255,0.6)",
+          lineHeight: 1.5,
+        }}
       >
         {children}
       </Typography>
@@ -291,7 +295,9 @@ export function StepImageGenerate({
       };
 
       if (!res.ok) {
-        setGenerationError(friendlyError(data.error ?? "Erro ao gerar imagem", res.status));
+        setGenerationError(
+          friendlyError(data.error ?? "Erro ao gerar imagem", res.status),
+        );
         return;
       }
 
@@ -316,14 +322,11 @@ export function StepImageGenerate({
     setSelectedVariationId(variationId);
     setSaveError(null);
     // Fire-and-forget PATCH — UI updates optimistically
-    fetch(
-      `/api/avatar-video/creations/${creation.id}/select-variation`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variationId }),
-      },
-    ).catch(() => {
+    fetch(`/api/avatar-video/creations/${creation.id}/select-variation`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variationId }),
+    }).catch(() => {
       // Non-critical — selection is in local state; silently ignore
     });
   };
@@ -331,7 +334,10 @@ export function StepImageGenerate({
   // ── Continue ─────────────────────────────────────────────────────────────
 
   const canContinue =
-    !saving && !generating && status === "IMAGES_READY" && !!selectedVariationId;
+    !saving &&
+    !generating &&
+    status === "IMAGES_READY" &&
+    !!selectedVariationId;
 
   const handleContinue = async () => {
     if (!canContinue) return;
@@ -403,8 +409,8 @@ export function StepImageGenerate({
           )}
 
           <InfoCallout>
-            Selecione a imagem que melhor representa o visual do vídeo.
-            Ela será usada como referência para gerar o roteiro.
+            Selecione a imagem que melhor representa o visual do vídeo. Ela será
+            usada como referência para gerar o roteiro.
           </InfoCallout>
         </>
       )}
@@ -421,7 +427,9 @@ export function StepImageGenerate({
           }}
         >
           <CircularProgress size={36} sx={{ color: "primary.main" }} />
-          <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
+          <Typography
+            sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}
+          >
             Gerando imagens…
           </Typography>
         </Box>
@@ -441,11 +449,18 @@ export function StepImageGenerate({
               }}
             >
               <Typography
-                sx={{ fontSize: "0.8125rem", color: "#ef4444", mb: 0.5, fontWeight: 600 }}
+                sx={{
+                  fontSize: "0.8125rem",
+                  color: "#ef4444",
+                  mb: 0.5,
+                  fontWeight: 600,
+                }}
               >
                 Geração anterior falhou
               </Typography>
-              <Typography sx={{ fontSize: "0.75rem", color: "rgba(239,68,68,0.8)" }}>
+              <Typography
+                sx={{ fontSize: "0.75rem", color: "rgba(239,68,68,0.8)" }}
+              >
                 {creation.errorMessage}
               </Typography>
             </Box>
@@ -471,7 +486,11 @@ export function StepImageGenerate({
         >
           <CircularProgress size={40} sx={{ color: "primary.main" }} />
           <Typography
-            sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)", textAlign: "center" }}
+            sx={{
+              fontSize: "0.8125rem",
+              color: "rgba(255,255,255,0.5)",
+              textAlign: "center",
+            }}
           >
             Gerando imagens com IA…
             <br />
@@ -519,7 +538,9 @@ export function StepImageGenerate({
       {/* ── Action buttons ── */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1, pt: 0.5 }}>
         {/* Generate / Regenerate button */}
-        {(status === "DRAFT" || status === "FAILED" || status === "IMAGES_READY") &&
+        {(status === "DRAFT" ||
+          status === "FAILED" ||
+          status === "IMAGES_READY") &&
           !generating && (
             <Button
               variant={hasImages ? "outlined" : "contained"}

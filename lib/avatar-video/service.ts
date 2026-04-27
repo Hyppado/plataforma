@@ -477,7 +477,9 @@ export async function selectImageVariation(
 
     // Validate that variationId belongs to this creation when provided
     if (variationId !== null) {
-      const belongs = creation.imageVariations.some((v) => v.id === variationId);
+      const belongs = creation.imageVariations.some(
+        (v) => v.id === variationId,
+      );
       if (!belongs) {
         return {
           ok: false,

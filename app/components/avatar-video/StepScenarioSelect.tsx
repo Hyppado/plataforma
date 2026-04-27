@@ -157,7 +157,9 @@ function ScenarioCard({
 
       {/* Checkmark */}
       {selected && (
-        <CheckCircle sx={{ fontSize: 18, color: "primary.main", flexShrink: 0 }} />
+        <CheckCircle
+          sx={{ fontSize: 18, color: "primary.main", flexShrink: 0 }}
+        />
       )}
     </Box>
   );
@@ -264,7 +266,10 @@ export function StepScenarioSelect({ creation, onContinue, onBack }: Props) {
       const body =
         mode === "preset"
           ? { scenarioId: selectedScenarioId, customScenarioDescription: null }
-          : { scenarioId: null, customScenarioDescription: customDescription.trim() };
+          : {
+              scenarioId: null,
+              customScenarioDescription: customDescription.trim(),
+            };
 
       const res = await fetch(`/api/avatar-video/creations/${creation.id}`, {
         method: "PATCH",
@@ -367,8 +372,8 @@ export function StepScenarioSelect({ creation, onContinue, onBack }: Props) {
           )}
 
           <InfoCallout>
-            O cenário define o fundo e o ambiente do vídeo. O avatar e o
-            produto aparecem em destaque sobre o ambiente escolhido.
+            O cenário define o fundo e o ambiente do vídeo. O avatar e o produto
+            aparecem em destaque sobre o ambiente escolhido.
           </InfoCallout>
         </>
       )}
@@ -447,8 +452,8 @@ export function StepScenarioSelect({ creation, onContinue, onBack }: Props) {
           </Box>
 
           <InfoCallout>
-            Descreva o ambiente em detalhes: iluminação, cores, estilo e
-            objetos presentes. Quanto mais específico, melhor o resultado.
+            Descreva o ambiente em detalhes: iluminação, cores, estilo e objetos
+            presentes. Quanto mais específico, melhor o resultado.
           </InfoCallout>
         </>
       )}
@@ -501,7 +506,13 @@ export function StepScenarioSelect({ creation, onContinue, onBack }: Props) {
         <Button
           variant="contained"
           size="small"
-          endIcon={saving ? <CircularProgress size={14} color="inherit" /> : <ArrowForward />}
+          endIcon={
+            saving ? (
+              <CircularProgress size={14} color="inherit" />
+            ) : (
+              <ArrowForward />
+            )
+          }
           onClick={handleContinue}
           disabled={!canContinue}
           sx={{
