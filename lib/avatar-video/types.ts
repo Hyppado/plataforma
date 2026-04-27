@@ -1,0 +1,125 @@
+/**
+ * lib/avatar-video/types.ts
+ *
+ * Shared domain types for the avatar video generation flow.
+ * All public-facing DTOs live here; Prisma model types are used
+ * internally and re-exported where callers need them.
+ */
+
+import type {
+  AvatarVideoCreationStatus,
+  AvatarVideoImageStatus,
+  AvatarVideoPromptStatus,
+} from "@prisma/client";
+
+// ---------------------------------------------------------------------------
+// Image variation
+// ---------------------------------------------------------------------------
+
+export interface ImageVariationDTO {
+  id: string;
+  blobUrl: string | null;
+  status: AvatarVideoImageStatus;
+  sortOrder: number;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Prompt
+// ---------------------------------------------------------------------------
+
+export interface PromptDTO {
+  id: string;
+  promptJson: unknown | null;
+  promptText: string | null;
+  status: AvatarVideoPromptStatus;
+  isEdited: boolean;
+  editedAt: Date | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Creation (session)
+// ---------------------------------------------------------------------------
+
+export interface CreationDTO {
+  id: string;
+  userId: string;
+  avatarProfileId: string | null;
+  videoScenarioId: string | null;
+  status: AvatarVideoCreationStatus;
+  productExternalId: string | null;
+  productName: string | null;
+  productImageUrl: string | null;
+  productSelectedImageUrl: string | null;
+  productPriceCents: number | null;
+  productCurrency: string | null;
+  productCategory: string | null;
+  uploadedAvatarImageUrl: string | null;
+  customScenarioDescription: string | null;
+  tone: string | null;
+  duration: string | null;
+  takeCount: number | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  imageVariations: ImageVariationDTO[];
+  prompt: PromptDTO | null;
+}
+
+// ---------------------------------------------------------------------------
+// Service result types (discriminated union pattern)
+// ---------------------------------------------------------------------------
+
+export type ServiceOk<T> = { ok: true; data: T };
+export type ServiceErr = {
+  ok: false;
+  error: string;
+  code: "quota_exceeded" | "not_found" | "invalid_state" | "internal";
+};
+
+export type ServiceResult<T> = ServiceOk<T> | ServiceErr;
+
+export function isServiceErr(r: ServiceResult<unknown>): r is ServiceErr {
+  return !r.ok;
+}
+
+// ---------------------------------------------------------------------------
+// Creation selections input
+// ---------------------------------------------------------------------------
+
+/** Fields the user can set while the creation is in DRAFT status. */
+export interface CreationSelections {
+  /** ID of an AvatarProfile from the library (null = user provided own image) */
+  avatarProfileId?: string | null;
+  /** Vercel Blob URL of a user-uploaded avatar reference image */
+  uploadedAvatarImageUrl?: string | null;
+  /** ID of a VideoScenario template (null = custom) */
+  videoScenarioId?: string | null;
+  /** Free-text description for a custom scenario */
+  customScenarioDescription?: string | null;
+  /** Delivery tone, e.g. "professional", "casual", "energetic" */
+  tone?: string | null;
+  /** Desired video duration, e.g. "15s", "30s", "60s" */
+  duration?: string | null;
+  /** Number of takes to generate (1–5) */
+  takeCount?: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// Product selection input
+// ---------------------------------------------------------------------------
+
+export interface ProductSelection {
+  productExternalId: string;
+  productName: string;
+  productImageUrl: string;
+  productSelectedImageUrl: string;
+  productPriceCents: number | null;
+  productCurrency: string | null;
+  productCategory: string | null;
+}

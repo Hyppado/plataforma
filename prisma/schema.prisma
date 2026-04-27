@@ -997,6 +997,13 @@ model AvatarVideoCreation {
   productCurrency         String?                   // e.g. "USD", "BRL"
   productCategory         String?                   // category name (text, denormalized)
 
+  // Avatar / scenario selection (set in DRAFT, persist for reuse)
+  uploadedAvatarImageUrl    String?                 // Vercel Blob URL of user-uploaded avatar reference image
+  customScenarioDescription String?                 // free-text description when scenario is custom
+  tone                      String?                 // e.g. "professional", "casual", "energetic"
+  duration                  String?                 // e.g. "15s", "30s", "60s"
+  takeCount                 Int?                    // number of video takes to generate (1–5)
+
   errorMessage            String?
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt

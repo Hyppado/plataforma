@@ -41,7 +41,11 @@ Clicar em "Transcrever" em qualquer vídeo gera uma transcrição via OpenAI Whi
 
 A partir de um vídeo transcrito, gerar análise estruturada via IA: contexto, gancho, problema, solução, CTA e roteiro reutilizável. Um insight por usuário por vídeo.
 
-### 6. Salvar e organizar
+### 6. Gerar material para vídeo com avatar
+
+Fluxo guiado de criação de material UGC: o usuário seleciona um produto em alta, escolhe um avatar e um cenário, e recebe imagens de referência geradas por DALL-E 3 e um prompt estruturado para VEO 3. Sujeito a quota mensal (`avatarVideoQuota`) configurável por plano.
+
+### 7. Salvar e organizar
 
 Favoritar vídeos e produtos, criar coleções, escrever notas e configurar alertas por item.
 

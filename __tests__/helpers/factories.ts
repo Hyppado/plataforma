@@ -53,6 +53,7 @@ export function buildPlan(overrides: Record<string, unknown> = {}) {
     insightMaxOutputTokens: 4096,
     scriptMaxOutputTokens: 4096,
     displayOrder: 1,
+    avatarVideoQuota: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -116,6 +117,7 @@ export function buildUsagePeriod(overrides: Record<string, unknown> = {}) {
     scriptsUsed: 0,
     insightsUsed: 0,
     tokensUsed: 0,
+    avatarVideosUsed: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -133,6 +135,99 @@ export function buildUsageEvent(overrides: Record<string, unknown> = {}) {
     refId: null,
     idempotencyKey: `key-${randomUUID()}`,
     createdAt: new Date(),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Avatar Video
+// ---------------------------------------------------------------------------
+
+export function buildAvatarProfile(overrides: Record<string, unknown> = {}) {
+  return {
+    id: randomUUID(),
+    name: "Test Avatar",
+    description: "A test avatar description",
+    imageUrl: "https://blob.test/avatar.jpg",
+    thumbnailUrl: "https://blob.test/avatar-thumb.jpg",
+    isActive: true,
+    sortOrder: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+export function buildVideoScenario(overrides: Record<string, unknown> = {}) {
+  return {
+    id: randomUUID(),
+    name: "Test Scenario",
+    description: "A test scenario description",
+    promptHint: "Test prompt hint for UGC",
+    isDefault: false,
+    isActive: true,
+    sortOrder: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+export function buildAvatarVideoCreation(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: randomUUID(),
+    userId: randomUUID(),
+    avatarProfileId: null as string | null,
+    videoScenarioId: null as string | null,
+    status: "DRAFT" as const,
+    productExternalId: null as string | null,
+    productName: null as string | null,
+    productImageUrl: null as string | null,
+    productSelectedImageUrl: null as string | null,
+    productPriceCents: null as number | null,
+    productCurrency: null as string | null,
+    productCategory: null as string | null,
+    errorMessage: null as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    imageVariations: [] as ReturnType<typeof buildAvatarVideoImageVariation>[],
+    prompt: null as ReturnType<typeof buildAvatarVideoPrompt> | null,
+    ...overrides,
+  };
+}
+
+export function buildAvatarVideoImageVariation(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: randomUUID(),
+    creationId: randomUUID(),
+    blobUrl: null as string | null,
+    status: "PENDING" as const,
+    sortOrder: 0,
+    errorMessage: null as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+export function buildAvatarVideoPrompt(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: randomUUID(),
+    creationId: randomUUID(),
+    promptJson: null as unknown,
+    promptText: null as string | null,
+    status: "PENDING" as const,
+    isEdited: false,
+    editedAt: null as Date | null,
+    errorMessage: null as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
     ...overrides,
   };
 }

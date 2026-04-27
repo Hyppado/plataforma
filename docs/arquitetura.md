@@ -64,6 +64,15 @@ app/
     auth/
       reset-password/  → solicitação de reset (público)
       setup-password/  → validação de token + criação de senha (público)
+    avatar-video/
+      avatars/         → GET lista de AvatarProfiles ativos
+      scenarios/       → GET lista de VideoScenarios ativos
+      creations/
+        route.ts       → POST cria/retoma rascunho de criação
+        [id]/
+          route.ts     → GET estado da criação; PATCH seleções
+          generate-image/  → POST dispara geração de imagem (DALL-E 3)
+          generate-prompt/ → POST dispara geração de prompt (VEO 3)
     cron/
       echotik/         → ingestão de dados Echotik
       transcribe/      → retry de transcrições com falha
@@ -134,6 +143,12 @@ lib/
     plans.ts           → sincronização de planos
     processor.ts       → processamento de eventos webhook
     webhook.ts         → validação de assinatura + extração de campos
+  avatar-video/
+    service.ts         → orquestração do fluxo (getOrCreate, update, startImage, startPrompt, detail)
+    generate-image.ts  → DALL-E 3 — geração de imagem de referência
+    veo-prompt.ts      → VEO 3 — construção e geração de prompt estruturado
+    quota.ts           → enforceAvatarVideoQuota() — verificação antes de gerar
+    types.ts           → CreationDTO, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO
   insight/
     service.ts         → requestInsight / getInsight
     generate.ts        → OpenAI Chat Completions + parseInsightResponse

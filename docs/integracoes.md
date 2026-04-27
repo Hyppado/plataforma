@@ -204,6 +204,18 @@ Input: texto da transcrição + template de prompt (configurável pelo admin).
 
 Output: `contexto`, `gancho`, `problema`, `solução`, `CTA`, `roteiro reutilizável`.
 
+### Geração de imagem de referência (DALL-E 3)
+
+`lib/avatar-video/generate-image.ts` → OpenAI Images API (`dall-e-3`).
+
+Gera imagens de referência para o fluxo de vídeo com avatar. Armazena o resultado no Vercel Blob e salva a URL em `AvatarVideoImageVariation`. Execução assíncrona — a criação entra em `PENDING_IMAGES` enquanto a geração ocorre.
+
+### Geração de prompt VEO 3 (Chat Completions)
+
+`lib/avatar-video/veo-prompt.ts` → OpenAI Chat Completions.
+
+Gera prompt estruturado (`Veo3Prompt`) para a API VEO 3, incluindo takes com direção de câmera, visual e falas. O template de sistema é configurável pelo admin via `avatar_video.prompt_template` (banco). O resultado é persistido em `AvatarVideoPrompt` como JSON estruturado e texto legível.
+
 ### Chave da API
 
 Armazenada criptografada no banco via painel admin (OpenAITab). Nunca enviada ao browser. Resolução em runtime via `getSetting` / `getSecretSetting`.
