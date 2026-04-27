@@ -2,13 +2,23 @@
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography, Button, CircularProgress, Grid } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
+  Grid,
+  IconButton,
+  Tooltip,
+} from "@mui/material";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { ProductCard } from "@/app/components/cards/ProductCard";
 import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
+import { ProductTable } from "@/app/components/dashboard/DataTable";
 import type { ProductDTO } from "@/lib/types/dto";
 import { normalizeRange, type TimeRange } from "@/lib/filters/timeRange";
-import { ExpandMore } from "@mui/icons-material";
+import { ExpandMore, GridView, ViewList } from "@mui/icons-material";
+import { useViewMode } from "@/lib/useViewMode";
 import {
   pickCategoryByHash,
   matchesCategory,
@@ -28,6 +38,7 @@ function ProductsContent() {
   const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
     null,
   );
+  const [viewMode, setViewMode] = useViewMode("hyppado-products-hype-view");
 
   const timeRange = normalizeRange(searchParams.get("range"));
   const categoryFilter = searchParams.get("category") || "";
@@ -150,40 +161,79 @@ function ProductsContent() {
           onCategoryChange={(c: string) => updateUrl({ category: c })}
           categories={categories}
         />
-        {/* Sort chips */}
-        <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
-          {PRODUCT_RANK_FIELDS.map((rf) => {
-            const active = sort === rf.key;
-            return (
-              <Box
-                key={rf.key}
-                component="button"
-                onClick={() => updateUrl({ sort: rf.key })}
+        {/* Sort chips + View toggle */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mt: 1.5,
+          }}
+        >
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            {PRODUCT_RANK_FIELDS.map((rf) => {
+              const active = sort === rf.key;
+              return (
+                <Box
+                  key={rf.key}
+                  component="button"
+                  onClick={() => updateUrl({ sort: rf.key })}
+                  sx={{
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: 99,
+                    border: active
+                      ? "1px solid #2DD4FF"
+                      : "1px solid rgba(255,255,255,0.15)",
+                    background: active
+                      ? "rgba(45,212,255,0.12)"
+                      : "rgba(255,255,255,0.05)",
+                    color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
+                    fontSize: "0.75rem",
+                    fontWeight: active ? 600 : 400,
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                    "&:hover": {
+                      borderColor: "#2DD4FF",
+                      color: "#2DD4FF",
+                    },
+                  }}
+                >
+                  {rf.label}
+                </Box>
+              );
+            })}
+          </Box>
+          <Box sx={{ display: "flex", flexShrink: 0, ml: 1 }}>
+            <Tooltip title="Cards">
+              <IconButton
+                size="small"
+                onClick={() => setViewMode("card")}
                 sx={{
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: 99,
-                  border: active
-                    ? "1px solid #2DD4FF"
-                    : "1px solid rgba(255,255,255,0.15)",
-                  background: active
-                    ? "rgba(45,212,255,0.12)"
-                    : "rgba(255,255,255,0.05)",
-                  color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
-                  fontSize: "0.75rem",
-                  fontWeight: active ? 600 : 400,
-                  cursor: "pointer",
-                  transition: "all 150ms ease",
-                  "&:hover": {
-                    borderColor: "#2DD4FF",
-                    color: "#2DD4FF",
-                  },
+                  color:
+                    viewMode === "card"
+                      ? "primary.main"
+                      : "rgba(255,255,255,0.3)",
                 }}
               >
-                {rf.label}
-              </Box>
-            );
-          })}
+                <GridView fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Lista">
+              <IconButton
+                size="small"
+                onClick={() => setViewMode("list")}
+                sx={{
+                  color:
+                    viewMode === "list"
+                      ? "primary.main"
+                      : "rgba(255,255,255,0.3)",
+                }}
+              >
+                <ViewList fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
       </Box>
 
@@ -206,23 +256,40 @@ function ProductsContent() {
           </Box>
         )}
 
-        <Grid container spacing={{ xs: 2, md: 2.5 }}>
-          {displayedProducts.map((product) => (
-            <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
-              <ProductCard
-                product={product}
-                onViewDetails={(p) => setSelectedProduct(p)}
-                avatarVideoSource="products-hype"
-              />
-            </Grid>
-          ))}
-          {isLoading &&
-            Array.from({ length: 12 }).map((_, idx) => (
-              <Grid item xs={6} sm={6} md={4} lg={2.4} key={`skeleton-${idx}`}>
-                <ProductCard isLoading />
+        {viewMode === "list" ? (
+          <ProductTable
+            products={displayedProducts}
+            loading={isLoading}
+            title="Produtos em Alta"
+            onProductClick={setSelectedProduct}
+            avatarVideoSource="products-hype"
+          />
+        ) : (
+          <Grid container spacing={{ xs: 2, md: 2.5 }}>
+            {displayedProducts.map((product) => (
+              <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
+                <ProductCard
+                  product={product}
+                  onViewDetails={(p) => setSelectedProduct(p)}
+                  avatarVideoSource="products-hype"
+                />
               </Grid>
             ))}
-        </Grid>
+            {isLoading &&
+              Array.from({ length: 12 }).map((_, idx) => (
+                <Grid
+                  item
+                  xs={6}
+                  sm={6}
+                  md={4}
+                  lg={2.4}
+                  key={`skeleton-${idx}`}
+                >
+                  <ProductCard isLoading />
+                </Grid>
+              ))}
+          </Grid>
+        )}
 
         {!isLoading && hasMore && displayedProducts.length > 0 && (
           <Box
