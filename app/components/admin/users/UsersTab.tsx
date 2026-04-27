@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useTransition, useEffect } from "react";
 import useSWR from "swr";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Card,
@@ -15,6 +16,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  InputAdornment,
   LinearProgress,
   Menu,
   MenuItem,
@@ -36,6 +38,7 @@ import {
 } from "@mui/material";
 import {
   Add as AddIcon,
+  Clear as ClearIcon,
   MoreVert as MoreVertIcon,
   PersonAdd as PersonAddIcon,
   PersonOutlined,
@@ -201,6 +204,30 @@ function formatDate(iso: string | null): string {
     month: "2-digit",
     year: "2-digit",
   });
+}
+
+function getInitials(name: string | null, email: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0][0].toUpperCase();
+  }
+  return email[0].toUpperCase();
+}
+
+const AVATAR_PALETTE = [
+  "#2DD4FF",
+  "#FF2D78",
+  "#81C784",
+  "#FFB74D",
+  "#CE93D8",
+  "#80DEEA",
+];
+
+function getAvatarColor(str: string): string {
+  let hash = 0;
+  for (const c of str) hash = ((hash * 31) + c.charCodeAt(0)) | 0;
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
 
 // ---------------------------------------------------------------------------
@@ -689,6 +716,15 @@ export function UsersTab() {
     setPage(1);
   }, [searchInput]);
 
+  // Debounce search — auto-search 400ms after typing stops
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
   const handleResetPassword = useCallback((userId: string) => {
     startUpdating(async () => {
       try {
@@ -770,6 +806,20 @@ export function UsersTab() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                InputProps={{
+                  endAdornment: searchInput ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setSearchInput("")}
+                        edge="end"
+                        sx={{ color: "rgba(255,255,255,0.4)", "&:hover": { color: "#fff" }, p: 0.25 }}
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                }}
                 sx={{
                   width: 280,
                   "& .MuiOutlinedInput-root": {
@@ -824,25 +874,24 @@ export function UsersTab() {
 
           {(isLoading || updating) && <LinearProgress sx={{ mb: 1 }} />}
 
-          <TableContainer sx={{ overflowX: "hidden" }}>
-            <Table size="small" sx={{ tableLayout: "fixed", width: "100%" }}>
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="small" sx={{ minWidth: 900 }}>
               <TableHead>
                 <TableRow>
                   {(
                     [
-                      ["Nome", "11%"],
-                      ["Email", "21%"],
-                      ["Perfil", "8%"],
-                      ["Status", "7%"],
-                      ["Plano", "9%"],
-                      ["Assinatura", "9%"],
-                      ["Mensalidade", "9%"],
-                      ["Acesso até", "9%"],
-                      ["Criado", "8%"],
-                      ["Ações", "9%"],
-                    ] as [string, string][]
+                      ["Usuário", 240],
+                      ["Perfil", 90],
+                      ["Status", 90],
+                      ["Plano", 110],
+                      ["Assinatura", 110],
+                      ["Mensalidade", 120],
+                      ["Acesso até", 100],
+                      ["Criado", 90],
+                      ["Ações", 60],
+                    ] as [string, number][]
                   ).map(([h, w]) => (
-                    <TableCell key={h} sx={{ ...headCellSx, width: w }}>
+                    <TableCell key={h} sx={{ ...headCellSx, minWidth: w }}>
                       {h}
                     </TableCell>
                   ))}
@@ -871,29 +920,54 @@ export function UsersTab() {
                           "&:hover": { background: "rgba(255,255,255,0.02)" },
                         }}
                       >
-                        {/* Nome */}
-                        <TableCell
-                          sx={{
-                            ...cellSx,
-                            color: "rgba(255,255,255,0.8)",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {u.name ?? "—"}
-                        </TableCell>
-
-                        {/* Email */}
-                        <TableCell
-                          sx={{
-                            ...cellSx,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {u.email}
+                        {/* Usuário (nome + email + avatar) */}
+                        <TableCell sx={{ ...cellSx, maxWidth: 240 }}>
+                          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+                            <Avatar
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                fontSize: "0.8rem",
+                                fontWeight: 700,
+                                bgcolor: getAvatarColor(u.email),
+                                color: "#0a0f1e",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {getInitials(u.name, u.email)}
+                            </Avatar>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Tooltip title={u.name ?? u.email} placement="top" disableInteractive>
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.85rem",
+                                    color: "rgba(255,255,255,0.9)",
+                                    fontWeight: 500,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    lineHeight: 1.3,
+                                  }}
+                                >
+                                  {u.name ?? <span style={{ opacity: 0.4 }}>—</span>}
+                                </Typography>
+                              </Tooltip>
+                              <Tooltip title={u.email} placement="bottom" disableInteractive>
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.72rem",
+                                    color: "rgba(255,255,255,0.4)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    lineHeight: 1.3,
+                                  }}
+                                >
+                                  {u.email}
+                                </Typography>
+                              </Tooltip>
+                            </Box>
+                          </Stack>
                         </TableCell>
 
                         {/* Perfil */}
@@ -932,16 +1006,19 @@ export function UsersTab() {
                         {/* Plano */}
                         <TableCell sx={cellSx}>
                           {sub?.plan?.name ? (
-                            <Chip
-                              label={sub.plan.name}
-                              size="small"
-                              sx={{
-                                background: "rgba(45,212,255,0.1)",
-                                color: "#2DD4FF",
-                                fontSize: "0.7rem",
-                                height: 22,
-                              }}
-                            />
+                            <Tooltip title={sub.plan.name} placement="top" disableInteractive>
+                              <Chip
+                                label={sub.plan.name}
+                                size="small"
+                                sx={{
+                                  background: "rgba(45,212,255,0.1)",
+                                  color: "#2DD4FF",
+                                  fontSize: "0.72rem",
+                                  maxWidth: 100,
+                                  ".MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" },
+                                }}
+                              />
+                            </Tooltip>
                           ) : (
                             "—"
                           )}
@@ -1043,7 +1120,7 @@ export function UsersTab() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={9}
                       sx={{
                         color: "rgba(255,255,255,0.4)",
                         borderColor: "rgba(255,255,255,0.06)",
