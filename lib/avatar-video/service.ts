@@ -646,6 +646,7 @@ export async function saveEditedPrompt(
   userId: string,
   creationId: string,
   promptText: string,
+  promptJson?: unknown,
 ): Promise<ServiceResult<CreationDTO>> {
   try {
     const loadResult = await loadOwnedCreation(creationId, userId);
@@ -670,7 +671,14 @@ export async function saveEditedPrompt(
 
     await prisma.avatarVideoPrompt.update({
       where: { creationId },
-      data: { promptText, isEdited: true, editedAt: new Date() },
+      data: {
+        promptText,
+        ...(promptJson !== undefined
+          ? { promptJson: promptJson as object }
+          : {}),
+        isEdited: true,
+        editedAt: new Date(),
+      },
     });
 
     const updated = await prisma.avatarVideoCreation.findUniqueOrThrow({

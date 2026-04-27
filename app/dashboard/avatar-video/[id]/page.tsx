@@ -10,7 +10,6 @@ import {
   Step,
   StepLabel,
 } from "@mui/material";
-import { Videocam } from "@mui/icons-material";
 import { useAvatarVideoCreation } from "@/lib/swr/useAvatarVideoCreation";
 import {
   StepProductConfirm,
@@ -19,32 +18,10 @@ import {
 import { StepAvatarSelect } from "@/app/components/avatar-video/StepAvatarSelect";
 import { StepScenarioSelect } from "@/app/components/avatar-video/StepScenarioSelect";
 import { StepImageGenerate } from "@/app/components/avatar-video/StepImageGenerate";
+import { StepPromptEdit } from "@/app/components/avatar-video/StepPromptEdit";
 import type { CreationDTO } from "@/lib/avatar-video/types";
 
-// ── Step definitions (0-indexed: 0=Produto 1=Avatar 2=Cenário 3=Imagem 4=Roteiro) ──
 const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Roteiro"];
-
-// ── Placeholder for future steps ───────────────────────────────
-function StepPlaceholder({ label }: { label: string }) {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-        py: 6,
-        color: "rgba(255,255,255,0.35)",
-        textAlign: "center",
-      }}
-    >
-      <Videocam sx={{ fontSize: 48, opacity: 0.3 }} />
-      <Typography sx={{ fontSize: "0.95rem" }}>
-        Etapa <strong>{label}</strong> em desenvolvimento
-      </Typography>
-    </Box>
-  );
-}
 
 function AvatarVideoCreationContent() {
   const router = useRouter();
@@ -80,6 +57,10 @@ function AvatarVideoCreationContent() {
     await mutate();
     setLocalCreation(null);
     setStep(4);
+  };
+
+  const handlePromptComplete = () => {
+    router.push("/dashboard/trends");
   };
 
   return (
@@ -282,8 +263,8 @@ function AvatarVideoCreationContent() {
           </Box>
         )}
 
-        {/* Steps 4+ — Placeholder */}
-        {!isLoading && !error && activeCreation && step > 3 && (
+        {/* Step 4 — VEO 3 prompt editing */}
+        {!isLoading && !error && activeCreation && step === 4 && (
           <Box
             sx={{
               maxWidth: 480,
@@ -294,7 +275,12 @@ function AvatarVideoCreationContent() {
               p: { xs: 3, sm: 4 },
             }}
           >
-            <StepPlaceholder label={STEPS[step]} />
+            <StepPromptEdit
+              creation={activeCreation}
+              onCreationUpdate={(updated) => setLocalCreation(updated)}
+              onComplete={handlePromptComplete}
+              onBack={() => setStep(3)}
+            />
           </Box>
         )}
       </Box>

@@ -828,6 +828,33 @@ describe("saveEditedPrompt()", () => {
     );
   });
 
+  it("saves promptJson when provided", async () => {
+    const promptRow = buildAvatarVideoPrompt({ creationId: "creation-1" });
+    const creation = makeDraft({ status: "PROMPT_READY", prompt: promptRow });
+    const promptJson = { prompt: "Test", takes: [] };
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce(creation);
+    (
+      prismaMock.avatarVideoPrompt.update as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(promptRow);
+    (
+      prismaMock.avatarVideoCreation.findUniqueOrThrow as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+
+    await saveEditedPrompt("user-1", "creation-1", "Test", promptJson);
+
+    expect(prismaMock.avatarVideoPrompt.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          promptJson,
+          isEdited: true,
+        }),
+      }),
+    );
+  });
+
   it("returns invalid_state when status is not PROMPT_READY", async () => {
     const creation = makeDraft({ status: "IMAGES_READY" });
     (
