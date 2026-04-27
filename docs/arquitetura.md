@@ -70,7 +70,8 @@ app/
       creations/
         route.ts       → POST cria/retoma rascunho de criação
         [id]/
-          route.ts     → GET estado da criação; PATCH seleções
+          route.ts     → GET estado da criação; PATCH seleções (avatarProfileId, uploadedAvatarImageUrl, etc.)
+          upload-avatar/ → POST upload de imagem própria para Vercel Blob (MIME JPG/PNG/WEBP, ≤5MB)
           generate-image/  → POST dispara geração de imagem (DALL-E 3)
           generate-prompt/ → POST dispara geração de prompt (VEO 3)
     cron/
@@ -91,6 +92,8 @@ app/
     admin/             → componentes do painel admin
     avatar-video/
       AvatarVideoStartDialog.tsx → dialog de início do fluxo: seleção de imagem do produto + POST de criação
+      StepProductConfirm.tsx     → etapa 1 do wizard: confirmação do produto selecionado
+      StepAvatarSelect.tsx       → etapa 2 do wizard: galeria de avatares ou upload de foto própria
     cards/             → VideoCard, ProductCard (com CTA "Criar vídeo"), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
@@ -146,11 +149,11 @@ lib/
     processor.ts       → processamento de eventos webhook
     webhook.ts         → validação de assinatura + extração de campos
   avatar-video/
-    service.ts         → orquestração do fluxo (getOrCreate, update, startImage, startPrompt, detail)
+    service.ts         → orquestração do fluxo (getOrCreate, updateCreationSelections, startImage, startPrompt, detail)
     generate-image.ts  → DALL-E 3 — geração de imagem de referência
     veo-prompt.ts      → VEO 3 — construção e geração de prompt estruturado
     quota.ts           → enforceAvatarVideoQuota() — verificação antes de gerar
-    types.ts           → CreationDTO, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO
+    types.ts           → CreationDTO, AvatarProfileDTO, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO
   insight/
     service.ts         → requestInsight / getInsight
     generate.ts        → OpenAI Chat Completions + parseInsightResponse
@@ -167,6 +170,7 @@ lib/
     fetcher.ts         → SWR fetcher padrão
     useCategories.ts
     useTrending.ts
+    useAvatarProfiles.ts → avatares disponíveis (GET /api/avatar-video/avatars)
   transcription/
     service.ts         → requestTranscript / getTranscript
     media.ts           → download de vídeo via Echotik
