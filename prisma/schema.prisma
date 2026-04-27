@@ -115,6 +115,7 @@ model Plan {
   scriptTokensMonthlyMax    Int  @default(20000)
   insightMaxOutputTokens    Int  @default(800)
   scriptMaxOutputTokens     Int  @default(1500)
+  avatarVideoQuota          Int  @default(0)
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]
@@ -525,6 +526,7 @@ enum UsageEventType {
   TRANSCRIPT
   SCRIPT
   INSIGHT
+  AVATAR_VIDEO_GENERATION
 }
 
 /// Período de uso mensal por usuário (criado sob demanda na primeira ação do mês)
@@ -534,10 +536,11 @@ model UsagePeriod {
   periodStart     DateTime // 1º dia do mês, 00:00:00 UTC
   periodEnd       DateTime // último momento do mês, UTC
 
-  transcriptsUsed Int      @default(0)
-  scriptsUsed     Int      @default(0)
-  insightsUsed    Int      @default(0)
-  tokensUsed      Int      @default(0)
+  transcriptsUsed    Int      @default(0)
+  scriptsUsed        Int      @default(0)
+  insightsUsed       Int      @default(0)
+  tokensUsed         Int      @default(0)
+  avatarVideosUsed   Int      @default(0)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

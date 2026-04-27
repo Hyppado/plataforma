@@ -50,19 +50,20 @@ Convite de usuário com token seguro e pré-atribuição de plano.
 
 Planos de assinatura com quotas e features. Agnóstico de provedor.
 
-| Campo             | Tipo       | Descrição                                       |
-| ----------------- | ---------- | ----------------------------------------------- |
-| `id`              | String     | PK                                              |
-| `code`            | String     | Código interno único                            |
-| `name`            | String     | Nome exibido                                    |
-| `isActive`        | Boolean    | Visível no sistema                              |
-| `showOnLanding`   | Boolean    | Exibido na landing page                         |
-| `sortOrder`       | Int        | Ordem de exibição                               |
-| `hotmartPlanCode` | String?    | Código do plano no Hotmart (vínculo automático) |
-| `checkoutUrl`     | String?    | URL de checkout                                 |
-| `periodicity`     | PlanPeriod | MONTHLY \| ANNUAL                               |
-| `transcriptQuota` | Int        | Máximo de transcrições por período              |
-| `scriptQuota`     | Int        | Máximo de insights por período                  |
+| Campo              | Tipo       | Descrição                                       |
+| ------------------ | ---------- | ----------------------------------------------- |
+| `id`               | String     | PK                                              |
+| `code`             | String     | Código interno único                            |
+| `name`             | String     | Nome exibido                                    |
+| `isActive`         | Boolean    | Visível no sistema                              |
+| `showOnLanding`    | Boolean    | Exibido na landing page                         |
+| `sortOrder`        | Int        | Ordem de exibição                               |
+| `hotmartPlanCode`  | String?    | Código do plano no Hotmart (vínculo automático) |
+| `checkoutUrl`      | String?    | URL de checkout                                 |
+| `periodicity`      | PlanPeriod | MONTHLY \| ANNUAL                               |
+| `transcriptQuota`  | Int        | Máximo de transcrições por período              |
+| `scriptQuota`      | Int        | Máximo de insights por período                  |
+| `avatarVideoQuota` | Int        | Máximo de gerações de vídeo avatar por período  |
 
 #### `Subscription`
 
@@ -191,15 +192,83 @@ Agregação mensal de uso por usuário.
 
 Evento atômico de consumo com chave de idempotência.
 
-| Tipo (`UsageEventType`) | Descrição            |
-| ----------------------- | -------------------- |
-| `TRANSCRIPT`            | Transcrição de vídeo |
-| `SCRIPT`                | Geração de insight   |
-| `INSIGHT`               | (alias de SCRIPT)    |
+| Tipo (`UsageEventType`)   | Descrição                                 |
+| ------------------------- | ----------------------------------------- |
+| `TRANSCRIPT`              | Transcrição de vídeo                      |
+| `SCRIPT`                  | Geração de insight                        |
+| `INSIGHT`                 | (alias de SCRIPT)                         |
+| `AVATAR_VIDEO_GENERATION` | Geração de material para vídeo com avatar |
 
 ---
 
-### Domínio 8 — Transcrição
+### Domínio 8 — Geração de Vídeo com Avatar
+
+Fluxo guiado de criação de material para vídeos UGC com avatares. Um `AvatarVideoCreation` por usuário ativo — novas gerações reutilizam o mesmo registro (sobrescrevem o estado anterior).
+
+#### `AvatarProfile`
+
+Biblioteca de avatares cadastrados pelo admin.
+
+| Campo          | Tipo    | Descrição                       |
+| -------------- | ------- | ------------------------------- |
+| `name`         | String  | Nome do avatar                  |
+| `imageUrl`     | String  | URL da imagem em alta resolução |
+| `thumbnailUrl` | String? | URL do thumbnail                |
+| `isActive`     | Boolean | Exibido para seleção do usuário |
+| `sortOrder`    | Int     | Ordem de exibição               |
+
+#### `VideoScenario`
+
+Templates de cenário/contexto para guiar a geração do prompt.
+
+| Campo        | Tipo    | Descrição                           |
+| ------------ | ------- | ----------------------------------- |
+| `name`       | String  | Nome do cenário                     |
+| `promptHint` | String? | Instrução extra para o modelo de IA |
+| `isDefault`  | Boolean | Selecionado por padrão na UI        |
+| `isActive`   | Boolean | Disponível para seleção do usuário  |
+
+#### `AvatarVideoCreation`
+
+Sessão de geração por usuário. Um registro por usuário — sobrescrito a cada nova geração.
+
+**Ciclo de vida (`AvatarVideoCreationStatus`):** `DRAFT → PENDING_IMAGES → IMAGES_READY → PENDING_PROMPT → PROMPT_READY → COMPLETED | FAILED`
+
+| Campo                     | Tipo    | Descrição                                     |
+| ------------------------- | ------- | --------------------------------------------- |
+| `userId`                  | String  | FK para User (cascade delete)                 |
+| `avatarProfileId`         | String? | Avatar selecionado (set null se deletado)     |
+| `videoScenarioId`         | String? | Cenário selecionado (set null se deletado)    |
+| `status`                  | Enum    | Estado atual do fluxo                         |
+| `productExternalId`       | String? | ID externo do produto TikTok Shop selecionado |
+| `productName`             | String? | Nome snapshot do produto                      |
+| `productImageUrl`         | String? | Imagem principal snapshot                     |
+| `productSelectedImageUrl` | String? | Imagem escolhida pelo usuário para referência |
+| `productPriceCents`       | Int?    | Preço snapshot em centavos                    |
+| `productCurrency`         | String? | Moeda do preço                                |
+| `productCategory`         | String? | Categoria snapshot                            |
+
+#### `AvatarVideoImageVariation`
+
+Referências de imagem geradas (até 2 por criação).
+
+**Ciclo de vida (`AvatarVideoImageStatus`):** `PENDING → PROCESSING → READY | FAILED`
+
+#### `AvatarVideoPrompt`
+
+Prompt VEO 3 gerado (1:1 com criação).
+
+**Ciclo de vida (`AvatarVideoPromptStatus`):** `PENDING → PROCESSING → READY | FAILED`
+
+| Campo        | Tipo    | Descrição                                     |
+| ------------ | ------- | --------------------------------------------- |
+| `promptJson` | Json?   | Payload estruturado para a API VEO 3          |
+| `promptText` | String? | Versão texto legível para exibição ao usuário |
+| `isEdited`   | Boolean | Indica se o usuário editou o prompt gerado    |
+
+---
+
+### Domínio 9 — Transcrição
 
 #### `VideoTranscript`
 
@@ -211,7 +280,7 @@ Pipeline: URL de download Echotik → download do vídeo → OpenAI Whisper → 
 
 ---
 
-### Domínio 9 — Insights
+### Domínio 10 — Insights
 
 #### `VideoInsight`
 
@@ -225,22 +294,25 @@ Campos de output: `contextText`, `hookText`, `problemText`, `solutionText`, `cta
 
 ## Enums
 
-| Enum                   | Valores                                                |
-| ---------------------- | ------------------------------------------------------ |
-| `UserRole`             | ADMIN, USER                                            |
-| `UserStatus`           | ACTIVE, INACTIVE, SUSPENDED                            |
-| `SubscriptionStatus`   | PENDING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED          |
-| `ChargeStatus`         | PENDING, PAID, REFUNDED, CANCELLED, CHARGEBACK, FAILED |
-| `WebhookStatus`        | RECEIVED, PROCESSING, PROCESSED, FAILED, DUPLICATE     |
-| `IngestionStatus`      | RUNNING, SUCCESS, FAILED                               |
-| `NotificationSeverity` | INFO, WARNING, HIGH, CRITICAL                          |
-| `NotificationStatus`   | UNREAD, READ, ARCHIVED                                 |
-| `ErasureStatus`        | PENDING, IN_PROGRESS, COMPLETED, REJECTED              |
-| `InvitationStatus`     | PENDING, ACCEPTED, EXPIRED, CANCELLED                  |
-| `PlanPeriod`           | MONTHLY, ANNUAL                                        |
-| `UsageEventType`       | TRANSCRIPT, SCRIPT, INSIGHT                            |
-| `TranscriptStatus`     | PENDING, PROCESSING, READY, FAILED                     |
-| `InsightStatus`        | PENDING, PROCESSING, READY, FAILED                     |
+| Enum                        | Valores                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `UserRole`                  | ADMIN, USER                                                                          |
+| `UserStatus`                | ACTIVE, INACTIVE, SUSPENDED                                                          |
+| `SubscriptionStatus`        | PENDING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED                                        |
+| `ChargeStatus`              | PENDING, PAID, REFUNDED, CANCELLED, CHARGEBACK, FAILED                               |
+| `WebhookStatus`             | RECEIVED, PROCESSING, PROCESSED, FAILED, DUPLICATE                                   |
+| `IngestionStatus`           | RUNNING, SUCCESS, FAILED                                                             |
+| `NotificationSeverity`      | INFO, WARNING, HIGH, CRITICAL                                                        |
+| `NotificationStatus`        | UNREAD, READ, ARCHIVED                                                               |
+| `ErasureStatus`             | PENDING, IN_PROGRESS, COMPLETED, REJECTED                                            |
+| `InvitationStatus`          | PENDING, ACCEPTED, EXPIRED, CANCELLED                                                |
+| `PlanPeriod`                | MONTHLY, ANNUAL                                                                      |
+| `UsageEventType`            | TRANSCRIPT, SCRIPT, INSIGHT, AVATAR_VIDEO_GENERATION                                 |
+| `AvatarVideoCreationStatus` | DRAFT, PENDING_IMAGES, IMAGES_READY, PENDING_PROMPT, PROMPT_READY, COMPLETED, FAILED |
+| `AvatarVideoImageStatus`    | PENDING, PROCESSING, READY, FAILED                                                   |
+| `AvatarVideoPromptStatus`   | PENDING, PROCESSING, READY, FAILED                                                   |
+| `TranscriptStatus`          | PENDING, PROCESSING, READY, FAILED                                                   |
+| `InsightStatus`             | PENDING, PROCESSING, READY, FAILED                                                   |
 
 ---
 
