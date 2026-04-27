@@ -21,7 +21,7 @@ export function useAvatarVideoCreation(id: string | null) {
     fetcher,
     {
       revalidateOnFocus: false,
-      dedupingInterval: 5_000,
+      dedupingInterval: 0,
     },
   );
 

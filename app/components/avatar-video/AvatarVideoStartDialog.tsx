@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "swr";
 import {
   Dialog,
   DialogTitle,
@@ -115,6 +116,8 @@ export function AvatarVideoStartDialog({
       }
 
       const data = (await res.json()) as { id: string };
+      // Invalidate cached creation so the wizard always shows fresh data
+      await mutate(`/api/avatar-video/creations/${data.id}`);
       router.push(`/dashboard/avatar-video/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao iniciar geração");
