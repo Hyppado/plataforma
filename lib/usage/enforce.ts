@@ -52,6 +52,7 @@ export async function assertQuota(
     scripts: period?.scriptsUsed ?? 0,
     insights: period?.insightsUsed ?? 0,
     tokens: period?.tokensUsed ?? 0,
+    avatarVideos: period?.avatarVideosUsed ?? 0,
   };
 
   switch (action) {
@@ -101,6 +102,19 @@ export async function assertQuota(
             limits.insightTokensMonthlyMax,
           );
         }
+      }
+      break;
+
+    case "AVATAR_VIDEO_GENERATION":
+      if (
+        limits.avatarVideoQuota > 0 &&
+        used.avatarVideos >= limits.avatarVideoQuota
+      ) {
+        throw new QuotaExceededError(
+          action,
+          used.avatarVideos,
+          limits.avatarVideoQuota,
+        );
       }
       break;
   }
