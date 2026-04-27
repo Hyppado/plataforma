@@ -412,8 +412,20 @@ export async function startImageGeneration(
 
     // Generate both image slots in parallel, with reference images for grounding
     const results = await Promise.all([
-      generateImageVariation(creationId, 0, promptText, avatarImageUrl, productImageUrl),
-      generateImageVariation(creationId, 1, promptText, avatarImageUrl, productImageUrl),
+      generateImageVariation(
+        creationId,
+        0,
+        promptText,
+        avatarImageUrl,
+        productImageUrl,
+      ),
+      generateImageVariation(
+        creationId,
+        1,
+        promptText,
+        avatarImageUrl,
+        productImageUrl,
+      ),
     ]);
 
     const allOk = results.every((r) => r.ok);

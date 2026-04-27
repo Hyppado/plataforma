@@ -97,7 +97,7 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, null, null);
 
-      expect(text).toContain("uma pessoa jovem");
+      expect(text).toContain("a young content creator");
     });
 
     it("includes product name when set on creation", () => {
@@ -119,7 +119,8 @@ describe("lib/avatar-video/image-prompt", () => {
       const text = buildImagePromptText(creation, null, null);
 
       expect(text).toContain("Creme X");
-      expect(text).toContain("segurando");
+      expect(text).toContain("holding");
+      expect(text).toContain("face");
     });
 
     it("includes scenario promptHint when provided", () => {
@@ -140,7 +141,7 @@ describe("lib/avatar-video/image-prompt", () => {
       const text = buildImagePromptText(creation, null, scenario);
 
       expect(text).not.toContain("Fale sobre os benefícios");
-      expect(text).toContain("no cenário:");
+      expect(text).toContain("SETTING:");
     });
 
     it("always appends the quality suffix", () => {
@@ -148,8 +149,44 @@ describe("lib/avatar-video/image-prompt", () => {
 
       const text = buildImagePromptText(creation, null, null);
 
-      expect(text).toContain("fotorrealista");
+      expect(text).toContain("photorealistic");
       expect(text).toContain("TikTok Shop");
+    });
+
+    it("instructs model to wear clothing, with gender fallback note", () => {
+      const creation = buildAvatarVideoCreation({
+        productName: "Linen Shirt",
+        productCategory: "Clothing",
+      }) as any;
+
+      const text = buildImagePromptText(creation, null, null);
+
+      expect(text).toContain("Linen Shirt");
+      expect(text).toContain("wearing");
+      expect(text).toContain("gender");
+    });
+
+    it("places home products in a home setting", () => {
+      const creation = buildAvatarVideoCreation({
+        productName: "Air Fryer",
+        productCategory: "Home Kitchen",
+      }) as any;
+
+      const text = buildImagePromptText(creation, null, null);
+
+      expect(text).toContain("Air Fryer");
+      expect(text).toContain("home");
+      expect(text).toContain("SETTING:");
+    });
+
+    it("includes anti-distortion and no-hallucination rules", () => {
+      const creation = buildAvatarVideoCreation() as any;
+
+      const text = buildImagePromptText(creation, null, null);
+
+      expect(text).toContain("Do NOT distort");
+      expect(text).toContain("Do NOT invent");
+      expect(text).toContain("source of truth");
     });
 
     it("combines all elements when all are present", () => {
@@ -171,7 +208,7 @@ describe("lib/avatar-video/image-prompt", () => {
       expect(text).toContain("Tech reviewer");
       expect(text).toContain("Creme facial");
       expect(text).toContain("Mostre o produto em uso");
-      expect(text).toContain("fotorrealista");
+      expect(text).toContain("photorealistic");
     });
   });
 
@@ -434,9 +471,7 @@ describe("lib/avatar-video/image-prompt", () => {
       );
 
       expect(result.ok).toBe(true);
-      expect(calledUrls).toContain(
-        "https://api.openai.com/v1/images/edits",
-      );
+      expect(calledUrls).toContain("https://api.openai.com/v1/images/edits");
     });
   });
 });

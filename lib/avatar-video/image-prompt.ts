@@ -52,83 +52,115 @@ export function isImageGenerationError(
 /**
  * Assembles the text prompt sent to the image generation model.
  *
- * The prompt describes a photorealistic editorial scene where the avatar model
- * is actively wearing, holding, or interacting with the product in the chosen
- * scenario — not just a side-by-side listing of data points.
+ * The prompt is in English and gives the model clear, category-aware
+ * instructions for how to place the product relative to the person —
+ * clothing is worn when gender-appropriate, home products are placed in
+ * context, beauty is held near the face, etc. Explicit rules prevent the
+ * model from distorting the product or inventing details not in the
+ * reference images.
  */
 export function buildImagePromptText(
   creation: AvatarVideoCreation,
   avatar: AvatarProfile | null,
   scenario: VideoScenario | null,
 ): string {
-  // Subject — the person in the image
-  const subject = avatar
-    ? `${avatar.name}${avatar.description ? `, ${avatar.description}` : ""}`
-    : "uma pessoa jovem, estilo criador de conteúdo digital";
-
-  // Interaction verb — how the person relates to the product, based on category
-  const product = creation.productName ?? "o produto";
+  const product = creation.productName ?? "the product";
   const cat = (creation.productCategory ?? "").toLowerCase();
 
-  let interaction: string;
-  if (
-    cat.includes("roupa") ||
-    cat.includes("moda") ||
-    cat.includes("fashion") ||
-    cat.includes("vestuário") ||
-    cat.includes("clothing")
-  ) {
-    interaction = `vestindo e exibindo ${product}`;
-  } else if (
-    cat.includes("acessório") ||
-    cat.includes("joia") ||
-    cat.includes("joalheria") ||
-    cat.includes("jewelry") ||
-    cat.includes("bolsa")
-  ) {
-    interaction = `usando ${product} como acessório, com destaque para o item`;
-  } else if (
-    cat.includes("beleza") ||
-    cat.includes("cosmét") ||
-    cat.includes("skincare") ||
-    cat.includes("maquiagem") ||
-    cat.includes("beauty")
-  ) {
-    interaction = `segurando ${product} próximo ao rosto, produto claramente visível`;
-  } else if (
-    cat.includes("tecnologia") ||
-    cat.includes("eletrôn") ||
-    cat.includes("tech") ||
-    cat.includes("gadget")
-  ) {
-    interaction = `usando e demonstrando ${product} nas mãos`;
-  } else if (
-    cat.includes("alimento") ||
-    cat.includes("bebida") ||
-    cat.includes("food") ||
-    cat.includes("snack")
-  ) {
-    interaction = `segurando e apresentando ${product} de forma apetitosa`;
+  // ── Category detection ───────────────────────────────────────────────────
+  const isClothing =
+    /roupa|moda|fashion|vestuário|clothing|apparel|shirt|dress|pants|jeans|jacket|blouse|top|skirt|coat/.test(
+      cat,
+    );
+  const isAccessory =
+    /acessório|joia|joalheria|jewelry|bolsa|bag|watch|relógio|óculos|sunglasses|belt|cinto/.test(
+      cat,
+    );
+  const isBeauty =
+    /beleza|cosmét|skincare|maquiagem|beauty|perfume|fragrance|creme|serum/.test(
+      cat,
+    );
+  const isTech =
+    /tecnologia|eletrôn|tech|gadget|electronic|phone|tablet|headphone|fone/.test(
+      cat,
+    );
+  const isFood = /alimento|bebida|food|snack|drink|beverage|café|coffee/.test(
+    cat,
+  );
+  const isHome =
+    /casa|lar|cozinha|home|kitchen|furniture|móvel|décor|utensílio|cleaning|limpeza|decoração/.test(
+      cat,
+    );
+
+  // ── Subject ───────────────────────────────────────────────────────────────
+  const subject = avatar
+    ? `${avatar.name}${avatar.description ? `, ${avatar.description}` : ""}`
+    : "a young content creator";
+
+  // ── Placement instruction — how the product appears with the person ───────
+  let placement: string;
+  if (isClothing) {
+    placement =
+      `The person is wearing "${product}". ` +
+      `Use the reference images to determine whether the garment is appropriate for the person's apparent gender and body type — ` +
+      `if it clearly is not, show the person holding and displaying the item instead. ` +
+      `Reproduce the garment exactly: same color, cut, print, and any visible text or logo.`;
+  } else if (isAccessory) {
+    placement =
+      `The person is wearing or carrying "${product}" as an accessory. ` +
+      `Reproduce the item exactly: same color, shape, material finish, and any visible logo or text. No invented details.`;
+  } else if (isBeauty) {
+    placement =
+      `The person is holding "${product}" near their face at chest or chin level, presenting it clearly to camera. ` +
+      `Reproduce the product packaging exactly: same color, shape, cap, and label as in the reference image.`;
+  } else if (isTech) {
+    placement =
+      `The person is naturally holding or using "${product}". ` +
+      `Reproduce the device exactly: same model, color, and shape as in the reference image. ` +
+      `Do not add ports, buttons, or branding not clearly visible in the reference.`;
+  } else if (isFood) {
+    placement =
+      `The person is holding or presenting "${product}" naturally. ` +
+      `Reproduce the product packaging or food appearance exactly as in the reference image.`;
+  } else if (isHome) {
+    placement =
+      `"${product}" is placed naturally in its intended home setting. ` +
+      `The person is nearby, gesturing toward or interacting with the product. ` +
+      `Reproduce the product exactly: same color, shape, and design as in the reference image.`;
   } else {
-    interaction = `segurando e apresentando ${product} com naturalidade`;
+    placement =
+      `The person is holding and presenting "${product}" naturally to camera. ` +
+      `Reproduce the product exactly as it appears in the reference image.`;
   }
 
-  // Setting / environment
+  // ── Setting / environment ────────────────────────────────────────────────
   let setting: string;
   if (scenario?.promptHint) {
     setting = scenario.promptHint;
   } else if (creation.customScenarioDescription) {
     setting = creation.customScenarioDescription;
+  } else if (isHome) {
+    setting = "bright, modern home interior";
   } else {
-    setting = "ambiente interno luminoso e moderno";
+    setting = "bright, clean indoor space with soft natural light";
   }
 
   return [
-    `Fotografia publicitária realista no estilo UGC para TikTok Shop.`,
-    `${subject}, ${interaction}, no cenário: ${setting}.`,
-    `O produto está bem visível e integrado à cena de forma natural e autêntica.`,
-    `Orientação vertical (formato 9:16), iluminação natural e profissional, altamente fotorrealista, sem texto ou marcas d'água.`,
-  ].join(" ");
+    `Photorealistic UGC-style product placement photo for TikTok Shop.`,
+    ``,
+    `SUBJECT: ${subject}.`,
+    `PRODUCT: "${product}" — use the reference image as the exact source of truth. Do NOT invent, add, or change any colors, labels, text, logos, shapes, or details not clearly present in the reference. Do NOT distort the product.`,
+    `PLACEMENT: ${placement}`,
+    `SETTING: ${setting}.`,
+    ``,
+    `TECHNICAL REQUIREMENTS:`,
+    `- Vertical 9:16 portrait format`,
+    `- Natural, professional lighting — photorealistic editorial quality`,
+    `- No text overlays, watermarks, or UI elements in the image`,
+    `- Do not add props, backgrounds, or accessories not specified above`,
+    `- Render the product exactly as in the reference — same shape, color, and finish`,
+    `- Product must be clearly visible and the focal point`,
+  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -298,14 +330,18 @@ async function _callImageGenerationAPI(
       if (avatarFetch) {
         form.append(
           "image[]",
-          new Blob([new Uint8Array(avatarFetch.buffer)], { type: avatarFetch.contentType }),
+          new Blob([new Uint8Array(avatarFetch.buffer)], {
+            type: avatarFetch.contentType,
+          }),
           "avatar.png",
         );
       }
       if (productFetch) {
         form.append(
           "image[]",
-          new Blob([new Uint8Array(productFetch.buffer)], { type: productFetch.contentType }),
+          new Blob([new Uint8Array(productFetch.buffer)], {
+            type: productFetch.contentType,
+          }),
           "product.png",
         );
       }
