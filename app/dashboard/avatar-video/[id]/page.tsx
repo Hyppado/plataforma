@@ -16,6 +16,7 @@ import {
   StepProductConfirm,
   StepProductConfirmSkeleton,
 } from "@/app/components/avatar-video/StepProductConfirm";
+import { StepAvatarSelect } from "@/app/components/avatar-video/StepAvatarSelect";
 
 // ── Step definitions ────────────────────────────────────────────
 const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Roteiro"];
@@ -47,13 +48,18 @@ function AvatarVideoCreationContent() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : null;
 
-  const { creation, isLoading, error } = useAvatarVideoCreation(id);
+  const { creation, isLoading, error, mutate } = useAvatarVideoCreation(id);
 
   const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm
 
   const handleContinue = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const handleChangeProduct = () => router.back();
   const handleCancel = () => router.push("/dashboard/trends");
+
+  const handleAvatarContinue = async () => {
+    await mutate(); // refresh creation so subsequent steps see updated avatar fields
+    setStep(2);
+  };
 
   return (
     <Box
@@ -196,8 +202,28 @@ function AvatarVideoCreationContent() {
           </Box>
         )}
 
-        {/* Steps 1+ — Placeholder */}
-        {!isLoading && !error && creation && step > 0 && (
+        {/* Step 1 — Avatar selection */}
+        {!isLoading && !error && creation && step === 1 && (
+          <Box
+            sx={{
+              width: "100%",
+              maxWidth: 480,
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(45,212,255,0.08)",
+              borderRadius: 4,
+              p: { xs: 3, sm: 4 },
+            }}
+          >
+            <StepAvatarSelect
+              creation={creation}
+              onContinue={handleAvatarContinue}
+              onBack={() => setStep(0)}
+            />
+          </Box>
+        )}
+
+        {/* Steps 2+ — Placeholder */}
+        {!isLoading && !error && creation && step > 1 && (
           <Box
             sx={{
               width: "100%",

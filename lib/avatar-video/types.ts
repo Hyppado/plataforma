@@ -13,6 +13,19 @@ import type {
 } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
+// Avatar profile (public DTO returned by GET /api/avatar-video/avatars)
+// ---------------------------------------------------------------------------
+
+export interface AvatarProfileDTO {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string;
+  thumbnailUrl: string | null;
+  sortOrder: number;
+}
+
+// ---------------------------------------------------------------------------
 // Image variation
 // ---------------------------------------------------------------------------
 
