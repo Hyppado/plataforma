@@ -17,8 +17,10 @@ import {
   Person,
   Paid,
   ShoppingCart,
+  Videocam,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
+import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSavedProducts } from "@/lib/storage/saved";
@@ -45,15 +47,18 @@ interface ProductCardProps {
   product?: ProductDTO;
   onViewDetails?: (product: ProductDTO) => void;
   isLoading?: boolean;
+  avatarVideoSource?: "products-hype" | "new-products";
 }
 
 export function ProductCard({
   product,
   onViewDetails,
   isLoading = false,
+  avatarVideoSource = "products-hype",
 }: ProductCardProps) {
   const savedProducts = useSavedProducts();
   const [isPressed, setIsPressed] = useState(false);
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const usdToBrl = useExchangeRate();
 
   const saved = product ? savedProducts.isSaved(product.id) : false;
@@ -373,30 +378,67 @@ export function ProductCard({
           </Box>
         </Box>
 
-        {/* CTA Button */}
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<TrendingUp />}
-          onClick={handleViewDetails}
-          sx={{
-            color: UI.accent,
-            borderColor: `${UI.accent}40`,
-            fontWeight: 600,
-            fontSize: { xs: "0.8rem", md: "0.85rem" },
-            textTransform: "none",
-            borderRadius: 2,
-            py: { xs: 0.75, md: 1 },
-            "&:hover": {
-              borderColor: UI.accent,
-              background: `${UI.accent}10`,
-            },
-            transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-        >
-          Ver Detalhes
-        </Button>
+        {/* CTA Buttons */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<TrendingUp />}
+            onClick={handleViewDetails}
+            sx={{
+              color: UI.accent,
+              borderColor: `${UI.accent}40`,
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", md: "0.85rem" },
+              textTransform: "none",
+              borderRadius: 2,
+              py: { xs: 0.75, md: 1 },
+              "&:hover": {
+                borderColor: UI.accent,
+                background: `${UI.accent}10`,
+              },
+              transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Ver Detalhes
+          </Button>
+
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<Videocam sx={{ fontSize: { xs: 14, md: 16 } }} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setAvatarDialogOpen(true);
+            }}
+            sx={{
+              color: "#FF2D78",
+              borderColor: "rgba(255,45,120,0.35)",
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", md: "0.85rem" },
+              textTransform: "none",
+              borderRadius: 2,
+              py: { xs: 0.75, md: 1 },
+              "&:hover": {
+                borderColor: "#FF2D78",
+                background: "rgba(255,45,120,0.06)",
+              },
+              transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Criar vídeo
+          </Button>
+        </Box>
       </Box>
+
+      {avatarDialogOpen && product && (
+        <AvatarVideoStartDialog
+          open={avatarDialogOpen}
+          onClose={() => setAvatarDialogOpen(false)}
+          product={product}
+          source={avatarVideoSource}
+        />
+      )}
     </Box>
   );
 }

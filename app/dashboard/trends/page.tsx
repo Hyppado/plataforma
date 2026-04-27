@@ -212,6 +212,7 @@ function ProductsContent() {
               <ProductCard
                 product={product}
                 onViewDetails={(p) => setSelectedProduct(p)}
+                avatarVideoSource="products-hype"
               />
             </Grid>
           ))}
@@ -278,6 +279,7 @@ function ProductsContent() {
           open={!!selectedProduct}
           onClose={() => setSelectedProduct(null)}
           product={selectedProduct}
+          avatarVideoSource="products-hype"
         />
       )}
     </Box>

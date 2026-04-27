@@ -129,6 +129,7 @@ function TrendsContent() {
           loading={isLoading}
           title="Novos Produtos"
           onProductClick={setSelectedProduct}
+          avatarVideoSource="new-products"
         />
       </Box>
 
@@ -137,6 +138,7 @@ function TrendsContent() {
           open={!!selectedProduct}
           onClose={() => setSelectedProduct(null)}
           product={selectedProduct}
+          avatarVideoSource="new-products"
         />
       )}
     </Box>

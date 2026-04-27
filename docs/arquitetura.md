@@ -89,7 +89,9 @@ app/
   components/
     BrandLogo.tsx      → logo responsivo (next/image)
     admin/             → componentes do painel admin
-    cards/             → VideoCard, ProductCard, CreatorCard, RankCard, ProductDetailsModal
+    avatar-video/
+      AvatarVideoStartDialog.tsx → dialog de início do fluxo: seleção de imagem do produto + POST de criação
+    cards/             → VideoCard, ProductCard (com CTA "Criar vídeo"), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
       PasswordChangeGuard.tsx → guarda de sessão para troca de senha

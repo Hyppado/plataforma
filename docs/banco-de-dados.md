@@ -120,16 +120,16 @@ Configurações dinâmicas chave-valor (painel admin). Suporta valores em texto 
 
 **Chaves principais (`SETTING_KEYS` em `lib/settings.ts`):**
 
-| Chave                    | Tipo      | Descrição                      |
-| ------------------------ | --------- | ------------------------------ |
-| `hotmart.product_id`            | Texto     | ID do produto Hotmart                               |
-| `hotmart.client_id`             | Texto     | Client ID da API Hotmart                            |
-| `hotmart.client_secret`         | Criptogr. | Client Secret Hotmart                               |
-| `hotmart.basic_token`           | Criptogr. | Basic token Hotmart                                 |
-| `hotmart.webhook_secret`        | Criptogr. | Secret de validação de webhook                      |
-| `hotmart.sandbox`               | Texto     | Modo sandbox (true/false)                           |
-| `openai.api_key`                | Criptogr. | Chave da API OpenAI                                 |
-| `avatar_video.prompt_template`  | Texto     | Template de sistema para geração de prompt VEO 3    |
+| Chave                          | Tipo      | Descrição                                        |
+| ------------------------------ | --------- | ------------------------------------------------ |
+| `hotmart.product_id`           | Texto     | ID do produto Hotmart                            |
+| `hotmart.client_id`            | Texto     | Client ID da API Hotmart                         |
+| `hotmart.client_secret`        | Criptogr. | Client Secret Hotmart                            |
+| `hotmart.basic_token`          | Criptogr. | Basic token Hotmart                              |
+| `hotmart.webhook_secret`       | Criptogr. | Secret de validação de webhook                   |
+| `hotmart.sandbox`              | Texto     | Modo sandbox (true/false)                        |
+| `openai.api_key`               | Criptogr. | Chave da API OpenAI                              |
+| `avatar_video.prompt_template` | Texto     | Template de sistema para geração de prompt VEO 3 |
 
 ---
 

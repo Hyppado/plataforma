@@ -9,7 +9,10 @@
  *           success response shape (creation + prompt).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthenticatedUser, mockUnauthenticated } from "@tests/helpers/auth";
+import {
+  mockAuthenticatedUser,
+  mockUnauthenticated,
+} from "@tests/helpers/auth";
 import {
   buildAvatarVideoCreation,
   buildAvatarVideoPrompt,
@@ -121,7 +124,10 @@ describe("POST — first prompt generation", () => {
     expect(body.creation.id).toBe(CREATION_ID);
     expect(body.creation.status).toBe("PROMPT_READY");
     expect(body.creation.prompt).not.toBeNull();
-    expect(startPromptGenerationMock).toHaveBeenCalledWith(USER_ID, CREATION_ID);
+    expect(startPromptGenerationMock).toHaveBeenCalledWith(
+      USER_ID,
+      CREATION_ID,
+    );
   });
 
   it("includes takes in the prompt JSON when present", async () => {
@@ -224,7 +230,9 @@ describe("POST — error handling", () => {
   });
 
   it("returns 500 when service throws unexpectedly", async () => {
-    startPromptGenerationMock.mockRejectedValue(new Error("Unexpected failure"));
+    startPromptGenerationMock.mockRejectedValue(
+      new Error("Unexpected failure"),
+    );
 
     const res = await POST(makeRequest(), makeParams());
 

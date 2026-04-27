@@ -7,7 +7,10 @@
  * empty list, internal DB error.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthenticatedUser, mockUnauthenticated } from "@tests/helpers/auth";
+import {
+  mockAuthenticatedUser,
+  mockUnauthenticated,
+} from "@tests/helpers/auth";
 import { buildAvatarProfile } from "@tests/helpers/factories";
 import { NextRequest } from "next/server";
 

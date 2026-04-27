@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Box,
   Table,
@@ -20,10 +21,12 @@ import {
   NewReleases,
   OpenInNew,
   Inventory2,
+  Videocam,
 } from "@mui/icons-material";
 import type { ProductDTO, CreatorDTO } from "@/lib/types/dto";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
+import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
 
 interface ProductTableProps {
   products: ProductDTO[];
@@ -31,6 +34,7 @@ interface ProductTableProps {
   title: string;
   showNewBadge?: boolean;
   onProductClick?: (product: ProductDTO) => void;
+  avatarVideoSource?: "products-hype" | "new-products";
 }
 
 interface CreatorTableProps {
@@ -92,8 +96,10 @@ export function ProductTable({
   title,
   showNewBadge = false,
   onProductClick,
+  avatarVideoSource = "products-hype",
 }: ProductTableProps) {
   const usdToBrl = useExchangeRate();
+  const [avatarProduct, setAvatarProduct] = useState<ProductDTO | null>(null);
   return (
     <Box
       sx={{
@@ -311,6 +317,21 @@ export function ProductTable({
                           </IconButton>
                         </Tooltip>
                       )}
+                      <Tooltip title="Criar vídeo com avatar">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAvatarProduct(product);
+                          }}
+                          sx={{
+                            color: "rgba(255,255,255,0.5)",
+                            "&:hover": { color: "#FF2D78" },
+                          }}
+                        >
+                          <Videocam sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -319,6 +340,15 @@ export function ProductTable({
           )}
         </Table>
       </TableContainer>
+
+      {avatarProduct && (
+        <AvatarVideoStartDialog
+          open={!!avatarProduct}
+          onClose={() => setAvatarProduct(null)}
+          product={avatarProduct}
+          source={avatarVideoSource}
+        />
+      )}
     </Box>
   );
 }

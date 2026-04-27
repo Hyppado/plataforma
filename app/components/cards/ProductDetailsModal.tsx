@@ -14,6 +14,7 @@ import {
   Grid,
   CircularProgress,
   Skeleton,
+  Button,
 } from "@mui/material";
 import {
   Close,
@@ -30,12 +31,14 @@ import {
   LocalShipping,
   ChevronLeft,
   ChevronRight,
+  Videocam,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import type { ProductDetailResponse } from "@/app/api/trending/products/[id]/route";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { fetcher } from "@/lib/swr/fetcher";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
+import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
 
 // ── palette ────────────────────────────────────────────────────
 const ACCENT = "#2DD4FF";
@@ -230,12 +233,14 @@ interface ProductDetailsModalProps {
   onClose: () => void;
   /** Base product data (shown immediately) */
   product: ProductDTO;
+  avatarVideoSource?: "products-hype" | "new-products";
 }
 
 export function ProductDetailsModal({
   open,
   onClose,
   product,
+  avatarVideoSource = "products-hype",
 }: ProductDetailsModalProps) {
   const { data: detail, isLoading } = useSWR<ProductDetailResponse>(
     open ? `/api/trending/products/${product.id}` : null,
@@ -243,6 +248,7 @@ export function ProductDetailsModal({
     { revalidateOnFocus: false },
   );
   const usdToBrl = useExchangeRate();
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
 
   const images = detail?.images ?? (product.imageUrl ? [product.imageUrl] : []);
   const currency = detail?.currency ?? product.currency ?? "USD";
@@ -539,7 +545,11 @@ export function ProductDetailsModal({
                     <MetricCell
                       icon={<Paid sx={{ fontSize: 13 }} />}
                       label="Receita total"
-                      value={formatCurrency(detail.gmvTotal, currency, usdToBrl)}
+                      value={formatCurrency(
+                        detail.gmvTotal,
+                        currency,
+                        usdToBrl,
+                      )}
                     />
                   </Grid>
                 )}
@@ -603,7 +613,11 @@ export function ProductDetailsModal({
                   <MetricCell
                     icon={<Paid sx={{ fontSize: 13 }} />}
                     label="Receita"
-                    value={formatCurrency(product.revenueBRL, currency, usdToBrl)}
+                    value={formatCurrency(
+                      product.revenueBRL,
+                      currency,
+                      usdToBrl,
+                    )}
                   />
                 </Grid>
                 <Grid item xs={6} sm={4}>
@@ -680,6 +694,47 @@ export function ProductDetailsModal({
           </Grid>
         </Grid>
       </DialogContent>
+
+      {/* Footer CTA */}
+      <Box
+        sx={{
+          px: { xs: 1.5, sm: 2 },
+          pb: { xs: 1.5, sm: 2 },
+          pt: 0,
+          flexShrink: 0,
+        }}
+      >
+        <Button
+          fullWidth
+          variant="contained"
+          startIcon={<Videocam />}
+          onClick={() => setAvatarDialogOpen(true)}
+          sx={{
+            background: "linear-gradient(90deg, #FF2D78 0%, #e0256a 100%)",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: "0.9rem",
+            textTransform: "none",
+            borderRadius: 2,
+            py: 1.25,
+            boxShadow: "none",
+            "&:hover": {
+              background: "linear-gradient(90deg, #e0256a 0%, #c01d58 100%)",
+              boxShadow: "0 4px 16px rgba(255,45,120,0.3)",
+            },
+          }}
+        >
+          Criar vídeo com avatar
+        </Button>
+      </Box>
+
+      <AvatarVideoStartDialog
+        open={avatarDialogOpen}
+        onClose={() => setAvatarDialogOpen(false)}
+        product={product}
+        source={avatarVideoSource}
+        preloadedImages={detail?.images}
+      />
     </Dialog>
   );
 }
