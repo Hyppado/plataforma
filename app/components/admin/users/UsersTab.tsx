@@ -226,7 +226,7 @@ const AVATAR_PALETTE = [
 
 function getAvatarColor(str: string): string {
   let hash = 0;
-  for (const c of str) hash = ((hash * 31) + c.charCodeAt(0)) | 0;
+  for (const c of str) hash = (hash * 31 + c.charCodeAt(0)) | 0;
   return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
 
@@ -813,7 +813,11 @@ export function UsersTab() {
                         size="small"
                         onClick={() => setSearchInput("")}
                         edge="end"
-                        sx={{ color: "rgba(255,255,255,0.4)", "&:hover": { color: "#fff" }, p: 0.25 }}
+                        sx={{
+                          color: "rgba(255,255,255,0.4)",
+                          "&:hover": { color: "#fff" },
+                          p: 0.25,
+                        }}
                       >
                         <ClearIcon fontSize="small" />
                       </IconButton>
@@ -922,7 +926,12 @@ export function UsersTab() {
                       >
                         {/* Usuário (nome + email + avatar) */}
                         <TableCell sx={{ ...cellSx, maxWidth: 240 }}>
-                          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={1.5}
+                            sx={{ minWidth: 0 }}
+                          >
                             <Avatar
                               sx={{
                                 width: 32,
@@ -937,7 +946,11 @@ export function UsersTab() {
                               {getInitials(u.name, u.email)}
                             </Avatar>
                             <Box sx={{ minWidth: 0 }}>
-                              <Tooltip title={u.name ?? u.email} placement="top" disableInteractive>
+                              <Tooltip
+                                title={u.name ?? u.email}
+                                placement="top"
+                                disableInteractive
+                              >
                                 <Typography
                                   sx={{
                                     fontSize: "0.85rem",
@@ -949,10 +962,16 @@ export function UsersTab() {
                                     lineHeight: 1.3,
                                   }}
                                 >
-                                  {u.name ?? <span style={{ opacity: 0.4 }}>—</span>}
+                                  {u.name ?? (
+                                    <span style={{ opacity: 0.4 }}>—</span>
+                                  )}
                                 </Typography>
                               </Tooltip>
-                              <Tooltip title={u.email} placement="bottom" disableInteractive>
+                              <Tooltip
+                                title={u.email}
+                                placement="bottom"
+                                disableInteractive
+                              >
                                 <Typography
                                   sx={{
                                     fontSize: "0.72rem",
@@ -1006,7 +1025,11 @@ export function UsersTab() {
                         {/* Plano */}
                         <TableCell sx={cellSx}>
                           {sub?.plan?.name ? (
-                            <Tooltip title={sub.plan.name} placement="top" disableInteractive>
+                            <Tooltip
+                              title={sub.plan.name}
+                              placement="top"
+                              disableInteractive
+                            >
                               <Chip
                                 label={sub.plan.name}
                                 size="small"
@@ -1015,7 +1038,10 @@ export function UsersTab() {
                                   color: "#2DD4FF",
                                   fontSize: "0.72rem",
                                   maxWidth: 100,
-                                  ".MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" },
+                                  ".MuiChip-label": {
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  },
                                 }}
                               />
                             </Tooltip>
