@@ -313,7 +313,14 @@ export function ProductTable({
                         </IconButton>
                       </Tooltip>
                     ) : (
-                      <Typography sx={{ color: "rgba(255,255,255,0.2)", fontSize: "0.75rem" }}>—</Typography>
+                      <Typography
+                        sx={{
+                          color: "rgba(255,255,255,0.2)",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        —
+                      </Typography>
                     )}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="center">
