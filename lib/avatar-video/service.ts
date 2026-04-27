@@ -403,10 +403,17 @@ export async function startImageGeneration(
 
     const promptText = buildImagePromptText(creation, avatar, scenario);
 
-    // Generate both image slots
+    // Avatar reference image: prefer user-uploaded, fall back to profile image
+    const avatarImageUrl =
+      creation.uploadedAvatarImageUrl ?? avatar?.imageUrl ?? null;
+
+    // Product reference image: use the image the user selected in step 1
+    const productImageUrl = creation.productSelectedImageUrl ?? null;
+
+    // Generate both image slots in parallel, with reference images for grounding
     const results = await Promise.all([
-      generateImageVariation(creationId, 0, promptText),
-      generateImageVariation(creationId, 1, promptText),
+      generateImageVariation(creationId, 0, promptText, avatarImageUrl, productImageUrl),
+      generateImageVariation(creationId, 1, promptText, avatarImageUrl, productImageUrl),
     ]);
 
     const allOk = results.every((r) => r.ok);

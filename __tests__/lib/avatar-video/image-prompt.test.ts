@@ -386,5 +386,57 @@ describe("lib/avatar-video/image-prompt", () => {
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.code).toBe("internal");
     });
+
+    it("calls /v1/images/edits when reference images are provided", async () => {
+      getSecretSettingMock.mockResolvedValue("sk-test-key");
+      uploadBufferToBlobMock.mockResolvedValue(
+        "https://blob.vercel.app/avatar-video/var-ref.png",
+      );
+
+      const variation = buildAvatarVideoImageVariation({ id: "var-ref" });
+      (
+        prismaMock.avatarVideoImageVariation.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(variation);
+      (
+        prismaMock.avatarVideoImageVariation.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        ...variation,
+        blobUrl: "https://blob.vercel.app/avatar-video/var-ref.png",
+        status: "READY",
+      });
+
+      const calledUrls: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation((url: string) => {
+          calledUrls.push(url as string);
+          if ((url as string).includes("openai.com")) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ data: [{ b64_json: "AAAA" }] }),
+            });
+          }
+          // Reference image download
+          return Promise.resolve({
+            ok: true,
+            headers: { get: () => "image/png" },
+            arrayBuffer: async () => new ArrayBuffer(100),
+          });
+        }),
+      );
+
+      const result = await generateImageVariation(
+        "creation-1",
+        0,
+        "test prompt",
+        "https://blob.vercel.app/avatar.png",
+        "https://blob.vercel.app/product.png",
+      );
+
+      expect(result.ok).toBe(true);
+      expect(calledUrls).toContain(
+        "https://api.openai.com/v1/images/edits",
+      );
+    });
   });
 });

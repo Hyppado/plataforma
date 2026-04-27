@@ -140,14 +140,18 @@ export function buildImagePromptText(
  * Creates an `AvatarVideoImageVariation` row, calls the generation API,
  * uploads to Blob, then marks the variation READY (or FAILED).
  *
- * @param creationId   AvatarVideoCreation.id
- * @param sortOrder    Slot index (0 or 1)
- * @param promptText   Pre-built prompt from `buildImagePromptText`
+ * @param creationId       AvatarVideoCreation.id
+ * @param sortOrder        Slot index (0 or 1)
+ * @param promptText       Pre-built prompt from `buildImagePromptText`
+ * @param avatarImageUrl   URL of the avatar/person reference image (optional)
+ * @param productImageUrl  URL of the product reference image (optional)
  */
 export async function generateImageVariation(
   creationId: string,
   sortOrder: number,
   promptText: string,
+  avatarImageUrl?: string | null,
+  productImageUrl?: string | null,
 ): Promise<ServiceResult<GenerateImageResult>> {
   let variation: { id: string };
 
@@ -177,7 +181,12 @@ export async function generateImageVariation(
   });
 
   try {
-    const blobUrl = await _callImageGenerationAPI(promptText, variation.id);
+    const blobUrl = await _callImageGenerationAPI(
+      promptText,
+      variation.id,
+      avatarImageUrl ?? null,
+      productImageUrl ?? null,
+    );
 
     await prisma.avatarVideoImageVariation.update({
       where: { id: variation.id },
@@ -203,23 +212,53 @@ export async function generateImageVariation(
 }
 
 // ---------------------------------------------------------------------------
-// gpt-image-1 image generation + Vercel Blob upload
+// Helper: fetch a remote URL into a Buffer
+// ---------------------------------------------------------------------------
+
+async function _fetchImageBuffer(
+  url: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "image/png";
+    const buf = Buffer.from(await res.arrayBuffer());
+    return buf.byteLength > 0 ? { buffer: buf, contentType } : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// gpt-image-1 image editing with reference images + Vercel Blob upload
 // ---------------------------------------------------------------------------
 
 /**
- * @internal Calls the OpenAI Images API (gpt-image-1) to generate a reference
- * image, then uploads the base64-encoded result directly to Vercel Blob.
+ * @internal Calls the OpenAI Images edits API (gpt-image-1) to compose a
+ * reference image from the avatar photo and product image, then uploads the
+ * base64-encoded result directly to Vercel Blob.
  *
- * gpt-image-1 has stronger instruction-following than DALL-E 3 and produces
- * more photorealistic outputs — important for avatar + product composition.
+ * We use `/v1/images/edits` (multipart) so that gpt-image-1 can use the
+ * actual avatar face and the actual product as visual anchors — rather than
+ * hallucinating both from a text description alone.
  *
- * @param promptText   Assembled prompt from `buildImagePromptText`
- * @param variationId  AvatarVideoImageVariation.id — used as the blob file name
- * @returns            Permanent Vercel Blob URL
+ * Reference priority:
+ *   1. avatarImageUrl  — the person that should appear in the image
+ *   2. productImageUrl — the product that the person should be holding / wearing
+ *
+ * If neither is available, falls back to text-only `/v1/images/generations`.
+ *
+ * @param promptText      Assembled prompt from `buildImagePromptText`
+ * @param variationId     AvatarVideoImageVariation.id — blob file name
+ * @param avatarImageUrl  URL of the avatar/person reference (Vercel Blob or external)
+ * @param productImageUrl URL of the product reference (Vercel Blob or external)
+ * @returns               Permanent Vercel Blob URL
  */
 async function _callImageGenerationAPI(
   promptText: string,
   variationId: string,
+  avatarImageUrl: string | null,
+  productImageUrl: string | null,
 ): Promise<string> {
   const apiKey = await getSecretSetting(SETTING_KEYS.OPENAI_API_KEY);
   if (!apiKey) {
@@ -228,26 +267,73 @@ async function _callImageGenerationAPI(
     );
   }
 
+  // Fetch reference images in parallel (skip on failure — degrade gracefully)
+  const [avatarFetch, productFetch] = await Promise.all([
+    avatarImageUrl ? _fetchImageBuffer(avatarImageUrl) : null,
+    productImageUrl ? _fetchImageBuffer(productImageUrl) : null,
+  ]);
+
+  const hasReferences = !!(avatarFetch || productFetch);
+
+  log.info("Image generation references", {
+    variationId,
+    hasAvatar: !!avatarFetch,
+    hasProduct: !!productFetch,
+  });
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 110_000);
 
   let response: Response;
   try {
-    response = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt: promptText,
-        n: 1,
-        size: "1024x1024",
-        quality: "medium",
-      }),
-      signal: controller.signal,
-    });
+    if (hasReferences) {
+      // --- /v1/images/edits (multipart) with reference images ---
+      const form = new FormData();
+      form.append("model", "gpt-image-1");
+      form.append("prompt", promptText);
+      form.append("n", "1");
+      form.append("size", "1024x1024");
+      form.append("quality", "medium");
+
+      if (avatarFetch) {
+        form.append(
+          "image[]",
+          new Blob([new Uint8Array(avatarFetch.buffer)], { type: avatarFetch.contentType }),
+          "avatar.png",
+        );
+      }
+      if (productFetch) {
+        form.append(
+          "image[]",
+          new Blob([new Uint8Array(productFetch.buffer)], { type: productFetch.contentType }),
+          "product.png",
+        );
+      }
+
+      response = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+        signal: controller.signal,
+      });
+    } else {
+      // --- /v1/images/generations (JSON) fallback when no references ---
+      response = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          prompt: promptText,
+          n: 1,
+          size: "1024x1024",
+          quality: "medium",
+        }),
+        signal: controller.signal,
+      });
+    }
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === "AbortError") {
