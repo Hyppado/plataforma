@@ -1004,6 +1004,9 @@ model AvatarVideoCreation {
   duration                  String?                 // e.g. "15s", "30s", "60s"
   takeCount                 Int?                    // number of video takes to generate (1–5)
 
+  // Image generation result selection (set in IMAGES_READY, cleared on regeneration)
+  selectedImageVariationId  String?                 // ID of the AvatarVideoImageVariation the user prefers
+
   errorMessage            String?
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt

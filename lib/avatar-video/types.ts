@@ -90,6 +90,7 @@ export interface CreationDTO {
   tone: string | null;
   duration: string | null;
   takeCount: number | null;
+  selectedImageVariationId: string | null;
   errorMessage: string | null;
   createdAt: Date;
   updatedAt: Date;

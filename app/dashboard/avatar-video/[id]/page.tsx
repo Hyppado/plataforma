@@ -18,8 +18,10 @@ import {
 } from "@/app/components/avatar-video/StepProductConfirm";
 import { StepAvatarSelect } from "@/app/components/avatar-video/StepAvatarSelect";
 import { StepScenarioSelect } from "@/app/components/avatar-video/StepScenarioSelect";
+import { StepImageGenerate } from "@/app/components/avatar-video/StepImageGenerate";
+import type { CreationDTO } from "@/lib/avatar-video/types";
 
-// ── Step definitions ────────────────────────────────────────────
+// ── Step definitions (0-indexed: 0=Produto 1=Avatar 2=Cenário 3=Imagem 4=Roteiro) ──
 const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Roteiro"];
 
 // ── Placeholder for future steps ───────────────────────────────
@@ -51,6 +53,11 @@ function AvatarVideoCreationContent() {
 
   const { creation, isLoading, error, mutate } = useAvatarVideoCreation(id);
 
+  // Local creation override — lets image generation update the creation in real-time
+  // without re-fetching from the server (the POST returns the updated creation directly)
+  const [localCreation, setLocalCreation] = useState<CreationDTO | null>(null);
+  const activeCreation = localCreation ?? creation;
+
   const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm
 
   const handleContinue = () =>
@@ -65,7 +72,14 @@ function AvatarVideoCreationContent() {
 
   const handleScenarioContinue = async () => {
     await mutate(); // refresh creation so subsequent steps see updated scenario fields
+    setLocalCreation(null); // clear any local override
     setStep(3);
+  };
+
+  const handleImageContinue = async () => {
+    await mutate();
+    setLocalCreation(null);
+    setStep(4);
   };
 
   return (
@@ -187,7 +201,7 @@ function AvatarVideoCreationContent() {
         )}
 
         {/* Step 0 — Product confirmation */}
-        {!isLoading && !error && creation && step === 0 && (
+        {!isLoading && !error && activeCreation && step === 0 && (
           <Box
             sx={{
               maxWidth: 480,
@@ -199,7 +213,7 @@ function AvatarVideoCreationContent() {
             }}
           >
             <StepProductConfirm
-              creation={creation}
+              creation={activeCreation}
               onContinue={handleContinue}
               onChangeProduct={handleChangeProduct}
               onCancel={handleCancel}
@@ -208,7 +222,7 @@ function AvatarVideoCreationContent() {
         )}
 
         {/* Step 1 — Avatar selection */}
-        {!isLoading && !error && creation && step === 1 && (
+        {!isLoading && !error && activeCreation && step === 1 && (
           <Box
             sx={{
               maxWidth: 480,
@@ -220,7 +234,7 @@ function AvatarVideoCreationContent() {
             }}
           >
             <StepAvatarSelect
-              creation={creation}
+              creation={activeCreation}
               onContinue={handleAvatarContinue}
               onBack={() => setStep(0)}
             />
@@ -228,7 +242,7 @@ function AvatarVideoCreationContent() {
         )}
 
         {/* Step 2 — Scenario selection */}
-        {!isLoading && !error && creation && step === 2 && (
+        {!isLoading && !error && activeCreation && step === 2 && (
           <Box
             sx={{
               maxWidth: 480,
@@ -240,15 +254,36 @@ function AvatarVideoCreationContent() {
             }}
           >
             <StepScenarioSelect
-              creation={creation}
+              creation={activeCreation}
               onContinue={handleScenarioContinue}
               onBack={() => setStep(1)}
             />
           </Box>
         )}
 
-        {/* Steps 3+ — Placeholder */}
-        {!isLoading && !error && creation && step > 2 && (
+        {/* Step 3 — Image generation */}
+        {!isLoading && !error && activeCreation && step === 3 && (
+          <Box
+            sx={{
+              maxWidth: 480,
+              mx: "auto",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(45,212,255,0.08)",
+              borderRadius: 4,
+              p: { xs: 3, sm: 4 },
+            }}
+          >
+            <StepImageGenerate
+              creation={activeCreation}
+              onCreationUpdate={(updated) => setLocalCreation(updated)}
+              onContinue={handleImageContinue}
+              onBack={() => setStep(2)}
+            />
+          </Box>
+        )}
+
+        {/* Steps 4+ — Placeholder */}
+        {!isLoading && !error && activeCreation && step > 3 && (
           <Box
             sx={{
               maxWidth: 480,

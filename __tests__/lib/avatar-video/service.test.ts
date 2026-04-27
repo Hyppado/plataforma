@@ -90,6 +90,7 @@ import {
   getOrCreateDraftCreation,
   updateCreationProduct,
   updateCreationSelections,
+  selectImageVariation,
   startImageGeneration,
   startPromptGeneration,
   saveEditedPrompt,
@@ -534,6 +535,88 @@ describe("startImageGeneration()", () => {
       "user-1",
       "creation-1",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selectImageVariation
+// ---------------------------------------------------------------------------
+
+describe("selectImageVariation()", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("saves selectedImageVariationId when variation belongs to the creation", async () => {
+    const variation = buildAvatarVideoImageVariation({ id: "var-1", status: "READY" });
+    const creation = makeDraft({ status: "IMAGES_READY", imageVariations: [variation] });
+    const updated = { ...creation, selectedImageVariationId: "var-1" };
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+    (
+      prismaMock.avatarVideoCreation.update as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(updated);
+
+    const result = await selectImageVariation("user-1", "creation-1", "var-1");
+
+    expect(result.ok).toBe(true);
+    expect(prismaMock.avatarVideoCreation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ selectedImageVariationId: "var-1" }),
+      }),
+    );
+  });
+
+  it("returns not_found when variationId does not belong to the creation", async () => {
+    const creation = makeDraft({ status: "IMAGES_READY", imageVariations: [] });
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+
+    const result = await selectImageVariation("user-1", "creation-1", "no-such-id");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("not_found");
+    expect(prismaMock.avatarVideoCreation.update).not.toHaveBeenCalled();
+  });
+
+  it("clears selection when variationId is null", async () => {
+    const creation = makeDraft({
+      status: "IMAGES_READY",
+      selectedImageVariationId: "var-1",
+      imageVariations: [],
+    });
+    const updated = { ...creation, selectedImageVariationId: null };
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+    (
+      prismaMock.avatarVideoCreation.update as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(updated);
+
+    const result = await selectImageVariation("user-1", "creation-1", null);
+
+    expect(result.ok).toBe(true);
+    expect(prismaMock.avatarVideoCreation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ selectedImageVariationId: null }),
+      }),
+    );
+  });
+
+  it("returns invalid_state when creation is not IMAGES_READY", async () => {
+    const creation = makeDraft({ status: "DRAFT" });
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+
+    const result = await selectImageVariation("user-1", "creation-1", null);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("invalid_state");
   });
 });
 

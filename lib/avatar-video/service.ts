@@ -89,6 +89,7 @@ function toCreationDTO(c: CreationWithRelations): CreationDTO {
     tone: c.tone,
     duration: c.duration,
     takeCount: c.takeCount,
+    selectedImageVariationId: c.selectedImageVariationId,
     errorMessage: c.errorMessage,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
@@ -369,9 +370,14 @@ export async function startImageGeneration(
     }
 
     // For regeneration (IMAGES_READY or FAILED), remove existing variations first
+    // and clear any previously selected variation (IDs become stale after deletion)
     if (creation.status !== "DRAFT") {
       await prisma.avatarVideoImageVariation.deleteMany({
         where: { creationId },
+      });
+      await prisma.avatarVideoCreation.update({
+        where: { id: creationId },
+        data: { selectedImageVariationId: null },
       });
     }
 
@@ -437,6 +443,68 @@ export async function startImageGeneration(
     return {
       ok: false,
       error: "Erro interno na geração de imagens.",
+      code: "internal",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Select preferred image variation
+// ---------------------------------------------------------------------------
+
+/**
+ * Records which image variation the user prefers.
+ * Only allowed when status is IMAGES_READY.
+ * Passing null clears any existing selection.
+ */
+export async function selectImageVariation(
+  userId: string,
+  creationId: string,
+  variationId: string | null,
+): Promise<ServiceResult<CreationDTO>> {
+  try {
+    const loadResult = await loadOwnedCreation(creationId, userId);
+    if (!loadResult.ok) return loadResult;
+    const creation = loadResult.data;
+
+    if (creation.status !== "IMAGES_READY") {
+      return {
+        ok: false,
+        error: `Seleção de imagem requer status IMAGES_READY (atual: "${creation.status}").`,
+        code: "invalid_state",
+      };
+    }
+
+    // Validate that variationId belongs to this creation when provided
+    if (variationId !== null) {
+      const belongs = creation.imageVariations.some((v) => v.id === variationId);
+      if (!belongs) {
+        return {
+          ok: false,
+          error: "Variação de imagem não encontrada.",
+          code: "not_found",
+        };
+      }
+    }
+
+    const updated = await prisma.avatarVideoCreation.update({
+      where: { id: creationId },
+      data: { selectedImageVariationId: variationId },
+      include: creationInclude,
+    });
+
+    log.info("Image variation selected", { userId, creationId, variationId });
+    return { ok: true, data: toCreationDTO(updated) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("Failed to select image variation", {
+      userId,
+      creationId,
+      error: message,
+    });
+    return {
+      ok: false,
+      error: "Erro ao salvar seleção de imagem.",
       code: "internal",
     };
   }
