@@ -66,6 +66,9 @@ model User {
 
   // Video insights (user-specific AI analysis)
   videoInsights     VideoInsight[]
+
+  // Avatar video creation flow
+  avatarVideoCreations AvatarVideoCreation[]
 }
 
 enum UserRole {
@@ -923,4 +926,134 @@ model AdminNotification {
   @@index([createdAt])                  // time-based queries and cleanup
   @@index([userId])                     // notifications per user
   @@index([type, createdAt])            // type-based filtering
+}
+
+// ---------------------------------------------------------------------------
+// AVATAR VIDEO CREATION FLOW
+// ---------------------------------------------------------------------------
+
+/// Admin-managed avatar library — reusable avatar templates for guided video generation.
+model AvatarProfile {
+  id           String    @id @default(uuid())
+  name         String
+  description  String?
+  imageUrl     String                        // Vercel Blob URL — full avatar image
+  thumbnailUrl String?                       // Vercel Blob URL — smaller preview
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  creations    AvatarVideoCreation[]
+
+  @@index([isActive, sortOrder])
+}
+
+/// Default and admin-created scenario templates for guided video generation.
+model VideoScenario {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  promptHint  String?                        // Guidance injected into VEO 3 prompt generation
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  creations   AvatarVideoCreation[]
+
+  @@index([isActive, isDefault, sortOrder])
+}
+
+enum AvatarVideoCreationStatus {
+  DRAFT           // user selecting product / avatar / scenario
+  PENDING_IMAGES  // submitted, awaiting image generation
+  IMAGES_READY    // image(s) generated, user reviewing
+  PENDING_PROMPT  // awaiting VEO 3 prompt generation
+  PROMPT_READY    // prompt ready, user may edit
+  COMPLETED       // user finished the flow
+  FAILED          // unrecoverable error
+}
+
+/// One guided generation session owned by a user.
+/// Product fields are denormalized so the record survives future Echotik API changes.
+model AvatarVideoCreation {
+  id                      String                    @id @default(uuid())
+  userId                  String
+  avatarProfileId         String?                   // null if user skips avatar selection
+  videoScenarioId         String?                   // null if user skips scenario selection
+  status                  AvatarVideoCreationStatus @default(DRAFT)
+
+  // Product snapshot — denormalized at the moment of selection
+  productExternalId       String?                   // Echotik product_id
+  productName             String?
+  productImageUrl         String?                   // canonical image URL from Echotik
+  productSelectedImageUrl String?                   // image user chose (may be Blob URL)
+  productPriceCents       Int?                      // price in smallest currency unit
+  productCurrency         String?                   // e.g. "USD", "BRL"
+  productCategory         String?                   // category name (text, denormalized)
+
+  errorMessage            String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+
+  user            User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarProfile   AvatarProfile?              @relation(fields: [avatarProfileId], references: [id], onDelete: SetNull)
+  videoScenario   VideoScenario?              @relation(fields: [videoScenarioId], references: [id], onDelete: SetNull)
+  imageVariations AvatarVideoImageVariation[]
+  prompt          AvatarVideoPrompt?
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum AvatarVideoImageStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// Generated image references for a creation session — up to 2 per creation.
+model AvatarVideoImageVariation {
+  id           String                 @id @default(uuid())
+  creationId   String
+  blobUrl      String?                // Vercel Blob URL once generated and uploaded
+  status       AvatarVideoImageStatus @default(PENDING)
+  sortOrder    Int                    @default(0)   // 0 or 1 (slot index)
+  errorMessage String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  creation     AvatarVideoCreation    @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([creationId])
+}
+
+enum AvatarVideoPromptStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// VEO 3 prompt generated (and optionally edited) for a creation session.
+/// One prompt per creation (1:1 via unique creationId).
+model AvatarVideoPrompt {
+  id           String                  @id @default(uuid())
+  creationId   String                  @unique
+  promptJson   Json?                   // Structured VEO 3 prompt payload
+  promptText   String?                 // Flat text version, editable by the user
+  status       AvatarVideoPromptStatus @default(PENDING)
+  isEdited     Boolean                 @default(false)  // true when user modifies generated prompt
+  editedAt     DateTime?
+  errorMessage String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  creation     AvatarVideoCreation     @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
