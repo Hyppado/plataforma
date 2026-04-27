@@ -276,13 +276,17 @@ export async function updateCreationSelections(
       where: { id: creationId },
       data: {
         ...(selections.avatarProfileId !== undefined && {
-          avatarProfileId: selections.avatarProfileId,
+          avatarProfile: selections.avatarProfileId
+            ? { connect: { id: selections.avatarProfileId } }
+            : { disconnect: true },
         }),
         ...(selections.uploadedAvatarImageUrl !== undefined && {
           uploadedAvatarImageUrl: selections.uploadedAvatarImageUrl,
         }),
         ...(selections.videoScenarioId !== undefined && {
-          videoScenarioId: selections.videoScenarioId,
+          videoScenario: selections.videoScenarioId
+            ? { connect: { id: selections.videoScenarioId } }
+            : { disconnect: true },
         }),
         ...(selections.customScenarioDescription !== undefined && {
           customScenarioDescription: selections.customScenarioDescription,

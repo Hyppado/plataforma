@@ -267,7 +267,9 @@ describe("updateCreationSelections()", () => {
     expect(result.ok).toBe(true);
     expect(prismaMock.avatarVideoCreation.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ avatarProfileId: "avatar-1" }),
+        data: expect.objectContaining({
+          avatarProfile: { connect: { id: "avatar-1" } },
+        }),
       }),
     );
   });
