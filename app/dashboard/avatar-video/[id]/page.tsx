@@ -17,6 +17,7 @@ import {
   StepProductConfirmSkeleton,
 } from "@/app/components/avatar-video/StepProductConfirm";
 import { StepAvatarSelect } from "@/app/components/avatar-video/StepAvatarSelect";
+import { StepScenarioSelect } from "@/app/components/avatar-video/StepScenarioSelect";
 
 // ── Step definitions ────────────────────────────────────────────
 const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Roteiro"];
@@ -60,6 +61,11 @@ function AvatarVideoCreationContent() {
   const handleAvatarContinue = async () => {
     await mutate(); // refresh creation so subsequent steps see updated avatar fields
     setStep(2);
+  };
+
+  const handleScenarioContinue = async () => {
+    await mutate(); // refresh creation so subsequent steps see updated scenario fields
+    setStep(3);
   };
 
   return (
@@ -221,8 +227,28 @@ function AvatarVideoCreationContent() {
           </Box>
         )}
 
-        {/* Steps 2+ — Placeholder */}
-        {!isLoading && !error && creation && step > 1 && (
+        {/* Step 2 — Scenario selection */}
+        {!isLoading && !error && creation && step === 2 && (
+          <Box
+            sx={{
+              maxWidth: 480,
+              mx: "auto",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(45,212,255,0.08)",
+              borderRadius: 4,
+              p: { xs: 3, sm: 4 },
+            }}
+          >
+            <StepScenarioSelect
+              creation={creation}
+              onContinue={handleScenarioContinue}
+              onBack={() => setStep(1)}
+            />
+          </Box>
+        )}
+
+        {/* Steps 3+ — Placeholder */}
+        {!isLoading && !error && creation && step > 2 && (
           <Box
             sx={{
               maxWidth: 480,

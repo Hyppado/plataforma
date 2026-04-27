@@ -287,6 +287,62 @@ describe("updateCreationSelections()", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("invalid_state");
   });
+
+  it("connects videoScenario on DRAFT creation", async () => {
+    const creation = makeDraft();
+    const updated = { ...creation, videoScenarioId: "scenario-1" };
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+    (
+      prismaMock.avatarVideoCreation.update as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(updated);
+
+    const result = await updateCreationSelections("user-1", "creation-1", {
+      videoScenarioId: "scenario-1",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(prismaMock.avatarVideoCreation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          videoScenario: { connect: { id: "scenario-1" } },
+        }),
+      }),
+    );
+  });
+
+  it("disconnects videoScenario and stores customScenarioDescription", async () => {
+    const creation = makeDraft({ videoScenarioId: "scenario-1" });
+    const updated = {
+      ...creation,
+      videoScenarioId: null,
+      customScenarioDescription: "My custom scene",
+    };
+
+    (
+      prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(creation);
+    (
+      prismaMock.avatarVideoCreation.update as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(updated);
+
+    const result = await updateCreationSelections("user-1", "creation-1", {
+      videoScenarioId: null,
+      customScenarioDescription: "My custom scene",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(prismaMock.avatarVideoCreation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          videoScenario: { disconnect: true },
+          customScenarioDescription: "My custom scene",
+        }),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

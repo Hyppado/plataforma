@@ -12,7 +12,6 @@ import {
   mockUnauthenticated,
 } from "@tests/helpers/auth";
 import { buildAvatarProfile } from "@tests/helpers/factories";
-import { NextRequest } from "next/server";
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -37,16 +36,6 @@ vi.mock("@/lib/logger", () => ({
 import { GET } from "@/app/api/avatar-video/avatars/route";
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeGetRequest() {
-  return new NextRequest("http://localhost/api/avatar-video/avatars", {
-    method: "GET",
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -57,17 +46,17 @@ describe("GET /api/avatar-video/avatars", () => {
 
   it("returns 401 when not authenticated", async () => {
     mockUnauthenticated();
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns 200 with active avatars sorted by sortOrder", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     const avatar1 = buildAvatarProfile({ sortOrder: 0, name: "First" });
     const avatar2 = buildAvatarProfile({ sortOrder: 1, name: "Second" });
     prismaMock.avatarProfile.findMany.mockResolvedValue([avatar1, avatar2]);
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.avatars).toHaveLength(2);
@@ -76,10 +65,10 @@ describe("GET /api/avatar-video/avatars", () => {
   });
 
   it("queries only active avatars with correct orderBy", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     prismaMock.avatarProfile.findMany.mockResolvedValue([]);
 
-    await GET(makeGetRequest());
+    await GET();
 
     expect(prismaMock.avatarProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,7 +79,7 @@ describe("GET /api/avatar-video/avatars", () => {
   });
 
   it("does not expose creations or internal fields", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     const avatar = buildAvatarProfile();
     prismaMock.avatarProfile.findMany.mockResolvedValue([
       {
@@ -103,7 +92,7 @@ describe("GET /api/avatar-video/avatars", () => {
       },
     ]);
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     const body = await res.json();
     const item = body.avatars[0];
 
@@ -117,20 +106,20 @@ describe("GET /api/avatar-video/avatars", () => {
   });
 
   it("returns empty array when no avatars exist", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     prismaMock.avatarProfile.findMany.mockResolvedValue([]);
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.avatars).toEqual([]);
   });
 
   it("returns 500 when DB throws", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     prismaMock.avatarProfile.findMany.mockRejectedValue(new Error("db error"));
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("db error");

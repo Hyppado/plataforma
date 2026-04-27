@@ -456,7 +456,9 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
         <>
           {/* Dropzone / preview */}
           {uploadedPreviewUrl ? (
-            <Box sx={{ position: "relative", borderRadius: 2, overflow: "hidden" }}>
+            <Box
+              sx={{ position: "relative", borderRadius: 2, overflow: "hidden" }}
+            >
               {/* Fixed-height contain container — no cropping */}
               <Box
                 sx={{

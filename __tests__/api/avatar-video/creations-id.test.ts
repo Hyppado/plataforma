@@ -356,7 +356,7 @@ describe("GET /api/avatar-video/creations/[id]", () => {
   });
 
   it("returns 200 with creation DTO on success", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     const creation = makeCreation({ status: "IMAGES_READY" });
     getCreationDetailMock.mockResolvedValue({ ok: true, data: creation });
 
@@ -373,7 +373,7 @@ describe("GET /api/avatar-video/creations/[id]", () => {
   });
 
   it("returns 404 when creation not found or belongs to another user", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     getCreationDetailMock.mockResolvedValue({
       ok: false,
       error: "Creation not found",
@@ -387,7 +387,7 @@ describe("GET /api/avatar-video/creations/[id]", () => {
   });
 
   it("returns 500 when service returns internal error", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     getCreationDetailMock.mockResolvedValue({
       ok: false,
       error: "DB error",
@@ -399,7 +399,7 @@ describe("GET /api/avatar-video/creations/[id]", () => {
   });
 
   it("returns 500 on unexpected throw", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     getCreationDetailMock.mockRejectedValue(new Error("unexpected"));
 
     const res = await GET(makeGetRequest(), makeParams());
@@ -409,7 +409,7 @@ describe("GET /api/avatar-video/creations/[id]", () => {
   });
 
   it("returns 400 when id param is empty", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     const req = new NextRequest(
       "http://localhost/api/avatar-video/creations/",
       { method: "GET" },

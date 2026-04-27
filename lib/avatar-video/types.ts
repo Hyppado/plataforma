@@ -26,6 +26,19 @@ export interface AvatarProfileDTO {
 }
 
 // ---------------------------------------------------------------------------
+// Video scenario (public DTO returned by GET /api/avatar-video/scenarios)
+// ---------------------------------------------------------------------------
+
+export interface VideoScenarioDTO {
+  id: string;
+  name: string;
+  description: string | null;
+  promptHint: string | null;
+  isDefault: boolean;
+  sortOrder: number;
+}
+
+// ---------------------------------------------------------------------------
 // Image variation
 // ---------------------------------------------------------------------------
 

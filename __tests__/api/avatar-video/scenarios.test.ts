@@ -12,7 +12,6 @@ import {
   mockUnauthenticated,
 } from "@tests/helpers/auth";
 import { buildVideoScenario } from "@tests/helpers/factories";
-import { NextRequest } from "next/server";
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -37,16 +36,6 @@ vi.mock("@/lib/logger", () => ({
 import { GET } from "@/app/api/avatar-video/scenarios/route";
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeGetRequest() {
-  return new NextRequest("http://localhost/api/avatar-video/scenarios", {
-    method: "GET",
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -57,27 +46,27 @@ describe("GET /api/avatar-video/scenarios", () => {
 
   it("returns 401 when not authenticated", async () => {
     mockUnauthenticated();
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns 200 with active scenarios", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     const scenario1 = buildVideoScenario({ isDefault: true, sortOrder: 0 });
     const scenario2 = buildVideoScenario({ isDefault: false, sortOrder: 0 });
     prismaMock.videoScenario.findMany.mockResolvedValue([scenario1, scenario2]);
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.scenarios).toHaveLength(2);
   });
 
   it("queries only active scenarios with correct orderBy (default first)", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     prismaMock.videoScenario.findMany.mockResolvedValue([]);
 
-    await GET(makeGetRequest());
+    await GET();
 
     expect(prismaMock.videoScenario.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -88,7 +77,7 @@ describe("GET /api/avatar-video/scenarios", () => {
   });
 
   it("does not expose creations or internal fields", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     const scenario = buildVideoScenario();
     prismaMock.videoScenario.findMany.mockResolvedValue([
       {
@@ -101,7 +90,7 @@ describe("GET /api/avatar-video/scenarios", () => {
       },
     ]);
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     const body = await res.json();
     const item = body.scenarios[0];
 
@@ -116,20 +105,20 @@ describe("GET /api/avatar-video/scenarios", () => {
   });
 
   it("returns empty array when no scenarios exist", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     prismaMock.videoScenario.findMany.mockResolvedValue([]);
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.scenarios).toEqual([]);
   });
 
   it("returns 500 when DB throws", async () => {
-    mockAuthenticatedUser("user-test-id");
+    mockAuthenticatedUser({ id: "user-test-id" });
     prismaMock.videoScenario.findMany.mockRejectedValue(new Error("db error"));
 
-    const res = await GET(makeGetRequest());
+    const res = await GET();
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("db error");
