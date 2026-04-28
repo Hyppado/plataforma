@@ -43,11 +43,18 @@ A partir de um vídeo transcrito, gerar análise estruturada via IA: contexto, g
 
 ### 6. Gerar material para vídeo com avatar
 
-Fluxo guiado de criação de material UGC: o usuário seleciona um produto em alta, escolhe um avatar e um cenário, e recebe imagens de referência geradas por DALL-E 3 e um prompt estruturado para VEO 3. Sujeito a quota mensal (`avatarVideoQuota`) configurável por plano.
+Fluxo guiado de criação de material UGC: o usuário seleciona um produto em alta, escolhe um avatar, cenário, tom e duração, e passa por quatro etapas de IA:
+
+1. **Conceito** — OpenAI gpt-4o gera ideia, gancho, copy, CTA e cenas a partir das imagens e dados do produto
+2. **Imagens de referência** — geradas por IA a partir do conceito aprovado
+3. **Prompt VEO 3** — OpenAI gpt-4o gera prompt estruturado para VEO 3 consumindo o conceito
+4. **Entrega** — o usuário recebe as imagens e o prompt para produção do vídeo
+
+Sujeito a quota mensal (`avatarVideoQuota`) configurável por plano.
 
 ### 7. Influencer IA
 
-Wizard de geração de imagens UGC ultra-realistas: o usuário seleciona um produto em alta (ou faz upload de imagem), escolhe um avatar da galeria (ou faz upload de foto própria), configura pose, ambiente, estilo e melhorias, e recebe uma imagem gerada via OpenAI gpt-image-1 hospedada no Vercel Blob. Pode ser acessado diretamente do `ProductCard` via deep-link com query params. Disponível na seção **FERRAMENTAS** da sidebar.
+Wizard de geração de imagens UGC ultra-realistas: o usuário seleciona um produto em alta (ou faz upload de imagem), escolhe um avatar da galeria (ou faz upload de foto própria), configura pose, ambiente, estilo e melhorias, e recebe uma imagem gerada via **Google AI Studio (Gemini)** hospedada no Vercel Blob. Adicionalmente, pode gerar prompts VEO 3.1 para a imagem gerada, especificando estilo (UGC, unboxing, review, tutorial, testemunho) e duração (curto / médio / completo). Pode ser acessado diretamente do `ProductCard` via deep-link com query params. Disponível na seção **FERRAMENTAS** da sidebar.
 
 ### 8. Salvar e organizar
 
@@ -66,7 +73,7 @@ Favoritar vídeos e produtos, criar coleções, escrever notas e configurar aler
 - **Produtos salvos** — lista de produtos favoritados
 - **Tendências** — análise de tendências (em desenvolvimento)
 - **Suporte** — página de suporte in-app
-- **Influencer IA** (FERRAMENTAS) — wizard de geração de imagens UGC com produto e avatar
+- **Influencer IA** (FERRAMENTAS) — wizard de geração de imagens UGC (Gemini) com produto e avatar + geração de prompts VEO 3.1
 
 ### Painel administrativo
 

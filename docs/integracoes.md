@@ -204,11 +204,17 @@ Input: texto da transcrição + template de prompt (configurável pelo admin).
 
 Output: `contexto`, `gancho`, `problema`, `solução`, `CTA`, `roteiro reutilizável`.
 
-### Geração de imagem de referência (DALL-E 3)
+### Geração de conceito de vídeo (Chat Completions)
 
-`lib/avatar-video/generate-image.ts` → OpenAI Images API (`dall-e-3`).
+`lib/avatar-video/concept.ts` → OpenAI Chat Completions (`gpt-4o`).
 
-Gera imagens de referência para o fluxo de vídeo com avatar. Armazena o resultado no Vercel Blob e salva a URL em `AvatarVideoImageVariation`. Execução assíncrona — a criação entra em `PENDING_IMAGES` enquanto a geração ocorre.
+Gera o conceito inicial do vídeo com base nas imagens e dados do produto, tom, duração e cenas definidos. Output: `videoIdea`, `hook`, `copy`, `cta`, `scenes[]`. O resultado é persistido em `AvatarVideoConcept`. Template de sistema configurável pelo admin via `avatar_video.concept_template`.
+
+### Geração de imagem de referência
+
+`lib/avatar-video/image-prompt.ts` → modelo configurável pelo admin.
+
+Gera imagens de referência para o fluxo de vídeo com avatar a partir do conceito aprovado. Armazena o resultado no Vercel Blob e salva a URL em `AvatarVideoImageVariation`. Execução assíncrona — a criação entra em `PENDING_IMAGES` enquanto a geração ocorre.
 
 ### Geração de prompt VEO 3.1 — Influencer IA (Chat Completions)
 
@@ -240,12 +246,12 @@ Usado exclusivamente pela feature **Influencer IA** para gerar imagens UGC ultra
 
 ### Arquivos principais
 
-| Arquivo                              | Responsabilidade                                    |
-| ------------------------------------ | --------------------------------------------------- |
-| `lib/influencer-ia/generate.ts`      | `generateInfluencerImage()` — orquestra geração     |
-| `app/api/influencer-ia/generate/`    | Endpoint POST — auth, parse body, chama lib         |
-| `app/api/influencer-ia/product-images/` | Endpoint GET — retorna URLs de variação do produto |
-| `app/api/influencer-ia/upload-reference/` | Endpoint POST — upload de referências (Blob)    |
+| Arquivo                                   | Responsabilidade                                   |
+| ----------------------------------------- | -------------------------------------------------- |
+| `lib/influencer-ia/generate.ts`           | `generateInfluencerImage()` — orquestra geração    |
+| `app/api/influencer-ia/generate/`         | Endpoint POST — auth, parse body, chama lib        |
+| `app/api/influencer-ia/product-images/`   | Endpoint GET — retorna URLs de variação do produto |
+| `app/api/influencer-ia/upload-reference/` | Endpoint POST — upload de referências (Blob)       |
 
 ### Fluxo de geração
 

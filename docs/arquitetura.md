@@ -42,7 +42,7 @@
 ```
 app/
   api/
-    admin/           → 15 sub-rotas administrativas
+    admin/           → 15+ sub-rotas administrativas
       access-grants/
       audit-logs/
       echotik/         → config e health da Echotik
@@ -53,12 +53,14 @@ app/
         product/       → ID do produto Hotmart
       notifications/
       plans/
+      privacy-policy/  → texto da política de privacidade (GET/PUT)
       prompt-config/
       quota-policy/
       quota-usage/
       settings/
       subscribers/
       subscription-metrics/
+      terms-of-use/    → texto dos termos de uso (GET/PUT)
       users/
       webhook-events/
     auth/
@@ -70,18 +72,29 @@ app/
       creations/
         route.ts       → POST cria/retoma rascunho de criação
         [id]/
-          route.ts     → GET estado da criação; PATCH seleções (avatarProfileId, uploadedAvatarImageUrl, etc.)
-          upload-avatar/ → POST upload de imagem própria para Vercel Blob (MIME JPG/PNG/WEBP, ≤5MB)
-          generate-image/  → POST dispara geração de imagem (DALL-E 3)
-          generate-prompt/ → POST dispara geração de prompt (VEO 3)
+          route.ts          → GET estado da criação; PATCH seleções (avatarProfileId, tone, duration, etc.)
+          upload-avatar/    → POST upload de imagem própria para Vercel Blob (MIME JPG/PNG/WEBP, ≤5MB)
+          generate-concept/ → POST dispara geração de conceito de vídeo (gpt-4o)
+          edit-concept/     → PATCH salva edições manuais do conceito pelo usuário
+          generate-image/   → POST dispara geração de imagem de referência
+          select-variation/ → PATCH seleciona variação de imagem preferida
+          generate-prompt/  → POST dispara geração de prompt VEO 3
+          edit-prompt/      → PATCH salva edições manuais do prompt pelo usuário
+          complete/         → POST marca criação como COMPLETED
     influencer-ia/
-      generate/        → POST gera imagem UGC via gpt-image-1 com avatar + produto
+      generate/        → POST gera imagem UGC via Google AI Studio (Gemini) com avatar + produto
+      generate-veo-prompt/ → POST gera prompts VEO 3.1 para a imagem gerada
+      product-images/  → GET retorna URLs de variação do produto (picker de imagem)
+      upload-reference/ → POST upload de imagem de referência para Vercel Blob
     cron/
       echotik/         → ingestão de dados Echotik
       transcribe/      → retry de transcriões com falha
+    exchange-rate/     → GET taxa de câmbio BRL (cache 12h)
     insights/          → Insight Hyppado (POST + GET [videoExternalId])
     me/                → perfil e dados do usuário autenticado
+    plans/             → GET planos públicos ativos (landing page)
     proxy/             → proxy de imagem externo (fallback)
+    public/            → endpoints públicos sem auth (termos, privacidade)
     regions/           → regiões ativas
     transcripts/       → transcrição sob demanda
     trending/          → dados de tendências (vídeos, produtos, creators)
@@ -94,8 +107,13 @@ app/
     admin/             → componentes do painel admin
     avatar-video/
       AvatarVideoStartDialog.tsx → dialog de início do fluxo: seleção de imagem do produto + POST de criação
-      StepProductConfirm.tsx     → etapa 1 do wizard: confirmação do produto selecionado
-      StepAvatarSelect.tsx       → etapa 2 do wizard: galeria de avatares ou upload de foto própria
+      StepProductConfirm.tsx     → etapa 1: confirmação do produto selecionado
+      StepAvatarSelect.tsx       → etapa 2: galeria de avatares ou upload de foto própria
+      StepScenarioSelect.tsx     → etapa 3: seleção de cenário, tom e duração
+      StepImageGenerate.tsx      → etapa 4: geração de conceito + imagens de referência
+      StepConceptEdit.tsx        → etapa 5: revisão/edição do conceito gerado
+      StepPromptEdit.tsx         → etapa 6: revisão/edição do prompt VEO 3
+      StepDelivery.tsx           → etapa 7: entrega final (imagens + prompt)
     cards/             → VideoCard, ProductCard (com CTAs "Criar vídeo" e "Influencer IA"), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
@@ -154,12 +172,15 @@ lib/
     webhook.ts         → validação de assinatura + extração de campos
   avatar-video/
     service.ts         → orquestração do fluxo (getOrCreate, updateCreationSelections, startImage, startPrompt, detail)
-    generate-image.ts  → DALL-E 3 — geração de imagem de referência
+    concept.ts         → geração de conceito de vídeo via gpt-4o (hook, copy, CTA, cenas)
+    image-prompt.ts    → geração de imagem de referência (modelo config. via admin)
     veo-prompt.ts      → VEO 3 — construção e geração de prompt estruturado
     quota.ts           → enforceAvatarVideoQuota() — verificação antes de gerar
-    types.ts           → CreationDTO, AvatarProfileDTO, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO
+    types.ts           → CreationDTO, AvatarProfileDTO, ConceptDTO, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO
+    index.ts           → re-exports públicos do domínio
   influencer-ia/
-    generate.ts        → buildPrompt + gpt-image-1 + upload para Vercel Blob
+    generate.ts        → buildPrompt + Gemini (google-ai) + upload para Vercel Blob
+    veo-prompt.ts      → geração de prompts VEO 3.1 via OpenAI gpt-4o
   insight/
     service.ts         → requestInsight / getInsight
     generate.ts        → OpenAI Chat Completions + parseInsightResponse
@@ -173,10 +194,16 @@ lib/
     blob.ts            → Vercel Blob helpers
     saved.ts           → itens salvos
   swr/
-    fetcher.ts         → SWR fetcher padrão
-    useCategories.ts
-    useTrending.ts
-    useAvatarProfiles.ts → avatares disponíveis (GET /api/avatar-video/avatars)
+    fetcher.ts          → SWR fetcher padrão
+    useAvatarProfiles.ts         → avatares disponíveis (GET /api/avatar-video/avatars)
+    useAvatarVideoCreation.ts    → estado de uma criação específica (polling)
+    useAvatarVideoCreations.ts   → lista de criações do usuário
+    useCategories.ts             → categorias de produtos
+    useExchangeRate.ts           → taxa de câmbio BRL (cache 12h)
+    useRegions.ts                → regiões ativas
+    useTrending.ts               → dados de trending
+    useUserQuota.ts              → quotas do usuário autenticado
+    useVideoScenarios.ts         → cenários de vídeo (GET /api/avatar-video/scenarios)
   transcription/
     service.ts         → requestTranscript / getTranscript
     media.ts           → download de vídeo via Echotik

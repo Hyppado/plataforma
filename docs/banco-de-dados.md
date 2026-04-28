@@ -120,16 +120,21 @@ Configurações dinâmicas chave-valor (painel admin). Suporta valores em texto 
 
 **Chaves principais (`SETTING_KEYS` em `lib/settings.ts`):**
 
-| Chave                          | Tipo      | Descrição                                        |
-| ------------------------------ | --------- | ------------------------------------------------ |
-| `hotmart.product_id`           | Texto     | ID do produto Hotmart                            |
-| `hotmart.client_id`            | Texto     | Client ID da API Hotmart                         |
-| `hotmart.client_secret`        | Criptogr. | Client Secret Hotmart                            |
-| `hotmart.basic_token`          | Criptogr. | Basic token Hotmart                              |
-| `hotmart.webhook_secret`       | Criptogr. | Secret de validação de webhook                   |
-| `hotmart.sandbox`              | Texto     | Modo sandbox (true/false)                        |
-| `openai.api_key`               | Criptogr. | Chave da API OpenAI                              |
-| `avatar_video.prompt_template` | Texto     | Template de sistema para geração de prompt VEO 3 |
+| Chave                           | Tipo      | Descrição                                                |
+| ------------------------------- | --------- | -------------------------------------------------------- |
+| `hotmart.product_id`            | Texto     | ID do produto Hotmart                                    |
+| `hotmart.client_id`             | Texto     | Client ID da API Hotmart                                 |
+| `hotmart.client_secret`         | Criptogr. | Client Secret Hotmart                                    |
+| `hotmart.basic_token`           | Criptogr. | Basic token Hotmart                                      |
+| `hotmart.webhook_secret`        | Criptogr. | Secret de validação de webhook                           |
+| `hotmart.sandbox`               | Texto     | Modo sandbox (true/false)                                |
+| `openai.api_key`                | Criptogr. | Chave da API OpenAI                                      |
+| `openai.whisper_model`          | Texto     | Modelo Whisper (padrão: `whisper-1`)                     |
+| `openai.whisper_language`       | Texto     | Idioma para Whisper (padrão: `pt`)                       |
+| `avatar_video.prompt_template`  | Texto     | Template de sistema para geração de prompt VEO 3         |
+| `avatar_video.concept_template` | Texto     | Template de sistema para geração de conceito de vídeo    |
+| `google_ai.api_key`             | Criptogr. | Chave da API Google AI Studio (Gemini)                   |
+| `google_ai.model`               | Texto     | Modelo Gemini (padrão: `gemini-3.1-flash-image-preview`) |
 
 ---
 
@@ -233,21 +238,40 @@ Templates de cenário/contexto para guiar a geração do prompt.
 
 Sessão de geração por usuário. Um registro por usuário — sobrescrito a cada nova geração.
 
-**Ciclo de vida (`AvatarVideoCreationStatus`):** `DRAFT → PENDING_IMAGES → IMAGES_READY → PENDING_PROMPT → PROMPT_READY → COMPLETED | FAILED`
+**Ciclo de vida (`AvatarVideoCreationStatus`):** `DRAFT → PENDING_IMAGES → IMAGES_READY → PENDING_CONCEPT → CONCEPT_READY → PENDING_PROMPT → PROMPT_READY → COMPLETED | FAILED`
 
-| Campo                     | Tipo    | Descrição                                     |
-| ------------------------- | ------- | --------------------------------------------- |
-| `userId`                  | String  | FK para User (cascade delete)                 |
-| `avatarProfileId`         | String? | Avatar selecionado (set null se deletado)     |
-| `videoScenarioId`         | String? | Cenário selecionado (set null se deletado)    |
-| `status`                  | Enum    | Estado atual do fluxo                         |
-| `productExternalId`       | String? | ID externo do produto TikTok Shop selecionado |
-| `productName`             | String? | Nome snapshot do produto                      |
-| `productImageUrl`         | String? | Imagem principal snapshot                     |
-| `productSelectedImageUrl` | String? | Imagem escolhida pelo usuário para referência |
-| `productPriceCents`       | Int?    | Preço snapshot em centavos                    |
-| `productCurrency`         | String? | Moeda do preço                                |
-| `productCategory`         | String? | Categoria snapshot                            |
+| Campo                      | Tipo    | Descrição                                     |
+| -------------------------- | ------- | --------------------------------------------- |
+| `userId`                   | String  | FK para User (cascade delete)                 |
+| `avatarProfileId`          | String? | Avatar selecionado (set null se deletado)     |
+| `videoScenarioId`          | String? | Cenário selecionado (set null se deletado)    |
+| `status`                   | Enum    | Estado atual do fluxo                         |
+| `tone`                     | String? | Tom do vídeo (ex: professional, casual)       |
+| `duration`                 | String? | Duração alvo (ex: 15s, 30s, 60s)              |
+| `takeCount`                | Int?    | Número de takes a gerar (1–5)                 |
+| `productExternalId`        | String? | ID externo do produto TikTok Shop selecionado |
+| `productName`              | String? | Nome snapshot do produto                      |
+| `productImageUrl`          | String? | Imagem principal snapshot                     |
+| `productSelectedImageUrl`  | String? | Imagem escolhida pelo usuário para referência |
+| `productPriceCents`        | Int?    | Preço snapshot em centavos                    |
+| `productCurrency`          | String? | Moeda do preço                                |
+| `productCategory`          | String? | Categoria snapshot                            |
+| `selectedImageVariationId` | String? | Variação de imagem preferida pelo usuário     |
+
+#### `AvatarVideoConcept`
+
+Conceito de vídeo gerado por IA para uma sessão (1:1 com `AvatarVideoCreation`).
+
+**Ciclo de vida (`AvatarVideoConceptStatus`):** `PENDING → PROCESSING → READY | FAILED`
+
+| Campo        | Tipo    | Descrição                                      |
+| ------------ | ------- | ---------------------------------------------- |
+| `videoIdea`  | String? | Resumo geral da ideia do vídeo                 |
+| `hook`       | String? | Frase de gancho inicial (em português)         |
+| `copy`       | String? | Texto de copy/roteiro principal (em português) |
+| `cta`        | String? | Call-to-action (em português)                  |
+| `scenesJson` | Json?   | `[{ sceneNumber, goal, description }]`         |
+| `isEdited`   | Boolean | Indica se o usuário editou o conceito gerado   |
 
 #### `AvatarVideoImageVariation`
 
@@ -295,25 +319,26 @@ Campos de output: `contextText`, `hookText`, `problemText`, `solutionText`, `cta
 
 ## Enums
 
-| Enum                        | Valores                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| `UserRole`                  | ADMIN, USER                                                                          |
-| `UserStatus`                | ACTIVE, INACTIVE, SUSPENDED                                                          |
-| `SubscriptionStatus`        | PENDING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED                                        |
-| `ChargeStatus`              | PENDING, PAID, REFUNDED, CANCELLED, CHARGEBACK, FAILED                               |
-| `WebhookStatus`             | RECEIVED, PROCESSING, PROCESSED, FAILED, DUPLICATE                                   |
-| `IngestionStatus`           | RUNNING, SUCCESS, FAILED                                                             |
-| `NotificationSeverity`      | INFO, WARNING, HIGH, CRITICAL                                                        |
-| `NotificationStatus`        | UNREAD, READ, ARCHIVED                                                               |
-| `ErasureStatus`             | PENDING, IN_PROGRESS, COMPLETED, REJECTED                                            |
-| `InvitationStatus`          | PENDING, ACCEPTED, EXPIRED, CANCELLED                                                |
-| `PlanPeriod`                | MONTHLY, ANNUAL                                                                      |
-| `UsageEventType`            | TRANSCRIPT, SCRIPT, INSIGHT, AVATAR_VIDEO_GENERATION                                 |
-| `AvatarVideoCreationStatus` | DRAFT, PENDING_IMAGES, IMAGES_READY, PENDING_PROMPT, PROMPT_READY, COMPLETED, FAILED |
-| `AvatarVideoImageStatus`    | PENDING, PROCESSING, READY, FAILED                                                   |
-| `AvatarVideoPromptStatus`   | PENDING, PROCESSING, READY, FAILED                                                   |
-| `TranscriptStatus`          | PENDING, PROCESSING, READY, FAILED                                                   |
-| `InsightStatus`             | PENDING, PROCESSING, READY, FAILED                                                   |
+| Enum                        | Valores                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `UserRole`                  | ADMIN, USER                                                                                                          |
+| `UserStatus`                | ACTIVE, INACTIVE, SUSPENDED                                                                                          |
+| `SubscriptionStatus`        | PENDING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED                                                                        |
+| `ChargeStatus`              | PENDING, PAID, REFUNDED, CANCELLED, CHARGEBACK, FAILED                                                               |
+| `WebhookStatus`             | RECEIVED, PROCESSING, PROCESSED, FAILED, DUPLICATE                                                                   |
+| `IngestionStatus`           | RUNNING, SUCCESS, FAILED                                                                                             |
+| `NotificationSeverity`      | INFO, WARNING, HIGH, CRITICAL                                                                                        |
+| `NotificationStatus`        | UNREAD, READ, ARCHIVED                                                                                               |
+| `ErasureStatus`             | PENDING, IN_PROGRESS, COMPLETED, REJECTED                                                                            |
+| `InvitationStatus`          | PENDING, ACCEPTED, EXPIRED, CANCELLED                                                                                |
+| `PlanPeriod`                | MONTHLY, ANNUAL                                                                                                      |
+| `UsageEventType`            | TRANSCRIPT, SCRIPT, INSIGHT, AVATAR_VIDEO_GENERATION                                                                 |
+| `AvatarVideoCreationStatus` | DRAFT, PENDING_IMAGES, IMAGES_READY, PENDING_CONCEPT, CONCEPT_READY, PENDING_PROMPT, PROMPT_READY, COMPLETED, FAILED |
+| `AvatarVideoImageStatus`    | PENDING, PROCESSING, READY, FAILED                                                                                   |
+| `AvatarVideoPromptStatus`   | PENDING, PROCESSING, READY, FAILED                                                                                   |
+| `AvatarVideoConceptStatus`  | PENDING, PROCESSING, READY, FAILED                                                                                   |
+| `TranscriptStatus`          | PENDING, PROCESSING, READY, FAILED                                                                                   |
+| `InsightStatus`             | PENDING, PROCESSING, READY, FAILED                                                                                   |
 
 ---
 
@@ -323,21 +348,31 @@ Veja o guia completo em [docs/deploy.md](deploy.md#migrações-de-banco).
 
 ### Resumo do histórico
 
-| Migration                             | Descrição                                 |
-| ------------------------------------- | ----------------------------------------- |
-| `0000_baseline`                       | Schema inicial                            |
-| `20260402_add_video_transcript`       | Modelo VideoTranscript                    |
-| `20260404_add_video_insight`          | Modelo VideoInsight                       |
-| `20260406_remove_coupon_plan_mapping` | Limpeza de campos externos de plano       |
-| `20260407_remove_plan_hotmart_fields` | Remoção de campos Hotmart diretos no Plan |
-| `20260408_add_plan_hotmart_plan_code` | hotmartPlanCode no Plan                   |
-| `20260408_add_charge_status_overdue`  | Novos valores de ChargeStatus             |
-| `20260409_add_cascade_delete`         | Regras de cascade delete                  |
-| `20260409_add_user_setup_token`       | setupToken + setupTokenExpiresAt no User  |
-| `20260413_add_must_change_password`   | mustChangePassword no User                |
-| `20260413_add_blob_url_download_url`  | blobUrl e downloadUrl no trend            |
-| `20260415_add_plan_checkout_url`      | checkoutUrl no Plan                       |
-| `20260416_add_plan_show_on_landing`   | showOnLanding no Plan                     |
+| Migration                                  | Descrição                                             |
+| ------------------------------------------ | ----------------------------------------------------- |
+| `0000_baseline`                            | Schema inicial                                        |
+| `20260402_add_video_transcript`            | Modelo VideoTranscript                                |
+| `20260404_add_video_insight`               | Modelo VideoInsight                                   |
+| `20260406_remove_coupon_plan_mapping`      | Limpeza de campos externos de plano                   |
+| `20260407_remove_plan_hotmart_fields`      | Remoção de campos Hotmart diretos no Plan             |
+| `20260408_add_plan_hotmart_plan_code`      | hotmartPlanCode no Plan                               |
+| `20260408_add_charge_status_overdue`       | Novos valores de ChargeStatus                         |
+| `20260409_add_cascade_delete`              | Regras de cascade delete                              |
+| `20260409_add_user_setup_token`            | setupToken + setupTokenExpiresAt no User              |
+| `20260413_add_must_change_password`        | mustChangePassword no User                            |
+| `20260413_add_blob_url_download_url`       | blobUrl e downloadUrl no trend                        |
+| `20260415_add_plan_checkout_url`           | checkoutUrl no Plan                                   |
+| `20260416_add_plan_show_on_landing`        | showOnLanding no Plan                                 |
+| `20260418_add_category_name_pt`            | nome em português nas categorias                      |
+| `20260418_add_first_crawl_dt_to_product`   | firstCrawlDt em EchotikProductDetail                  |
+| `20260419_add_admin_notification`          | Modelo AdminNotification                              |
+| `20260419_fix_admin_notification_columns`  | Correção de colunas em AdminNotification              |
+| `20260427_add_avatar_video_creation_flow`  | Modelos do fluxo de vide com avatar                   |
+| `20260427_add_avatar_video_quota`          | avatarVideoQuota no Plan + AVATAR_VIDEO_GENERATION    |
+| `20260427_add_avatar_video_selections`     | Seleções avançadas em AvatarVideoCreation (tone, etc) |
+| `20260427_seed_default_video_scenarios`    | Cenários padrão para VideoScenario                    |
+| `20260427_add_selected_image_variation_id` | selectedImageVariationId em AvatarVideoCreation       |
+| `20260428_add_avatar_video_concept`        | Modelo AvatarVideoConcept + CONCEPT_READY status      |
 
 ---
 
