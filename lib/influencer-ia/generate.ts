@@ -157,7 +157,9 @@ function buildPrompt(input: InfluencerImageInput): string {
   const lines = [
     "Photorealistic UGC-style product placement photo for TikTok Shop.",
     "",
-    poseIsSoProduct ? "SUBJECT: Product-only shot — no person in the image." : `SUBJECT: ${subject}.`,
+    poseIsSoProduct
+      ? "SUBJECT: Product-only shot — no person in the image."
+      : `SUBJECT: ${subject}.`,
     `PRODUCT: "${product}" — use the reference image as the exact source of truth. Do NOT invent, add, or change any colors, labels, text, logos, shapes, or details. Do NOT distort the product.`,
     poseIsSoProduct ? "" : `PLACEMENT: ${placement}`,
     `POSE: ${poseDescription}.`,
@@ -284,7 +286,7 @@ async function generateWithGemini(
   avatarFetch: { buffer: Buffer; contentType: string } | null,
   productFetch: { buffer: Buffer; contentType: string } | null,
 ): Promise<Buffer> {
-  const GEMINI_MODEL = "gemini-2.0-flash-preview-image-generation";
+  const GEMINI_MODEL = "gemini-2.0-flash-exp";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
   // Build parts — text first, then inline image data
