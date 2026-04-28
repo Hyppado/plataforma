@@ -333,10 +333,14 @@ export function StepImageGenerate({
 
   // ── Continue ─────────────────────────────────────────────────────────────
 
+  // Allow advancing when images are ready OR when already past that step
+  // (user navigated back from prompt step — status is PROMPT_READY or later).
+  const pastImagesReady =
+    status === "PROMPT_READY" || status === "COMPLETED";
   const canContinue =
     !saving &&
     !generating &&
-    status === "IMAGES_READY" &&
+    (status === "IMAGES_READY" || pastImagesReady) &&
     !!selectedVariationId;
 
   const handleContinue = async () => {
@@ -345,6 +349,13 @@ export function StepImageGenerate({
     setSaveError(null);
 
     try {
+      // When past IMAGES_READY (e.g. user navigated back from prompt step),
+      // the variation selection is already saved — just advance.
+      if (pastImagesReady) {
+        onContinue();
+        return;
+      }
+
       // Ensure selection is persisted before advancing
       const res = await fetch(
         `/api/avatar-video/creations/${creation.id}/select-variation`,

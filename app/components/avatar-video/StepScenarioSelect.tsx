@@ -263,6 +263,13 @@ export function StepScenarioSelect({ creation, onContinue, onBack }: Props) {
     setSaveError(null);
 
     try {
+      // Selections can only be changed while the creation is still DRAFT.
+      // When navigating back from a later step, just advance without patching.
+      if (creation.status !== "DRAFT") {
+        onContinue();
+        return;
+      }
+
       const body =
         mode === "preset"
           ? { scenarioId: selectedScenarioId, customScenarioDescription: null }

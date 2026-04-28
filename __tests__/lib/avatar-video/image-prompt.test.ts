@@ -327,7 +327,7 @@ describe("lib/avatar-video/image-prompt", () => {
         status: "READY",
       });
 
-      // gpt-image-2 returns base64-encoded image data
+      // gpt-image-1 returns base64-encoded image data
       vi.stubGlobal(
         "fetch",
         vi.fn().mockResolvedValue({

@@ -285,6 +285,13 @@ export function StepAvatarSelect({ creation, onContinue, onBack }: Props) {
     setSaveError(null);
 
     try {
+      // Selections can only be changed while the creation is still DRAFT.
+      // When navigating back from a later step, just advance without patching.
+      if (creation.status !== "DRAFT") {
+        onContinue();
+        return;
+      }
+
       if (mode === "gallery") {
         const res = await fetch(`/api/avatar-video/creations/${creation.id}`, {
           method: "PATCH",
