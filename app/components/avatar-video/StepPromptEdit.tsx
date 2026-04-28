@@ -3,36 +3,37 @@
 /**
  * app/components/avatar-video/StepPromptEdit.tsx
  *
- * Step 5 of the avatar video wizard — VEO 3 JSON generation and editing.
+ * Step 5 of the avatar video wizard — VEO 3 take-by-take prompt editor.
+ *
+ * Section B of Task 3.6: VEO 3 take prompts.
  *
  * Flow:
- *   1. If status is IMAGES_READY (no prompt yet): user clicks "Generate JSON"
+ *   1. If status is CONCEPT_READY (no prompt yet): user clicks "Generate takes"
  *   2. POST /generate-prompt — synchronous, returns updated creation with prompt
- *   3. The structured JSON is shown in an editable code area
- *   4. User may manually edit the JSON — validation runs on every change
- *   5. Invalid JSON shows a warning chip but never blocks copy actions
- *   6. "Copy All" copies the raw content of the editor (regardless of validity)
- *   7. Each take card has a "Copy Take" button for per-take formatted text
- *   8. "Regenerate" replaces the current JSON via POST /generate-prompt
- *   9. "Save & Finish" saves edits via PATCH /edit-prompt, completes the
- *      creation via POST /complete, then calls onComplete()
+ *      The prompt is generated using the approved concept from Step 4.
+ *   3. Per-take editors appear — one editable card per take
+ *   4. Each take has: camera direction (EN), visual direction (EN), spoken lines (PT)
+ *   5. "Regenerate" replaces the current takes via POST /generate-prompt
+ *   6. "Copy take" copies the formatted animation prompt for a single take
+ *   7. "Copy all" copies all takes formatted together
+ *   8. "Finish" saves any edits via PATCH /edit-prompt, marks COMPLETED, calls onComplete()
  *
  * States driven by creation.status:
- *   IMAGES_READY            → no prompt yet → show Generate button
- *   PENDING_PROMPT          → shouldn't occur (API is synchronous) → loading
- *   PROMPT_READY            → JSON editor + actions
- *   FAILED (with no prompt) → show error + retry button
+ *   CONCEPT_READY  → no prompt yet → show Generate button
+ *   PENDING_PROMPT → shouldn't occur (API is synchronous) → loading
+ *   PROMPT_READY   → per-take editors + copy actions
+ *   FAILED         → show error + retry button
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
   Button,
   CircularProgress,
-  Chip,
   Tooltip,
   IconButton,
+  TextField,
 } from "@mui/material";
 import {
   AutoAwesome,
@@ -41,7 +42,6 @@ import {
   Check,
   ArrowBack,
   ErrorOutline,
-  WarningAmberRounded,
   InfoOutlined,
 } from "@mui/icons-material";
 import type { CreationDTO } from "@/lib/avatar-video/types";
@@ -58,43 +58,40 @@ interface Props {
   onBack: () => void;
 }
 
+type EditableTake = {
+  index: number;
+  cameraDirection: string;
+  visualDirection: string;
+  spokenLines: string;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function tryParseVeo3Prompt(text: string): Veo3Prompt | null {
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as Record<string, unknown>).prompt === "string"
-    ) {
-      return parsed as Veo3Prompt;
-    }
-    return null;
-  } catch {
-    return null;
+function promptToTakes(json: unknown): EditableTake[] {
+  if (
+    typeof json !== "object" ||
+    json === null ||
+    !Array.isArray((json as Record<string, unknown>).takes)
+  ) {
+    return [];
   }
+  return (json as Veo3Prompt).takes!.map((t, i) => ({
+    index: (t?.index ?? i + 1),
+    cameraDirection: t?.cameraDirection ?? "",
+    visualDirection: t?.visualDirection ?? "",
+    spokenLines: t?.spokenLines ?? "",
+  }));
 }
 
-function formatTakeForCopy(take: Veo3Take): string {
+function formatTakeForCopy(take: EditableTake): string {
   return [
     `Take ${take.index}`,
     `Camera: ${take.cameraDirection}`,
     `Visual: ${take.visualDirection}`,
-    `Script: ${take.spokenLines}`,
+    `Script: "${take.spokenLines}"`,
   ].join("\n");
-}
-
-function friendlyError(raw: string, status?: number): string {
-  if (status === 429) {
-    return "Você atingiu o limite de gerações. Aguarde ou entre em contato com o suporte.";
-  }
-  if (raw.toLowerCase().includes("quota") || raw.toLowerCase().includes("limite")) {
-    return "Limite de gerações atingido. Tente novamente mais tarde.";
-  }
-  return raw;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,15 +122,7 @@ function InfoCallout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CopyButton({
-  text,
-  label,
-  size = "small",
-}: {
-  text: string;
-  label: string;
-  size?: "small" | "medium";
-}) {
+function CopyIconButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -146,7 +135,7 @@ function CopyButton({
   return (
     <Tooltip title={copied ? "Copiado!" : label}>
       <IconButton
-        size={size}
+        size="small"
         onClick={handleCopy}
         aria-label={label}
         sx={{
@@ -156,16 +145,113 @@ function CopyButton({
         }}
       >
         {copied ? (
-          <Check sx={{ fontSize: size === "small" ? 14 : 18 }} />
+          <Check sx={{ fontSize: 14 }} />
         ) : (
-          <ContentCopy sx={{ fontSize: size === "small" ? 14 : 18 }} />
+          <ContentCopy sx={{ fontSize: 14 }} />
         )}
       </IconButton>
     </Tooltip>
   );
 }
 
-function TakeCard({ take, index }: { take: Veo3Take; index: number }) {
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
+
+  return (
+    <Button
+      size="small"
+      startIcon={
+        copied ? (
+          <Check sx={{ fontSize: "14px !important" }} />
+        ) : (
+          <ContentCopy sx={{ fontSize: "14px !important" }} />
+        )
+      }
+      onClick={handleCopy}
+      variant="outlined"
+      sx={{
+        fontSize: "0.75rem",
+        color: copied ? "primary.main" : "rgba(255,255,255,0.6)",
+        borderColor: copied ? "rgba(45,212,255,0.3)" : "rgba(255,255,255,0.12)",
+        "&:hover": { color: "#fff", borderColor: "rgba(255,255,255,0.25)" },
+        px: 1.25,
+        py: 0.5,
+        minWidth: 0,
+        transition: "color 0.15s, border-color 0.15s",
+      }}
+    >
+      {copied ? "Copiado!" : label}
+    </Button>
+  );
+}
+
+const fieldSx = {
+  "& .MuiOutlinedInput-root": {
+    fontSize: "0.8125rem",
+    color: "rgba(255,255,255,0.85)",
+    "& fieldset": { borderColor: "rgba(255,255,255,0.08)" },
+    "&:hover fieldset": { borderColor: "rgba(255,255,255,0.18)" },
+    "&.Mui-focused fieldset": { borderColor: "primary.main" },
+  },
+  "& .MuiInputBase-input::placeholder": { color: "rgba(255,255,255,0.2)" },
+};
+
+function FieldLabel({
+  children,
+  badge,
+}: {
+  children: React.ReactNode;
+  badge?: string;
+}) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
+      <Typography
+        sx={{
+          fontSize: "0.65rem",
+          fontWeight: 600,
+          color: "rgba(255,255,255,0.35)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+        }}
+      >
+        {children}
+      </Typography>
+      {badge && (
+        <Box
+          component="span"
+          sx={{
+            fontSize: "0.6rem",
+            color: "rgba(255,255,255,0.25)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 0.75,
+            px: 0.5,
+            py: 0.1,
+            lineHeight: 1.3,
+          }}
+        >
+          {badge}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function TakeEditor({
+  take,
+  onChange,
+}: {
+  take: EditableTake;
+  onChange: (updated: EditableTake) => void;
+}) {
+  const copyText = formatTakeForCopy(take);
+
   return (
     <Box
       sx={{
@@ -175,10 +261,10 @@ function TakeCard({ take, index }: { take: Veo3Take; index: number }) {
         background: "rgba(255,255,255,0.02)",
         display: "flex",
         flexDirection: "column",
-        gap: 0.75,
+        gap: 1.25,
       }}
     >
-      {/* Header row */}
+      {/* Header */}
       <Box
         sx={{
           display: "flex",
@@ -195,55 +281,65 @@ function TakeCard({ take, index }: { take: Veo3Take; index: number }) {
             letterSpacing: "0.06em",
           }}
         >
-          Take {take.index ?? index + 1}
+          Take {take.index}
         </Typography>
-        <CopyButton
-          text={formatTakeForCopy(take)}
-          label={`Copiar take ${take.index ?? index + 1}`}
-        />
+        <CopyIconButton text={copyText} label={`Copiar take ${take.index}`} />
       </Box>
 
       {/* Camera direction */}
       <Box>
-        <Typography
-          sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.35)", mb: 0.25 }}
-        >
-          Câmera
-        </Typography>
-        <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.75)" }}>
-          {take.cameraDirection}
-        </Typography>
+        <FieldLabel badge="EN">Câmera</FieldLabel>
+        <TextField
+          value={take.cameraDirection}
+          onChange={(e) =>
+            onChange({ ...take, cameraDirection: e.target.value })
+          }
+          size="small"
+          fullWidth
+          placeholder="Ex: Medium shot, slow zoom in"
+          inputProps={{
+            "aria-label": `Take ${take.index} — direção de câmera`,
+          }}
+          sx={fieldSx}
+        />
       </Box>
 
       {/* Visual direction */}
       <Box>
-        <Typography
-          sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.35)", mb: 0.25 }}
-        >
-          Visual
-        </Typography>
-        <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.75)" }}>
-          {take.visualDirection}
-        </Typography>
+        <FieldLabel badge="EN">Visual</FieldLabel>
+        <TextField
+          value={take.visualDirection}
+          onChange={(e) =>
+            onChange({ ...take, visualDirection: e.target.value })
+          }
+          size="small"
+          fullWidth
+          multiline
+          minRows={2}
+          placeholder="Ex: Avatar picks up product and holds it to camera. Max 8 seconds."
+          inputProps={{
+            "aria-label": `Take ${take.index} — direção visual`,
+          }}
+          sx={fieldSx}
+        />
       </Box>
 
       {/* Spoken lines */}
       <Box>
-        <Typography
-          sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.35)", mb: 0.25 }}
-        >
-          Fala
-        </Typography>
-        <Typography
-          sx={{
-            fontSize: "0.8rem",
-            color: "#fff",
-            fontStyle: "italic",
-            lineHeight: 1.5,
+        <FieldLabel badge="PT">Fala</FieldLabel>
+        <TextField
+          value={take.spokenLines}
+          onChange={(e) => onChange({ ...take, spokenLines: e.target.value })}
+          size="small"
+          fullWidth
+          multiline
+          minRows={2}
+          placeholder="Diálogo em português que o avatar fala neste take"
+          inputProps={{
+            "aria-label": `Take ${take.index} — fala`,
           }}
-        >
-          &ldquo;{take.spokenLines}&rdquo;
-        </Typography>
+          sx={fieldSx}
+        />
       </Box>
     </Box>
   );
@@ -262,33 +358,29 @@ export function StepPromptEdit({
   const status = creation.status;
   const promptRow = creation.prompt;
 
-  // Initialize the editor with whatever JSON we have from the server.
-  // Re-init whenever the creation's prompt changes (after generate/regenerate).
-  const initialJson =
-    promptRow?.promptJson != null
-      ? JSON.stringify(promptRow.promptJson, null, 2)
-      : "";
+  const [editedTakes, setEditedTakes] = useState<EditableTake[]>(
+    () => promptToTakes(promptRow?.promptJson),
+  );
 
-  const [editedJson, setEditedJson] = useState(initialJson);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
 
-  // Sync editor when a new prompt arrives (e.g. after regenerate)
+  // Sync takes when a new prompt arrives (after generate / regenerate)
   useEffect(() => {
     if (promptRow?.promptJson != null) {
-      setEditedJson(JSON.stringify(promptRow.promptJson, null, 2));
+      setEditedTakes(promptToTakes(promptRow.promptJson));
     }
   }, [promptRow?.promptJson]);
 
-  // Derived: parse to get takes for per-take display
-  const parsedPrompt = tryParseVeo3Prompt(editedJson);
-  const isValidJson = parsedPrompt !== null || editedJson.trim() === "";
-  const takes: Veo3Take[] = parsedPrompt?.takes ?? [];
+  const hasPrompt = status === "PROMPT_READY" && promptRow != null;
 
-  const hasPrompt =
-    status === "PROMPT_READY" && promptRow != null;
+  const updateTake = useCallback((index: number, updated: EditableTake) => {
+    setEditedTakes((prev) => prev.map((t, i) => (i === index ? updated : t)));
+  }, []);
+
+  const copyAllText = editedTakes.map(formatTakeForCopy).join("\n\n---\n\n");
 
   // ── Generate / Regenerate ─────────────────────────────────────────────────
 
@@ -310,7 +402,7 @@ export function StepPromptEdit({
 
       if (!res.ok) {
         setGenerationError(
-          friendlyError(data.error ?? "Erro ao gerar JSON", res.status),
+          data.error ?? "Erro ao gerar roteiro. Tente novamente.",
         );
         return;
       }
@@ -332,17 +424,30 @@ export function StepPromptEdit({
     setCompleteError(null);
 
     try {
-      // 1. Save edited JSON (best-effort — persist whatever the user typed)
-      const promptJson = parsedPrompt ?? undefined;
-      const promptText =
-        parsedPrompt?.prompt ?? (editedJson.trim() || (promptRow?.promptText ?? ""));
+      const originalJson =
+        promptRow?.promptJson != null
+          ? (promptRow.promptJson as Veo3Prompt)
+          : null;
 
+      const updatedJson: Veo3Prompt = {
+        prompt: originalJson?.prompt ?? "",
+        duration: originalJson?.duration ?? editedTakes.length * 8,
+        aspectRatio: originalJson?.aspectRatio ?? "9:16",
+        style: originalJson?.style ?? "ugc",
+        language: originalJson?.language ?? "pt-BR",
+        takes: editedTakes as Veo3Take[],
+      };
+
+      // 1. Save edited takes
       const patchRes = await fetch(
         `/api/avatar-video/creations/${creation.id}/edit-prompt`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ promptText, promptJson }),
+          body: JSON.stringify({
+            promptText: updatedJson.prompt || copyAllText,
+            promptJson: updatedJson,
+          }),
         },
       );
 
@@ -386,10 +491,10 @@ export function StepPromptEdit({
           component="h2"
           sx={{ fontSize: "1rem", fontWeight: 700, color: "#fff", mb: 0.25 }}
         >
-          Roteiro VEO 3
+          Takes VEO 3
         </Typography>
         <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
-          Gere e edite o JSON estruturado para a geração de vídeo com VEO 3
+          Prompts de animação para cada take — edite antes de copiar
         </Typography>
       </Box>
 
@@ -397,8 +502,9 @@ export function StepPromptEdit({
       {!hasPrompt && !generating && (
         <>
           <InfoCallout>
-            O roteiro é gerado automaticamente com base no produto, avatar,
-            cenário e imagens de referência selecionados nas etapas anteriores.
+            Os takes são gerados a partir do conceito aprovado na etapa
+            anterior. Cada take tem no máximo 8 segundos. As direções de câmera
+            e visual são em inglês; as falas são em português.
           </InfoCallout>
 
           {generationError && (
@@ -429,7 +535,7 @@ export function StepPromptEdit({
             fullWidth
             sx={{ borderRadius: 2, py: 1.25, fontWeight: 600 }}
           >
-            Gerar JSON VEO 3
+            Gerar takes
           </Button>
         </>
       )}
@@ -446,89 +552,30 @@ export function StepPromptEdit({
           }}
         >
           <CircularProgress size={28} sx={{ color: "primary.main" }} />
-          <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
-            Gerando roteiro…
+          <Typography
+            sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}
+          >
+            Gerando takes…
           </Typography>
         </Box>
       )}
 
-      {/* ── Prompt ready: editor + actions ──────────────────────────────── */}
+      {/* ── Prompt ready: per-take editors ──────────────────────────────── */}
       {hasPrompt && !generating && (
         <>
-          {/* Toolbar row: validation chip + Copy All + Regenerate */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              flexWrap: "wrap",
-            }}
-          >
-            {/* Validation state chip */}
-            {editedJson.trim() !== "" && (
-              <Chip
-                size="small"
-                icon={
-                  isValidJson ? (
-                    <Check sx={{ fontSize: "14px !important" }} />
-                  ) : (
-                    <WarningAmberRounded sx={{ fontSize: "14px !important" }} />
-                  )
-                }
-                label={isValidJson ? "JSON válido" : "JSON inválido"}
-                sx={{
-                  height: 24,
-                  fontSize: "0.7rem",
-                  bgcolor: isValidJson
-                    ? "rgba(34,197,94,0.12)"
-                    : "rgba(245,158,11,0.12)",
-                  color: isValidJson
-                    ? "rgb(134,239,172)"
-                    : "rgb(252,211,77)",
-                  border: "1px solid",
-                  borderColor: isValidJson
-                    ? "rgba(34,197,94,0.25)"
-                    : "rgba(245,158,11,0.25)",
-                  "& .MuiChip-icon": {
-                    color: "inherit",
-                    ml: "6px",
-                  },
-                }}
-              />
-            )}
-
+          {/* Toolbar */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             <Box sx={{ flex: 1 }} />
 
-            {/* Copy All */}
-            <Tooltip title="Copiar tudo">
-              <Button
-                size="small"
-                startIcon={<ContentCopy sx={{ fontSize: "14px !important" }} />}
-                onClick={() =>
-                  navigator.clipboard.writeText(editedJson).catch(() => {})
-                }
-                sx={{
-                  fontSize: "0.75rem",
-                  color: "rgba(255,255,255,0.6)",
-                  borderColor: "rgba(255,255,255,0.12)",
-                  "&:hover": { color: "#fff", borderColor: "rgba(255,255,255,0.25)" },
-                  px: 1.25,
-                  py: 0.5,
-                  minWidth: 0,
-                }}
-                variant="outlined"
-              >
-                Copiar tudo
-              </Button>
-            </Tooltip>
+            <CopyButton text={copyAllText} label="Copiar todos" />
 
-            {/* Regenerate */}
-            <Tooltip title="Gerar novamente (substitui o JSON atual)">
+            <Tooltip title="Gerar novamente (substitui os takes atuais)">
               <Button
                 size="small"
                 startIcon={<Refresh sx={{ fontSize: "14px !important" }} />}
                 onClick={handleGenerate}
                 disabled={generating}
+                variant="outlined"
                 sx={{
                   fontSize: "0.75rem",
                   color: "rgba(255,255,255,0.6)",
@@ -538,109 +585,25 @@ export function StepPromptEdit({
                   py: 0.5,
                   minWidth: 0,
                 }}
-                variant="outlined"
               >
                 Regenerar
               </Button>
             </Tooltip>
           </Box>
 
-          {/* JSON editor textarea */}
-          <Box
-            sx={{
-              position: "relative",
-              borderRadius: 2,
-              border: "1px solid",
-              borderColor: isValidJson
-                ? "rgba(45,212,255,0.18)"
-                : "rgba(245,158,11,0.35)",
-              background: "rgba(0,0,0,0.3)",
-              transition: "border-color 0.15s",
-              "&:focus-within": {
-                borderColor: isValidJson
-                  ? "primary.main"
-                  : "rgba(245,158,11,0.6)",
-              },
-            }}
-          >
-            <Box
-              component="textarea"
-              value={editedJson}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setEditedJson(e.target.value)
-              }
-              aria-label="JSON do roteiro VEO 3"
-              spellCheck={false}
-              sx={{
-                display: "block",
-                width: "100%",
-                minHeight: 240,
-                maxHeight: 400,
-                resize: "vertical",
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                p: 1.5,
-                fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-                fontSize: "0.75rem",
-                lineHeight: 1.6,
-                color: "rgba(255,255,255,0.85)",
-                caretColor: "#2DD4FF",
-                boxSizing: "border-box",
-                "&::placeholder": { color: "rgba(255,255,255,0.2)" },
-              }}
-            />
-          </Box>
-
-          {/* Invalid JSON warning */}
-          {!isValidJson && editedJson.trim() !== "" && (
-            <Box
-              role="alert"
-              sx={{
-                display: "flex",
-                gap: 1,
-                p: 1.25,
-                borderRadius: 2,
-                background: "rgba(245,158,11,0.08)",
-                border: "1px solid rgba(245,158,11,0.2)",
-              }}
-            >
-              <WarningAmberRounded
-                sx={{
-                  fontSize: 15,
-                  color: "rgb(252,211,77)",
-                  flexShrink: 0,
-                  mt: "1px",
-                }}
-              />
-              <Typography sx={{ fontSize: "0.75rem", color: "rgb(252,211,77)", lineHeight: 1.5 }}>
-                O JSON editado contém erros de sintaxe. Você ainda pode copiar e
-                usar o conteúdo, mas o roteiro não será salvo como estruturado.
-              </Typography>
-            </Box>
-          )}
-
-          {/* Per-take cards (only when JSON is valid and has takes) */}
-          {takes.length > 0 && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              <Typography
-                sx={{
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "rgba(255,255,255,0.4)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                Takes ({takes.length})
-              </Typography>
-              {takes.map((take, i) => (
-                <TakeCard key={take.index ?? i} take={take} index={i} />
+          {/* Per-take editors */}
+          {editedTakes.length > 0 && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+              {editedTakes.map((take, i) => (
+                <TakeEditor
+                  key={take.index}
+                  take={take}
+                  onChange={(updated) => updateTake(i, updated)}
+                />
               ))}
             </Box>
           )}
 
-          {/* Generation error (after having a prompt — e.g. regeneration failed) */}
           {generationError && (
             <Box
               role="alert"
@@ -662,7 +625,6 @@ export function StepPromptEdit({
             </Box>
           )}
 
-          {/* Save & Complete error */}
           {completeError && (
             <Box
               role="alert"
@@ -688,7 +650,6 @@ export function StepPromptEdit({
 
       {/* ── Action row ──────────────────────────────────────────────────── */}
       <Box sx={{ display: "flex", gap: 1, pt: 0.5 }}>
-        {/* Back */}
         <Button
           variant="text"
           startIcon={<ArrowBack />}
@@ -705,7 +666,6 @@ export function StepPromptEdit({
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Finish */}
         {hasPrompt && (
           <Button
             variant="contained"

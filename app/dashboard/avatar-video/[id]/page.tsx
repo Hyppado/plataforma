@@ -18,11 +18,12 @@ import {
 import { StepAvatarSelect } from "@/app/components/avatar-video/StepAvatarSelect";
 import { StepScenarioSelect } from "@/app/components/avatar-video/StepScenarioSelect";
 import { StepImageGenerate } from "@/app/components/avatar-video/StepImageGenerate";
+import { StepConceptEdit } from "@/app/components/avatar-video/StepConceptEdit";
 import { StepPromptEdit } from "@/app/components/avatar-video/StepPromptEdit";
 import { StepDelivery } from "@/app/components/avatar-video/StepDelivery";
 import type { CreationDTO } from "@/lib/avatar-video/types";
 
-const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Roteiro"];
+const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Conceito", "Roteiro"];
 
 function AvatarVideoCreationContent() {
   const router = useRouter();
@@ -58,13 +59,19 @@ function AvatarVideoCreationContent() {
   const handleImageContinue = async () => {
     await mutate();
     setLocalCreation(null);
-    setStep(4);
+    setStep(4); // → concept step
+  };
+
+  const handleConceptContinue = async () => {
+    await mutate();
+    setLocalCreation(null);
+    setStep(5); // → prompt step
   };
 
   const handlePromptComplete = () => {
     // Show delivery screen with the completed creation
     setDeliveryCreation(localCreation ?? creation ?? null);
-    setStep(5);
+    setStep(6);
   };
 
   const handleCreateAnother = () => {
@@ -109,7 +116,7 @@ function AvatarVideoCreationContent() {
       </Box>
 
       {/* Stepper — hidden on delivery screen */}
-      <Box sx={{ flexShrink: 0, mb: 2, display: step === 5 ? "none" : "block" }}>
+      <Box sx={{ flexShrink: 0, mb: 2, display: step === 6 ? "none" : "block" }}>
         <Stepper
           activeStep={step}
           alternativeLabel
@@ -275,8 +282,29 @@ function AvatarVideoCreationContent() {
           </Box>
         )}
 
-        {/* Step 4 — VEO 3 prompt editing */}
+        {/* Step 4 — AI concept review and editing */}
         {!isLoading && !error && activeCreation && step === 4 && (
+          <Box
+            sx={{
+              maxWidth: 480,
+              mx: "auto",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(45,212,255,0.08)",
+              borderRadius: 4,
+              p: { xs: 3, sm: 4 },
+            }}
+          >
+            <StepConceptEdit
+              creation={activeCreation}
+              onCreationUpdate={(updated) => setLocalCreation(updated)}
+              onContinue={handleConceptContinue}
+              onBack={() => setStep(3)}
+            />
+          </Box>
+        )}
+
+        {/* Step 5 — VEO 3 take prompt editor */}
+        {!isLoading && !error && activeCreation && step === 5 && (
           <Box
             sx={{
               maxWidth: 480,
@@ -291,13 +319,13 @@ function AvatarVideoCreationContent() {
               creation={activeCreation}
               onCreationUpdate={(updated) => setLocalCreation(updated)}
               onComplete={handlePromptComplete}
-              onBack={() => setStep(3)}
+              onBack={() => setStep(4)}
             />
           </Box>
         )}
 
-        {/* Step 5 — Delivery screen */}
-        {step === 5 && deliveryCreation && (
+        {/* Step 6 — Delivery screen */}
+        {step === 6 && deliveryCreation && (
           <Box
             sx={{
               maxWidth: 480,

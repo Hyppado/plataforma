@@ -769,6 +769,82 @@ export async function startPromptGeneration(
 }
 
 // ---------------------------------------------------------------------------
+// Save edited concept
+// ---------------------------------------------------------------------------
+
+/**
+ * Persists user-edited concept fields to the AvatarVideoConcept row.
+ * Only allowed when status is CONCEPT_READY.
+ * Sets isEdited = true and records editedAt timestamp.
+ */
+export async function saveEditedConcept(
+  userId: string,
+  creationId: string,
+  data: {
+    videoIdea: string;
+    hook: string;
+    copy: string;
+    cta: string;
+    scenes: ConceptScene[];
+  },
+): Promise<ServiceResult<CreationDTO>> {
+  try {
+    const loadResult = await loadOwnedCreation(creationId, userId);
+    if (!loadResult.ok) return loadResult;
+    const creation = loadResult.data;
+
+    if (creation.status !== "CONCEPT_READY") {
+      return {
+        ok: false,
+        error: `Edição de conceito requer status CONCEPT_READY (atual: "${creation.status}").`,
+        code: "invalid_state",
+      };
+    }
+
+    if (!creation.concept) {
+      return {
+        ok: false,
+        error: "Conceito não encontrado para esta criação.",
+        code: "not_found",
+      };
+    }
+
+    await prisma.avatarVideoConcept.update({
+      where: { creationId },
+      data: {
+        videoIdea: data.videoIdea,
+        hook: data.hook,
+        copy: data.copy,
+        cta: data.cta,
+        scenesJson: data.scenes as object[],
+        isEdited: true,
+        editedAt: new Date(),
+      },
+    });
+
+    const updated = await prisma.avatarVideoCreation.findUniqueOrThrow({
+      where: { id: creationId },
+      include: creationInclude,
+    });
+
+    log.info("Edited concept saved", { userId, creationId });
+    return { ok: true, data: toCreationDTO(updated) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("Failed to save edited concept", {
+      userId,
+      creationId,
+      error: message,
+    });
+    return {
+      ok: false,
+      error: "Erro ao salvar conceito editado.",
+      code: "internal",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Save edited prompt
 // ---------------------------------------------------------------------------
 
