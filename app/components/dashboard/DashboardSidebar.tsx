@@ -25,6 +25,7 @@ import {
   FiberNew,
   HelpOutline,
   AutoAwesome,
+  FaceRetouchingNatural,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -44,6 +45,16 @@ const NAV_SECTIONS = [
       { label: "Produtos Hype", icon: Whatshot, href: "/dashboard/trends" },
       { label: "Novos Produtos", icon: FiberNew, href: "/dashboard/products" },
       { label: "Creators", icon: Person, href: "/dashboard/creators" },
+    ],
+  },
+  {
+    label: "FERRAMENTAS",
+    items: [
+      {
+        label: "Influencer IA",
+        icon: FaceRetouchingNatural,
+        href: "/dashboard/influencer-ia",
+      },
     ],
   },
   {

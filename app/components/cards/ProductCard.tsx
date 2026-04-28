@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Box,
   Typography,
@@ -18,6 +19,7 @@ import {
   Paid,
   ShoppingCart,
   Videocam,
+  FaceRetouchingNatural,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
@@ -427,6 +429,31 @@ export function ProductCard({
             }}
           >
             Criar vídeo
+          </Button>
+
+          <Button
+            fullWidth
+            variant="outlined"
+            component={Link}
+            href={`/dashboard/influencer-ia?productId=${product.id}&productImageUrl=${encodeURIComponent(product.imageUrl)}&productName=${encodeURIComponent(product.name)}&productCategory=${encodeURIComponent(product.category ?? "")}`}
+            startIcon={<FaceRetouchingNatural sx={{ fontSize: { xs: 14, md: 16 } }} />}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            sx={{
+              color: "rgba(45,212,255,0.85)",
+              borderColor: "rgba(45,212,255,0.25)",
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", md: "0.85rem" },
+              textTransform: "none",
+              borderRadius: 2,
+              py: { xs: 0.75, md: 1 },
+              "&:hover": {
+                borderColor: "primary.main",
+                background: "rgba(45,212,255,0.06)",
+              },
+              transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Influencer IA
           </Button>
         </Box>
       </Box>
