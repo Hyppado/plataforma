@@ -203,14 +203,11 @@ async function fetchImageBuffer(
 export async function generateInfluencerImage(
   input: InfluencerImageInput,
 ): Promise<InfluencerImageResult> {
-  const [googleApiKey, openaiApiKey] = await Promise.all([
-    getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY),
-    getSecretSetting(SETTING_KEYS.OPENAI_API_KEY),
-  ]);
+  const googleApiKey = await getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY);
 
-  if (!googleApiKey && !openaiApiKey) {
+  if (!googleApiKey) {
     throw new Error(
-      "Nenhuma chave de IA configurada. Configure Google AI Studio ou OpenAI no painel de administração.",
+      "Chave Google AI Studio não configurada. Configure no painel de administração.",
     );
   }
 
@@ -222,7 +219,7 @@ export async function generateInfluencerImage(
     pose: input.pose,
     environment: input.environment,
     style: input.style,
-    provider: googleApiKey ? "google-ai" : "openai",
+    provider: "google-ai",
   });
 
   const [avatarFetch, productFetch] = await Promise.all([
@@ -230,39 +227,12 @@ export async function generateInfluencerImage(
     input.productImageUrl ? fetchImageBuffer(input.productImageUrl) : null,
   ]);
 
-  let buffer: Buffer | null = null;
-
-  // ── 1. Try Google AI Studio (Gemini) ──────────────────────────────────────
-  if (googleApiKey) {
-    try {
-      buffer = await generateWithGemini(
-        googleApiKey,
-        promptText,
-        avatarFetch,
-        productFetch,
-      );
-    } catch (err) {
-      log.warn("Google AI generation failed, falling back to OpenAI", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      buffer = null;
-    }
-  }
-
-  // ── 2. Fall back to OpenAI gpt-image-1 ───────────────────────────────────
-  if (!buffer) {
-    if (!openaiApiKey) {
-      throw new Error(
-        "Geração com Google AI falhou e a chave OpenAI não está configurada.",
-      );
-    }
-    buffer = await generateWithOpenAI(
-      openaiApiKey,
-      promptText,
-      avatarFetch,
-      productFetch,
-    );
-  }
+  const buffer = await generateWithGemini(
+    googleApiKey,
+    promptText,
+    avatarFetch,
+    productFetch,
+  );
 
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const blobPath = `influencer-ia/${fileId}.png`;
@@ -277,7 +247,7 @@ export async function generateInfluencerImage(
 }
 
 // ---------------------------------------------------------------------------
-// Google AI Studio (gemini-2.0-flash-preview-image-generation)
+// Google AI Studio (gemini-2.0-flash-exp)
 // ---------------------------------------------------------------------------
 
 async function generateWithGemini(
@@ -363,97 +333,4 @@ async function generateWithGemini(
   }
 
   return Buffer.from(imagePart.inlineData.data, "base64");
-}
-
-// ---------------------------------------------------------------------------
-// OpenAI gpt-image-1 (fallback)
-// ---------------------------------------------------------------------------
-
-async function generateWithOpenAI(
-  apiKey: string,
-  promptText: string,
-  avatarFetch: { buffer: Buffer; contentType: string } | null,
-  productFetch: { buffer: Buffer; contentType: string } | null,
-): Promise<Buffer> {
-  const hasReferences = !!(avatarFetch || productFetch);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 110_000);
-
-  let response: Response;
-  try {
-    if (hasReferences) {
-      const form = new FormData();
-      form.append("model", "gpt-image-1");
-      form.append("prompt", promptText);
-      form.append("n", "1");
-      form.append("size", "1024x1536");
-      form.append("quality", "medium");
-
-      if (avatarFetch) {
-        form.append(
-          "image[]",
-          new Blob([new Uint8Array(avatarFetch.buffer)], {
-            type: avatarFetch.contentType,
-          }),
-          "avatar.png",
-        );
-      }
-      if (productFetch) {
-        form.append(
-          "image[]",
-          new Blob([new Uint8Array(productFetch.buffer)], {
-            type: productFetch.contentType,
-          }),
-          "product.png",
-        );
-      }
-
-      response = await fetch("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
-        signal: controller.signal,
-      });
-    } else {
-      response = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          prompt: promptText,
-          n: 1,
-          size: "1024x1536",
-          quality: "medium",
-        }),
-        signal: controller.signal,
-      });
-    }
-  } catch (err) {
-    clearTimeout(timeout);
-    if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Tempo limite da OpenAI excedido (110s)");
-    }
-    throw err;
-  }
-  clearTimeout(timeout);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
-    throw new Error(
-      `OpenAI falhou (${response.status}): ${errorText.slice(0, 200)}`,
-    );
-  }
-
-  const data = (await response.json()) as {
-    data?: Array<{ b64_json?: string }>;
-  };
-  const b64 = data.data?.[0]?.b64_json;
-  if (!b64 || typeof b64 !== "string") {
-    throw new Error("OpenAI retornou resposta inválida (sem imagem base64)");
-  }
-
-  return Buffer.from(b64, "base64");
 }
