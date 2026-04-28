@@ -24,6 +24,7 @@ import { SupportEmailSection } from "@/app/components/admin/SupportEmailSection"
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
+import { GoogleAITab } from "@/app/components/admin/google-ai/GoogleAITab";
 import { UsersTab } from "@/app/components/admin/users/UsersTab";
 import CircularProgress from "@mui/material/CircularProgress";
 
@@ -128,6 +129,7 @@ export default function ConfigPage() {
         <Tab label="Echotik" />
         <Tab label="Hotmart" />
         <Tab label="OpenAI" />
+        <Tab label="Google AI" />
       </Tabs>
 
       {/* Tab 0 — Geral (Prompts) */}
@@ -163,6 +165,9 @@ export default function ConfigPage() {
 
       {/* Tab 4 — OpenAI */}
       {activeTab === 4 && <OpenAITab />}
+
+      {/* Tab 5 — Google AI */}
+      {activeTab === 5 && <GoogleAITab />}
     </Box>
   );
 }

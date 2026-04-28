@@ -1,8 +1,11 @@
 /**
  * lib/influencer-ia/generate.ts
  *
- * Builds the prompt and calls OpenAI gpt-image-1 to produce a single
- * UGC-style influencer image, then uploads the result to Vercel Blob.
+ * Generates UGC-style influencer images.
+ *
+ * Strategy:
+ *   1. Try Google AI Studio (gemini-2.0-flash-preview-image-generation) if key is configured.
+ *   2. Fall back to OpenAI gpt-image-1 if Google AI key is absent or the call fails.
  */
 
 import { createLogger } from "@/lib/logger";
@@ -198,10 +201,14 @@ async function fetchImageBuffer(
 export async function generateInfluencerImage(
   input: InfluencerImageInput,
 ): Promise<InfluencerImageResult> {
-  const apiKey = await getSecretSetting(SETTING_KEYS.OPENAI_API_KEY);
-  if (!apiKey) {
+  const [googleApiKey, openaiApiKey] = await Promise.all([
+    getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY),
+    getSecretSetting(SETTING_KEYS.OPENAI_API_KEY),
+  ]);
+
+  if (!googleApiKey && !openaiApiKey) {
     throw new Error(
-      "Chave OpenAI não configurada. Configure no painel de administração.",
+      "Nenhuma chave de IA configurada. Configure Google AI Studio ou OpenAI no painel de administração.",
     );
   }
 
@@ -213,6 +220,7 @@ export async function generateInfluencerImage(
     pose: input.pose,
     environment: input.environment,
     style: input.style,
+    provider: googleApiKey ? "google-ai" : "openai",
   });
 
   const [avatarFetch, productFetch] = await Promise.all([
@@ -220,6 +228,151 @@ export async function generateInfluencerImage(
     input.productImageUrl ? fetchImageBuffer(input.productImageUrl) : null,
   ]);
 
+  let buffer: Buffer | null = null;
+
+  // ── 1. Try Google AI Studio (Gemini) ──────────────────────────────────────
+  if (googleApiKey) {
+    try {
+      buffer = await generateWithGemini(
+        googleApiKey,
+        promptText,
+        avatarFetch,
+        productFetch,
+      );
+    } catch (err) {
+      log.warn("Google AI generation failed, falling back to OpenAI", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      buffer = null;
+    }
+  }
+
+  // ── 2. Fall back to OpenAI gpt-image-1 ───────────────────────────────────
+  if (!buffer) {
+    if (!openaiApiKey) {
+      throw new Error(
+        "Geração com Google AI falhou e a chave OpenAI não está configurada.",
+      );
+    }
+    buffer = await generateWithOpenAI(
+      openaiApiKey,
+      promptText,
+      avatarFetch,
+      productFetch,
+    );
+  }
+
+  const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const blobPath = `influencer-ia/${fileId}.png`;
+  const blobUrl = await uploadBufferToBlob(buffer, blobPath, "image/png");
+
+  if (!blobUrl) {
+    throw new Error("Falha ao fazer upload da imagem gerada");
+  }
+
+  log.info("Influencer image generated", { blobUrl });
+  return { imageUrl: blobUrl };
+}
+
+// ---------------------------------------------------------------------------
+// Google AI Studio (gemini-2.0-flash-preview-image-generation)
+// ---------------------------------------------------------------------------
+
+async function generateWithGemini(
+  apiKey: string,
+  promptText: string,
+  avatarFetch: { buffer: Buffer; contentType: string } | null,
+  productFetch: { buffer: Buffer; contentType: string } | null,
+): Promise<Buffer> {
+  const GEMINI_MODEL = "gemini-2.0-flash-preview-image-generation";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+  // Build parts — text first, then inline image data
+  const parts: unknown[] = [{ text: promptText }];
+
+  if (avatarFetch) {
+    parts.push({
+      inlineData: {
+        mimeType: avatarFetch.contentType,
+        data: avatarFetch.buffer.toString("base64"),
+      },
+    });
+  }
+  if (productFetch) {
+    parts.push({
+      inlineData: {
+        mimeType: productFetch.contentType,
+        data: productFetch.buffer.toString("base64"),
+      },
+    });
+  }
+
+  const body = {
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      responseModalities: ["IMAGE", "TEXT"],
+    },
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 110_000);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Tempo limite do Google AI excedido (110s)");
+    }
+    throw err;
+  }
+  clearTimeout(timeout);
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "Unknown error");
+    throw new Error(
+      `Google AI falhou (${response.status}): ${errorText.slice(0, 300)}`,
+    );
+  }
+
+  const data = (await response.json()) as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          text?: string;
+          inlineData?: { mimeType?: string; data?: string };
+        }>;
+      };
+    }>;
+  };
+
+  const imagePart = data.candidates
+    ?.flatMap((c) => c.content?.parts ?? [])
+    .find((p) => p.inlineData?.data);
+
+  if (!imagePart?.inlineData?.data) {
+    throw new Error("Google AI não retornou imagem na resposta");
+  }
+
+  return Buffer.from(imagePart.inlineData.data, "base64");
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI gpt-image-1 (fallback)
+// ---------------------------------------------------------------------------
+
+async function generateWithOpenAI(
+  apiKey: string,
+  promptText: string,
+  avatarFetch: { buffer: Buffer; contentType: string } | null,
+  productFetch: { buffer: Buffer; contentType: string } | null,
+): Promise<Buffer> {
   const hasReferences = !!(avatarFetch || productFetch);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 110_000);
@@ -300,15 +453,5 @@ export async function generateInfluencerImage(
     throw new Error("OpenAI retornou resposta inválida (sem imagem base64)");
   }
 
-  const buffer = Buffer.from(b64, "base64");
-  const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const blobPath = `influencer-ia/${fileId}.png`;
-  const blobUrl = await uploadBufferToBlob(buffer, blobPath, "image/png");
-
-  if (!blobUrl) {
-    throw new Error("Falha ao fazer upload da imagem gerada");
-  }
-
-  log.info("Influencer image generated", { blobUrl });
-  return { imageUrl: blobUrl };
+  return Buffer.from(b64, "base64");
 }
