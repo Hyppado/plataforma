@@ -24,6 +24,7 @@ import {
   Whatshot,
   FiberNew,
   HelpOutline,
+  AutoAwesome,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -57,6 +58,11 @@ const NAV_SECTIONS = [
         label: "Produtos salvos",
         icon: Inventory2,
         href: "/dashboard/produtos-salvos",
+      },
+      {
+        label: "Meus Prompts",
+        icon: AutoAwesome,
+        href: "/dashboard/meus-prompts",
       },
     ],
   },

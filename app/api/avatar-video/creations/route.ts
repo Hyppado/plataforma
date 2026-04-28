@@ -18,6 +18,7 @@ import { createLogger } from "@/lib/logger";
 import {
   getOrCreateDraftCreation,
   updateCreationProduct,
+  listCreations,
 } from "@/lib/avatar-video/service";
 import type { ProductSelection } from "@/lib/avatar-video/types";
 
@@ -187,6 +188,31 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.error("POST /api/avatar-video/creations failed", {
+      userId: auth.userId,
+      error: message,
+    });
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth();
+  if (!isAuthed(auth)) return auth;
+
+  const url = new URL(req.url);
+  const limitParam = url.searchParams.get("limit");
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 20, 100) : 20;
+
+  try {
+    const result = await listCreations(auth.userId, { limit, cursor });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    return NextResponse.json({ creations: result.data });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("GET /api/avatar-video/creations failed", {
       userId: auth.userId,
       error: message,
     });
