@@ -262,15 +262,15 @@ async function _fetchImageBuffer(
 }
 
 // ---------------------------------------------------------------------------
-// gpt-image-1 image editing with reference images + Vercel Blob upload
+// gpt-image-2 image editing with reference images + Vercel Blob upload
 // ---------------------------------------------------------------------------
 
 /**
- * @internal Calls the OpenAI Images edits API (gpt-image-1) to compose a
+ * @internal Calls the OpenAI Images edits API (gpt-image-2) to compose a
  * reference image from the avatar photo and product image, then uploads the
  * base64-encoded result directly to Vercel Blob.
  *
- * We use `/v1/images/edits` (multipart) so that gpt-image-1 can use the
+ * We use `/v1/images/edits` (multipart) so that gpt-image-2 can use the
  * actual avatar face and the actual product as visual anchors — rather than
  * hallucinating both from a text description alone.
  *
@@ -321,7 +321,7 @@ async function _callImageGenerationAPI(
     if (hasReferences) {
       // --- /v1/images/edits (multipart) with reference images ---
       const form = new FormData();
-      form.append("model", "gpt-image-1");
+      form.append("model", "gpt-image-2");
       form.append("prompt", promptText);
       form.append("n", "1");
       form.append("size", "1024x1024");
@@ -361,7 +361,7 @@ async function _callImageGenerationAPI(
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-image-1",
+          model: "gpt-image-2",
           prompt: promptText,
           n: 1,
           size: "1024x1024",

@@ -19,6 +19,7 @@ import { StepAvatarSelect } from "@/app/components/avatar-video/StepAvatarSelect
 import { StepScenarioSelect } from "@/app/components/avatar-video/StepScenarioSelect";
 import { StepImageGenerate } from "@/app/components/avatar-video/StepImageGenerate";
 import { StepPromptEdit } from "@/app/components/avatar-video/StepPromptEdit";
+import { StepDelivery } from "@/app/components/avatar-video/StepDelivery";
 import type { CreationDTO } from "@/lib/avatar-video/types";
 
 const STEPS = ["Produto", "Avatar", "Cenário", "Imagem", "Roteiro"];
@@ -35,7 +36,8 @@ function AvatarVideoCreationContent() {
   const [localCreation, setLocalCreation] = useState<CreationDTO | null>(null);
   const activeCreation = localCreation ?? creation;
 
-  const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm
+  const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm, 5 = delivery
+  const [deliveryCreation, setDeliveryCreation] = useState<CreationDTO | null>(null);
 
   const handleContinue = () =>
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -60,6 +62,16 @@ function AvatarVideoCreationContent() {
   };
 
   const handlePromptComplete = () => {
+    // Show delivery screen with the completed creation
+    setDeliveryCreation(localCreation ?? creation ?? null);
+    setStep(5);
+  };
+
+  const handleCreateAnother = () => {
+    router.push("/dashboard/trends");
+  };
+
+  const handleBackToProducts = () => {
     router.push("/dashboard/trends");
   };
 
@@ -96,8 +108,8 @@ function AvatarVideoCreationContent() {
         </Typography>
       </Box>
 
-      {/* Stepper */}
-      <Box sx={{ flexShrink: 0, mb: 2 }}>
+      {/* Stepper — hidden on delivery screen */}
+      <Box sx={{ flexShrink: 0, mb: 2, display: step === 5 ? "none" : "block" }}>
         <Stepper
           activeStep={step}
           alternativeLabel
@@ -280,6 +292,26 @@ function AvatarVideoCreationContent() {
               onCreationUpdate={(updated) => setLocalCreation(updated)}
               onComplete={handlePromptComplete}
               onBack={() => setStep(3)}
+            />
+          </Box>
+        )}
+
+        {/* Step 5 — Delivery screen */}
+        {step === 5 && deliveryCreation && (
+          <Box
+            sx={{
+              maxWidth: 480,
+              mx: "auto",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(45,212,255,0.08)",
+              borderRadius: 4,
+              p: { xs: 3, sm: 4 },
+            }}
+          >
+            <StepDelivery
+              creation={deliveryCreation}
+              onCreateAnother={handleCreateAnother}
+              onBackToProducts={handleBackToProducts}
             />
           </Box>
         )}
