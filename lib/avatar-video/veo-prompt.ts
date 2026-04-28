@@ -22,7 +22,7 @@ import type {
   VideoScenario,
   AvatarVideoImageVariation,
 } from "@prisma/client";
-import type { ServiceResult } from "./types";
+import type { ServiceResult, VideoConcept } from "./types";
 
 const log = createLogger("avatar-video/veo-prompt");
 
@@ -81,10 +81,18 @@ const DEFAULT_SYSTEM_PROMPT =
 
 /**
  * Assembles the full OpenAI messages array for VEO 3 prompt generation.
- * Includes product data, avatar, scenario, image references, and creative preferences.
+ * Includes product data, avatar, scenario, image references, and concept data.
+ *
+ * When a concept is provided, the prompt instructs the model to translate each
+ * concept scene into a concrete VEO 3 take:
+ *   - cameraDirection & visualDirection: written in English (VEO 3 is English-first)
+ *   - spokenLines: exact Portuguese dialogue from the concept hook/copy/cta
+ *
+ * Max 8 seconds per take is enforced in the instructions.
  *
  * @param systemPrompt  Admin-configurable system prompt override. Falls back to the
  *                      built-in default when null or undefined.
+ * @param concept       Optional approved concept from the generate-concept stage.
  */
 export function buildVeoPromptMessages(
   creation: AvatarVideoCreation,
@@ -92,6 +100,7 @@ export function buildVeoPromptMessages(
   scenario: VideoScenario | null,
   readyImageVariations: AvatarVideoImageVariation[],
   systemPrompt?: string | null,
+  concept?: VideoConcept | null,
 ): { role: "system" | "user"; content: string }[] {
   const imageBlobUrls = readyImageVariations
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -131,10 +140,12 @@ export function buildVeoPromptMessages(
   const takesSchema = JSON.stringify(
     Array.from({ length: takeCount }, (_, i) => ({
       index: i + 1,
-      cameraDirection: "string — enquadramento e movimento de câmera",
+      cameraDirection:
+        "string — framing and camera movement in English (e.g. 'medium shot, stable camera, slight zoom in')",
       visualDirection:
-        "string — o que o avatar faz e como interage com o produto",
-      spokenLines: "string — falas exatas do avatar neste take",
+        "string — what the avatar does and how they interact with the product, in English. Max 8 seconds per take.",
+      spokenLines:
+        "string — exact spoken dialogue for this take in Portuguese (pt-BR)",
     })),
     null,
     2,
@@ -142,28 +153,53 @@ export function buildVeoPromptMessages(
 
   const schemaExample = JSON.stringify(
     {
-      prompt: "string — descrição geral do vídeo para VEO 3",
+      prompt: "string — overall VEO 3 video description in English",
       duration: takeCount * 8,
       aspectRatio: "9:16",
       style: "ugc",
       language: "pt-BR",
-      takes: `[/* ${takeCount} take(s) — veja estrutura abaixo */]`,
+      takes: `[/* ${takeCount} take(s) — see structure below */]`,
     },
     null,
     2,
   );
 
+  const conceptSection: string[] = [];
+  if (concept) {
+    conceptSection.push("");
+    conceptSection.push("Approved video concept (use this as the creative direction for each take):");
+    conceptSection.push(`Video idea: ${concept.videoIdea}`);
+    conceptSection.push(`Hook (opening line): ${concept.hook}`);
+    if (concept.copy) conceptSection.push(`Copy/script: ${concept.copy}`);
+    if (concept.cta) conceptSection.push(`CTA: ${concept.cta}`);
+    if (concept.scenes && concept.scenes.length > 0) {
+      conceptSection.push("Scenes:");
+      concept.scenes.forEach((s) => {
+        conceptSection.push(
+          `  Scene ${s.sceneNumber} — Goal: ${s.goal}. Description: ${s.description}`,
+        );
+      });
+    }
+    conceptSection.push(
+      "For each take, translate the corresponding scene into camera/visual directions in English, " +
+        "and use the hook/copy/cta as the spoken dialogue in Portuguese. Max 8 seconds per take.",
+    );
+  }
+
   const userMessage = [
-    "Com base nas informações abaixo, gere um prompt estruturado para VEO 3 em formato JSON.",
-    "O prompt deve ser otimizado para um vídeo UGC no formato 9:16 para TikTok Shop.",
-    "Responda SOMENTE com JSON válido, sem markdown. Estrutura esperada:",
+    "Based on the information below, generate a structured VEO 3 prompt in JSON format.",
+    "The prompt must be optimized for a UGC video in 9:16 format for TikTok Shop.",
+    "cameraDirection and visualDirection must be in English. spokenLines must be in Portuguese (pt-BR).",
+    "Each take must be max 8 seconds.",
+    "Respond ONLY with valid JSON, no markdown. Expected structure:",
     schemaExample,
     "",
-    `Estrutura de cada take (gere exatamente ${takeCount} take(s)):`,
+    `Structure of each take (generate exactly ${takeCount} take(s)):`,
     takesSchema,
     "",
-    "Contexto:",
+    "Context:",
     ...contextParts,
+    ...conceptSection,
   ].join("\n");
 
   return [
@@ -255,12 +291,16 @@ export async function callVeoPromptGeneration(
  * Generates the VEO 3 prompt for a creation, persists it, and returns the result.
  * Creates or resets the AvatarVideoPrompt row to PROCESSING before calling OpenAI,
  * then marks it READY or FAILED based on the outcome.
+ *
+ * @param concept  Optional approved concept from the generate-concept stage.
+ *                 When provided, the model uses it as creative direction for each take.
  */
 export async function generateAndPersistVeoPrompt(
   creation: AvatarVideoCreation,
   avatar: AvatarProfile | null,
   scenario: VideoScenario | null,
   readyImageVariations: AvatarVideoImageVariation[],
+  concept?: VideoConcept | null,
 ): Promise<ServiceResult<GenerateVeoPromptResult>> {
   // Upsert prompt row in PROCESSING state
   const promptRow = await prisma.avatarVideoPrompt.upsert({
@@ -290,6 +330,7 @@ export async function generateAndPersistVeoPrompt(
     scenario,
     readyImageVariations,
     systemPromptTemplate,
+    concept,
   );
   const result = await callVeoPromptGeneration(messages);
 

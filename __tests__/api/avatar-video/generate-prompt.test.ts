@@ -3,7 +3,7 @@
  *
  * POST /api/avatar-video/creations/:id/generate-prompt
  *
- * Coverage: auth, IMAGES_READY → PROMPT_READY (first generation),
+ * Coverage: auth, CONCEPT_READY → PROMPT_READY (first generation),
  *           PROMPT_READY → PROMPT_READY (regeneration),
  *           not_found (404), invalid_state (409), internal (500),
  *           success response shape (creation + prompt).
@@ -102,7 +102,7 @@ describe("POST /api/avatar-video/creations/[id]/generate-prompt — auth", () =>
 });
 
 // ---------------------------------------------------------------------------
-// Success: IMAGES_READY → PROMPT_READY (first generation)
+// Success: CONCEPT_READY → PROMPT_READY (first generation)
 // ---------------------------------------------------------------------------
 
 describe("POST — first prompt generation", () => {
@@ -196,7 +196,7 @@ describe("POST — error handling", () => {
   it("returns 409 when status does not allow prompt generation", async () => {
     startPromptGenerationMock.mockResolvedValue({
       ok: false,
-      error: "Geração de prompt requer status IMAGES_READY.",
+      error: "Geração de prompt requer status CONCEPT_READY ou PROMPT_READY (atual: \"DRAFT\").",
       code: "invalid_state",
     });
 

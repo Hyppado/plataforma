@@ -87,6 +87,7 @@ export const SETTING_KEYS = {
   OPENAI_WHISPER_MODEL: "openai.whisper_model",
   OPENAI_WHISPER_LANGUAGE: "openai.whisper_language",
   AVATAR_VIDEO_PROMPT_TEMPLATE: "avatar_video.prompt_template",
+  AVATAR_VIDEO_CONCEPT_TEMPLATE: "avatar_video.concept_template",
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -637,7 +637,7 @@ describe("selectImageVariation()", () => {
 describe("startPromptGeneration()", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns invalid_state when status is not IMAGES_READY or PROMPT_READY", async () => {
+  it("returns invalid_state when status is not CONCEPT_READY or PROMPT_READY", async () => {
     const creation = makeDraft({ status: "DRAFT" });
     (
       prismaMock.avatarVideoCreation.findUnique as ReturnType<typeof vi.fn>
@@ -654,7 +654,7 @@ describe("startPromptGeneration()", () => {
       status: "PENDING",
     });
     const creation = makeDraft({
-      status: "IMAGES_READY",
+      status: "CONCEPT_READY",
       imageVariations: [pendingVariation],
     });
     (
@@ -676,7 +676,7 @@ describe("startPromptGeneration()", () => {
       blobUrl: "https://blob/img.jpg",
     });
     const creation = makeDraft({
-      status: "IMAGES_READY",
+      status: "CONCEPT_READY",
       imageVariations: [readyVariation],
     });
     const promptReadyCreation = {
@@ -753,7 +753,7 @@ describe("startPromptGeneration()", () => {
   it("marks creation FAILED and returns ServiceErr when prompt generation fails", async () => {
     const readyVariation = buildAvatarVideoImageVariation({ status: "READY" });
     const creation = makeDraft({
-      status: "IMAGES_READY",
+      status: "CONCEPT_READY",
       imageVariations: [readyVariation],
     });
 

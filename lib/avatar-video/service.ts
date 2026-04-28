@@ -34,6 +34,8 @@ import {
 import { QuotaExceededError } from "@/lib/usage";
 import { buildImagePromptText, generateImageVariation } from "./image-prompt";
 import { generateAndPersistVeoPrompt } from "./veo-prompt";
+import { generateAndPersistConcept } from "./concept";
+import type { ConceptScene } from "./types";
 
 const log = createLogger("avatar-video/service");
 
@@ -44,6 +46,7 @@ const log = createLogger("avatar-video/service");
 /** Selects all columns and relations needed to build CreationDTO. */
 const creationInclude = {
   imageVariations: true,
+  concept: true,
   prompt: true,
 } as const;
 
@@ -57,6 +60,20 @@ type CreationWithRelations = AvatarVideoCreation & {
     createdAt: Date;
     updatedAt: Date;
   }[];
+  concept: {
+    id: string;
+    status: string;
+    videoIdea: string | null;
+    hook: string | null;
+    copy: string | null;
+    cta: string | null;
+    scenesJson: unknown;
+    isEdited: boolean;
+    editedAt: Date | null;
+    errorMessage: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
   prompt: {
     id: string;
     promptJson: unknown;
@@ -94,6 +111,24 @@ function toCreationDTO(c: CreationWithRelations): CreationDTO {
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     imageVariations: c.imageVariations as CreationDTO["imageVariations"],
+    concept: c.concept
+      ? {
+          id: c.concept.id,
+          status: c.concept.status as CreationDTO["concept"] extends null ? never : NonNullable<CreationDTO["concept"]>["status"],
+          videoIdea: c.concept.videoIdea,
+          hook: c.concept.hook,
+          copy: c.concept.copy,
+          cta: c.concept.cta,
+          scenes: Array.isArray(c.concept.scenesJson)
+            ? (c.concept.scenesJson as ConceptScene[])
+            : null,
+          isEdited: c.concept.isEdited,
+          editedAt: c.concept.editedAt,
+          errorMessage: c.concept.errorMessage,
+          createdAt: c.concept.createdAt,
+          updatedAt: c.concept.updatedAt,
+        }
+      : null,
     prompt: c.prompt as CreationDTO["prompt"],
   };
 }
@@ -532,15 +567,100 @@ export async function selectImageVariation(
 }
 
 // ---------------------------------------------------------------------------
+// Start concept generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Transitions the creation from IMAGES_READY → PENDING_CONCEPT and fires AI concept generation.
+ *
+ * Prerequisites:
+ *   - status must be IMAGES_READY or CONCEPT_READY (allows regeneration)
+ *   - at least one image variation must be READY
+ *
+ * On completion, transitions to CONCEPT_READY.
+ * On failure, transitions to FAILED and returns ServiceErr.
+ */
+export async function startConceptGeneration(
+  userId: string,
+  creationId: string,
+): Promise<ServiceResult<CreationDTO>> {
+  try {
+    const loadResult = await loadOwnedCreation(creationId, userId);
+    if (!loadResult.ok) return loadResult;
+    const creation = loadResult.data;
+
+    const allowedStatuses: AvatarVideoCreation["status"][] = [
+      "IMAGES_READY",
+      "CONCEPT_READY",
+    ];
+    if (!allowedStatuses.includes(creation.status)) {
+      return {
+        ok: false,
+        error: `Geração de conceito requer status IMAGES_READY ou CONCEPT_READY (atual: "${creation.status}").`,
+        code: "invalid_state",
+      };
+    }
+
+    const readyVariations = creation.imageVariations.filter(
+      (v) => v.status === "READY",
+    ) as Parameters<typeof generateAndPersistConcept>[1];
+
+    if (readyVariations.length === 0) {
+      return {
+        ok: false,
+        error: "Nenhuma imagem pronta. Gere as imagens primeiro.",
+        code: "invalid_state",
+      };
+    }
+
+    // Transition to PENDING_CONCEPT
+    await prisma.avatarVideoCreation.update({
+      where: { id: creationId },
+      data: { status: "PENDING_CONCEPT" },
+    });
+
+    const result = await generateAndPersistConcept(creation, readyVariations);
+
+    if (!result.ok) {
+      await failCreation(creationId, result.error);
+      return result;
+    }
+
+    const updated = await prisma.avatarVideoCreation.update({
+      where: { id: creationId },
+      data: { status: "CONCEPT_READY" },
+      include: creationInclude,
+    });
+
+    log.info("Concept generation completed", { userId, creationId });
+    return { ok: true, data: toCreationDTO(updated) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("Unexpected error in startConceptGeneration", {
+      userId,
+      creationId,
+      error: message,
+    });
+    await failCreation(creationId, message).catch(() => {});
+    return {
+      ok: false,
+      error: "Erro interno na geração de conceito.",
+      code: "internal",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Start prompt generation
 // ---------------------------------------------------------------------------
 
 /**
- * Transitions the creation from IMAGES_READY → PENDING_PROMPT and fires VEO 3 prompt generation.
+ * Transitions the creation from CONCEPT_READY → PENDING_PROMPT and fires VEO 3 prompt generation.
  *
  * Prerequisites:
- *   - status must be IMAGES_READY or PROMPT_READY (allows regeneration)
+ *   - status must be CONCEPT_READY or PROMPT_READY (allows regeneration)
  *   - at least one image variation must be READY
+ *   - a READY concept must exist
  *
  * On completion, transitions to PROMPT_READY.
  * On failure, transitions to FAILED and returns ServiceErr.
@@ -555,13 +675,13 @@ export async function startPromptGeneration(
     const creation = loadResult.data;
 
     const allowedStatuses: AvatarVideoCreation["status"][] = [
-      "IMAGES_READY",
+      "CONCEPT_READY",
       "PROMPT_READY",
     ];
     if (!allowedStatuses.includes(creation.status)) {
       return {
         ok: false,
-        error: `Geração de prompt requer status IMAGES_READY ou PROMPT_READY (atual: "${creation.status}").`,
+        error: `Geração de prompt requer status CONCEPT_READY ou PROMPT_READY (atual: "${creation.status}").`,
         code: "invalid_state",
       };
     }
@@ -592,6 +712,19 @@ export async function startPromptGeneration(
       };
     }
 
+    // Load approved concept to use as creative direction for takes
+    const conceptData = creation.concept?.status === "READY" && creation.concept
+      ? {
+          videoIdea: creation.concept.videoIdea ?? "",
+          hook: creation.concept.hook ?? "",
+          copy: creation.concept.copy ?? "",
+          cta: creation.concept.cta ?? "",
+          scenes: Array.isArray(creation.concept.scenesJson)
+            ? (creation.concept.scenesJson as import("./types").ConceptScene[])
+            : [],
+        }
+      : null;
+
     // Transition to PENDING_PROMPT
     await prisma.avatarVideoCreation.update({
       where: { id: creationId },
@@ -603,6 +736,7 @@ export async function startPromptGeneration(
       avatar,
       scenario,
       readyVariations,
+      conceptData,
     );
 
     if (!result.ok) {

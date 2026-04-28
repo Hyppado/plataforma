@@ -10,6 +10,7 @@ import type {
   AvatarVideoCreationStatus,
   AvatarVideoImageStatus,
   AvatarVideoPromptStatus,
+  AvatarVideoConceptStatus,
 } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,40 @@ export interface ImageVariationDTO {
   blobUrl: string | null;
   status: AvatarVideoImageStatus;
   sortOrder: number;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Concept (AI-generated video concept: hook, copy, CTA, scenes)
+// ---------------------------------------------------------------------------
+
+export interface ConceptScene {
+  sceneNumber: number;
+  goal: string;
+  description: string;
+}
+
+/** Raw OpenAI concept output — persisted to AvatarVideoConcept. */
+export interface VideoConcept {
+  videoIdea: string;
+  hook: string;
+  copy: string;
+  cta: string;
+  scenes: ConceptScene[];
+}
+
+export interface ConceptDTO {
+  id: string;
+  status: AvatarVideoConceptStatus;
+  videoIdea: string | null;
+  hook: string | null;
+  copy: string | null;
+  cta: string | null;
+  scenes: ConceptScene[] | null;
+  isEdited: boolean;
+  editedAt: Date | null;
   errorMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -95,6 +130,7 @@ export interface CreationDTO {
   createdAt: Date;
   updatedAt: Date;
   imageVariations: ImageVariationDTO[];
+  concept: ConceptDTO | null;
   prompt: PromptDTO | null;
 }
 

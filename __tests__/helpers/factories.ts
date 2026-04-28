@@ -199,6 +199,7 @@ export function buildAvatarVideoCreation(
     createdAt: new Date(),
     updatedAt: new Date(),
     imageVariations: [] as ReturnType<typeof buildAvatarVideoImageVariation>[],
+    concept: null as ReturnType<typeof buildAvatarVideoConcept> | null,
     prompt: null as ReturnType<typeof buildAvatarVideoPrompt> | null,
     ...overrides,
   };
@@ -229,6 +230,27 @@ export function buildAvatarVideoPrompt(
     promptJson: null as unknown,
     promptText: null as string | null,
     status: "PENDING" as const,
+    isEdited: false,
+    editedAt: null as Date | null,
+    errorMessage: null as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+export function buildAvatarVideoConcept(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: randomUUID(),
+    creationId: randomUUID(),
+    status: "PENDING" as const,
+    videoIdea: null as string | null,
+    hook: null as string | null,
+    copy: null as string | null,
+    cta: null as string | null,
+    scenes: null as Array<{ sceneNumber: number; goal: string; description: string }> | null,
     isEdited: false,
     editedAt: null as Date | null,
     errorMessage: null as string | null,

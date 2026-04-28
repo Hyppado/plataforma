@@ -970,13 +970,15 @@ model VideoScenario {
 }
 
 enum AvatarVideoCreationStatus {
-  DRAFT           // user selecting product / avatar / scenario
-  PENDING_IMAGES  // submitted, awaiting image generation
-  IMAGES_READY    // image(s) generated, user reviewing
-  PENDING_PROMPT  // awaiting VEO 3 prompt generation
-  PROMPT_READY    // prompt ready, user may edit
-  COMPLETED       // user finished the flow
-  FAILED          // unrecoverable error
+  DRAFT             // user selecting product / avatar / scenario
+  PENDING_IMAGES    // submitted, awaiting image generation
+  IMAGES_READY      // image(s) generated, user reviewing
+  PENDING_CONCEPT   // awaiting AI concept generation (hook, copy, CTA, scenes)
+  CONCEPT_READY     // concept generated, user may review before prompt generation
+  PENDING_PROMPT    // awaiting VEO 3 prompt generation
+  PROMPT_READY      // prompt ready, user may edit
+  COMPLETED         // user finished the flow
+  FAILED            // unrecoverable error
 }
 
 /// One guided generation session owned by a user.
@@ -1015,6 +1017,7 @@ model AvatarVideoCreation {
   avatarProfile   AvatarProfile?              @relation(fields: [avatarProfileId], references: [id], onDelete: SetNull)
   videoScenario   VideoScenario?              @relation(fields: [videoScenarioId], references: [id], onDelete: SetNull)
   imageVariations AvatarVideoImageVariation[]
+  concept         AvatarVideoConcept?
   prompt          AvatarVideoPrompt?
 
   @@index([userId, status])
@@ -1051,6 +1054,37 @@ enum AvatarVideoPromptStatus {
   READY
   FAILED
 }
+
+enum AvatarVideoConceptStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// AI-generated video concept for a creation session.
+/// One concept per creation (1:1 via unique creationId).
+/// Generated from images + product data; used as input for VEO 3 prompt generation.
+model AvatarVideoConcept {
+  id           String                   @id @default(uuid())
+  creationId   String                   @unique
+  status       AvatarVideoConceptStatus @default(PENDING)
+  videoIdea    String?                  // Resumo geral da ideia do vídeo
+  hook         String?                  // Frase de gancho inicial (em português)
+  copy         String?                  // Texto de copy/roteiro principal (em português)
+  cta          String?                  // Call-to-action (em português)
+  scenesJson   Json?                    // [{ sceneNumber, goal, description }]
+  isEdited     Boolean                  @default(false)
+  editedAt     DateTime?
+  errorMessage String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  creation     AvatarVideoCreation      @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
 
 /// VEO 3 prompt generated (and optionally edited) for a creation session.
 /// One prompt per creation (1:1 via unique creationId).
