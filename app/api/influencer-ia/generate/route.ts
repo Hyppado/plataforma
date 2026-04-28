@@ -3,21 +3,21 @@
  *
  * POST /api/influencer-ia/generate
  *
- * Generates a UGC-style influencer image using OpenAI gpt-image-1.
+ * Generates a UGC-style influencer image using Google AI Studio (Gemini).
  * Requires auth. No quota consumed in MVP — can be gated later.
  *
  * Body:
- *   productImageUrl?  — external product image URL
- *   productName?      — product display name
- *   productCategory?  — product category (used to infer placement style)
- *   avatarId?         — AvatarProfile.id (fetches image + name from DB)
- *   avatarImageUrl?   — uploaded avatar image URL (overrides avatarId image)
- *   pose?             — preset pose label
- *   customPose?       — free-text pose override
- *   environment?      — preset environment label
+ *   productImageUrl?   — absolute product image URL (server-fetchable)
+ *   productName?       — product display name
+ *   productCategory?   — product category (used to infer placement style)
+ *   avatarId?          — AvatarProfile.id (fetches image + name from DB)
+ *   avatarImageUrl?    — uploaded avatar image URL (overrides avatarId image)
+ *   pose?              — preset pose label
+ *   customPose?        — free-text pose override
+ *   environment?       — preset environment label
  *   customEnvironment? — free-text environment override
- *   style?            — influencer style label
- *   enhancements?     — array of enhancement labels
+ *   style?             — influencer style label
+ *   enhancements?      — array of enhancement labels
  *
  * Response: { imageUrl: string }
  */

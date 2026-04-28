@@ -97,39 +97,42 @@ function buildPrompt(input: InfluencerImageInput): string {
     : "a young Brazilian content creator";
 
   const product = input.productName ?? "the product";
-  const cat = (input.productCategory ?? "").toLowerCase();
+  // Check both category and product name for type detection
+  const searchText = `${input.productCategory ?? ""} ${product}`.toLowerCase();
 
   // Category-aware placement
   const isClothing =
-    /roupa|moda|fashion|vestuário|clothing|apparel|shirt|dress|pants|jeans|jacket|blouse|top|skirt|coat/.test(
-      cat,
+    /roupa|moda|fashion|vestuário|clothing|apparel|shirt|dress|pants|jeans|jacket|blouse|top|skirt|coat|calça|legging|shorts|vestido|saia|moletom|blusa|camiseta|camiseta|regata|casaco|jaqueta|agasalho|pijama|lingerie|sutiã|cueca|bermuda|jardineira|macacão|kimono|maiô|biquíni|meias|tricô|suéter/.test(
+      searchText,
     );
   const isAccessory =
-    /acessório|joia|joalheria|jewelry|bolsa|bag|watch|relógio|óculos|sunglasses|belt|cinto/.test(
-      cat,
+    /acessório|joia|joalheria|jewelry|bolsa|bag|watch|relógio|óculos|sunglasses|belt|cinto|pulseira|colar|brinco|anel|chapéu|boné|gorro|cachecol|luva|cinto/.test(
+      searchText,
     );
   const isBeauty =
-    /beleza|cosmét|skincare|maquiagem|beauty|perfume|fragrance|creme|serum/.test(
-      cat,
+    /beleza|cosmét|skincare|maquiagem|beauty|perfume|fragrance|creme|serum|óleo|shampoo|condicionador|batom|base|máscara|sombra|hidratante/.test(
+      searchText,
     );
 
   let placement: string;
   if (isClothing) {
     placement =
-      `The person is wearing "${product}", displaying it naturally to camera. ` +
-      `Reproduce the garment exactly: same color, cut, print, and any visible text or logo.`;
+      `The person IS WEARING "${product}" as the main outfit piece in this image. ` +
+      `This is critical: reproduce the garment exactly as in the reference image — ` +
+      `same exact color (including the specific shade/variation selected), cut, silhouette, fabric texture, print, and any visible text or logo. ` +
+      `The garment must be the focal point of the image and clearly recognizable.`;
   } else if (isAccessory) {
     placement =
-      `The person is wearing or carrying "${product}". ` +
+      `The person is wearing or carrying "${product}" as the featured item. ` +
       `Reproduce the item exactly: same color, shape, material finish, and any visible logo or text.`;
   } else if (isBeauty) {
     placement =
       `The person is holding "${product}" near their face at chest or chin level, presenting it clearly to camera. ` +
-      `Reproduce the product packaging exactly.`;
+      `Reproduce the product packaging exactly — same color, label, and shape.`;
   } else {
     placement =
-      `The person is holding and presenting "${product}" naturally to camera. ` +
-      `Reproduce the product exactly as in the reference image.`;
+      `The person is holding and presenting "${product}" naturally toward the camera as the featured item. ` +
+      `Reproduce the product exactly as in the reference image — same shape, color, and all details.`;
   }
 
   const poseStr = input.customPose?.trim() || input.pose;
@@ -160,7 +163,10 @@ function buildPrompt(input: InfluencerImageInput): string {
     poseIsSoProduct
       ? "SUBJECT: Product-only shot — no person in the image."
       : `SUBJECT: ${subject}.`,
-    `PRODUCT: "${product}" — use the reference image as the exact source of truth. Do NOT invent, add, or change any colors, labels, text, logos, shapes, or details. Do NOT distort the product.`,
+    `PRODUCT: "${product}" — the reference image is the absolute source of truth. ` +
+      `Reproduce EVERY detail exactly: color (especially the specific shade/hue of the selected variation), ` +
+      `shape, fabric, labels, text, logos, and finish. ` +
+      `Do NOT substitute, invent, or alter ANY aspect of the product.`,
     poseIsSoProduct ? "" : `PLACEMENT: ${placement}`,
     `POSE: ${poseDescription}.`,
     `SETTING: ${envDescription}.`,
@@ -170,8 +176,9 @@ function buildPrompt(input: InfluencerImageInput): string {
     "- Vertical 9:16 portrait format",
     "- Photorealistic editorial quality — must look like a real professional photo, NOT AI-generated",
     "- No text overlays, watermarks, or UI elements",
-    "- Product must be clearly visible and sharp",
-    "- Render the product exactly as in the reference — same shape, color, and finish",
+    "- Product must be the clear hero of the image and perfectly sharp",
+    "- The product color must EXACTLY match the reference — do not change or approximate the shade",
+    "- If the product is clothing, the influencer MUST be wearing it — not holding it",
     ...enhancementLines,
   ].filter((l) => l !== "");
 

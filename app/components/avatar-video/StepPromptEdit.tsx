@@ -258,7 +258,10 @@ function TakeEditor({
     }
   };
 
-  const spokenWords = take.spokenLines.trim().split(/\s+/).filter(Boolean).length;
+  const spokenWords = take.spokenLines
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
   const spokenTooLong = take.spokenLines.trim().length > 0 && spokenWords > 20;
   const showFooter = jsonError != null || take.spokenLines.trim().length > 0;
 
@@ -297,7 +300,9 @@ function TakeEditor({
           >
             Take {take.index}
           </Typography>
-          <Typography sx={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.2)" }}>
+          <Typography
+            sx={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.2)" }}
+          >
             8s
           </Typography>
         </Box>
@@ -321,11 +326,8 @@ function TakeEditor({
           background: "rgba(0,0,0,0.28)",
           border: "none",
           borderTop: "1px solid rgba(255,255,255,0.05)",
-          color: jsonError
-            ? "rgba(239,68,68,0.85)"
-            : "rgba(255,255,255,0.72)",
-          fontFamily:
-            "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+          color: jsonError ? "rgba(239,68,68,0.85)" : "rgba(255,255,255,0.72)",
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
           fontSize: "0.7rem",
           lineHeight: 1.7,
           p: 1.5,
@@ -365,14 +367,12 @@ function TakeEditor({
               <Typography
                 sx={{
                   fontSize: "0.6rem",
-                  color: spokenTooLong
-                    ? "#f59e0b"
-                    : "rgba(255,255,255,0.2)",
+                  color: spokenTooLong ? "#f59e0b" : "rgba(255,255,255,0.2)",
                   transition: "color 0.15s",
                 }}
               >
-                {spokenWords}{" "}
-                {spokenWords === 1 ? "palavra" : "palavras"} na fala
+                {spokenWords} {spokenWords === 1 ? "palavra" : "palavras"} na
+                fala
                 {spokenTooLong
                   ? " · pode exceder 8s — reduza para ≈ 20 palavras"
                   : ""}

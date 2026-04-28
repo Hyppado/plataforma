@@ -70,11 +70,6 @@ const NAV_SECTIONS = [
         icon: Inventory2,
         href: "/dashboard/produtos-salvos",
       },
-      {
-        label: "Meus Prompts",
-        icon: AutoAwesome,
-        href: "/dashboard/meus-prompts",
-      },
     ],
   },
   {

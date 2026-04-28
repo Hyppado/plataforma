@@ -436,7 +436,9 @@ export function ProductCard({
             variant="outlined"
             component={Link}
             href={`/dashboard/influencer-ia?productId=${product.id}&productImageUrl=${encodeURIComponent(product.imageUrl)}&productName=${encodeURIComponent(product.name)}&productCategory=${encodeURIComponent(product.category ?? "")}`}
-            startIcon={<FaceRetouchingNatural sx={{ fontSize: { xs: 14, md: 16 } }} />}
+            startIcon={
+              <FaceRetouchingNatural sx={{ fontSize: { xs: 14, md: 16 } }} />
+            }
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
             sx={{
               color: "rgba(45,212,255,0.85)",

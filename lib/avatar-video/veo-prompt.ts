@@ -354,7 +354,7 @@ export async function generateAndPersistVeoPrompt(
     where: { id: promptRow.id },
     data: {
       status: "READY",
-      promptJson: result.promptJson,
+      promptJson: result.promptJson as object,
       promptText: result.promptText,
       errorMessage: null,
     },

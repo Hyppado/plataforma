@@ -60,9 +60,23 @@ async function proxyEchotikImage(coverUrl: string) {
     return new NextResponse("Invalid URL", { status: 400 });
   }
 
-  // Só permite URLs do CDN EchoTik
+  // Para URLs que não são do CDN Echotik, fazer proxy direto (sem assinatura)
   if (parsed.hostname !== ECHOTIK_CDN_HOST) {
-    return new NextResponse("Host not allowed", { status: 403 });
+    if (parsed.protocol !== "https:") {
+      return new NextResponse("Only HTTPS URLs allowed", { status: 400 });
+    }
+    try {
+      const upstream = await fetch(coverUrl);
+      if (!upstream.ok) {
+        return new NextResponse(null, { status: upstream.status });
+      }
+      return buildImageResponse(upstream);
+    } catch (err) {
+      log.error("Direct proxy error", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return new NextResponse("Upstream error", { status: 502 });
+    }
   }
 
   try {
