@@ -25,7 +25,7 @@ import { requireAuth, isAuthed } from "@/lib/auth";
 import { startPromptGeneration } from "@/lib/avatar-video/service";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   const auth = await requireAuth();
@@ -33,8 +33,26 @@ export async function POST(
 
   const creationId = params.id;
 
+  let requestedTakeCount: number | undefined;
   try {
-    const result = await startPromptGeneration(auth.userId, creationId);
+    const body = (await req.json().catch(() => ({}))) as { takeCount?: unknown };
+    if (
+      typeof body.takeCount === "number" &&
+      body.takeCount >= 1 &&
+      body.takeCount <= 12
+    ) {
+      requestedTakeCount = Math.round(body.takeCount);
+    }
+  } catch {
+    // no body — use creation's existing takeCount
+  }
+
+  try {
+    const result = await startPromptGeneration(
+      auth.userId,
+      creationId,
+      requestedTakeCount,
+    );
 
     if (!result.ok) {
       const statusMap: Record<string, number> = {

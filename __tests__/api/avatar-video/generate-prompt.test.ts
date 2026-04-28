@@ -127,6 +127,7 @@ describe("POST — first prompt generation", () => {
     expect(startPromptGenerationMock).toHaveBeenCalledWith(
       USER_ID,
       CREATION_ID,
+      undefined, // no takeCount in request body
     );
   });
 

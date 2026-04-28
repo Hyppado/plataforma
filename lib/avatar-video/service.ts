@@ -668,11 +668,12 @@ export async function startConceptGeneration(
 export async function startPromptGeneration(
   userId: string,
   creationId: string,
+  takeCount?: number,
 ): Promise<ServiceResult<CreationDTO>> {
   try {
     const loadResult = await loadOwnedCreation(creationId, userId);
     if (!loadResult.ok) return loadResult;
-    const creation = loadResult.data;
+    let creation = loadResult.data;
 
     const allowedStatuses: AvatarVideoCreation["status"][] = [
       "CONCEPT_READY",
@@ -725,11 +726,23 @@ export async function startPromptGeneration(
         }
       : null;
 
-    // Transition to PENDING_PROMPT
+    // Apply user-selected takeCount before generating
+    const newTakeCount =
+      typeof takeCount === "number" && takeCount >= 1 && takeCount <= 12
+        ? Math.round(takeCount)
+        : undefined;
+
+    // Transition to PENDING_PROMPT (and persist takeCount when changed)
     await prisma.avatarVideoCreation.update({
       where: { id: creationId },
-      data: { status: "PENDING_PROMPT" },
+      data: {
+        status: "PENDING_PROMPT",
+        ...(newTakeCount != null ? { takeCount: newTakeCount } : {}),
+      },
     });
+    if (newTakeCount != null) {
+      creation = { ...creation, takeCount: newTakeCount };
+    }
 
     const result = await generateAndPersistVeoPrompt(
       creation,

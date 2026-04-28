@@ -34,6 +34,9 @@ import {
   Tooltip,
   IconButton,
   TextField,
+  ToggleButtonGroup,
+  ToggleButton,
+  Divider,
 } from "@mui/material";
 import {
   AutoAwesome,
@@ -43,6 +46,7 @@ import {
   ArrowBack,
   ErrorOutline,
   InfoOutlined,
+  WarningAmber,
 } from "@mui/icons-material";
 import type { CreationDTO } from "@/lib/avatar-video/types";
 import type { Veo3Prompt, Veo3Take } from "@/lib/avatar-video/veo-prompt";
@@ -252,6 +256,13 @@ function TakeEditor({
 }) {
   const copyText = formatTakeForCopy(take);
 
+  // 8-second word limit — ~150 wpm spoken Portuguese → ~20 words per take
+  const spokenWords = take.spokenLines
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const spokenTooLong = take.spokenLines.trim().length > 0 && spokenWords > 20;
+
   return (
     <Box
       sx={{
@@ -340,6 +351,29 @@ function TakeEditor({
           }}
           sx={fieldSx}
         />
+        {take.spokenLines.trim().length > 0 && (
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.4 }}
+          >
+            {spokenTooLong && (
+              <WarningAmber sx={{ fontSize: 10, color: "#f59e0b" }} />
+            )}
+            <Typography
+              sx={{
+                fontSize: "0.6rem",
+                color: spokenTooLong
+                  ? "#f59e0b"
+                  : "rgba(255,255,255,0.2)",
+                transition: "color 0.15s",
+              }}
+            >
+              {spokenWords} {spokenWords === 1 ? "palavra" : "palavras"}
+              {spokenTooLong
+                ? " · pode exceder 8s — reduza para ≈ 20 palavras"
+                : ""}
+            </Typography>
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -358,8 +392,14 @@ export function StepPromptEdit({
   const status = creation.status;
   const promptRow = creation.prompt;
 
+  const existingTakeCount =
+    (promptRow?.promptJson as Veo3Prompt | null)?.takes?.length ?? null;
+
   const [editedTakes, setEditedTakes] = useState<EditableTake[]>(
     () => promptToTakes(promptRow?.promptJson),
+  );
+  const [selectedDuration, setSelectedDuration] = useState<number>(
+    existingTakeCount != null ? existingTakeCount * 8 : 32,
   );
 
   const [generating, setGenerating] = useState(false);
@@ -367,14 +407,27 @@ export function StepPromptEdit({
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
 
-  // Sync takes when a new prompt arrives (after generate / regenerate)
+  // Sync takes (and duration) when a new prompt arrives after generate/regenerate
   useEffect(() => {
     if (promptRow?.promptJson != null) {
       setEditedTakes(promptToTakes(promptRow.promptJson));
+      const tc = (promptRow.promptJson as Veo3Prompt).takes?.length;
+      if (tc != null) setSelectedDuration(tc * 8);
     }
   }, [promptRow?.promptJson]);
 
   const hasPrompt = status === "PROMPT_READY" && promptRow != null;
+
+  // Assembled VEO 3 JSON — updates live as user edits takes
+  const assembledPromptJson: Veo3Prompt = {
+    prompt: (promptRow?.promptJson as Veo3Prompt | null)?.prompt ?? "",
+    duration: editedTakes.length * 8,
+    aspectRatio: "9:16",
+    style: "ugc",
+    language: "pt-BR",
+    takes: editedTakes as Veo3Take[],
+  };
+  const veoJsonText = JSON.stringify(assembledPromptJson, null, 2);
 
   // Guard: creation hasn't gone through the concept step yet.
   const needsConcept =
@@ -398,10 +451,16 @@ export function StepPromptEdit({
     setGenerationError(null);
     setCompleteError(null);
 
+    const takeCount = Math.max(1, Math.round(selectedDuration / 8));
+
     try {
       const res = await fetch(
         `/api/avatar-video/creations/${creation.id}/generate-prompt`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ takeCount }),
+        },
       );
 
       const data = (await res.json().catch(() => ({}))) as {
@@ -560,6 +619,56 @@ export function StepPromptEdit({
             e visual são em inglês; as falas são em português.
           </InfoCallout>
 
+          {/* Duration selector */}
+          <Box>
+            <Typography
+              sx={{
+                fontSize: "0.68rem",
+                fontWeight: 600,
+                color: "rgba(255,255,255,0.35)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                mb: 0.75,
+              }}
+            >
+              Duração total
+            </Typography>
+            <ToggleButtonGroup
+              value={selectedDuration}
+              exclusive
+              onChange={(_, v) => {
+                if (v != null) setSelectedDuration(v as number);
+              }}
+              size="small"
+              sx={{
+                flexWrap: "wrap",
+                gap: 0.5,
+                "& .MuiToggleButton-root": {
+                  fontSize: "0.7rem",
+                  color: "rgba(255,255,255,0.45)",
+                  borderColor: "rgba(255,255,255,0.1)",
+                  borderRadius: "6px !important",
+                  px: 1.25,
+                  py: 0.5,
+                  "&.Mui-selected": {
+                    color: "primary.main",
+                    background: "rgba(45,212,255,0.08)",
+                    borderColor: "rgba(45,212,255,0.3)",
+                  },
+                  "&.Mui-selected:hover": {
+                    background: "rgba(45,212,255,0.14)",
+                  },
+                },
+              }}
+            >
+              {([16, 24, 32, 40, 48] as number[]).map((d) => (
+                <ToggleButton key={d} value={d}>
+                  {d}s &middot; {d / 8} take{d / 8 !== 1 ? "s" : ""}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Box>
+
           {generationError && (
             <Box
               role="alert"
@@ -616,6 +725,63 @@ export function StepPromptEdit({
       {/* ── Prompt ready: per-take editors ──────────────────────────────── */}
       {hasPrompt && !generating && (
         <>
+          {/* Duration picker \u2014 shown above toolbar for re-generation */}
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}
+          >
+            <Typography
+              sx={{
+                fontSize: "0.65rem",
+                fontWeight: 600,
+                color: "rgba(255,255,255,0.28)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                flexShrink: 0,
+              }}
+            >
+              Duração
+            </Typography>
+            <ToggleButtonGroup
+              value={selectedDuration}
+              exclusive
+              onChange={(_, v) => {
+                if (v != null) setSelectedDuration(v as number);
+              }}
+              size="small"
+              sx={{
+                flexWrap: "wrap",
+                gap: 0.5,
+                "& .MuiToggleButton-root": {
+                  fontSize: "0.65rem",
+                  color: "rgba(255,255,255,0.4)",
+                  borderColor: "rgba(255,255,255,0.08)",
+                  borderRadius: "5px !important",
+                  px: 1,
+                  py: 0.3,
+                  "&.Mui-selected": {
+                    color: "primary.main",
+                    background: "rgba(45,212,255,0.07)",
+                    borderColor: "rgba(45,212,255,0.25)",
+                  },
+                },
+              }}
+            >
+              {([16, 24, 32, 40, 48] as number[]).map((d) => (
+                <ToggleButton key={d} value={d}>
+                  {d}s
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+            <Typography
+              sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.22)" }}
+            >
+              {Math.round(selectedDuration / 8)} take
+              {Math.round(selectedDuration / 8) !== 1 ? "s" : ""} solicitado
+              {editedTakes.length > 0 &&
+                ` · ${editedTakes.length} gerado${editedTakes.length !== 1 ? "s" : ""}`}
+            </Typography>
+          </Box>
+
           {/* Toolbar */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             <Box sx={{ flex: 1 }} />
@@ -654,6 +820,54 @@ export function StepPromptEdit({
                   onChange={(updated) => updateTake(i, updated)}
                 />
               ))}
+            </Box>
+          )}
+
+          {/* VEO 3 JSON viewer */}
+          {editedTakes.length > 0 && (
+            <Box>
+              <Divider sx={{ borderColor: "rgba(255,255,255,0.05)", mb: 1.25 }} />
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 0.75,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.22)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.09em",
+                  }}
+                >
+                  VEO 3 JSON
+                </Typography>
+                <CopyButton text={veoJsonText} label="Copiar JSON" />
+              </Box>
+              <Box
+                component="pre"
+                sx={{
+                  m: 0,
+                  p: 1.5,
+                  borderRadius: 2,
+                  background: "rgba(0,0,0,0.32)",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  fontSize: "0.62rem",
+                  lineHeight: 1.65,
+                  color: "rgba(255,255,255,0.38)",
+                  fontFamily:
+                    "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+                  overflow: "auto",
+                  maxHeight: 280,
+                  whiteSpace: "pre",
+                }}
+              >
+                {veoJsonText}
+              </Box>
             </Box>
           )}
 
