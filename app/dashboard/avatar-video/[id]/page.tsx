@@ -38,7 +38,9 @@ function AvatarVideoCreationContent() {
   const activeCreation = localCreation ?? creation;
 
   const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm, 6 = delivery
-  const [deliveryCreation, setDeliveryCreation] = useState<CreationDTO | null>(null);
+  const [deliveryCreation, setDeliveryCreation] = useState<CreationDTO | null>(
+    null,
+  );
 
   // Auto-advance to the correct step when the creation is first loaded.
   // Uses a ref so subsequent SWR re-fetches don't override user navigation.
@@ -140,7 +142,9 @@ function AvatarVideoCreationContent() {
       </Box>
 
       {/* Stepper — hidden on delivery screen */}
-      <Box sx={{ flexShrink: 0, mb: 2, display: step === 6 ? "none" : "block" }}>
+      <Box
+        sx={{ flexShrink: 0, mb: 2, display: step === 6 ? "none" : "block" }}
+      >
         <Stepper
           activeStep={step}
           alternativeLabel

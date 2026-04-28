@@ -335,8 +335,7 @@ export function StepImageGenerate({
 
   // Allow advancing when images are ready OR when already past that step
   // (user navigated back from prompt step — status is PROMPT_READY or later).
-  const pastImagesReady =
-    status === "PROMPT_READY" || status === "COMPLETED";
+  const pastImagesReady = status === "PROMPT_READY" || status === "COMPLETED";
   const canContinue =
     !saving &&
     !generating &&

@@ -167,7 +167,9 @@ export function buildVeoPromptMessages(
   const conceptSection: string[] = [];
   if (concept) {
     conceptSection.push("");
-    conceptSection.push("Approved video concept (use this as the creative direction for each take):");
+    conceptSection.push(
+      "Approved video concept (use this as the creative direction for each take):",
+    );
     conceptSection.push(`Video idea: ${concept.videoIdea}`);
     conceptSection.push(`Hook (opening line): ${concept.hook}`);
     if (concept.copy) conceptSection.push(`Copy/script: ${concept.copy}`);

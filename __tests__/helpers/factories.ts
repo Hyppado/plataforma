@@ -250,7 +250,11 @@ export function buildAvatarVideoConcept(
     hook: null as string | null,
     copy: null as string | null,
     cta: null as string | null,
-    scenes: null as Array<{ sceneNumber: number; goal: string; description: string }> | null,
+    scenes: null as Array<{
+      sceneNumber: number;
+      goal: string;
+      description: string;
+    }> | null,
     isEdited: false,
     editedAt: null as Date | null,
     errorMessage: null as string | null,

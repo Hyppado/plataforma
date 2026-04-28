@@ -72,7 +72,11 @@ function InfoCallout({ children }: { children: React.ReactNode }) {
         sx={{ fontSize: 16, color: "primary.main", flexShrink: 0, mt: "1px" }}
       />
       <Typography
-        sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}
+        sx={{
+          fontSize: "0.75rem",
+          color: "rgba(255,255,255,0.6)",
+          lineHeight: 1.5,
+        }}
       >
         {children}
       </Typography>
@@ -304,7 +308,9 @@ export function StepConceptEdit({
         >
           Conceito do vídeo
         </Typography>
-        <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
+        <Typography
+          sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}
+        >
           A IA gera um conceito baseado no produto e nas imagens de referência
         </Typography>
       </Box>
@@ -330,7 +336,12 @@ export function StepConceptEdit({
               }}
             >
               <ErrorOutline
-                sx={{ fontSize: 16, color: "#ef4444", flexShrink: 0, mt: "1px" }}
+                sx={{
+                  fontSize: 16,
+                  color: "#ef4444",
+                  flexShrink: 0,
+                  mt: "1px",
+                }}
               />
               <Typography sx={{ fontSize: "0.8rem", color: "#ef4444" }}>
                 {generationError}
@@ -362,7 +373,9 @@ export function StepConceptEdit({
           }}
         >
           <CircularProgress size={28} sx={{ color: "primary.main" }} />
-          <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
+          <Typography
+            sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}
+          >
             Gerando conceito…
           </Typography>
         </Box>
@@ -413,7 +426,9 @@ export function StepConceptEdit({
 
           {/* Hook */}
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}
+            >
               <FieldLabel>Hook</FieldLabel>
               <Typography
                 sx={{
@@ -438,7 +453,9 @@ export function StepConceptEdit({
 
           {/* Copy */}
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}
+            >
               <FieldLabel>Copy</FieldLabel>
               <Typography
                 sx={{
@@ -465,7 +482,9 @@ export function StepConceptEdit({
 
           {/* CTA */}
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}
+            >
               <FieldLabel>CTA</FieldLabel>
               <Typography
                 sx={{
@@ -533,7 +552,12 @@ export function StepConceptEdit({
               }}
             >
               <ErrorOutline
-                sx={{ fontSize: 16, color: "#ef4444", flexShrink: 0, mt: "1px" }}
+                sx={{
+                  fontSize: 16,
+                  color: "#ef4444",
+                  flexShrink: 0,
+                  mt: "1px",
+                }}
               />
               <Typography sx={{ fontSize: "0.8rem", color: "#ef4444" }}>
                 {generationError}
@@ -555,7 +579,12 @@ export function StepConceptEdit({
               }}
             >
               <ErrorOutline
-                sx={{ fontSize: 16, color: "#ef4444", flexShrink: 0, mt: "1px" }}
+                sx={{
+                  fontSize: 16,
+                  color: "#ef4444",
+                  flexShrink: 0,
+                  mt: "1px",
+                }}
               />
               <Typography sx={{ fontSize: "0.8rem", color: "#ef4444" }}>
                 {saveError}

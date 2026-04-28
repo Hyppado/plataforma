@@ -81,8 +81,16 @@ function makeConceptReadyConcept() {
     copy: "Esse produto mudou minha rotina completamente.",
     cta: "Compre agora pelo link na bio!",
     scenes: [
-      { sceneNumber: 1, goal: "Captar atenção", description: "Avatar abre a caixa." },
-      { sceneNumber: 2, goal: "Demonstrar benefício", description: "Avatar usa o produto." },
+      {
+        sceneNumber: 1,
+        goal: "Captar atenção",
+        description: "Avatar abre a caixa.",
+      },
+      {
+        sceneNumber: 2,
+        goal: "Demonstrar benefício",
+        description: "Avatar usa o produto.",
+      },
     ],
   });
 }

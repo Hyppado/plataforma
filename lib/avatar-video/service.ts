@@ -114,7 +114,9 @@ function toCreationDTO(c: CreationWithRelations): CreationDTO {
     concept: c.concept
       ? {
           id: c.concept.id,
-          status: c.concept.status as CreationDTO["concept"] extends null ? never : NonNullable<CreationDTO["concept"]>["status"],
+          status: c.concept.status as CreationDTO["concept"] extends null
+            ? never
+            : NonNullable<CreationDTO["concept"]>["status"],
           videoIdea: c.concept.videoIdea,
           hook: c.concept.hook,
           copy: c.concept.copy,
@@ -714,17 +716,19 @@ export async function startPromptGeneration(
     }
 
     // Load approved concept to use as creative direction for takes
-    const conceptData = creation.concept?.status === "READY" && creation.concept
-      ? {
-          videoIdea: creation.concept.videoIdea ?? "",
-          hook: creation.concept.hook ?? "",
-          copy: creation.concept.copy ?? "",
-          cta: creation.concept.cta ?? "",
-          scenes: Array.isArray(creation.concept.scenesJson)
-            ? (creation.concept.scenesJson as import("./types").ConceptScene[])
-            : [],
-        }
-      : null;
+    const conceptData =
+      creation.concept?.status === "READY" && creation.concept
+        ? {
+            videoIdea: creation.concept.videoIdea ?? "",
+            hook: creation.concept.hook ?? "",
+            copy: creation.concept.copy ?? "",
+            cta: creation.concept.cta ?? "",
+            scenes: Array.isArray(creation.concept.scenesJson)
+              ? (creation.concept
+                  .scenesJson as import("./types").ConceptScene[])
+              : [],
+          }
+        : null;
 
     // Apply user-selected takeCount before generating
     const newTakeCount =

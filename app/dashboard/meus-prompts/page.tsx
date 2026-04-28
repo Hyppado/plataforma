@@ -94,7 +94,11 @@ function StatusBadge({ status }: { status: AvatarVideoCreationStatus }) {
   const meta = STATUS_META[status] ?? STATUS_META.DRAFT;
   return (
     <Chip
-      icon={<Box sx={{ color: `${meta.color} !important`, display: "flex" }}>{meta.icon}</Box>}
+      icon={
+        <Box sx={{ color: `${meta.color} !important`, display: "flex" }}>
+          {meta.icon}
+        </Box>
+      }
       label={meta.label}
       size="small"
       sx={{
@@ -126,7 +130,8 @@ function CreationCard({ creation }: { creation: CreationDTO }) {
       : creation.imageVariations.find((v) => v.status === "READY");
 
   const referenceImageUrl = selectedVariation?.blobUrl ?? null;
-  const productImageUrl = creation.productSelectedImageUrl ?? creation.productImageUrl;
+  const productImageUrl =
+    creation.productSelectedImageUrl ?? creation.productImageUrl;
 
   const takes =
     creation.prompt?.promptJson != null
@@ -134,7 +139,8 @@ function CreationCard({ creation }: { creation: CreationDTO }) {
       : [];
 
   const concept = creation.concept;
-  const hasPrompt = creation.status === "PROMPT_READY" || creation.status === "COMPLETED";
+  const hasPrompt =
+    creation.status === "PROMPT_READY" || creation.status === "COMPLETED";
 
   const formattedDate = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -190,7 +196,9 @@ function CreationCard({ creation }: { creation: CreationDTO }) {
                 justifyContent: "center",
               }}
             >
-              <ImageOutlined sx={{ fontSize: 28, color: "rgba(255,255,255,0.15)" }} />
+              <ImageOutlined
+                sx={{ fontSize: 28, color: "rgba(255,255,255,0.15)" }}
+              />
             </Box>
           )}
         </Box>
@@ -223,7 +231,9 @@ function CreationCard({ creation }: { creation: CreationDTO }) {
                 gap: 0.5,
               }}
             >
-              <AutoAwesome sx={{ fontSize: 22, color: "rgba(255,255,255,0.1)" }} />
+              <AutoAwesome
+                sx={{ fontSize: 22, color: "rgba(255,255,255,0.1)" }}
+              />
               <Typography
                 sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)" }}
               >
@@ -237,9 +247,17 @@ function CreationCard({ creation }: { creation: CreationDTO }) {
       {/* Body */}
       <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
         {/* Status + date */}
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <StatusBadge status={creation.status as AvatarVideoCreationStatus} />
-          <Typography sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.3)" }}>
+          <Typography
+            sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.3)" }}
+          >
             {formattedDate}
           </Typography>
         </Box>
@@ -325,14 +343,22 @@ function CreationCard({ creation }: { creation: CreationDTO }) {
                       overflow: "hidden",
                     }}
                   >
-                    <Box component="span" sx={{ color: "rgba(52,211,153,0.5)", fontWeight: 600 }}>
+                    <Box
+                      component="span"
+                      sx={{ color: "rgba(52,211,153,0.5)", fontWeight: 600 }}
+                    >
                       T{take.index}
                     </Box>{" "}
                     {take.spokenLines || take.visualDirection}
                   </Typography>
                 ))}
                 {takes.length > 2 && (
-                  <Typography sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.25)" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.65rem",
+                      color: "rgba(255,255,255,0.25)",
+                    }}
+                  >
                     +{takes.length - 2} take{takes.length - 2 !== 1 ? "s" : ""}
                   </Typography>
                 )}
@@ -359,14 +385,35 @@ function CreationCardSkeleton() {
         overflow: "hidden",
       }}
     >
-      <Skeleton variant="rectangular" height={120} sx={{ bgcolor: "rgba(255,255,255,0.05)" }} />
+      <Skeleton
+        variant="rectangular"
+        height={120}
+        sx={{ bgcolor: "rgba(255,255,255,0.05)" }}
+      />
       <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Skeleton variant="rounded" width={90} height={20} sx={{ bgcolor: "rgba(255,255,255,0.05)" }} />
-          <Skeleton variant="text" width={50} sx={{ bgcolor: "rgba(255,255,255,0.04)" }} />
+          <Skeleton
+            variant="rounded"
+            width={90}
+            height={20}
+            sx={{ bgcolor: "rgba(255,255,255,0.05)" }}
+          />
+          <Skeleton
+            variant="text"
+            width={50}
+            sx={{ bgcolor: "rgba(255,255,255,0.04)" }}
+          />
         </Box>
-        <Skeleton variant="text" width="80%" sx={{ bgcolor: "rgba(255,255,255,0.05)" }} />
-        <Skeleton variant="text" width="60%" sx={{ bgcolor: "rgba(255,255,255,0.04)" }} />
+        <Skeleton
+          variant="text"
+          width="80%"
+          sx={{ bgcolor: "rgba(255,255,255,0.05)" }}
+        />
+        <Skeleton
+          variant="text"
+          width="60%"
+          sx={{ bgcolor: "rgba(255,255,255,0.04)" }}
+        />
       </Box>
     </Box>
   );
@@ -384,7 +431,10 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "draft", label: "Em andamento" },
 ];
 
-function filterCreations(creations: CreationDTO[], filter: FilterKey): CreationDTO[] {
+function filterCreations(
+  creations: CreationDTO[],
+  filter: FilterKey,
+): CreationDTO[] {
   if (filter === "completed") {
     return creations.filter(
       (c) => c.status === "COMPLETED" || c.status === "PROMPT_READY",
@@ -483,12 +533,11 @@ export default function MeusPromptsPage() {
               background: filter === key ? "primary.main" : "transparent",
               bgcolor: filter === key ? "primary.main" : "transparent",
               borderColor:
-                filter === key
-                  ? "primary.main"
-                  : "rgba(255,255,255,0.12)",
+                filter === key ? "primary.main" : "rgba(255,255,255,0.12)",
               "&:hover": {
                 borderColor: "rgba(255,255,255,0.25)",
-                bgcolor: filter === key ? "primary.dark" : "rgba(255,255,255,0.04)",
+                bgcolor:
+                  filter === key ? "primary.dark" : "rgba(255,255,255,0.04)",
               },
             }}
           />
@@ -544,7 +593,9 @@ export default function MeusPromptsPage() {
             textAlign: "center",
           }}
         >
-          <AutoAwesome sx={{ fontSize: 40, color: "rgba(45,212,255,0.25)", mb: 2 }} />
+          <AutoAwesome
+            sx={{ fontSize: 40, color: "rgba(45,212,255,0.25)", mb: 2 }}
+          />
           <Typography
             sx={{ fontSize: "1rem", fontWeight: 600, color: "#fff", mb: 1 }}
           >
@@ -575,13 +626,18 @@ export default function MeusPromptsPage() {
       )}
 
       {/* Empty filtered state */}
-      {!isLoading && !error && creations.length > 0 && filtered.length === 0 && (
-        <Box sx={{ py: 6, textAlign: "center" }}>
-          <Typography sx={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.4)" }}>
-            Nenhuma criação nesta categoria.
-          </Typography>
-        </Box>
-      )}
+      {!isLoading &&
+        !error &&
+        creations.length > 0 &&
+        filtered.length === 0 && (
+          <Box sx={{ py: 6, textAlign: "center" }}>
+            <Typography
+              sx={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.4)" }}
+            >
+              Nenhuma criação nesta categoria.
+            </Typography>
+          </Box>
+        )}
 
       {/* Grid */}
       {!isLoading && !error && filtered.length > 0 && (

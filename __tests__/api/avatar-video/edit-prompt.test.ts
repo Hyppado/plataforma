@@ -101,7 +101,11 @@ describe("PATCH — body validation", () => {
   it("returns 400 when body is invalid JSON", async () => {
     const req = new Request(
       `http://localhost/api/avatar-video/creations/${CREATION_ID}/edit-prompt`,
-      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: "not json" },
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: "not json",
+      },
     ) as any;
 
     const res = await PATCH(req, makeParams());

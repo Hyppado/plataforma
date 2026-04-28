@@ -25,7 +25,7 @@
  *   FAILED         → show error + retry button
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   Typography,
@@ -33,10 +33,8 @@ import {
   CircularProgress,
   Tooltip,
   IconButton,
-  TextField,
   ToggleButtonGroup,
   ToggleButton,
-  Divider,
 } from "@mui/material";
 import {
   AutoAwesome,
@@ -82,20 +80,24 @@ function promptToTakes(json: unknown): EditableTake[] {
     return [];
   }
   return (json as Veo3Prompt).takes!.map((t, i) => ({
-    index: (t?.index ?? i + 1),
+    index: t?.index ?? i + 1,
     cameraDirection: t?.cameraDirection ?? "",
     visualDirection: t?.visualDirection ?? "",
     spokenLines: t?.spokenLines ?? "",
   }));
 }
 
-function formatTakeForCopy(take: EditableTake): string {
-  return [
-    `Take ${take.index}`,
-    `Camera: ${take.cameraDirection}`,
-    `Visual: ${take.visualDirection}`,
-    `Script: "${take.spokenLines}"`,
-  ].join("\n");
+function serializeTake(take: EditableTake): string {
+  return JSON.stringify(
+    {
+      index: take.index,
+      cameraDirection: take.cameraDirection,
+      visualDirection: take.visualDirection,
+      spokenLines: take.spokenLines,
+    },
+    null,
+    2,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +120,11 @@ function InfoCallout({ children }: { children: React.ReactNode }) {
         sx={{ fontSize: 16, color: "primary.main", flexShrink: 0, mt: "1px" }}
       />
       <Typography
-        sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}
+        sx={{
+          fontSize: "0.75rem",
+          color: "rgba(255,255,255,0.6)",
+          lineHeight: 1.5,
+        }}
       >
         {children}
       </Typography>
@@ -196,57 +202,10 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-const fieldSx = {
-  "& .MuiOutlinedInput-root": {
-    fontSize: "0.8125rem",
-    color: "rgba(255,255,255,0.85)",
-    "& fieldset": { borderColor: "rgba(255,255,255,0.08)" },
-    "&:hover fieldset": { borderColor: "rgba(255,255,255,0.18)" },
-    "&.Mui-focused fieldset": { borderColor: "primary.main" },
-  },
-  "& .MuiInputBase-input::placeholder": { color: "rgba(255,255,255,0.2)" },
-};
-
-function FieldLabel({
-  children,
-  badge,
-}: {
-  children: React.ReactNode;
-  badge?: string;
-}) {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
-      <Typography
-        sx={{
-          fontSize: "0.65rem",
-          fontWeight: 600,
-          color: "rgba(255,255,255,0.35)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-        }}
-      >
-        {children}
-      </Typography>
-      {badge && (
-        <Box
-          component="span"
-          sx={{
-            fontSize: "0.6rem",
-            color: "rgba(255,255,255,0.25)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 0.75,
-            px: 0.5,
-            py: 0.1,
-            lineHeight: 1.3,
-          }}
-        >
-          {badge}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
+/**
+ * TakeEditor — shows a single 8-second take as an editable JSON block.
+ * The JSON is the source of truth; fields are parsed from user edits.
+ */
 function TakeEditor({
   take,
   onChange,
@@ -254,25 +213,65 @@ function TakeEditor({
   take: EditableTake;
   onChange: (updated: EditableTake) => void;
 }) {
-  const copyText = formatTakeForCopy(take);
+  const [rawJson, setRawJson] = useState(() => serializeTake(take));
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
-  // 8-second word limit — ~150 wpm spoken Portuguese → ~20 words per take
-  const spokenWords = take.spokenLines
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
+  // Detect external changes (regeneration) vs user-driven edits via a signature.
+  const appliedSigRef = useRef(
+    `${take.cameraDirection}|||${take.visualDirection}|||${take.spokenLines}`,
+  );
+  const incomingSig = `${take.cameraDirection}|||${take.visualDirection}|||${take.spokenLines}`;
+
+  useEffect(() => {
+    if (incomingSig !== appliedSigRef.current) {
+      appliedSigRef.current = incomingSig;
+      setRawJson(serializeTake(take));
+      setJsonError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingSig]);
+
+  const handleChange = (val: string) => {
+    setRawJson(val);
+    try {
+      const parsed = JSON.parse(val) as Record<string, unknown>;
+      setJsonError(null);
+      const newTake: EditableTake = {
+        index: take.index,
+        cameraDirection:
+          typeof parsed.cameraDirection === "string"
+            ? parsed.cameraDirection
+            : take.cameraDirection,
+        visualDirection:
+          typeof parsed.visualDirection === "string"
+            ? parsed.visualDirection
+            : take.visualDirection,
+        spokenLines:
+          typeof parsed.spokenLines === "string"
+            ? parsed.spokenLines
+            : take.spokenLines,
+      };
+      appliedSigRef.current = `${newTake.cameraDirection}|||${newTake.visualDirection}|||${newTake.spokenLines}`;
+      onChange(newTake);
+    } catch {
+      setJsonError("JSON inválido — edite com cuidado");
+    }
+  };
+
+  const spokenWords = take.spokenLines.trim().split(/\s+/).filter(Boolean).length;
   const spokenTooLong = take.spokenLines.trim().length > 0 && spokenWords > 20;
+  const showFooter = jsonError != null || take.spokenLines.trim().length > 0;
 
   return (
     <Box
       sx={{
-        p: 1.5,
         borderRadius: 2,
-        border: "1px solid rgba(255,255,255,0.08)",
+        border: `1px solid ${
+          jsonError ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.08)"
+        }`,
         background: "rgba(255,255,255,0.02)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.25,
+        overflow: "hidden",
+        transition: "border-color 0.15s",
       }}
     >
       {/* Header */}
@@ -281,100 +280,107 @@ function TakeEditor({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          px: 1.5,
+          pt: 1.25,
+          pb: 0.75,
         }}
       >
-        <Typography
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Typography
+            sx={{
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              color: "primary.main",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Take {take.index}
+          </Typography>
+          <Typography sx={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.2)" }}>
+            8s
+          </Typography>
+        </Box>
+        <CopyIconButton text={rawJson} label={`Copiar take ${take.index}`} />
+      </Box>
+
+      {/* Editable JSON body */}
+      <Box
+        component="textarea"
+        value={rawJson}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+          handleChange(e.target.value)
+        }
+        spellCheck={false}
+        aria-label={`Take ${take.index} — JSON`}
+        rows={9}
+        sx={{
+          display: "block",
+          width: "100%",
+          boxSizing: "border-box",
+          background: "rgba(0,0,0,0.28)",
+          border: "none",
+          borderTop: "1px solid rgba(255,255,255,0.05)",
+          color: jsonError
+            ? "rgba(239,68,68,0.85)"
+            : "rgba(255,255,255,0.72)",
+          fontFamily:
+            "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+          fontSize: "0.7rem",
+          lineHeight: 1.7,
+          p: 1.5,
+          resize: "vertical",
+          outline: "none",
+          transition: "color 0.15s, background 0.15s",
+          "&:focus": {
+            background: "rgba(0,0,0,0.38)",
+          },
+        }}
+      />
+
+      {/* Footer: word-count / JSON error */}
+      {showFooter && (
+        <Box
           sx={{
-            fontSize: "0.75rem",
-            fontWeight: 700,
-            color: "primary.main",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
+            px: 1.5,
+            py: 0.6,
+            borderTop: "1px solid rgba(255,255,255,0.04)",
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
           }}
         >
-          Take {take.index}
-        </Typography>
-        <CopyIconButton text={copyText} label={`Copiar take ${take.index}`} />
-      </Box>
-
-      {/* Camera direction */}
-      <Box>
-        <FieldLabel badge="EN">Câmera</FieldLabel>
-        <TextField
-          value={take.cameraDirection}
-          onChange={(e) =>
-            onChange({ ...take, cameraDirection: e.target.value })
-          }
-          size="small"
-          fullWidth
-          placeholder="Ex: Medium shot, slow zoom in"
-          inputProps={{
-            "aria-label": `Take ${take.index} — direção de câmera`,
-          }}
-          sx={fieldSx}
-        />
-      </Box>
-
-      {/* Visual direction */}
-      <Box>
-        <FieldLabel badge="EN">Visual</FieldLabel>
-        <TextField
-          value={take.visualDirection}
-          onChange={(e) =>
-            onChange({ ...take, visualDirection: e.target.value })
-          }
-          size="small"
-          fullWidth
-          multiline
-          minRows={2}
-          placeholder="Ex: Avatar picks up product and holds it to camera. Max 8 seconds."
-          inputProps={{
-            "aria-label": `Take ${take.index} — direção visual`,
-          }}
-          sx={fieldSx}
-        />
-      </Box>
-
-      {/* Spoken lines */}
-      <Box>
-        <FieldLabel badge="PT">Fala</FieldLabel>
-        <TextField
-          value={take.spokenLines}
-          onChange={(e) => onChange({ ...take, spokenLines: e.target.value })}
-          size="small"
-          fullWidth
-          multiline
-          minRows={2}
-          placeholder="Diálogo em português que o avatar fala neste take"
-          inputProps={{
-            "aria-label": `Take ${take.index} — fala`,
-          }}
-          sx={fieldSx}
-        />
-        {take.spokenLines.trim().length > 0 && (
-          <Box
-            sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.4 }}
-          >
-            {spokenTooLong && (
-              <WarningAmber sx={{ fontSize: 10, color: "#f59e0b" }} />
-            )}
-            <Typography
-              sx={{
-                fontSize: "0.6rem",
-                color: spokenTooLong
-                  ? "#f59e0b"
-                  : "rgba(255,255,255,0.2)",
-                transition: "color 0.15s",
-              }}
-            >
-              {spokenWords} {spokenWords === 1 ? "palavra" : "palavras"}
-              {spokenTooLong
-                ? " · pode exceder 8s — reduza para ≈ 20 palavras"
-                : ""}
-            </Typography>
-          </Box>
-        )}
-      </Box>
+          {jsonError ? (
+            <>
+              <ErrorOutline sx={{ fontSize: 10, color: "#ef4444" }} />
+              <Typography sx={{ fontSize: "0.6rem", color: "#ef4444" }}>
+                {jsonError}
+              </Typography>
+            </>
+          ) : (
+            <>
+              {spokenTooLong && (
+                <WarningAmber sx={{ fontSize: 10, color: "#f59e0b" }} />
+              )}
+              <Typography
+                sx={{
+                  fontSize: "0.6rem",
+                  color: spokenTooLong
+                    ? "#f59e0b"
+                    : "rgba(255,255,255,0.2)",
+                  transition: "color 0.15s",
+                }}
+              >
+                {spokenWords}{" "}
+                {spokenWords === 1 ? "palavra" : "palavras"} na fala
+                {spokenTooLong
+                  ? " · pode exceder 8s — reduza para ≈ 20 palavras"
+                  : ""}
+              </Typography>
+            </>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -395,8 +401,8 @@ export function StepPromptEdit({
   const existingTakeCount =
     (promptRow?.promptJson as Veo3Prompt | null)?.takes?.length ?? null;
 
-  const [editedTakes, setEditedTakes] = useState<EditableTake[]>(
-    () => promptToTakes(promptRow?.promptJson),
+  const [editedTakes, setEditedTakes] = useState<EditableTake[]>(() =>
+    promptToTakes(promptRow?.promptJson),
   );
   const [selectedDuration, setSelectedDuration] = useState<number>(
     existingTakeCount != null ? existingTakeCount * 8 : 32,
@@ -442,7 +448,7 @@ export function StepPromptEdit({
     setEditedTakes((prev) => prev.map((t, i) => (i === index ? updated : t)));
   }, []);
 
-  const copyAllText = editedTakes.map(formatTakeForCopy).join("\n\n---\n\n");
+  const copyAllText = veoJsonText;
 
   // ── Generate / Regenerate ─────────────────────────────────────────────────
 
@@ -542,7 +548,9 @@ export function StepPromptEdit({
       onComplete();
     } catch (err) {
       setCompleteError(
-        err instanceof Error ? err.message : "Erro inesperado. Tente novamente.",
+        err instanceof Error
+          ? err.message
+          : "Erro inesperado. Tente novamente.",
       );
     } finally {
       setCompleting(false);
@@ -576,7 +584,9 @@ export function StepPromptEdit({
           <ErrorOutline
             sx={{ fontSize: 16, color: "#ffc107", flexShrink: 0, mt: "1px" }}
           />
-          <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}>
+          <Typography
+            sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}
+          >
             Você precisa gerar e aprovar o conceito do vídeo antes de criar os
             takes. Volte à etapa anterior.
           </Typography>
@@ -586,7 +596,10 @@ export function StepPromptEdit({
             variant="text"
             startIcon={<ArrowBack />}
             onClick={onBack}
-            sx={{ color: "rgba(255,255,255,0.45)", "&:hover": { color: "#fff" } }}
+            sx={{
+              color: "rgba(255,255,255,0.45)",
+              "&:hover": { color: "#fff" },
+            }}
           >
             Voltar ao Conceito
           </Button>
@@ -605,7 +618,9 @@ export function StepPromptEdit({
         >
           Takes VEO 3
         </Typography>
-        <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
+        <Typography
+          sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}
+        >
           Prompts de animação para cada take — edite antes de copiar
         </Typography>
       </Box>
@@ -682,7 +697,12 @@ export function StepPromptEdit({
               }}
             >
               <ErrorOutline
-                sx={{ fontSize: 16, color: "#ef4444", flexShrink: 0, mt: "1px" }}
+                sx={{
+                  fontSize: 16,
+                  color: "#ef4444",
+                  flexShrink: 0,
+                  mt: "1px",
+                }}
               />
               <Typography sx={{ fontSize: "0.8rem", color: "#ef4444" }}>
                 {generationError}
@@ -727,7 +747,12 @@ export function StepPromptEdit({
         <>
           {/* Duration picker \u2014 shown above toolbar for re-generation */}
           <Box
-            sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              flexWrap: "wrap",
+            }}
           >
             <Typography
               sx={{
@@ -783,7 +808,14 @@ export function StepPromptEdit({
           </Box>
 
           {/* Toolbar */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              flexWrap: "wrap",
+            }}
+          >
             <Box sx={{ flex: 1 }} />
 
             <CopyButton text={copyAllText} label="Copiar todos" />
@@ -799,7 +831,10 @@ export function StepPromptEdit({
                   fontSize: "0.75rem",
                   color: "rgba(255,255,255,0.6)",
                   borderColor: "rgba(255,255,255,0.12)",
-                  "&:hover": { color: "#fff", borderColor: "rgba(255,255,255,0.25)" },
+                  "&:hover": {
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.25)",
+                  },
                   px: 1.25,
                   py: 0.5,
                   minWidth: 0,
@@ -823,54 +858,6 @@ export function StepPromptEdit({
             </Box>
           )}
 
-          {/* VEO 3 JSON viewer */}
-          {editedTakes.length > 0 && (
-            <Box>
-              <Divider sx={{ borderColor: "rgba(255,255,255,0.05)", mb: 1.25 }} />
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 0.75,
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontSize: "0.62rem",
-                    fontWeight: 700,
-                    color: "rgba(255,255,255,0.22)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.09em",
-                  }}
-                >
-                  VEO 3 JSON
-                </Typography>
-                <CopyButton text={veoJsonText} label="Copiar JSON" />
-              </Box>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  p: 1.5,
-                  borderRadius: 2,
-                  background: "rgba(0,0,0,0.32)",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  fontSize: "0.62rem",
-                  lineHeight: 1.65,
-                  color: "rgba(255,255,255,0.38)",
-                  fontFamily:
-                    "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
-                  overflow: "auto",
-                  maxHeight: 280,
-                  whiteSpace: "pre",
-                }}
-              >
-                {veoJsonText}
-              </Box>
-            </Box>
-          )}
-
           {generationError && (
             <Box
               role="alert"
@@ -884,7 +871,12 @@ export function StepPromptEdit({
               }}
             >
               <ErrorOutline
-                sx={{ fontSize: 16, color: "#ef4444", flexShrink: 0, mt: "1px" }}
+                sx={{
+                  fontSize: 16,
+                  color: "#ef4444",
+                  flexShrink: 0,
+                  mt: "1px",
+                }}
               />
               <Typography sx={{ fontSize: "0.8rem", color: "#ef4444" }}>
                 {generationError}
@@ -905,7 +897,12 @@ export function StepPromptEdit({
               }}
             >
               <ErrorOutline
-                sx={{ fontSize: 16, color: "#ef4444", flexShrink: 0, mt: "1px" }}
+                sx={{
+                  fontSize: 16,
+                  color: "#ef4444",
+                  flexShrink: 0,
+                  mt: "1px",
+                }}
               />
               <Typography sx={{ fontSize: "0.8rem", color: "#ef4444" }}>
                 {completeError}

@@ -197,7 +197,8 @@ describe("POST — error handling", () => {
   it("returns 409 when status does not allow prompt generation", async () => {
     startPromptGenerationMock.mockResolvedValue({
       ok: false,
-      error: "Geração de prompt requer status CONCEPT_READY ou PROMPT_READY (atual: \"DRAFT\").",
+      error:
+        'Geração de prompt requer status CONCEPT_READY ou PROMPT_READY (atual: "DRAFT").',
       code: "invalid_state",
     });
 

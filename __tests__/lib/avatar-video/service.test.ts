@@ -840,7 +840,9 @@ describe("saveEditedPrompt()", () => {
       prismaMock.avatarVideoPrompt.update as ReturnType<typeof vi.fn>
     ).mockResolvedValue(promptRow);
     (
-      prismaMock.avatarVideoCreation.findUniqueOrThrow as ReturnType<typeof vi.fn>
+      prismaMock.avatarVideoCreation.findUniqueOrThrow as ReturnType<
+        typeof vi.fn
+      >
     ).mockResolvedValue(creation);
 
     await saveEditedPrompt("user-1", "creation-1", "Test", promptJson);

@@ -23,13 +23,7 @@
  */
 
 import { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Divider,
-  Chip,
-} from "@mui/material";
+import { Box, Typography, Button, Divider, Chip } from "@mui/material";
 import {
   CheckCircle,
   ContentCopy,
@@ -60,7 +54,9 @@ interface Props {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function tryParseVeo3Prompt(text: string | null | undefined): Veo3Prompt | null {
+function tryParseVeo3Prompt(
+  text: string | null | undefined,
+): Veo3Prompt | null {
   if (!text) return null;
   try {
     const parsed = JSON.parse(text) as unknown;
@@ -78,7 +74,10 @@ function tryParseVeo3Prompt(text: string | null | undefined): Veo3Prompt | null 
 }
 
 function getSelectedImageUrl(creation: CreationDTO): string | null {
-  if (creation.selectedImageVariationId && creation.imageVariations.length > 0) {
+  if (
+    creation.selectedImageVariationId &&
+    creation.imageVariations.length > 0
+  ) {
     const selected = creation.imageVariations.find(
       (v) => v.id === creation.selectedImageVariationId,
     );
@@ -127,7 +126,11 @@ function InfoRow({ label, value }: { label: string; value: string | null }) {
   return (
     <Box sx={{ display: "flex", gap: 1, mb: 0.5 }}>
       <Typography
-        sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", minWidth: 80 }}
+        sx={{
+          fontSize: "0.75rem",
+          color: "rgba(255,255,255,0.4)",
+          minWidth: 80,
+        }}
       >
         {label}
       </Typography>
@@ -142,7 +145,11 @@ function InfoRow({ label, value }: { label: string; value: string | null }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Props) {
+export function StepDelivery({
+  creation,
+  onCreateAnother,
+  onBackToProducts,
+}: Props) {
   const [copiedAll, setCopiedAll] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -201,7 +208,15 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
   return (
     <Box>
       {/* Success header */}
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 3, gap: 1 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          mb: 3,
+          gap: 1,
+        }}
+      >
         <CheckCircle sx={{ color: "primary.main", fontSize: "2.5rem" }} />
         <Typography
           sx={{
@@ -221,7 +236,8 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
             lineHeight: 1.5,
           }}
         >
-          Baixe a imagem de referência e copie o roteiro VEO 3 para gerar seu vídeo.
+          Baixe a imagem de referência e copie o roteiro VEO 3 para gerar seu
+          vídeo.
         </Typography>
       </Box>
 
@@ -239,13 +255,26 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
         }}
       >
         <InfoOutlined
-          sx={{ color: "primary.main", fontSize: "1.1rem", mt: "1px", flexShrink: 0 }}
+          sx={{
+            color: "primary.main",
+            fontSize: "1.1rem",
+            mt: "1px",
+            flexShrink: 0,
+          }}
         />
-        <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>
-          <strong style={{ color: "#fff" }}>Nesta fase, o Hyppado não gera o vídeo final.</strong>{" "}
-          Use a imagem de referência e o roteiro VEO 3 abaixo diretamente na ferramenta de geração
-          de vídeo de sua preferência (como o VEO 3 do Google). O Hyppado prepara todos os insumos
-          para você.
+        <Typography
+          sx={{
+            fontSize: "0.8rem",
+            color: "rgba(255,255,255,0.7)",
+            lineHeight: 1.6,
+          }}
+        >
+          <strong style={{ color: "#fff" }}>
+            Nesta fase, o Hyppado não gera o vídeo final.
+          </strong>{" "}
+          Use a imagem de referência e o roteiro VEO 3 abaixo diretamente na
+          ferramenta de geração de vídeo de sua preferência (como o VEO 3 do
+          Google). O Hyppado prepara todos os insumos para você.
         </Typography>
       </Box>
 
@@ -282,7 +311,10 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
             fontSize: "0.8125rem",
             borderColor: "rgba(255,255,255,0.2)",
             color: "#fff",
-            "&:hover": { borderColor: "rgba(255,255,255,0.4)", bgcolor: "rgba(255,255,255,0.04)" },
+            "&:hover": {
+              borderColor: "rgba(255,255,255,0.4)",
+              bgcolor: "rgba(255,255,255,0.04)",
+            },
             "&.Mui-disabled": { opacity: 0.4 },
           }}
         >
@@ -294,7 +326,10 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
 
       {/* Product */}
       <Box sx={{ mb: 3 }}>
-        <SectionLabel icon={<Inventory2Outlined fontSize="inherit" />} label="Produto" />
+        <SectionLabel
+          icon={<Inventory2Outlined fontSize="inherit" />}
+          label="Produto"
+        />
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
           {creation.productSelectedImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -342,7 +377,10 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
 
       {/* Avatar */}
       <Box sx={{ mb: 3 }}>
-        <SectionLabel icon={<PersonOutlined fontSize="inherit" />} label="Avatar" />
+        <SectionLabel
+          icon={<PersonOutlined fontSize="inherit" />}
+          label="Avatar"
+        />
         {creation.uploadedAvatarImageUrl ? (
           <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -358,12 +396,16 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
                 flexShrink: 0,
               }}
             />
-            <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.7)" }}>
+            <Typography
+              sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.7)" }}
+            >
               Imagem enviada pelo usuário
             </Typography>
           </Box>
         ) : (
-          <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}>
+          <Typography
+            sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.5)" }}
+          >
             Avatar da biblioteca
           </Typography>
         )}
@@ -371,7 +413,10 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
 
       {/* Scenario */}
       <Box sx={{ mb: 3 }}>
-        <SectionLabel icon={<MovieOutlined fontSize="inherit" />} label="Cenário e roteiro" />
+        <SectionLabel
+          icon={<MovieOutlined fontSize="inherit" />}
+          label="Cenário e roteiro"
+        />
         <InfoRow label="Tom" value={creation.tone} />
         <InfoRow label="Duração" value={creation.duration} />
         <InfoRow
@@ -404,7 +449,10 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
 
       {/* Generated image */}
       <Box sx={{ mb: 3 }}>
-        <SectionLabel icon={<ImageOutlined fontSize="inherit" />} label="Imagem de referência gerada" />
+        <SectionLabel
+          icon={<ImageOutlined fontSize="inherit" />}
+          label="Imagem de referência gerada"
+        />
         {selectedImageUrl ? (
           <Box
             sx={{
@@ -435,7 +483,9 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
               textAlign: "center",
             }}
           >
-            <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.3)" }}>
+            <Typography
+              sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.3)" }}
+            >
               Nenhuma imagem disponível
             </Typography>
           </Box>
@@ -444,8 +494,18 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
 
       {/* VEO 3 prompt */}
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-          <SectionLabel icon={<ContentCopy fontSize="inherit" />} label="Roteiro VEO 3 (JSON)" />
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1,
+          }}
+        >
+          <SectionLabel
+            icon={<ContentCopy fontSize="inherit" />}
+            label="Roteiro VEO 3 (JSON)"
+          />
         </Box>
         {promptText ? (
           <Box
@@ -477,7 +537,9 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
             </Box>
           </Box>
         ) : (
-          <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.3)" }}>
+          <Typography
+            sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.3)" }}
+          >
             Roteiro não disponível
           </Typography>
         )}
@@ -497,7 +559,10 @@ export function StepDelivery({ creation, onCreateAnother, onBackToProducts }: Pr
             fontSize: "0.8125rem",
             borderColor: "rgba(45,212,255,0.3)",
             color: "primary.main",
-            "&:hover": { borderColor: "primary.main", bgcolor: "rgba(45,212,255,0.06)" },
+            "&:hover": {
+              borderColor: "primary.main",
+              bgcolor: "rgba(45,212,255,0.06)",
+            },
           }}
         >
           Criar outro vídeo

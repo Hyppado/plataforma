@@ -82,7 +82,8 @@ export function buildConceptMessages(
     contextParts.push(`Preço: ${creation.productCurrency} ${price}`);
   }
   if (creation.tone) contextParts.push(`Tom desejado: ${creation.tone}`);
-  if (creation.duration) contextParts.push(`Duração alvo: ${creation.duration}`);
+  if (creation.duration)
+    contextParts.push(`Duração alvo: ${creation.duration}`);
   const takeCount = creation.takeCount ?? 1;
   contextParts.push(`Número de takes/cenas: ${takeCount}`);
   if (imageBlobUrls.length > 0) {

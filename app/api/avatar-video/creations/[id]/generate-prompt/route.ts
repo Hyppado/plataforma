@@ -35,7 +35,9 @@ export async function POST(
 
   let requestedTakeCount: number | undefined;
   try {
-    const body = (await req.json().catch(() => ({}))) as { takeCount?: unknown };
+    const body = (await req.json().catch(() => ({}))) as {
+      takeCount?: unknown;
+    };
     if (
       typeof body.takeCount === "number" &&
       body.takeCount >= 1 &&
