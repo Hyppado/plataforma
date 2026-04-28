@@ -13,6 +13,7 @@ import { Check, Warning } from "@mui/icons-material";
 
 interface GoogleAIConfig {
   configured: boolean;
+  model: string;
 }
 
 export function GoogleAITab() {
@@ -23,6 +24,7 @@ export function GoogleAITab() {
   const [error, setError] = useState<string | null>(null);
 
   const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("gemini-3.1-flash-image-preview");
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -31,6 +33,7 @@ export function GoogleAITab() {
       if (res.ok) {
         const data = (await res.json()) as GoogleAIConfig;
         setConfig(data);
+        if (data.model) setModel(data.model);
       }
     } catch {
       // ignore
@@ -44,14 +47,17 @@ export function GoogleAITab() {
   }, [loadConfig]);
 
   const handleSave = async () => {
-    if (!apiKey.trim()) return;
+    if (!apiKey.trim() && !model.trim()) return;
     setSaving(true);
     setError(null);
     try {
+      const body: Record<string, string> = { model };
+      if (apiKey.trim()) body.apiKey = apiKey.trim();
+
       const res = await fetch("/api/admin/settings/google-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: apiKey.trim() }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         setSaved(true);
@@ -84,8 +90,8 @@ export function GoogleAITab() {
       </Typography>
       <Typography sx={{ color: "text.secondary", mb: 3, fontSize: "0.875rem" }}>
         Chave de API do Google AI Studio usada pelo Influencer IA para gerar
-        imagens com o modelo{" "}
-        <code>gemini-2.0-flash-preview-image-generation</code>.
+        imagens. O modelo padrão é{" "}
+        <code>gemini-3.1-flash-image-preview</code>.
       </Typography>
 
       {/* Status */}
@@ -118,11 +124,11 @@ export function GoogleAITab() {
         >
           {config?.configured
             ? "API key configurada"
-            : "API key não configurada — Influencer IA usará OpenAI como fallback"}
+            : "API key não configurada — Influencer IA não conseguirá gerar imagens"}
         </Typography>
       </Box>
 
-      {/* API Key input */}
+      {/* API Key + Model inputs */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <TextField
           label="Google AI Studio API Key"
@@ -134,6 +140,15 @@ export function GoogleAITab() {
           fullWidth
           helperText="Obtenha sua chave em aistudio.google.com/apikey. Será armazenada criptografada."
         />
+        <TextField
+          label="Model ID"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="gemini-3.1-flash-image-preview"
+          size="small"
+          fullWidth
+          helperText="ID exato do modelo. Deixe o padrão se não souber."
+        />
 
         {error && <Alert severity="error">{error}</Alert>}
         {saved && <Alert severity="success">API key salva com sucesso!</Alert>}
@@ -142,9 +157,11 @@ export function GoogleAITab() {
           <Button
             variant="contained"
             onClick={() => void handleSave()}
-            disabled={!apiKey.trim() || saving}
+            disabled={(!apiKey.trim() && !model.trim()) || saving}
             startIcon={
-              saving ? <CircularProgress size={16} color="inherit" /> : undefined
+              saving ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : undefined
             }
           >
             {saving ? "Salvando…" : "Salvar API Key"}

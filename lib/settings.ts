@@ -89,6 +89,7 @@ export const SETTING_KEYS = {
   AVATAR_VIDEO_PROMPT_TEMPLATE: "avatar_video.prompt_template",
   AVATAR_VIDEO_CONCEPT_TEMPLATE: "avatar_video.concept_template",
   GOOGLE_AI_API_KEY: "google_ai.api_key",
+  GOOGLE_AI_MODEL: "google_ai.model",
 } as const;
 
 // ---------------------------------------------------------------------------

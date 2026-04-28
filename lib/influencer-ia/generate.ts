@@ -9,7 +9,7 @@
  */
 
 import { createLogger } from "@/lib/logger";
-import { getSecretSetting, SETTING_KEYS } from "@/lib/settings";
+import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
 import { uploadBufferToBlob } from "@/lib/storage/blob";
 
 const log = createLogger("influencer-ia/generate");
@@ -200,10 +200,15 @@ async function fetchImageBuffer(
 // Main generation function
 // ---------------------------------------------------------------------------
 
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
+
 export async function generateInfluencerImage(
   input: InfluencerImageInput,
 ): Promise<InfluencerImageResult> {
-  const googleApiKey = await getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY);
+  const [googleApiKey, geminiModel] = await Promise.all([
+    getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY),
+    getSetting(SETTING_KEYS.GOOGLE_AI_MODEL),
+  ]);
 
   if (!googleApiKey) {
     throw new Error(
@@ -211,6 +216,7 @@ export async function generateInfluencerImage(
     );
   }
 
+  const modelId = geminiModel?.trim() || DEFAULT_GEMINI_MODEL;
   const promptText = buildPrompt(input);
 
   log.info("Generating influencer image", {
@@ -219,6 +225,7 @@ export async function generateInfluencerImage(
     pose: input.pose,
     environment: input.environment,
     style: input.style,
+    model: modelId,
     provider: "google-ai",
   });
 
@@ -229,6 +236,7 @@ export async function generateInfluencerImage(
 
   const buffer = await generateWithGemini(
     googleApiKey,
+    modelId,
     promptText,
     avatarFetch,
     productFetch,
@@ -252,12 +260,12 @@ export async function generateInfluencerImage(
 
 async function generateWithGemini(
   apiKey: string,
+  modelId: string,
   promptText: string,
   avatarFetch: { buffer: Buffer; contentType: string } | null,
   productFetch: { buffer: Buffer; contentType: string } | null,
 ): Promise<Buffer> {
-  const GEMINI_MODEL = "gemini-2.0-flash-exp";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
   // Build parts — text first, then inline image data
   const parts: unknown[] = [{ text: promptText }];
