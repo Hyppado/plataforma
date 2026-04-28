@@ -74,9 +74,11 @@ app/
           upload-avatar/ → POST upload de imagem própria para Vercel Blob (MIME JPG/PNG/WEBP, ≤5MB)
           generate-image/  → POST dispara geração de imagem (DALL-E 3)
           generate-prompt/ → POST dispara geração de prompt (VEO 3)
+    influencer-ia/
+      generate/        → POST gera imagem UGC via gpt-image-1 com avatar + produto
     cron/
       echotik/         → ingestão de dados Echotik
-      transcribe/      → retry de transcrições com falha
+      transcribe/      → retry de transcriões com falha
     insights/          → Insight Hyppado (POST + GET [videoExternalId])
     me/                → perfil e dados do usuário autenticado
     proxy/             → proxy de imagem externo (fallback)
@@ -94,7 +96,7 @@ app/
       AvatarVideoStartDialog.tsx → dialog de início do fluxo: seleção de imagem do produto + POST de criação
       StepProductConfirm.tsx     → etapa 1 do wizard: confirmação do produto selecionado
       StepAvatarSelect.tsx       → etapa 2 do wizard: galeria de avatares ou upload de foto própria
-    cards/             → VideoCard, ProductCard (com CTA "Criar vídeo"), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
+    cards/             → VideoCard, ProductCard (com CTAs "Criar vídeo" e "Influencer IA"), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
       PasswordChangeGuard.tsx → guarda de sessão para troca de senha
@@ -103,7 +105,9 @@ app/
     layout/            → sidebar, header
     ui/                → Logo, primitivos
     videos/            → TranscriptDialog, InsightDialog
-  dashboard/           → páginas autenticadas (/dashboard/*)
+  dashboard/
+    influencer-ia/     → wizard Influencer IA (produto → avatar → configuração → geração)
+    ...                → outras páginas autenticadas (/dashboard/*)
   login/               → página de login
   criar-senha/         → criação/reset de senha por token
   recuperar/           → solicitação de reset por email
@@ -154,6 +158,8 @@ lib/
     veo-prompt.ts      → VEO 3 — construção e geração de prompt estruturado
     quota.ts           → enforceAvatarVideoQuota() — verificação antes de gerar
     types.ts           → CreationDTO, AvatarProfileDTO, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO
+  influencer-ia/
+    generate.ts        → buildPrompt + gpt-image-1 + upload para Vercel Blob
   insight/
     service.ts         → requestInsight / getInsight
     generate.ts        → OpenAI Chat Completions + parseInsightResponse

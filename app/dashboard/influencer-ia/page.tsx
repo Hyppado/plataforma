@@ -3,22 +3,22 @@
 /**
  * app/dashboard/influencer-ia/page.tsx
  *
- * Influencer IA — wizard page for generating UGC-style influencer images.
+ * Influencer IA — wizard for generating UGC-style influencer images.
  *
  * Sections:
- *   1. Escolha o Produto  — pick from Produtos Hype list or upload an image
- *   2. Escolha o Influencer — pick a pre-built avatar or upload a photo
+ *   1. Escolha o Produto  — Produtos Hype (infinite scroll) or upload
+ *   2. Escolha o Influencer — avatar gallery or photo upload
  *   3. Configure a Imagem — pose, environment, style, enhancements
- *   + Generate button + result display
+ *   + Generate button + result
  *
- * Query params for deep-linking from product tables:
- *   ?productId=...          (informational, product is identified by URL)
- *   ?productImageUrl=...    (image URL, URL-encoded)
- *   ?productName=...        (product name)
- *   ?productCategory=...    (product category)
+ * Query params for deep-linking from ProductCard:
+ *   ?productId=...        pre-selects product by ID
+ *   ?productImageUrl=...  (URL-encoded) used when tab=upload
+ *   ?productName=...      product name for upload tab
+ *   ?productCategory=...  product category
  */
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Box,
@@ -26,7 +26,13 @@ import {
   Button,
   TextField,
   CircularProgress,
+  Chip,
+  Paper,
+  Skeleton,
+  Tabs,
+  Tab,
   Tooltip,
+  Alert,
 } from "@mui/material";
 import {
   AutoFixHigh,
@@ -44,7 +50,6 @@ import {
   Chair,
   ShoppingBag,
   CheckCircle,
-  ErrorOutline,
   UploadFile,
   Image as ImageIcon,
 } from "@mui/icons-material";
@@ -58,43 +63,15 @@ import type { AvatarProfileDTO } from "@/lib/avatar-video/types";
 // Constants
 // ---------------------------------------------------------------------------
 
+const PAGE_SIZE = 24;
+
 const POSES = [
-  {
-    id: "De Frente",
-    label: "De Frente",
-    description: "Mostrando o produto de frente para a câmera",
-    Icon: Person,
-  },
-  {
-    id: "Selfie",
-    label: "Selfie",
-    description: "Estilo selfie segurando o produto",
-    Icon: Smartphone,
-  },
-  {
-    id: "POV",
-    label: "POV",
-    description: "Visão em 1ª pessoa com braços estendidos",
-    Icon: Visibility,
-  },
-  {
-    id: "Mirror Selfie",
-    label: "Mirror Selfie",
-    description: "Selfie no espelho mostrando look completo",
-    Icon: CameraAlt,
-  },
-  {
-    id: "Sentada",
-    label: "Sentada",
-    description: "Pessoa sentada casualmente com o produto",
-    Icon: Chair,
-  },
-  {
-    id: "Só Produto",
-    label: "Só Produto",
-    description: "Apenas o produto em cenário estilizado",
-    Icon: ShoppingBag,
-  },
+  { id: "De Frente", label: "De Frente", Icon: Person },
+  { id: "Selfie", label: "Selfie", Icon: Smartphone },
+  { id: "POV", label: "POV", Icon: Visibility },
+  { id: "Mirror Selfie", label: "Mirror Selfie", Icon: CameraAlt },
+  { id: "Sentada", label: "Sentada", Icon: Chair },
+  { id: "Só Produto", label: "Só Produto", Icon: ShoppingBag },
 ] as const;
 
 const ENVIRONMENTS = [
@@ -122,54 +99,27 @@ const STYLES = [
 ] as const;
 
 const ENHANCEMENTS = [
-  { id: "Pele Ultra Realista", emoji: "🎨" },
-  { id: "Iluminação Natural", emoji: "☀️" },
-  { id: "Realismo e Detalhamento", emoji: "🔍" },
-  { id: "Cores Vibrantes", emoji: "🎨" },
-  { id: "Profundidade de Campo", emoji: "📷" },
-  { id: "Mãos Perfeitas", emoji: "👋" },
+  "Pele Ultra Realista",
+  "Iluminação Natural",
+  "Realismo e Detalhamento",
+  "Cores Vibrantes",
+  "Profundidade de Campo",
+  "Mãos Perfeitas",
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Shared styles
+// Section label
 // ---------------------------------------------------------------------------
 
-const SECTION_SX = {
-  borderRadius: 3,
-  border: "1px solid rgba(255,255,255,0.07)",
-  background: "rgba(255,255,255,0.025)",
-  p: { xs: 2, sm: 2.5 },
-};
-
-const LABEL_SX = {
-  fontSize: "0.62rem",
-  fontWeight: 700,
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.09em",
-  color: "rgba(255,255,255,0.28)",
-  mb: 1,
-};
-
-// ---------------------------------------------------------------------------
-// Small components
-// ---------------------------------------------------------------------------
-
-function SectionHeader({
-  number,
-  title,
-}: {
-  number: number;
-  title: string;
-}) {
+function SectionLabel({ number, title }: { number: number; title: string }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 2 }}>
       <Box
         sx={{
-          width: 26,
-          height: 26,
+          width: 22,
+          height: 22,
           borderRadius: "50%",
-          background: "rgba(45,212,255,0.12)",
-          border: "1px solid rgba(45,212,255,0.25)",
+          bgcolor: "primary.main",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -180,81 +130,81 @@ function SectionHeader({
           sx={{
             fontSize: "0.65rem",
             fontWeight: 700,
-            color: "primary.main",
+            color: "primary.contrastText",
             lineHeight: 1,
           }}
         >
           {number}
         </Typography>
       </Box>
-      <Typography sx={{ fontWeight: 600, fontSize: "0.95rem" }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
         {title}
       </Typography>
     </Box>
   );
 }
 
-function TabPair({
-  value,
-  onChange,
-  options,
+// ---------------------------------------------------------------------------
+// Tile button (pose / environment)
+// ---------------------------------------------------------------------------
+
+function TileButton({
+  icon: Icon,
+  label,
+  selected,
+  onClick,
 }: {
-  value: string;
-  onChange: (v: string) => void;
-  options: Array<{ value: string; label: string; icon?: React.ReactNode }>;
+  icon: React.ElementType;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
 }) {
   return (
-    <Box
+    <Paper
+      component="button"
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      elevation={0}
       sx={{
+        all: "unset",
+        cursor: "pointer",
         display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 0.75,
+        p: 1.5,
         borderRadius: 2,
-        overflow: "hidden",
-        border: "1px solid rgba(255,255,255,0.08)",
-        mb: 2,
+        border: "1px solid",
+        borderColor: selected ? "primary.main" : "divider",
+        bgcolor: selected ? "rgba(45,212,255,0.08)" : "background.paper",
+        transition: "border-color 0.15s, background-color 0.15s",
+        "&:hover": { borderColor: "primary.main" },
       }}
     >
-      {options.map((opt) => (
-        <Box
-          key={opt.value}
-          component="button"
-          type="button"
-          onClick={() => onChange(opt.value)}
-          sx={{
-            all: "unset",
-            flex: 1,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 0.75,
-            py: 1,
-            fontSize: "0.8rem",
-            fontWeight: 500,
-            transition: "background 0.15s, color 0.15s",
-            background:
-              value === opt.value
-                ? "rgba(45,212,255,0.12)"
-                : "transparent",
-            color:
-              value === opt.value
-                ? "primary.main"
-                : "rgba(255,255,255,0.55)",
-            borderRight:
-              opt.value !== options[options.length - 1].value
-                ? "1px solid rgba(255,255,255,0.08)"
-                : "none",
-          }}
-        >
-          {opt.icon}
-          {opt.label}
-        </Box>
-      ))}
-    </Box>
+      <Icon
+        sx={{
+          fontSize: 20,
+          color: selected ? "primary.main" : "text.secondary",
+        }}
+      />
+      <Typography
+        sx={{
+          fontSize: "0.72rem",
+          fontWeight: 500,
+          color: selected ? "primary.main" : "text.secondary",
+          textAlign: "center",
+        }}
+      >
+        {label}
+      </Typography>
+    </Paper>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Product mini-card for the grid
+// Product mini-card
 // ---------------------------------------------------------------------------
 
 function ProductMiniCard({
@@ -267,61 +217,61 @@ function ProductMiniCard({
   onSelect: () => void;
 }) {
   return (
-    <Box
+    <Paper
       component="button"
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
+      elevation={0}
       sx={{
         all: "unset",
         cursor: "pointer",
         position: "relative",
         borderRadius: 2,
         overflow: "hidden",
-        border: "2px solid",
-        borderColor: selected ? "primary.main" : "rgba(255,255,255,0.08)",
+        border: "1.5px solid",
+        borderColor: selected ? "primary.main" : "divider",
+        bgcolor: "background.paper",
         transition: "border-color 0.15s",
-        background: "rgba(0,0,0,0.2)",
-        "&:hover": {
-          borderColor: selected ? "primary.main" : "rgba(45,212,255,0.3)",
-        },
+        "&:hover": { borderColor: selected ? "primary.main" : "primary.dark" },
+        display: "block",
+        width: "100%",
       }}
     >
-      {/* Thumbnail */}
-      <Box sx={{ width: "100%", aspectRatio: "1/1", overflow: "hidden" }}>
+      <Box
+        sx={{
+          width: "100%",
+          aspectRatio: "1/1",
+          overflow: "hidden",
+          bgcolor: "action.hover",
+        }}
+      >
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
             alt={product.name}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            loading="lazy"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
         ) : (
           <Box
             sx={{
               width: "100%",
               height: "100%",
-              background: "rgba(255,255,255,0.05)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <ImageIcon sx={{ color: "rgba(255,255,255,0.2)", fontSize: 24 }} />
+            <ImageIcon sx={{ color: "text.disabled", fontSize: 24 }} />
           </Box>
         )}
       </Box>
-      {/* Name overlay */}
-      <Box
-        sx={{
-          px: 0.75,
-          py: 0.6,
-          background: "rgba(0,0,0,0.6)",
-        }}
-      >
+      <Box sx={{ px: 0.75, py: 0.6 }}>
         <Typography
           sx={{
             fontSize: "0.6rem",
-            color: selected ? "primary.main" : "rgba(255,255,255,0.75)",
+            color: selected ? "primary.main" : "text.secondary",
             fontWeight: selected ? 600 : 400,
             lineHeight: 1.3,
             display: "-webkit-box",
@@ -341,17 +291,17 @@ function ProductMiniCard({
             right: 4,
             fontSize: 16,
             color: "primary.main",
-            background: "rgba(0,0,0,0.6)",
+            bgcolor: "background.default",
             borderRadius: "50%",
           }}
         />
       )}
-    </Box>
+    </Paper>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Avatar circular card
+// Avatar card
 // ---------------------------------------------------------------------------
 
 function AvatarCard({
@@ -385,23 +335,21 @@ function AvatarCard({
           borderRadius: "50%",
           overflow: "hidden",
           border: "2px solid",
-          borderColor: selected ? "primary.main" : "rgba(255,255,255,0.12)",
+          borderColor: selected ? "primary.main" : "divider",
           transition: "border-color 0.15s",
-          "&:hover": {
-            borderColor: selected ? "primary.main" : "rgba(45,212,255,0.4)",
-          },
+          "&:hover": { borderColor: "primary.main" },
         }}
       >
         <img
           src={avatar.thumbnailUrl ?? avatar.imageUrl}
           alt={avatar.name}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </Box>
       <Typography
         sx={{
           fontSize: "0.62rem",
-          color: selected ? "primary.main" : "rgba(255,255,255,0.65)",
+          color: selected ? "primary.main" : "text.secondary",
           fontWeight: selected ? 600 : 400,
           textAlign: "center",
           maxWidth: 72,
@@ -415,148 +363,7 @@ function AvatarCard({
 }
 
 // ---------------------------------------------------------------------------
-// Tile button (pose / environment)
-// ---------------------------------------------------------------------------
-
-function TileButton({
-  icon: Icon,
-  label,
-  description,
-  selected,
-  onClick,
-}: {
-  icon: React.ElementType;
-  label: string;
-  description?: string;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Box
-      component="button"
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      sx={{
-        all: "unset",
-        cursor: "pointer",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 0.75,
-        p: 1.5,
-        borderRadius: 2,
-        border: "1px solid",
-        borderColor: selected ? "primary.main" : "rgba(255,255,255,0.08)",
-        background: selected ? "rgba(45,212,255,0.08)" : "rgba(0,0,0,0.15)",
-        transition: "border-color 0.15s, background 0.15s",
-        "&:hover": {
-          borderColor: selected ? "primary.main" : "rgba(45,212,255,0.3)",
-        },
-      }}
-    >
-      <Box
-        sx={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: selected
-            ? "rgba(45,212,255,0.15)"
-            : "rgba(255,255,255,0.06)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon
-          sx={{
-            fontSize: 18,
-            color: selected ? "primary.main" : "rgba(255,255,255,0.55)",
-          }}
-        />
-      </Box>
-      <Typography
-        sx={{
-          fontSize: "0.72rem",
-          fontWeight: 600,
-          color: selected ? "primary.main" : "rgba(255,255,255,0.8)",
-          textAlign: "center",
-        }}
-      >
-        {label}
-      </Typography>
-      {description && (
-        <Typography
-          sx={{
-            fontSize: "0.58rem",
-            color: "rgba(255,255,255,0.35)",
-            textAlign: "center",
-            lineHeight: 1.3,
-          }}
-        >
-          {description}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Enhancement chip
-// ---------------------------------------------------------------------------
-
-function EnhancementChip({
-  emoji,
-  label,
-  selected,
-  onClick,
-}: {
-  emoji: string;
-  label: string;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Box
-      component="button"
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      sx={{
-        all: "unset",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 0.75,
-        px: 1.5,
-        py: 0.9,
-        borderRadius: 2,
-        border: "1px solid",
-        borderColor: selected ? "primary.main" : "rgba(255,255,255,0.08)",
-        background: selected ? "rgba(45,212,255,0.08)" : "rgba(0,0,0,0.15)",
-        transition: "border-color 0.15s, background 0.15s",
-        "&:hover": {
-          borderColor: selected ? "primary.main" : "rgba(45,212,255,0.3)",
-        },
-      }}
-    >
-      <Typography sx={{ fontSize: "0.75rem" }}>{emoji}</Typography>
-      <Typography
-        sx={{
-          fontSize: "0.72rem",
-          fontWeight: 500,
-          color: selected ? "primary.main" : "rgba(255,255,255,0.7)",
-        }}
-      >
-        {label}
-      </Typography>
-    </Box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Image upload helper component
+// Image upload box
 // ---------------------------------------------------------------------------
 
 function ImageUploadBox({
@@ -587,9 +394,7 @@ function ImageUploadBox({
         body: formData,
       });
       if (!res.ok) {
-        const json = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(json.error ?? "Falha no upload");
       }
       const json = (await res.json()) as { url?: string };
@@ -623,40 +428,30 @@ function ImageUploadBox({
               height: 80,
               borderRadius: 2,
               overflow: "hidden",
-              border: "1px solid rgba(45,212,255,0.3)",
+              border: "1px solid",
+              borderColor: "primary.dark",
               flexShrink: 0,
             }}
           >
             <img
               src={value}
               alt={label}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
           </Box>
-          <Box>
-            <Typography
-              sx={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.6)", mb: 1 }}
-            >
+          <Box sx={{ pt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
               Imagem carregada
             </Typography>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => inputRef.current?.click()}
-              sx={{
-                fontSize: "0.7rem",
-                borderColor: "rgba(255,255,255,0.15)",
-                color: "rgba(255,255,255,0.6)",
-                mr: 1,
-              }}
-            >
+            <Button size="small" variant="outlined" onClick={() => inputRef.current?.click()} sx={{ mr: 1 }}>
               Trocar
             </Button>
             <Button
               size="small"
               variant="text"
+              color="inherit"
               onClick={() => onChange(null)}
-              sx={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}
+              sx={{ color: "text.disabled" }}
             >
               Remover
             </Button>
@@ -678,20 +473,20 @@ function ImageUploadBox({
             width: "100%",
             py: 3,
             borderRadius: 2,
-            border: "1px dashed rgba(255,255,255,0.12)",
-            background: "rgba(0,0,0,0.15)",
+            border: "1px dashed",
+            borderColor: "divider",
+            bgcolor: "action.hover",
             transition: "border-color 0.15s",
-            "&:hover": { borderColor: "rgba(45,212,255,0.3)" },
+            "&:hover": { borderColor: "primary.main" },
+            boxSizing: "border-box",
           }}
         >
           {uploading ? (
             <CircularProgress size={20} />
           ) : (
             <>
-              <UploadFile sx={{ fontSize: 24, color: "rgba(255,255,255,0.3)" }} />
-              <Typography
-                sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.45)" }}
-              >
+              <UploadFile sx={{ fontSize: 24, color: "text.disabled" }} />
+              <Typography variant="caption" color="text.secondary">
                 {label}
               </Typography>
             </>
@@ -699,113 +494,120 @@ function ImageUploadBox({
         </Box>
       )}
       {error && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.75 }}>
-          <ErrorOutline sx={{ fontSize: 12, color: "#ef4444" }} />
-          <Typography sx={{ fontSize: "0.65rem", color: "#ef4444" }}>
-            {error}
-          </Typography>
-        </Box>
+        <Alert severity="error" sx={{ mt: 1, py: 0.25, fontSize: "0.72rem" }}>
+          {error}
+        </Alert>
       )}
     </Box>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main wizard (inner — reads search params)
+// Main wizard (reads search params — must be inside Suspense)
 // ---------------------------------------------------------------------------
 
 function InfluencerIAWizard() {
   const searchParams = useSearchParams();
 
-  // Deep-link pre-selection from product tables
   const initProductImageUrl = searchParams.get("productImageUrl");
   const initProductName = searchParams.get("productName");
   const initProductCategory = searchParams.get("productCategory");
   const initProductId = searchParams.get("productId");
 
-  // ── Product state ─────────────────────────────────────────────
-  const [productTab, setProductTab] = useState<"hype" | "upload">(
-    initProductImageUrl ? "upload" : "hype",
-  );
+  // ── Product state ──────────────────────────────────────────────
+  const [productTab, setProductTab] = useState<number>(initProductImageUrl ? 1 : 0);
   const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
-  const [uploadedProductUrl, setUploadedProductUrl] = useState<string | null>(
-    initProductImageUrl,
-  );
-  const [uploadedProductName, setUploadedProductName] = useState<string>(
-    initProductName ?? "",
-  );
+  const [uploadedProductUrl, setUploadedProductUrl] = useState<string | null>(initProductImageUrl);
+  const [uploadedProductName, setUploadedProductName] = useState<string>(initProductName ?? "");
 
-  // ── Avatar state ──────────────────────────────────────────────
-  const [avatarTab, setAvatarTab] = useState<"gallery" | "upload">("gallery");
+  // ── Avatar state ───────────────────────────────────────────────
+  const [avatarTab, setAvatarTab] = useState<number>(0);
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarProfileDTO | null>(null);
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
 
-  // ── Config state ──────────────────────────────────────────────
-  const [pose, setPose] = useState<string | null>("De Frente");
+  // ── Config state ───────────────────────────────────────────────
+  const [pose, setPose] = useState<string>("De Frente");
   const [customPose, setCustomPose] = useState("");
   const [environment, setEnvironment] = useState<string | null>(null);
   const [customEnvironment, setCustomEnvironment] = useState("");
   const [style, setStyle] = useState<string | null>(null);
   const [enhancements, setEnhancements] = useState<string[]>([]);
 
-  // ── Generation state ──────────────────────────────────────────
+  // ── Generation state ───────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // ── Data hooks ────────────────────────────────────────────────
+  // ── Products: load 100, display with IntersectionObserver scroll
   const region = getStoredRegion().toUpperCase();
-  const { items: products, isLoading: loadingProducts } = useTrendingProducts({
+  const { items: allProducts, isLoading: loadingProducts } = useTrendingProducts({
     range: "7d",
     region,
     sort: "sales",
-    pageSize: 24,
+    pageSize: 100,
   });
 
-  const { avatars, isLoading: loadingAvatars } = useAvatarProfiles();
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [allProducts.length]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setDisplayCount((prev) => Math.min(prev + PAGE_SIZE, allProducts.length));
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [allProducts.length]);
+
+  const displayedProducts = allProducts.slice(0, displayCount);
+  const hasMore = displayCount < allProducts.length;
 
   // Auto-select product from deep-link query param
   const hasAutoSelected = useRef(false);
   useEffect(() => {
-    if (initProductId && !hasAutoSelected.current && products.length > 0) {
-      const match = products.find((p) => p.id === initProductId);
+    if (initProductId && !hasAutoSelected.current && allProducts.length > 0) {
+      const match = allProducts.find((p) => p.id === initProductId);
       if (match) {
         hasAutoSelected.current = true;
         setSelectedProduct(match);
       }
     }
-  }, [initProductId, products]);
+  }, [initProductId, allProducts]);
 
-  // Resolve effective product image/name
+  // ── Avatars ────────────────────────────────────────────────────
+  const { avatars, isLoading: loadingAvatars } = useAvatarProfiles();
+
+  // ── Derived values ─────────────────────────────────────────────
   const effectiveProductImageUrl =
-    productTab === "upload"
-      ? uploadedProductUrl
-      : selectedProduct?.imageUrl ?? null;
+    productTab === 1 ? uploadedProductUrl : selectedProduct?.imageUrl ?? null;
   const effectiveProductName =
-    productTab === "upload"
-      ? uploadedProductName || null
-      : selectedProduct?.name ?? null;
+    productTab === 1 ? uploadedProductName || null : selectedProduct?.name ?? null;
   const effectiveProductCategory =
-    productTab === "upload"
-      ? null
+    productTab === 1
+      ? initProductCategory ?? null
       : (selectedProduct as ProductDTO & { category?: string })?.category ?? null;
-
-  // Resolve effective avatar
-  const effectiveAvatarId =
-    avatarTab === "gallery" ? (selectedAvatar?.id ?? null) : null;
-  const effectiveAvatarImageUrl =
-    avatarTab === "upload" ? uploadedAvatarUrl : null;
+  const effectiveAvatarId = avatarTab === 0 ? (selectedAvatar?.id ?? null) : null;
+  const effectiveAvatarImageUrl = avatarTab === 1 ? uploadedAvatarUrl : null;
 
   const canGenerate =
-    (effectiveProductImageUrl || effectiveProductName) &&
-    (effectiveAvatarId || effectiveAvatarImageUrl || avatarTab === "gallery");
+    !!(effectiveProductImageUrl || effectiveProductName) &&
+    !!(effectiveAvatarId || effectiveAvatarImageUrl || avatarTab === 0);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     if (!canGenerate) return;
     setGenerating(true);
     setGenerationError(null);
     setGeneratedImageUrl(null);
-
     try {
       const res = await fetch("/api/influencer-ia/generate", {
         method: "POST",
@@ -825,97 +627,97 @@ function InfluencerIAWizard() {
         }),
       });
       const json = (await res.json()) as { imageUrl?: string; error?: string };
-      if (!res.ok || !json.imageUrl) {
-        throw new Error(json.error ?? "Erro ao gerar imagem");
-      }
+      if (!res.ok || !json.imageUrl) throw new Error(json.error ?? "Erro ao gerar imagem");
       setGeneratedImageUrl(json.imageUrl);
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : "Erro ao gerar imagem");
     } finally {
       setGenerating(false);
     }
-  };
+  }, [
+    canGenerate,
+    effectiveProductImageUrl,
+    effectiveProductName,
+    effectiveProductCategory,
+    effectiveAvatarId,
+    effectiveAvatarImageUrl,
+    pose,
+    customPose,
+    environment,
+    customEnvironment,
+    style,
+    enhancements,
+  ]);
 
-  const toggleEnhancement = (id: string) => {
-    setEnhancements((prev) =>
-      prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id],
-    );
-  };
+  const toggleEnhancement = (id: string) =>
+    setEnhancements((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
-    <Box
-      sx={{
-        maxWidth: 720,
-        mx: "auto",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-        px: { xs: 0, sm: 0 },
-      }}
-    >
-      {/* ── Section 1: Product ─────────────────────────────────── */}
-      <Box sx={SECTION_SX}>
-        <SectionHeader number={1} title="Escolha o Produto" />
+    <Box sx={{ maxWidth: 720, mx: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+      {/* ── Section 1: Product ──────────────────────────────── */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}>
+        <SectionLabel number={1} title="Escolha o Produto" />
 
-        <TabPair
+        <Tabs
           value={productTab}
-          onChange={(v) => setProductTab(v as "hype" | "upload")}
-          options={[
-            {
-              value: "hype",
-              label: "Produtos Hype",
-              icon: <span style={{ fontSize: 14 }}>📈</span>,
-            },
-            {
-              value: "upload",
-              label: "Upload",
-              icon: <UploadFile sx={{ fontSize: 16 }} />,
-            },
-          ]}
-        />
+          onChange={(_, v: number) => setProductTab(v)}
+          sx={{ mb: 2, minHeight: 36 }}
+          TabIndicatorProps={{ sx: { height: 2 } }}
+        >
+          <Tab label="Produtos Hype" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
+          <Tab label="Upload" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
+        </Tabs>
 
-        {productTab === "hype" ? (
-          loadingProducts ? (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 1,
-              }}
-            >
-              {Array.from({ length: 9 }).map((_, i) => (
-                <Box
-                  key={i}
-                  sx={{
-                    borderRadius: 2,
-                    aspectRatio: "1/1.2",
-                    background: "rgba(255,255,255,0.04)",
-                  }}
-                />
-              ))}
-            </Box>
-          ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 1,
-              }}
-            >
-              {products.slice(0, 12).map((p) => (
-                <ProductMiniCard
-                  key={p.id}
-                  product={p}
-                  selected={selectedProduct?.id === p.id}
-                  onSelect={() =>
-                    setSelectedProduct((prev) =>
-                      prev?.id === p.id ? null : p,
-                    )
-                  }
-                />
-              ))}
-            </Box>
-          )
+        {productTab === 0 ? (
+          <Box
+            sx={{
+              height: 400,
+              overflowY: "auto",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              p: 1,
+            }}
+          >
+            {loadingProducts && allProducts.length === 0 ? (
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <Box key={i}>
+                    <Skeleton variant="rectangular" sx={{ borderRadius: 2, aspectRatio: "1/1" }} />
+                    <Skeleton variant="text" sx={{ mt: 0.5, fontSize: "0.6rem" }} />
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                {displayedProducts.map((p) => (
+                  <ProductMiniCard
+                    key={p.id}
+                    product={p}
+                    selected={selectedProduct?.id === p.id}
+                    onSelect={() => setSelectedProduct((prev) => (prev?.id === p.id ? null : p))}
+                  />
+                ))}
+                {hasMore && (
+                  <Box
+                    ref={sentinelRef}
+                    sx={{
+                      gridColumn: "1 / -1",
+                      py: 1.5,
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <CircularProgress size={20} color="primary" />
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Box>
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             <ImageUploadBox
@@ -930,102 +732,47 @@ function InfluencerIAWizard() {
               size="small"
               fullWidth
               placeholder="Ex: Perfume Attractione Men"
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  fontSize: "0.82rem",
-                  "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
-                  "&:hover fieldset": { borderColor: "rgba(255,255,255,0.2)" },
-                  "&.Mui-focused fieldset": { borderColor: "primary.main" },
-                },
-              }}
             />
           </Box>
         )}
-      </Box>
+      </Paper>
 
-      {/* ── Section 2: Influencer / Avatar ────────────────────── */}
-      <Box sx={SECTION_SX}>
-        <SectionHeader number={2} title="Escolha o Influencer" />
+      {/* ── Section 2: Avatar ──────────────────────────────── */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}>
+        <SectionLabel number={2} title="Escolha o Influencer" />
 
-        <TabPair
+        <Tabs
           value={avatarTab}
-          onChange={(v) => setAvatarTab(v as "gallery" | "upload")}
-          options={[
-            {
-              value: "gallery",
-              label: "Avatares Prontos",
-              icon: <span style={{ fontSize: 14 }}>👤</span>,
-            },
-            {
-              value: "upload",
-              label: "Upload",
-              icon: <CameraAlt sx={{ fontSize: 16 }} />,
-            },
-          ]}
-        />
+          onChange={(_, v: number) => setAvatarTab(v)}
+          sx={{ mb: 2, minHeight: 36 }}
+          TabIndicatorProps={{ sx: { height: 2 } }}
+        >
+          <Tab label="Avatares Prontos" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
+          <Tab label="Upload" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
+        </Tabs>
 
-        {avatarTab === "gallery" ? (
+        {avatarTab === 0 ? (
           loadingAvatars ? (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
-                gap: 2,
-              }}
-            >
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 2 }}>
               {Array.from({ length: 8 }).map((_, i) => (
-                <Box
-                  key={i}
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 0.75,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.05)",
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 10,
-                      borderRadius: 1,
-                      background: "rgba(255,255,255,0.05)",
-                    }}
-                  />
+                <Box key={i} sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.75 }}>
+                  <Skeleton variant="circular" width={64} height={64} />
+                  <Skeleton variant="text" width={48} sx={{ fontSize: "0.62rem" }} />
                 </Box>
               ))}
             </Box>
           ) : avatars.length === 0 ? (
-            <Typography
-              sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.35)", textAlign: "center", py: 3 }}
-            >
+            <Typography variant="body2" color="text.disabled" sx={{ textAlign: "center", py: 3 }}>
               Nenhum avatar disponível ainda
             </Typography>
           ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
-                gap: 2,
-              }}
-            >
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 2 }}>
               {avatars.map((avatar) => (
                 <AvatarCard
                   key={avatar.id}
                   avatar={avatar}
                   selected={selectedAvatar?.id === avatar.id}
-                  onSelect={() =>
-                    setSelectedAvatar((prev) =>
-                      prev?.id === avatar.id ? null : avatar,
-                    )
-                  }
+                  onSelect={() => setSelectedAvatar((prev) => (prev?.id === avatar.id ? null : avatar))}
                 />
               ))}
             </Box>
@@ -1037,216 +784,114 @@ function InfluencerIAWizard() {
             label="Clique para enviar a foto do influencer"
           />
         )}
-      </Box>
+      </Paper>
 
-      {/* ── Section 3: Configure ──────────────────────────────── */}
-      <Box sx={SECTION_SX}>
-        <SectionHeader number={3} title="Configure a Imagem" />
+      {/* ── Section 3: Configure ───────────────────────────── */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}>
+        <SectionLabel number={3} title="Configure a Imagem" />
 
         {/* Pose */}
-        <Typography sx={LABEL_SX}>Pose</Typography>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 1,
-            mb: 1.5,
-          }}
-        >
+        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+          Pose
+        </Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 2 }}>
           {POSES.map((p) => (
             <TileButton
               key={p.id}
               icon={p.Icon}
               label={p.label}
-              description={p.description}
               selected={pose === p.id}
-              onClick={() => setPose((prev) => (prev === p.id ? null : p.id))}
+              onClick={() => setPose((prev) => (prev === p.id ? "" : p.id))}
             />
           ))}
         </Box>
 
-        {/* Custom pose */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            mb: 0.5,
-          }}
-        >
-          <span style={{ fontSize: 12 }}>🔗</span>
-          <Typography
-            sx={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)" }}
-          >
-            Descrever pose personalizada (opcional)
-          </Typography>
-        </Box>
         <TextField
+          label="Pose personalizada (opcional)"
           value={customPose}
           onChange={(e) => setCustomPose(e.target.value)}
           multiline
           minRows={2}
           fullWidth
-          placeholder="Ex: Segurando o produto próximo ao rosto com expressão de surpresa • Abraçando o produto contra o peito..."
-          sx={{
-            mb: 2.5,
-            "& .MuiOutlinedInput-root": {
-              fontSize: "0.78rem",
-              "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
-              "&:hover fieldset": { borderColor: "rgba(255,255,255,0.2)" },
-              "&.Mui-focused fieldset": { borderColor: "primary.main" },
-            },
-          }}
+          size="small"
+          placeholder="Ex: Segurando o produto próximo ao rosto com expressão de surpresa"
+          sx={{ mb: 2.5 }}
         />
 
         {/* Environment */}
-        <Typography sx={LABEL_SX}>Ambiente</Typography>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 1,
-            mb: 1.5,
-          }}
-        >
+        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+          Ambiente
+        </Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 2 }}>
           {ENVIRONMENTS.map((env) => (
             <TileButton
               key={env.id}
               icon={env.Icon}
               label={env.label}
               selected={environment === env.id}
-              onClick={() =>
-                setEnvironment((prev) => (prev === env.id ? null : env.id))
-              }
+              onClick={() => setEnvironment((prev) => (prev === env.id ? null : env.id))}
             />
           ))}
         </Box>
 
-        {/* Custom environment */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            mb: 0.5,
-          }}
-        >
-          <span style={{ fontSize: 12 }}>🔗</span>
-          <Typography
-            sx={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)" }}
-          >
-            Descrever cenário personalizado (opcional)
-          </Typography>
-        </Box>
         <TextField
+          label="Cenário personalizado (opcional)"
           value={customEnvironment}
           onChange={(e) => setCustomEnvironment(e.target.value)}
           multiline
           minRows={2}
           fullWidth
-          placeholder="Ex: Quarto minimalista com cama branca e luz natural entrando pela janela • Banheiro moderno com espelho grande..."
-          sx={{
-            mb: 2.5,
-            "& .MuiOutlinedInput-root": {
-              fontSize: "0.78rem",
-              "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
-              "&:hover fieldset": { borderColor: "rgba(255,255,255,0.2)" },
-              "&.Mui-focused fieldset": { borderColor: "primary.main" },
-            },
-          }}
+          size="small"
+          placeholder="Ex: Quarto minimalista com cama branca e luz natural entrando pela janela"
+          sx={{ mb: 2.5 }}
         />
 
         {/* Style */}
-        <Typography sx={LABEL_SX}>Estilo do Influencer</Typography>
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 0.75,
-            mb: 2.5,
-          }}
-        >
+        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+          Estilo do Influencer
+        </Typography>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 2.5 }}>
           {STYLES.map((s) => (
-            <Box
+            <Chip
               key={s}
-              component="button"
-              type="button"
+              label={s}
+              size="small"
               onClick={() => setStyle((prev) => (prev === s ? null : s))}
-              aria-pressed={style === s}
+              variant={style === s ? "filled" : "outlined"}
+              color={style === s ? "primary" : "default"}
               sx={{
-                all: "unset",
                 cursor: "pointer",
-                px: 1.5,
-                py: 0.6,
-                borderRadius: 2,
-                border: "1px solid",
-                borderColor: style === s ? "primary.main" : "rgba(255,255,255,0.1)",
-                background:
-                  style === s ? "rgba(45,212,255,0.08)" : "transparent",
-                fontSize: "0.72rem",
-                color:
-                  style === s ? "primary.main" : "rgba(255,255,255,0.6)",
-                transition: "border-color 0.15s, background 0.15s, color 0.15s",
-                "&:hover": {
-                  borderColor:
-                    style === s ? "primary.main" : "rgba(45,212,255,0.3)",
-                },
+                fontWeight: style === s ? 700 : 400,
+                color: style === s ? "primary.contrastText" : "text.secondary",
               }}
-            >
-              {s}
-            </Box>
+            />
           ))}
         </Box>
 
         {/* Enhancements */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            mb: 1,
-          }}
-        >
-          <AutoFixHigh sx={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }} />
-          <Typography
-            sx={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.55)", fontWeight: 500 }}
-          >
-            Melhorias na imagem{" "}
-            <span style={{ color: "rgba(255,255,255,0.28)", fontWeight: 400 }}>
-              (opcional)
-            </span>
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            gap: 0.75,
-            mb: 0.5,
-          }}
-        >
+        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+          Melhorias na imagem
+        </Typography>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
           {ENHANCEMENTS.map((e) => (
-            <EnhancementChip
-              key={e.id}
-              emoji={e.emoji}
-              label={e.id}
-              selected={enhancements.includes(e.id)}
-              onClick={() => toggleEnhancement(e.id)}
+            <Chip
+              key={e}
+              label={e}
+              size="small"
+              onClick={() => toggleEnhancement(e)}
+              variant={enhancements.includes(e) ? "filled" : "outlined"}
+              color={enhancements.includes(e) ? "primary" : "default"}
+              sx={{
+                cursor: "pointer",
+                fontWeight: enhancements.includes(e) ? 700 : 400,
+                color: enhancements.includes(e) ? "primary.contrastText" : "text.secondary",
+              }}
             />
           ))}
         </Box>
-        <Typography
-          sx={{
-            fontSize: "0.6rem",
-            color: "rgba(255,255,255,0.22)",
-            mt: 0.5,
-          }}
-        >
-          💡 Selecione os boosts para imagens mais assertivas e realistas
-        </Typography>
-      </Box>
+      </Paper>
 
-      {/* ── Generate button ───────────────────────────────────── */}
+      {/* ── Generate ───────────────────────────────────────── */}
       <Button
         variant="contained"
         size="large"
@@ -1256,58 +901,22 @@ function InfluencerIAWizard() {
         startIcon={
           generating ? <CircularProgress size={18} color="inherit" /> : <AutoFixHigh />
         }
-        sx={{
-          py: 1.6,
-          fontSize: "0.95rem",
-          fontWeight: 700,
-          borderRadius: 2.5,
-          background: canGenerate
-            ? "linear-gradient(135deg, #2DD4FF 0%, #00B8E6 100%)"
-            : undefined,
-          color: canGenerate ? "#000" : undefined,
-          "&:disabled": { opacity: 0.45 },
-        }}
+        sx={{ py: 1.5, fontSize: "0.95rem", fontWeight: 700, borderRadius: 2 }}
       >
         {generating ? "Gerando imagem…" : "Gerar Imagem"}
       </Button>
 
       {!canGenerate && !generating && (
-        <Typography
-          sx={{
-            textAlign: "center",
-            fontSize: "0.72rem",
-            color: "rgba(255,255,255,0.3)",
-            mt: -1,
-          }}
-        >
+        <Typography variant="caption" color="text.disabled" sx={{ textAlign: "center", mt: -1 }}>
           Escolha um produto e um influencer para gerar a imagem
         </Typography>
       )}
 
-      {/* ── Error ─────────────────────────────────────────────── */}
-      {generationError && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 1,
-            p: 1.5,
-            borderRadius: 2,
-            border: "1px solid rgba(239,68,68,0.25)",
-            background: "rgba(239,68,68,0.06)",
-          }}
-        >
-          <ErrorOutline sx={{ fontSize: 16, color: "#ef4444", mt: 0.1 }} />
-          <Typography sx={{ fontSize: "0.78rem", color: "#ef4444" }}>
-            {generationError}
-          </Typography>
-        </Box>
-      )}
+      {generationError && <Alert severity="error">{generationError}</Alert>}
 
-      {/* ── Result ────────────────────────────────────────────── */}
+      {/* ── Result ─────────────────────────────────────────── */}
       {generatedImageUrl && (
-        <Box sx={SECTION_SX}>
-          {/* Header */}
+        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}>
           <Box
             sx={{
               display: "flex",
@@ -1317,10 +926,8 @@ function InfluencerIAWizard() {
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <CheckCircle sx={{ fontSize: 18, color: "#22c55e" }} />
-              <Typography sx={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                Imagem Gerada!
-              </Typography>
+              <CheckCircle sx={{ fontSize: 18, color: "success.main" }} />
+              <Typography variant="subtitle2">Imagem Gerada!</Typography>
             </Box>
             <Box sx={{ display: "flex", gap: 1 }}>
               <Tooltip title="Baixar imagem">
@@ -1333,11 +940,6 @@ function InfluencerIAWizard() {
                   download="influencer-ia.png"
                   target="_blank"
                   rel="noopener noreferrer"
-                  sx={{
-                    fontSize: "0.72rem",
-                    borderColor: "rgba(255,255,255,0.15)",
-                    color: "rgba(255,255,255,0.7)",
-                  }}
                 >
                   Baixar
                 </Button>
@@ -1349,10 +951,8 @@ function InfluencerIAWizard() {
                   startIcon={<Refresh />}
                   onClick={() => void handleGenerate()}
                   disabled={generating}
-                  sx={{
-                    fontSize: "0.72rem",
-                    color: "rgba(255,255,255,0.5)",
-                  }}
+                  color="inherit"
+                  sx={{ color: "text.secondary" }}
                 >
                   Regenerar
                 </Button>
@@ -1360,34 +960,27 @@ function InfluencerIAWizard() {
             </Box>
           </Box>
 
-          {/* Image */}
           <Box
             sx={{
               borderRadius: 2,
               overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.06)",
+              border: "1px solid",
+              borderColor: "divider",
               maxWidth: 400,
               mx: "auto",
             }}
           >
-            <img
-              src={generatedImageUrl}
-              alt="Imagem gerada"
-              style={{ width: "100%", display: "block" }}
-            />
+            <img src={generatedImageUrl} alt="Imagem gerada" style={{ width: "100%", display: "block" }} />
           </Box>
 
           <Typography
-            sx={{
-              fontSize: "0.65rem",
-              color: "rgba(255,255,255,0.22)",
-              textAlign: "center",
-              mt: 1.5,
-            }}
+            variant="caption"
+            color="text.disabled"
+            sx={{ display: "block", textAlign: "center", mt: 1.5 }}
           >
             Baixe sua imagem antes de sair da página
           </Typography>
-        </Box>
+        </Paper>
       )}
     </Box>
   );
@@ -1399,53 +992,20 @@ function InfluencerIAWizard() {
 
 export default function InfluencerIAPage() {
   return (
-    <Box
-      sx={{
-        minHeight: "100dvh",
-        background: "#070B14",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* Page header */}
-      <Box
-        sx={{
-          px: { xs: 2, sm: 3 },
-          pt: 3,
-          pb: 1,
-          display: "flex",
-          alignItems: "center",
-          gap: 1.5,
-        }}
-      >
-        <Box
-          sx={{
-            width: 44,
-            height: 44,
-            borderRadius: 2,
-            background: "rgba(45,212,255,0.1)",
-            border: "1px solid rgba(45,212,255,0.2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box sx={{ flexShrink: 0, mb: 1.5 }}>
+        <Typography
+          component="h1"
+          sx={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff", mb: 0.25, lineHeight: 1.3 }}
         >
-          <AutoFixHigh sx={{ fontSize: 22, color: "primary.main" }} />
-        </Box>
-        <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: "1.25rem" }}>
-            Influencer IA
-          </Typography>
-          <Typography
-            sx={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)" }}
-          >
-            Crie imagens UGC ultra-realistas com seu produto
-          </Typography>
-        </Box>
+          Influencer IA
+        </Typography>
+        <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.3 }}>
+          Crie imagens UGC ultra-realistas com seu produto
+        </Typography>
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: "auto", px: { xs: 2, sm: 3 }, py: 3 }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         <Suspense fallback={null}>
           <InfluencerIAWizard />
         </Suspense>
