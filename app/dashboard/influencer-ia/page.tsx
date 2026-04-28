@@ -251,7 +251,12 @@ function ProductMiniCard({
             src={product.imageUrl}
             alt={product.name}
             loading="lazy"
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
           />
         ) : (
           <Box
@@ -343,7 +348,12 @@ function AvatarCard({
         <img
           src={avatar.thumbnailUrl ?? avatar.imageUrl}
           alt={avatar.name}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
         />
       </Box>
       <Typography
@@ -389,7 +399,7 @@ function ImageUploadBox({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/avatar-video/upload-reference", {
+      const res = await fetch("/api/influencer-ia/upload-reference", {
         method: "POST",
         body: formData,
       });
@@ -436,14 +446,28 @@ function ImageUploadBox({
             <img
               src={value}
               alt={label}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
             />
           </Box>
           <Box sx={{ pt: 0.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", mb: 1 }}
+            >
               Imagem carregada
             </Typography>
-            <Button size="small" variant="outlined" onClick={() => inputRef.current?.click()} sx={{ mr: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => inputRef.current?.click()}
+              sx={{ mr: 1 }}
+            >
               Trocar
             </Button>
             <Button
@@ -515,15 +539,27 @@ function InfluencerIAWizard() {
   const initProductId = searchParams.get("productId");
 
   // ── Product state ──────────────────────────────────────────────
-  const [productTab, setProductTab] = useState<number>(initProductImageUrl ? 1 : 0);
-  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
-  const [uploadedProductUrl, setUploadedProductUrl] = useState<string | null>(initProductImageUrl);
-  const [uploadedProductName, setUploadedProductName] = useState<string>(initProductName ?? "");
+  const [productTab, setProductTab] = useState<number>(
+    initProductImageUrl ? 1 : 0,
+  );
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
+    null,
+  );
+  const [uploadedProductUrl, setUploadedProductUrl] = useState<string | null>(
+    initProductImageUrl,
+  );
+  const [uploadedProductName, setUploadedProductName] = useState<string>(
+    initProductName ?? "",
+  );
 
   // ── Avatar state ───────────────────────────────────────────────
   const [avatarTab, setAvatarTab] = useState<number>(0);
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarProfileDTO | null>(null);
-  const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarProfileDTO | null>(
+    null,
+  );
+  const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(
+    null,
+  );
 
   // ── Config state ───────────────────────────────────────────────
   const [pose, setPose] = useState<string>("De Frente");
@@ -535,17 +571,20 @@ function InfluencerIAWizard() {
 
   // ── Generation state ───────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
+    null,
+  );
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   // ── Products: load 100, display with IntersectionObserver scroll
   const region = getStoredRegion().toUpperCase();
-  const { items: allProducts, isLoading: loadingProducts } = useTrendingProducts({
-    range: "7d",
-    region,
-    sort: "sales",
-    pageSize: 100,
-  });
+  const { items: allProducts, isLoading: loadingProducts } =
+    useTrendingProducts({
+      range: "7d",
+      region,
+      sort: "sales",
+      pageSize: 100,
+    });
 
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -560,7 +599,9 @@ function InfluencerIAWizard() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          setDisplayCount((prev) => Math.min(prev + PAGE_SIZE, allProducts.length));
+          setDisplayCount((prev) =>
+            Math.min(prev + PAGE_SIZE, allProducts.length),
+          );
         }
       },
       { threshold: 0.1 },
@@ -589,14 +630,18 @@ function InfluencerIAWizard() {
 
   // ── Derived values ─────────────────────────────────────────────
   const effectiveProductImageUrl =
-    productTab === 1 ? uploadedProductUrl : selectedProduct?.imageUrl ?? null;
+    productTab === 1 ? uploadedProductUrl : (selectedProduct?.imageUrl ?? null);
   const effectiveProductName =
-    productTab === 1 ? uploadedProductName || null : selectedProduct?.name ?? null;
+    productTab === 1
+      ? uploadedProductName || null
+      : (selectedProduct?.name ?? null);
   const effectiveProductCategory =
     productTab === 1
-      ? initProductCategory ?? null
-      : (selectedProduct as ProductDTO & { category?: string })?.category ?? null;
-  const effectiveAvatarId = avatarTab === 0 ? (selectedAvatar?.id ?? null) : null;
+      ? (initProductCategory ?? null)
+      : ((selectedProduct as ProductDTO & { category?: string })?.category ??
+        null);
+  const effectiveAvatarId =
+    avatarTab === 0 ? (selectedAvatar?.id ?? null) : null;
   const effectiveAvatarImageUrl = avatarTab === 1 ? uploadedAvatarUrl : null;
 
   const canGenerate =
@@ -627,10 +672,13 @@ function InfluencerIAWizard() {
         }),
       });
       const json = (await res.json()) as { imageUrl?: string; error?: string };
-      if (!res.ok || !json.imageUrl) throw new Error(json.error ?? "Erro ao gerar imagem");
+      if (!res.ok || !json.imageUrl)
+        throw new Error(json.error ?? "Erro ao gerar imagem");
       setGeneratedImageUrl(json.imageUrl);
     } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : "Erro ao gerar imagem");
+      setGenerationError(
+        err instanceof Error ? err.message : "Erro ao gerar imagem",
+      );
     } finally {
       setGenerating(false);
     }
@@ -650,14 +698,24 @@ function InfluencerIAWizard() {
   ]);
 
   const toggleEnhancement = (id: string) =>
-    setEnhancements((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+    setEnhancements((prev) =>
+      prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id],
+    );
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
-    <Box sx={{ maxWidth: 720, mx: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box
+      sx={{
+        maxWidth: 720,
+        mx: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+      }}
+    >
       {/* ── Section 1: Product ──────────────────────────────── */}
       <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}>
         <SectionLabel number={1} title="Escolha o Produto" />
@@ -668,8 +726,14 @@ function InfluencerIAWizard() {
           sx={{ mb: 2, minHeight: 36 }}
           TabIndicatorProps={{ sx: { height: 2 } }}
         >
-          <Tab label="Produtos Hype" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
-          <Tab label="Upload" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
+          <Tab
+            label="Produtos Hype"
+            sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+          />
+          <Tab
+            label="Upload"
+            sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+          />
         </Tabs>
 
         {productTab === 0 ? (
@@ -684,22 +748,44 @@ function InfluencerIAWizard() {
             }}
           >
             {loadingProducts && allProducts.length === 0 ? (
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 1,
+                }}
+              >
                 {Array.from({ length: 9 }).map((_, i) => (
                   <Box key={i}>
-                    <Skeleton variant="rectangular" sx={{ borderRadius: 2, aspectRatio: "1/1" }} />
-                    <Skeleton variant="text" sx={{ mt: 0.5, fontSize: "0.6rem" }} />
+                    <Skeleton
+                      variant="rectangular"
+                      sx={{ borderRadius: 2, aspectRatio: "1/1" }}
+                    />
+                    <Skeleton
+                      variant="text"
+                      sx={{ mt: 0.5, fontSize: "0.6rem" }}
+                    />
                   </Box>
                 ))}
               </Box>
             ) : (
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 1,
+                }}
+              >
                 {displayedProducts.map((p) => (
                   <ProductMiniCard
                     key={p.id}
                     product={p}
                     selected={selectedProduct?.id === p.id}
-                    onSelect={() => setSelectedProduct((prev) => (prev?.id === p.id ? null : p))}
+                    onSelect={() =>
+                      setSelectedProduct((prev) =>
+                        prev?.id === p.id ? null : p,
+                      )
+                    }
                   />
                 ))}
                 {hasMore && (
@@ -747,32 +833,70 @@ function InfluencerIAWizard() {
           sx={{ mb: 2, minHeight: 36 }}
           TabIndicatorProps={{ sx: { height: 2 } }}
         >
-          <Tab label="Avatares Prontos" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
-          <Tab label="Upload" sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }} />
+          <Tab
+            label="Avatares Prontos"
+            sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+          />
+          <Tab
+            label="Upload"
+            sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+          />
         </Tabs>
 
         {avatarTab === 0 ? (
           loadingAvatars ? (
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 2 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+                gap: 2,
+              }}
+            >
               {Array.from({ length: 8 }).map((_, i) => (
-                <Box key={i} sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.75 }}>
+                <Box
+                  key={i}
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0.75,
+                  }}
+                >
                   <Skeleton variant="circular" width={64} height={64} />
-                  <Skeleton variant="text" width={48} sx={{ fontSize: "0.62rem" }} />
+                  <Skeleton
+                    variant="text"
+                    width={48}
+                    sx={{ fontSize: "0.62rem" }}
+                  />
                 </Box>
               ))}
             </Box>
           ) : avatars.length === 0 ? (
-            <Typography variant="body2" color="text.disabled" sx={{ textAlign: "center", py: 3 }}>
+            <Typography
+              variant="body2"
+              color="text.disabled"
+              sx={{ textAlign: "center", py: 3 }}
+            >
               Nenhum avatar disponível ainda
             </Typography>
           ) : (
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 2 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
+                gap: 2,
+              }}
+            >
               {avatars.map((avatar) => (
                 <AvatarCard
                   key={avatar.id}
                   avatar={avatar}
                   selected={selectedAvatar?.id === avatar.id}
-                  onSelect={() => setSelectedAvatar((prev) => (prev?.id === avatar.id ? null : avatar))}
+                  onSelect={() =>
+                    setSelectedAvatar((prev) =>
+                      prev?.id === avatar.id ? null : avatar,
+                    )
+                  }
                 />
               ))}
             </Box>
@@ -791,10 +915,21 @@ function InfluencerIAWizard() {
         <SectionLabel number={3} title="Configure a Imagem" />
 
         {/* Pose */}
-        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+        <Typography
+          variant="overline"
+          color="text.disabled"
+          sx={{ display: "block", mb: 1 }}
+        >
           Pose
         </Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 2 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 1,
+            mb: 2,
+          }}
+        >
           {POSES.map((p) => (
             <TileButton
               key={p.id}
@@ -819,17 +954,30 @@ function InfluencerIAWizard() {
         />
 
         {/* Environment */}
-        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+        <Typography
+          variant="overline"
+          color="text.disabled"
+          sx={{ display: "block", mb: 1 }}
+        >
           Ambiente
         </Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 2 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 1,
+            mb: 2,
+          }}
+        >
           {ENVIRONMENTS.map((env) => (
             <TileButton
               key={env.id}
               icon={env.Icon}
               label={env.label}
               selected={environment === env.id}
-              onClick={() => setEnvironment((prev) => (prev === env.id ? null : env.id))}
+              onClick={() =>
+                setEnvironment((prev) => (prev === env.id ? null : env.id))
+              }
             />
           ))}
         </Box>
@@ -847,7 +995,11 @@ function InfluencerIAWizard() {
         />
 
         {/* Style */}
-        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+        <Typography
+          variant="overline"
+          color="text.disabled"
+          sx={{ display: "block", mb: 1 }}
+        >
           Estilo do Influencer
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 2.5 }}>
@@ -869,7 +1021,11 @@ function InfluencerIAWizard() {
         </Box>
 
         {/* Enhancements */}
-        <Typography variant="overline" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+        <Typography
+          variant="overline"
+          color="text.disabled"
+          sx={{ display: "block", mb: 1 }}
+        >
           Melhorias na imagem
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -884,7 +1040,9 @@ function InfluencerIAWizard() {
               sx={{
                 cursor: "pointer",
                 fontWeight: enhancements.includes(e) ? 700 : 400,
-                color: enhancements.includes(e) ? "primary.contrastText" : "text.secondary",
+                color: enhancements.includes(e)
+                  ? "primary.contrastText"
+                  : "text.secondary",
               }}
             />
           ))}
@@ -899,7 +1057,11 @@ function InfluencerIAWizard() {
         disabled={!canGenerate || generating}
         onClick={() => void handleGenerate()}
         startIcon={
-          generating ? <CircularProgress size={18} color="inherit" /> : <AutoFixHigh />
+          generating ? (
+            <CircularProgress size={18} color="inherit" />
+          ) : (
+            <AutoFixHigh />
+          )
         }
         sx={{ py: 1.5, fontSize: "0.95rem", fontWeight: 700, borderRadius: 2 }}
       >
@@ -907,7 +1069,11 @@ function InfluencerIAWizard() {
       </Button>
 
       {!canGenerate && !generating && (
-        <Typography variant="caption" color="text.disabled" sx={{ textAlign: "center", mt: -1 }}>
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          sx={{ textAlign: "center", mt: -1 }}
+        >
           Escolha um produto e um influencer para gerar a imagem
         </Typography>
       )}
@@ -916,7 +1082,10 @@ function InfluencerIAWizard() {
 
       {/* ── Result ─────────────────────────────────────────── */}
       {generatedImageUrl && (
-        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}>
+        <Paper
+          variant="outlined"
+          sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}
+        >
           <Box
             sx={{
               display: "flex",
@@ -970,7 +1139,11 @@ function InfluencerIAWizard() {
               mx: "auto",
             }}
           >
-            <img src={generatedImageUrl} alt="Imagem gerada" style={{ width: "100%", display: "block" }} />
+            <img
+              src={generatedImageUrl}
+              alt="Imagem gerada"
+              style={{ width: "100%", display: "block" }}
+            />
           </Box>
 
           <Typography
@@ -992,15 +1165,34 @@ function InfluencerIAWizard() {
 
 export default function InfluencerIAPage() {
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <Box sx={{ flexShrink: 0, mb: 1.5 }}>
         <Typography
           component="h1"
-          sx={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff", mb: 0.25, lineHeight: 1.3 }}
+          sx={{
+            fontSize: "1.25rem",
+            fontWeight: 700,
+            color: "#fff",
+            mb: 0.25,
+            lineHeight: 1.3,
+          }}
         >
           Influencer IA
         </Typography>
-        <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.3 }}>
+        <Typography
+          sx={{
+            fontSize: "0.75rem",
+            color: "rgba(255,255,255,0.5)",
+            lineHeight: 1.3,
+          }}
+        >
           Crie imagens UGC ultra-realistas com seu produto
         </Typography>
       </Box>
