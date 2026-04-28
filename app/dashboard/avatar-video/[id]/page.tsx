@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Box,
@@ -37,8 +37,32 @@ function AvatarVideoCreationContent() {
   const [localCreation, setLocalCreation] = useState<CreationDTO | null>(null);
   const activeCreation = localCreation ?? creation;
 
-  const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm, 5 = delivery
+  const [step, setStep] = useState(0); // 0-indexed; 0 = product confirm, 6 = delivery
   const [deliveryCreation, setDeliveryCreation] = useState<CreationDTO | null>(null);
+
+  // Auto-advance to the correct step when the creation is first loaded.
+  // Uses a ref so subsequent SWR re-fetches don't override user navigation.
+  const initialStepSet = useRef(false);
+  useEffect(() => {
+    if (!creation || initialStepSet.current) return;
+    initialStepSet.current = true;
+    const s = ((): number => {
+      switch (creation.status) {
+        case "PENDING_IMAGES":
+        case "IMAGES_READY":
+          return 4; // concept step — images ready, concept not yet
+        case "PENDING_CONCEPT":
+        case "CONCEPT_READY":
+          return 5; // prompt step — concept ready
+        case "PENDING_PROMPT":
+        case "PROMPT_READY":
+          return 5; // prompt step
+        default:
+          return 0; // DRAFT or unknown → start from beginning
+      }
+    })();
+    if (s > 0) setStep(s);
+  }, [creation]);
 
   const handleContinue = () =>
     setStep((s) => Math.min(s + 1, STEPS.length - 1));

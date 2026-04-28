@@ -376,6 +376,15 @@ export function StepPromptEdit({
 
   const hasPrompt = status === "PROMPT_READY" && promptRow != null;
 
+  // Guard: creation hasn't gone through the concept step yet.
+  const needsConcept =
+    status !== "CONCEPT_READY" &&
+    status !== "PENDING_CONCEPT" &&
+    status !== "PENDING_PROMPT" &&
+    status !== "PROMPT_READY" &&
+    status !== "COMPLETED" &&
+    status !== "FAILED";
+
   const updateTake = useCallback((index: number, updated: EditableTake) => {
     setEditedTakes((prev) => prev.map((t, i) => (i === index ? updated : t)));
   }, []);
@@ -482,6 +491,50 @@ export function StepPromptEdit({
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  if (needsConcept) {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+        <Box>
+          <Typography
+            component="h2"
+            sx={{ fontSize: "1rem", fontWeight: 700, color: "#fff", mb: 0.25 }}
+          >
+            Takes VEO 3
+          </Typography>
+        </Box>
+        <Box
+          role="alert"
+          sx={{
+            display: "flex",
+            gap: 1,
+            p: 1.5,
+            borderRadius: 2,
+            background: "rgba(255,193,7,0.08)",
+            border: "1px solid rgba(255,193,7,0.2)",
+          }}
+        >
+          <ErrorOutline
+            sx={{ fontSize: 16, color: "#ffc107", flexShrink: 0, mt: "1px" }}
+          />
+          <Typography sx={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}>
+            Você precisa gerar e aprovar o conceito do vídeo antes de criar os
+            takes. Volte à etapa anterior.
+          </Typography>
+        </Box>
+        <Box sx={{ display: "flex", gap: 1, pt: 0.5 }}>
+          <Button
+            variant="text"
+            startIcon={<ArrowBack />}
+            onClick={onBack}
+            sx={{ color: "rgba(255,255,255,0.45)", "&:hover": { color: "#fff" } }}
+          >
+            Voltar ao Conceito
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
