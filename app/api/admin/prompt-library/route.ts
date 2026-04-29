@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
 
     let items = await listAllPromptLibraryItems();
 
+    // Derive unique sorted categories from full unfiltered list
+    const categories = Array.from(new Set(items.map((i) => i.category))).sort();
+
     if (categoryFilter) {
       items = items.filter(
         (i) => i.category.toLowerCase() === categoryFilter.toLowerCase(),
@@ -43,7 +46,7 @@ export async function GET(req: NextRequest) {
       items = items.filter((i) => !i.isActive);
     }
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, categories });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
     log.error("Failed to list prompt library items", { error: message });
@@ -65,10 +68,8 @@ export async function POST(req: NextRequest) {
         typeof body.description === "string" ? body.description : null,
       videoBlobUrl:
         typeof body.videoBlobUrl === "string" ? body.videoBlobUrl : "",
-      promptText:
-        typeof body.promptText === "string" ? body.promptText : "",
-      isActive:
-        typeof body.isActive === "boolean" ? body.isActive : undefined,
+      promptText: typeof body.promptText === "string" ? body.promptText : "",
+      isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
       createdById: auth.userId,
     });
 

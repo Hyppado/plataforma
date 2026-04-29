@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
+  Autocomplete,
   Box,
   Card,
   CardContent,
@@ -20,7 +21,13 @@ import {
   CircularProgress,
   Tooltip,
 } from "@mui/material";
-import { Add, Edit, Delete, CloudUpload, PlayCircleOutline } from "@mui/icons-material";
+import {
+  Add,
+  Edit,
+  Delete,
+  CloudUpload,
+  PlayCircleOutline,
+} from "@mui/icons-material";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +80,7 @@ const cardStyle = {
 
 export function PromptLibraryTab() {
   const [items, setItems] = useState<PromptLibraryItem[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +96,7 @@ export function PromptLibraryTab() {
       if (res.ok) {
         const data = await res.json();
         setItems(data.items ?? []);
+        setCategories(data.categories ?? []);
       }
     } finally {
       setLoading(false);
@@ -136,10 +145,22 @@ export function PromptLibraryTab() {
     if (!form) return;
     setError(null);
 
-    if (!form.title.trim()) { setError("Título é obrigatório"); return; }
-    if (!form.category.trim()) { setError("Categoria é obrigatória"); return; }
-    if (!form.videoBlobUrl.trim()) { setError("Vídeo é obrigatório"); return; }
-    if (!form.promptText.trim()) { setError("Prompt é obrigatório"); return; }
+    if (!form.title.trim()) {
+      setError("Título é obrigatório");
+      return;
+    }
+    if (!form.category.trim()) {
+      setError("Categoria é obrigatória");
+      return;
+    }
+    if (!form.videoBlobUrl.trim()) {
+      setError("Vídeo é obrigatório");
+      return;
+    }
+    if (!form.promptText.trim()) {
+      setError("Prompt é obrigatório");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -181,14 +202,26 @@ export function PromptLibraryTab() {
   }
 
   async function handleDeactivate(item: PromptLibraryItem) {
-    if (!confirm(`Desativar "${item.title}"? O item não será mais exibido aos usuários.`)) return;
+    if (
+      !confirm(
+        `Desativar "${item.title}"? O item não será mais exibido aos usuários.`,
+      )
+    )
+      return;
     await fetch(`/api/admin/prompt-library/${item.id}`, { method: "DELETE" });
     await loadItems();
   }
 
   async function handleHardDelete(item: PromptLibraryItem) {
-    if (!confirm(`Excluir permanentemente "${item.title}"? Esta ação não pode ser desfeita.`)) return;
-    await fetch(`/api/admin/prompt-library/${item.id}?hard=true`, { method: "DELETE" });
+    if (
+      !confirm(
+        `Excluir permanentemente "${item.title}"? Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+    await fetch(`/api/admin/prompt-library/${item.id}?hard=true`, {
+      method: "DELETE",
+    });
     await loadItems();
   }
 
@@ -209,7 +242,9 @@ export function PromptLibraryTab() {
         return;
       }
       const data = await res.json();
-      setForm((prev) => prev ? { ...prev, videoBlobUrl: data.videoBlobUrl } : prev);
+      setForm((prev) =>
+        prev ? { ...prev, videoBlobUrl: data.videoBlobUrl } : prev,
+      );
       setUploadedFileName(file.name);
     } finally {
       setUploading(false);
@@ -230,12 +265,20 @@ export function PromptLibraryTab() {
 
   return (
     <Box>
-      <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)", mb: 2 }}>
-        Gerencie os exemplos de prompt exibidos na biblioteca. Apenas itens ativos
-        são visíveis para os usuários.
+      <Typography
+        variant="body2"
+        sx={{ color: "rgba(255,255,255,0.6)", mb: 2 }}
+      >
+        Gerencie os exemplos de prompt exibidos na biblioteca. Apenas itens
+        ativos são visíveis para os usuários.
       </Typography>
 
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{ mb: 2 }}
+      >
         <Typography variant="h6" sx={{ color: "#fff" }}>
           Itens ({items.length})
         </Typography>
@@ -284,7 +327,12 @@ export function PromptLibraryTab() {
 
                 {/* Info */}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    flexWrap="wrap"
+                  >
                     <Typography sx={{ color: "#fff", fontWeight: 600 }}>
                       {item.title}
                     </Typography>
@@ -301,7 +349,11 @@ export function PromptLibraryTab() {
                       <Chip
                         label="Inativo"
                         size="small"
-                        sx={{ bgcolor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)", fontSize: 11 }}
+                        sx={{
+                          bgcolor: "rgba(255,255,255,0.05)",
+                          color: "rgba(255,255,255,0.4)",
+                          fontSize: 11,
+                        }}
                       />
                     )}
                   </Stack>
@@ -343,7 +395,9 @@ export function PromptLibraryTab() {
                   <IconButton
                     size="small"
                     onClick={() =>
-                      item.isActive ? handleDeactivate(item) : handleHardDelete(item)
+                      item.isActive
+                        ? handleDeactivate(item)
+                        : handleHardDelete(item)
                     }
                     sx={{ color: "secondary.main" }}
                   >
@@ -370,24 +424,37 @@ export function PromptLibraryTab() {
             <TextField
               label="Título"
               value={form?.title ?? ""}
-              onChange={(e) => form && setForm({ ...form, title: e.target.value })}
+              onChange={(e) =>
+                form && setForm({ ...form, title: e.target.value })
+              }
               required
               fullWidth
             />
 
-            <TextField
-              label="Categoria"
+            <Autocomplete
+              freeSolo
+              options={categories}
               value={form?.category ?? ""}
-              onChange={(e) => form && setForm({ ...form, category: e.target.value })}
-              helperText='Ex: "Beleza", "Moda", "Eletrônicos"'
-              required
-              fullWidth
+              onInputChange={(_e, value) =>
+                form && setForm({ ...form, category: value })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Categoria"
+                  helperText="Digite ou selecione uma categoria existente"
+                  required
+                  fullWidth
+                />
+              )}
             />
 
             <TextField
               label="Descrição (opcional)"
               value={form?.description ?? ""}
-              onChange={(e) => form && setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                form && setForm({ ...form, description: e.target.value })
+              }
               fullWidth
               multiline
               minRows={2}
@@ -430,7 +497,11 @@ export function PromptLibraryTab() {
                   disabled={uploading}
                   sx={{ flexShrink: 0 }}
                 >
-                  {uploading ? "Enviando..." : form?.videoBlobUrl ? "Trocar vídeo" : "Upload"}
+                  {uploading
+                    ? "Enviando..."
+                    : form?.videoBlobUrl
+                      ? "Trocar vídeo"
+                      : "Upload"}
                   <input
                     type="file"
                     accept="video/mp4,video/webm,video/quicktime"
@@ -467,7 +538,9 @@ export function PromptLibraryTab() {
             <TextField
               label="Prompt"
               value={form?.promptText ?? ""}
-              onChange={(e) => form && setForm({ ...form, promptText: e.target.value })}
+              onChange={(e) =>
+                form && setForm({ ...form, promptText: e.target.value })
+              }
               required
               fullWidth
               multiline
@@ -478,11 +551,18 @@ export function PromptLibraryTab() {
             <Stack direction="row" alignItems="center" spacing={1}>
               <Switch
                 checked={form?.isActive ?? true}
-                onChange={(e) => form && setForm({ ...form, isActive: e.target.checked })}
+                onChange={(e) =>
+                  form && setForm({ ...form, isActive: e.target.checked })
+                }
                 size="small"
               />
-              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                {form?.isActive ? "Ativo (visível para usuários)" : "Inativo (oculto)"}
+              <Typography
+                variant="body2"
+                sx={{ color: "rgba(255,255,255,0.7)" }}
+              >
+                {form?.isActive
+                  ? "Ativo (visível para usuários)"
+                  : "Inativo (oculto)"}
               </Typography>
             </Stack>
           </Stack>
@@ -511,7 +591,9 @@ export function PromptLibraryTab() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ color: "primary.main" }}>Pré-visualização</DialogTitle>
+        <DialogTitle sx={{ color: "primary.main" }}>
+          Pré-visualização
+        </DialogTitle>
         <DialogContent sx={{ textAlign: "center", pb: 3 }}>
           {previewOpen && (
             <Box
