@@ -198,12 +198,15 @@ Agregação mensal de uso por usuário.
 
 Evento atômico de consumo com chave de idempotência.
 
-| Tipo (`UsageEventType`)   | Descrição                                 |
-| ------------------------- | ----------------------------------------- |
-| `TRANSCRIPT`              | Transcrição de vídeo                      |
-| `SCRIPT`                  | Geração de insight                        |
-| `INSIGHT`                 | (alias de SCRIPT)                         |
-| `AVATAR_VIDEO_GENERATION` | Geração de material para vídeo com avatar |
+| Tipo (`UsageEventType`)   | `refTable`                  | Descrição                                          |
+| ------------------------- | --------------------------- | -------------------------------------------------- |
+| `TRANSCRIPT`              | —                           | Transcrição de vídeo                               |
+| `SCRIPT`                  | —                           | Geração de insight                                 |
+| `INSIGHT`                 | —                           | (alias de SCRIPT)                                  |
+| `AVATAR_VIDEO_GENERATION` | `"AvatarVideoCreation"`     | Geração de material para vídeo com avatar          |
+| `AVATAR_VIDEO_GENERATION` | `"InfluencerIAGeneration"`  | Geração de imagem via Influencer IA (limite 5/dia) |
+
+O campo `refTable` discrimina os dois usos de `AVATAR_VIDEO_GENERATION`: Avatar Video debita quota mensal do plano via `UsagePeriod`; Influencer IA usa apenas contagem diária sobre `UsageEvent` (sem `UsagePeriod`).
 
 ---
 
@@ -316,18 +319,18 @@ Exemplos de prompt curados manualmente pelo admin, exibidos como inspiração ao
 
 Independente do fluxo Avatar Video — não está vinculado a sessões de geração do usuário.
 
-| Campo         | Tipo      | Descrição                                                     |
-| ------------- | --------- | ------------------------------------------------------------- |
-| `id`          | String    | PK (cuid)                                                     |
-| `title`       | String    | Título do exemplo                                             |
-| `category`    | String    | Categoria em texto livre                                      |
-| `description` | String?   | Descrição opcional do exemplo                                 |
-| `videoBlobUrl`| String    | URL do vídeo de loop (Vercel Blob)                            |
-| `promptText`  | String    | Texto do prompt associado                                     |
-| `isActive`    | Boolean   | Controla visibilidade pública (padrão: `true`)                |
-| `createdById` | String?   | FK opcional para o admin que criou (`ON DELETE SET NULL`)     |
-| `createdAt`   | DateTime  | Data de criação                                               |
-| `updatedAt`   | DateTime  | Última atualização                                            |
+| Campo          | Tipo     | Descrição                                                 |
+| -------------- | -------- | --------------------------------------------------------- |
+| `id`           | String   | PK (cuid)                                                 |
+| `title`        | String   | Título do exemplo                                         |
+| `category`     | String   | Categoria em texto livre                                  |
+| `description`  | String?  | Descrição opcional do exemplo                             |
+| `videoBlobUrl` | String   | URL do vídeo de loop (Vercel Blob)                        |
+| `promptText`   | String   | Texto do prompt associado                                 |
+| `isActive`     | Boolean  | Controla visibilidade pública (padrão: `true`)            |
+| `createdById`  | String?  | FK opcional para o admin que criou (`ON DELETE SET NULL`) |
+| `createdAt`    | DateTime | Data de criação                                           |
+| `updatedAt`    | DateTime | Última atualização                                        |
 
 Índices: `category`, `isActive`, `createdAt`.
 

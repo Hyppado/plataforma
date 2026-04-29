@@ -55,6 +55,8 @@ O Hyppado não executa a geração do vídeo final. Sujeito a quota mensal (`ava
 
 Wizard de geração de imagens UGC ultra-realistas: o usuário seleciona um produto em alta (ou faz upload de imagem), escolhe um avatar da galeria (ou faz upload de foto própria), configura pose, ambiente, estilo e melhorias, e recebe uma imagem gerada via **Google AI Studio (Gemini)** hospedada no Vercel Blob. Adicionalmente, pode gerar prompts VEO 3.1 para a imagem gerada, especificando estilo (UGC, unboxing, review, tutorial, testemunho) e duração (curto / médio / completo). Disponível na seção **FERRAMENTAS** da sidebar.
 
+Sujeito a **quota diária de 5 gerações de imagem por usuário** (reinicia à meia-noite UTC). O contador é exibido ao lado do botão "Gerar Imagem" no wizard; o botão é desabilitado quando o limite é atingido. A geração é bloqueada com status 429 no servidor antes de chamar o Google AI Studio.
+
 Ao clicar em **"Criar vídeo"** em qualquer `ProductCard`, o wizard abre com o produto pré-selecionado no tab "Produtos Hype", exibindo automaticamente o picker de variações de imagem (SKUs). Se o produto não estiver no top-100 de tendências, é buscado individualmente via `GET /api/trending/products/[id]` e mapeado para `ProductDTO`.
 
 ### 8. Biblioteca de Prompts

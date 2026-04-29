@@ -194,7 +194,7 @@ Use `"secondary.main"` in `sx`, never `"#FF2D78"`.
 - **`takeCount` range**: 1–5 when saved via `PATCH /creations/[id]` (StepScenarioSelect); 1–12 when sent via `POST /generate-prompt`.
 - **Influencer IA image provider**: Google AI Studio (Gemini) only — same model/API as Avatar Video image generation.
 - **Influencer IA VEO prompt**: returns `VeoPart[]` (plain text prompt strings per segment), NOT `Veo3Prompt` format.
-- **Influencer IA quota**: none — universal access for authenticated subscribers.
+- **Influencer IA quota**: **5 image generations per user per UTC day** (constant, not plan-based). Enforced server-side in `POST /api/influencer-ia/generate` via `assertInfluencerDailyQuota` (429 on exceeded) + `consumeInfluencerGeneration` after success. Daily count queries `UsageEvent` with `type=AVATAR_VIDEO_GENERATION, refTable="InfluencerIAGeneration"`. No schema migration needed — `refTable` discriminates from Avatar Video events (`refTable="AvatarVideoCreation"`). Hook: `useInfluencerUsage` (`lib/swr/useInfluencerUsage.ts`). UI counter shown below "Gerar Imagem" button.
 - **Frontend route**: `/dashboard/avatar-video/[id]` (wizard page).
 
 ## Anti-Patterns — Never Do These

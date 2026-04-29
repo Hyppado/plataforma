@@ -89,10 +89,11 @@ app/
           edit-prompt/      → PATCH salva edições manuais do prompt pelo usuário
           complete/         → POST marca criação como COMPLETED
     influencer-ia/
-      generate/        → POST gera imagem UGC via Google AI Studio (Gemini) com avatar + produto
+      generate/        → POST gera imagem UGC via Google AI Studio (Gemini) com avatar + produto; rejeita com 429 quando quota diária (5/dia) esgotada
       generate-veo-prompt/ → POST gera prompts VEO 3.1 para a imagem gerada
       product-images/  → GET retorna URLs de variação do produto (picker de imagem)
       upload-reference/ → POST upload de imagem de referência para Vercel Blob
+      usage/           → GET retorna { usedToday, dailyLimit } do usuário autenticado (quota diária de imagens)
     prompt-library/    → GET lista itens ativos da Biblioteca de Prompts (requer auth)
     cron/
       echotik/         → ingestão de dados Echotik
@@ -194,6 +195,7 @@ lib/
     index.ts           → re-exports públicos do domínio
   influencer-ia/
     generate.ts        → buildPrompt + Gemini (google-ai) + upload para Vercel Blob
+    quota.ts           → assertInfluencerDailyQuota() / consumeInfluencerGeneration() — limite de 5 gerações por dia (UTC) por usuário; usa UsageEvent com refTable="InfluencerIAGeneration"
     veo-prompt.ts      → geração de prompts VEO 3.1 via OpenAI gpt-4o
   prompt-library/
     admin.ts           → CRUD admin (listAll, create, update, deleteOrDeactivate) para PromptLibraryItem
