@@ -60,6 +60,7 @@ const NAV_SECTIONS = [
         label: "Biblioteca de Prompts",
         icon: MenuBook,
         href: "/dashboard/prompt-library",
+        badge: "novo",
       },
     ],
   },
@@ -178,7 +179,7 @@ export function DashboardSidebar({
               disablePadding
               sx={{ display: "flex", flexDirection: "column", gap: 0.15 }}
             >
-              {section.items.map(({ label, icon, href }) => (
+              {section.items.map(({ label, icon, href, badge }) => (
                 <NavItem
                   key={label}
                   label={label}
@@ -186,6 +187,7 @@ export function DashboardSidebar({
                   href={href}
                   active={isActive(href)}
                   onClick={onNavigate}
+                  badge={badge}
                 />
               ))}
             </List>
@@ -283,12 +285,14 @@ function NavItem({
   href,
   active,
   onClick,
+  badge,
 }: {
   label: string;
   icon: SvgIconComponent;
   href: string;
   active: boolean;
   onClick?: () => void;
+  badge?: string;
 }) {
   return (
     <ListItem disablePadding>
@@ -339,6 +343,41 @@ function NavItem({
             color: active ? "#2DD4FF" : "rgba(255,255,255,0.75)",
           }}
         />
+        {badge && (
+          <Box
+            component="span"
+            sx={{
+              ml: 0.75,
+              px: 0.6,
+              py: 0.1,
+              fontSize: "0.55rem",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: "#fff",
+              background: "#E0256A",
+              borderRadius: "4px",
+              lineHeight: 1.6,
+              flexShrink: 0,
+              boxShadow: "0 0 6px 1px rgba(255,45,120,0.55), 0 0 12px 2px rgba(255,45,120,0.25)",
+              animation: "hyppe-badge-pulse 2s ease-in-out infinite",
+              "@keyframes hyppe-badge-pulse": {
+                "0%, 100%": {
+                  boxShadow:
+                    "0 0 5px 1px rgba(255,45,120,0.55), 0 0 10px 2px rgba(255,45,120,0.2)",
+                  opacity: 1,
+                },
+                "50%": {
+                  boxShadow:
+                    "0 0 10px 3px rgba(255,45,120,0.8), 0 0 20px 6px rgba(255,45,120,0.35)",
+                  opacity: 0.85,
+                },
+              },
+            }}
+          >
+            {badge}
+          </Box>
+        )}
       </ListItemButton>
     </ListItem>
   );
