@@ -659,6 +659,48 @@ function ImageUploadBox({
 }
 
 // ---------------------------------------------------------------------------
+// Session persistence
+// ---------------------------------------------------------------------------
+
+const SESSION_KEY = "influencer-ia-session";
+
+type SessionSnapshot = {
+  v: 1;
+  productTab: number;
+  selectedProduct: ProductDTO | null;
+  uploadedProductUrl: string | null;
+  uploadedProductName: string;
+  selectedVariationUrl: string | null;
+  selectedVariationRawUrl: string | null;
+  avatarTab: number;
+  selectedAvatar: AvatarProfileDTO | null;
+  uploadedAvatarUrl: string | null;
+  pose: string;
+  customPose: string;
+  environment: string | null;
+  customEnvironment: string;
+  style: string | null;
+  enhancements: string[];
+  generatedImageUrl: string | null;
+  veoDuration: "short" | "medium" | "full";
+  veoStyle: "ugc" | "unboxing" | "review" | "tutorial" | "testemunho";
+  veoParts: VeoPart[];
+};
+
+function readSession(): SessionSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SessionSnapshot;
+    if (parsed?.v !== 1) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main wizard (reads search params — must be inside Suspense)
 // ---------------------------------------------------------------------------
 
@@ -716,8 +758,13 @@ function InfluencerIAWizard() {
   const variationImages = variationData?.images ?? [];
   const rawVariationImages = variationData?.rawImages ?? [];
 
-  // Reset variation when product changes
+  // Reset variation when product changes (skip on initial mount so session is preserved)
+  const isFirstProductRender = useRef(true);
   useEffect(() => {
+    if (isFirstProductRender.current) {
+      isFirstProductRender.current = false;
+      return;
+    }
     setSelectedVariationUrl(null);
     setSelectedVariationRawUrl(null);
   }, [selectedProduct?.id]);
@@ -749,28 +796,6 @@ function InfluencerIAWizard() {
   );
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // Persist last generated image across navigation within session
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("influencer-ia-image");
-      if (saved) setGeneratedImageUrl(saved);
-    } catch {
-      // sessionStorage unavailable
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (generatedImageUrl) {
-        sessionStorage.setItem("influencer-ia-image", generatedImageUrl);
-      } else {
-        sessionStorage.removeItem("influencer-ia-image");
-      }
-    } catch {
-      // sessionStorage unavailable
-    }
-  }, [generatedImageUrl]);
-
   // ── VEO 3.1 prompt state ───────────────────────────────────────
   const [veoDuration, setVeoDuration] = useState<"short" | "medium" | "full">(
     "short",
@@ -784,6 +809,112 @@ function InfluencerIAWizard() {
   const [veoManualMode, setVeoManualMode] = useState(false);
   const [veoManualText, setVeoManualText] = useState("");
   const [veoCopiedIndex, setVeoCopiedIndex] = useState<number | null>(null);
+  const [veoCopiedAll, setVeoCopiedAll] = useState(false);
+
+  // Ref for auto-scroll to VEO prompts output
+  const veoOutputRef = useRef<HTMLDivElement>(null);
+
+  // Restore session on mount (client-side only to avoid hydration mismatch)
+  const hasRestoredSession = useRef(false);
+  useEffect(() => {
+    if (hasRestoredSession.current) return;
+    hasRestoredSession.current = true;
+
+    const session = readSession();
+    if (!session) return;
+
+    // Only restore if no query params are present (query params take priority)
+    if (!initProductImageUrl && !initProductId) {
+      if (session.productTab !== undefined) setProductTab(session.productTab);
+      if (session.selectedProduct) setSelectedProduct(session.selectedProduct);
+      if (session.uploadedProductUrl)
+        setUploadedProductUrl(session.uploadedProductUrl);
+      if (session.uploadedProductName)
+        setUploadedProductName(session.uploadedProductName);
+      if (session.selectedVariationUrl)
+        setSelectedVariationUrl(session.selectedVariationUrl);
+      if (session.selectedVariationRawUrl)
+        setSelectedVariationRawUrl(session.selectedVariationRawUrl);
+    }
+
+    if (session.avatarTab !== undefined) setAvatarTab(session.avatarTab);
+    if (session.selectedAvatar) setSelectedAvatar(session.selectedAvatar);
+    if (session.uploadedAvatarUrl)
+      setUploadedAvatarUrl(session.uploadedAvatarUrl);
+    if (session.pose) setPose(session.pose);
+    if (session.customPose) setCustomPose(session.customPose);
+    if (session.environment) setEnvironment(session.environment);
+    if (session.customEnvironment)
+      setCustomEnvironment(session.customEnvironment);
+    if (session.style) setStyle(session.style);
+    if (session.enhancements) setEnhancements(session.enhancements);
+    if (session.generatedImageUrl)
+      setGeneratedImageUrl(session.generatedImageUrl);
+    if (session.veoDuration) setVeoDuration(session.veoDuration);
+    if (session.veoStyle) setVeoStyle(session.veoStyle);
+    if (session.veoParts) setVeoParts(session.veoParts);
+  }, [initProductImageUrl, initProductId, initProductName]);
+
+  // Auto-scroll to VEO prompts when generation completes
+  useEffect(() => {
+    if (veoParts.length > 0 && veoOutputRef.current) {
+      veoOutputRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [veoParts.length]);
+
+  // Persist full session to sessionStorage whenever relevant state changes
+  useEffect(() => {
+    const snap: SessionSnapshot = {
+      v: 1,
+      productTab,
+      selectedProduct,
+      uploadedProductUrl,
+      uploadedProductName,
+      selectedVariationUrl,
+      selectedVariationRawUrl,
+      avatarTab,
+      selectedAvatar,
+      uploadedAvatarUrl,
+      pose,
+      customPose,
+      environment,
+      customEnvironment,
+      style,
+      enhancements,
+      generatedImageUrl,
+      veoDuration,
+      veoStyle,
+      veoParts,
+    };
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(snap));
+    } catch {
+      // storage unavailable or quota exceeded
+    }
+  }, [
+    productTab,
+    selectedProduct,
+    uploadedProductUrl,
+    uploadedProductName,
+    selectedVariationUrl,
+    selectedVariationRawUrl,
+    avatarTab,
+    selectedAvatar,
+    uploadedAvatarUrl,
+    pose,
+    customPose,
+    environment,
+    customEnvironment,
+    style,
+    enhancements,
+    generatedImageUrl,
+    veoDuration,
+    veoStyle,
+    veoParts,
+  ]);
 
   // ── Products: load 100, display with IntersectionObserver scroll
   const region = getStoredRegion().toUpperCase();
@@ -944,6 +1075,16 @@ function InfluencerIAWizard() {
     }
   };
 
+  const handleVeoCopyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(veoParts, null, 2));
+      setVeoCopiedAll(true);
+      setTimeout(() => setVeoCopiedAll(false), 2000);
+    } catch {
+      // clipboard not available — silent fail
+    }
+  };
+
   const handleVeoManualSubmit = () => {
     const text = veoManualText.trim();
     if (!text) return;
@@ -952,8 +1093,13 @@ function InfluencerIAWizard() {
       aspect_ratio: "9:16",
       duration: 8,
       audio: true,
+      language: "pt-BR",
       part: 1,
       label: "Manual",
+      reference_instructions:
+        "Keep the same person, product and environment as the reference image.",
+      negative_instructions:
+        "Do not add on-screen text, logos, subtitles, watermarks, distorted hands, distorted face, or distorted product.",
       _metadata: {
         part: 1,
         total_parts: 1,
@@ -966,6 +1112,11 @@ function InfluencerIAWizard() {
   };
 
   const handleReset = () => {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
     setSelectedProduct(null);
     setUploadedProductUrl(null);
     setUploadedProductName("");
@@ -1780,43 +1931,76 @@ function InfluencerIAWizard() {
             >
               <Box
                 sx={{
+                  position: "relative",
                   borderRadius: 2,
                   overflow: "hidden",
                   border: "1px solid",
                   borderColor: "divider",
+                  maxWidth: { xs: "60%", sm: 230 },
+                  mx: "auto",
+                  width: "100%",
+                  bgcolor: "rgba(0,0,0,0.02)",
                 }}
               >
                 <img
                   src={generatedImageUrl}
                   alt="Imagem gerada"
-                  style={{ width: "100%", display: "block" }}
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    display: "block",
+                    maxHeight: "none",
+                  }}
                 />
-              </Box>
-              <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
-                <Button
-                  variant="text"
-                  size="small"
-                  startIcon={<Refresh />}
-                  onClick={() => void handleGenerate()}
-                  disabled={generating}
-                  color="inherit"
-                  sx={{ flex: 1, color: "text.secondary" }}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    display: "flex",
+                    gap: 1,
+                    p: 2,
+                    background:
+                      "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+                  }}
                 >
-                  Regenerar
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<Download />}
-                  component="a"
-                  href={generatedImageUrl}
-                  download="influencer-ia.png"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ flex: 1 }}
-                >
-                  Baixar
-                </Button>
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<Refresh />}
+                    onClick={() => void handleGenerate()}
+                    disabled={generating}
+                    sx={{
+                      flex: 1,
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+                    }}
+                  >
+                    Regenerar
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<Download />}
+                    component="a"
+                    href={generatedImageUrl}
+                    download="influencer-ia.png"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      flex: 1,
+                      color: "white",
+                      borderColor: "rgba(255,255,255,0.5)",
+                      "&:hover": {
+                        borderColor: "white",
+                        bgcolor: "rgba(255,255,255,0.1)",
+                      },
+                    }}
+                  >
+                    Baixar
+                  </Button>
+                </Box>
               </Box>
             </Paper>
           ) : (
@@ -1875,7 +2059,7 @@ function InfluencerIAWizard() {
                 color="text.secondary"
                 sx={{ display: "block", mb: 2.5 }}
               >
-                Prompts otimizados para VEO 3.1
+                Prompts otimizados para vídeo
                 {effectiveProductName ? (
                   <>
                     {" · "}
@@ -2058,7 +2242,7 @@ function InfluencerIAWizard() {
               {/* Manual mode text input */}
               {veoManualMode && (
                 <TextField
-                  label="Seu prompt VEO 3.1"
+                  label="Seu prompt de vídeo"
                   value={veoManualText}
                   onChange={(e) => setVeoManualText(e.target.value)}
                   multiline
@@ -2080,6 +2264,7 @@ function InfluencerIAWizard() {
           {/* ── VEO Prompts Output ─────────────────────────────── */}
           {veoParts.length > 0 && (
             <Paper
+              ref={veoOutputRef}
               variant="outlined"
               sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}
             >
@@ -2094,20 +2279,44 @@ function InfluencerIAWizard() {
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Videocam sx={{ fontSize: 16, color: "secondary.main" }} />
                   <Typography variant="subtitle2">
-                    Prompts VEO 3.1 Otimizados ({veoParts.length})
+                    Prompts Otimizados ({veoParts.length})
                   </Typography>
                 </Box>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<OpenInNew sx={{ fontSize: 14 }} />}
-                  href="https://labs.google/fx/tools/video-fx"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ fontSize: "0.75rem" }}
-                >
-                  Abrir VEO
-                </Button>
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    size="small"
+                    variant={veoCopiedAll ? "contained" : "outlined"}
+                    startIcon={
+                      veoCopiedAll ? (
+                        <CheckCircle sx={{ fontSize: 14 }} />
+                      ) : (
+                        <ContentCopy sx={{ fontSize: 14 }} />
+                      )
+                    }
+                    onClick={() => void handleVeoCopyAll()}
+                    sx={{
+                      fontSize: "0.75rem",
+                      bgcolor: veoCopiedAll ? "success.main" : undefined,
+                      color: veoCopiedAll ? "#fff" : undefined,
+                      "&:hover": {
+                        bgcolor: veoCopiedAll ? "success.dark" : undefined,
+                      },
+                    }}
+                  >
+                    {veoCopiedAll ? "Copiado!" : "Copiar Todos"}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<OpenInNew sx={{ fontSize: 14 }} />}
+                    href="https://labs.google/fx/tools/video-fx"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ fontSize: "0.75rem" }}
+                  >
+                    Abrir VEO
+                  </Button>
+                </Box>
               </Box>
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -2205,7 +2414,7 @@ function InfluencerIAWizard() {
                   variant="contained"
                   size="large"
                   fullWidth
-                  disabled={veoGenerating}
+                  disabled={veoGenerating || !effectiveProductName}
                   onClick={() => void handleGenerateVeo()}
                   startIcon={
                     veoGenerating ? (
@@ -2230,7 +2439,7 @@ function InfluencerIAWizard() {
                 >
                   {veoGenerating
                     ? "Gerando prompts…"
-                    : `✨ Gerar Prompts VEO 3.1 (${VEO_PART_COUNTS[veoDuration]} partes)`}
+                    : `✨ Gerar Prompts (${VEO_PART_COUNTS[veoDuration]} partes)`}
                 </Button>
 
                 <Button

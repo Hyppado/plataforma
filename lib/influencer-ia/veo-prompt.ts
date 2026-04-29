@@ -30,8 +30,11 @@ export interface VeoPart {
   aspect_ratio: string;
   duration: number;
   audio: boolean;
+  language: string;
   part: number;
   label: string;
+  reference_instructions: string;
+  negative_instructions: string;
   _metadata: {
     part: number;
     total_parts: number;
@@ -61,20 +64,27 @@ export const PART_LABELS: Record<VeoDuration, string[]> = {
 
 const STYLE_DESCRIPTIONS: Record<VeoStyle, string> = {
   ugc: "authentic casual UGC creator-style, hand-held feel, relatable and conversational",
-  unboxing: "exciting unboxing and product reveal, showing the packaging and product for the first time",
-  review: "honest detailed product review with genuine pros and personal opinion",
+  unboxing:
+    "exciting unboxing and product reveal, showing the packaging and product for the first time",
+  review:
+    "honest detailed product review with genuine pros and personal opinion",
   tutorial: "step-by-step tutorial showing how to use the product effectively",
-  testemunho: "sincere personal testimonial, emotional and heartfelt, sharing real results",
+  testemunho:
+    "sincere personal testimonial, emotional and heartfelt, sharing real results",
 };
 
 const PART_GOALS: Record<string, string> = {
-  Gancho: "hook the viewer instantly in the first 2 seconds, create curiosity or emotion",
+  Gancho:
+    "hook the viewer instantly in the first 2 seconds, create curiosity or emotion",
   Apresentação: "introduce the product naturally and confidently",
   Benefícios: "highlight 2-3 key product benefits clearly",
   Demonstração: "demonstrate the product in action, show visible results",
-  "Prova Social": "mention reviews, popularity, sales numbers or customer results",
-  Depoimento: "share personal experience, transformation or before/after result",
-  Comparação: "compare before/after using the product or contrast with alternatives",
+  "Prova Social":
+    "mention reviews, popularity, sales numbers or customer results",
+  Depoimento:
+    "share personal experience, transformation or before/after result",
+  Comparação:
+    "compare before/after using the product or contrast with alternatives",
   CTA: "clear call-to-action, invite the viewer to click the link and buy now",
 };
 
@@ -120,6 +130,8 @@ export async function generateVeoPrompts(
     `- Each prompt string must start with "Realistic ${styleLabel} TikTok video PART X/${total}."\n` +
     `- Describe camera framing (e.g. "Medium shot, stable camera, slight push in")\n` +
     `- Describe what the creator does visually and how they interact with the product\n` +
+    `- Include: "Keep the same person, product and environment as the reference image."\n` +
+    `- Include: "No on-screen text, logos, subtitles, watermarks, distorted hands, faces or product."\n` +
     `- End each prompt with: Audio: "[spoken lines in PT-BR]"\n` +
     `- Max 8 seconds per part — keep it focused and punchy\n\n` +
     `Return JSON: { "parts": ["part1 prompt...", "part2 prompt...", ...] }`;
@@ -182,13 +194,21 @@ export async function generateVeoPrompts(
 
     log.info("VEO prompts generated", { total, style, duration, productName });
 
+    const referenceInstructions =
+      "Keep the same person, product and environment as the reference image.";
+    const negativeInstructions =
+      "Do not add on-screen text, logos, subtitles, watermarks, distorted hands, distorted face, or distorted product.";
+
     return labels.map((label, i) => ({
       prompt: promptTexts[i] ?? "",
       aspect_ratio: "9:16",
       duration: 8,
       audio: true,
+      language: "pt-BR",
       part: i + 1,
       label,
+      reference_instructions: referenceInstructions,
+      negative_instructions: negativeInstructions,
       _metadata: {
         part: i + 1,
         total_parts: total,
