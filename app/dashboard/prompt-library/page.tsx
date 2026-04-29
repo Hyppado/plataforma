@@ -10,9 +10,6 @@ import {
   Skeleton,
   Button,
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
   Alert,
@@ -252,7 +249,7 @@ function CardSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Prompt dialog
+// Detail modal — video + full prompt
 // ---------------------------------------------------------------------------
 
 function PromptDialog({
@@ -263,113 +260,253 @@ function PromptDialog({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const open = item !== null;
+
+  // Play video when dialog opens, pause when it closes
+  const handleEntered = useCallback(() => {
+    videoRef.current?.play().catch(() => {});
+  }, []);
+
+  const handleExited = useCallback(() => {
+    const v = videoRef.current;
+    if (v) {
+      v.pause();
+      v.currentTime = 0;
+    }
+  }, []);
 
   const handleCopy = useCallback(async () => {
     if (!item) return;
     try {
       await navigator.clipboard.writeText(item.promptText);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 2500);
     } catch {
-      // silently ignore
+      // clipboard not available
     }
   }, [item]);
 
+  // Reset copied state when a different item is opened
+  const prevIdRef = useRef<string | null>(null);
+  if (item && item.id !== prevIdRef.current) {
+    prevIdRef.current = item.id;
+    if (copied) setCopied(false);
+  }
+
   return (
     <Dialog
-      open={item !== null}
+      open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth="md"
       fullWidth
+      TransitionProps={{ onEntered: handleEntered, onExited: handleExited }}
       PaperProps={{
         sx: {
           background: "#0D1117",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: 3,
+          overflow: "hidden",
+          m: { xs: 1, sm: 2 },
+          maxHeight: { xs: "calc(100dvh - 16px)", sm: "calc(100dvh - 64px)" },
         },
       }}
     >
-      <DialogTitle
+      {/* Close button — absolute so it floats above both columns */}
+      <IconButton
+        size="small"
+        onClick={onClose}
+        aria-label="Fechar"
         sx={{
-          color: "secondary.main",
-          fontWeight: 700,
-          fontSize: "1.1rem",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          pr: 1.5,
+          position: "absolute",
+          top: 12,
+          right: 12,
+          zIndex: 10,
+          background: "rgba(0,0,0,0.5)",
+          backdropFilter: "blur(4px)",
+          color: "rgba(255,255,255,0.7)",
+          "&:hover": { background: "rgba(0,0,0,0.75)", color: "#fff" },
         }}
       >
-        {item?.title ?? ""}
-        <IconButton
-          size="small"
-          onClick={onClose}
-          sx={{ color: "rgba(255,255,255,0.5)" }}
-        >
-          <Close sx={{ fontSize: 18 }} />
-        </IconButton>
-      </DialogTitle>
+        <Close sx={{ fontSize: 18 }} />
+      </IconButton>
 
-      <DialogContent sx={{ pb: 2 }}>
-        {item?.description && (
-          <Typography
-            sx={{
-              fontSize: "0.82rem",
-              color: "rgba(255,255,255,0.55)",
-              mb: 2,
-            }}
-          >
-            {item.description}
-          </Typography>
-        )}
+      {/* Two-column layout: video | content */}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          height: "100%",
+          maxHeight: "inherit",
+        }}
+      >
+        {/* Left — video */}
         <Box
           sx={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 2,
-            p: 2,
+            flexShrink: 0,
+            width: { xs: "100%", sm: 220, md: 260 },
+            maxHeight: { xs: 320, sm: "none" },
+            background: "#000",
+            display: "flex",
+            alignItems: "stretch",
           }}
         >
-          <Typography
+          <video
+            ref={videoRef}
+            src={item?.videoBlobUrl ?? ""}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            style={{ width: "100%", objectFit: "cover", display: "block" }}
+          />
+        </Box>
+
+        {/* Right — content */}
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          {/* Header */}
+          <Box sx={{ px: 3, pt: 3, pb: 1.5, flexShrink: 0 }}>
+            <Chip
+              label={item?.category ?? ""}
+              size="small"
+              sx={{
+                fontSize: "0.7rem",
+                height: 22,
+                mb: 1.5,
+                color: "primary.main",
+                background: "rgba(45,212,255,0.08)",
+                border: "1px solid rgba(45,212,255,0.2)",
+                borderRadius: 1,
+              }}
+            />
+            <Typography
+              component="h2"
+              sx={{
+                fontWeight: 700,
+                fontSize: { xs: "1rem", sm: "1.15rem" },
+                color: "#fff",
+                lineHeight: 1.3,
+                mb: item?.description ? 1 : 0,
+                pr: 4, // avoid overlap with close button
+              }}
+            >
+              {item?.title ?? ""}
+            </Typography>
+            {item?.description && (
+              <Typography
+                sx={{
+                  fontSize: "0.82rem",
+                  color: "rgba(255,255,255,0.55)",
+                  lineHeight: 1.5,
+                }}
+              >
+                {item.description}
+              </Typography>
+            )}
+            <Typography
+              sx={{
+                mt: 1.5,
+                fontSize: "0.72rem",
+                color: "rgba(255,255,255,0.3)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                fontWeight: 600,
+              }}
+            >
+              Prompt de referência
+            </Typography>
+          </Box>
+
+          {/* Scrollable prompt text */}
+          <Box
             sx={{
-              fontSize: "0.875rem",
-              color: "rgba(255,255,255,0.9)",
-              lineHeight: 1.7,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
+              flex: 1,
+              overflowY: "auto",
+              px: 3,
+              pb: 1,
+              "&::-webkit-scrollbar": { width: 4 },
+              "&::-webkit-scrollbar-track": { background: "transparent" },
+              "&::-webkit-scrollbar-thumb": {
+                background: "rgba(255,255,255,0.12)",
+                borderRadius: 2,
+              },
             }}
           >
-            {item?.promptText ?? ""}
-          </Typography>
-        </Box>
-      </DialogContent>
+            <Box
+              sx={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 2,
+                p: 2,
+              }}
+            >
+              <Typography
+                component="pre"
+                sx={{
+                  fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                  color: "rgba(255,255,255,0.88)",
+                  lineHeight: 1.75,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  fontFamily: "inherit",
+                  m: 0,
+                }}
+              >
+                {item?.promptText ?? ""}
+              </Typography>
+            </Box>
+          </Box>
 
-      <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button
-          variant="contained"
-          startIcon={copied ? <Check /> : <ContentCopy />}
-          onClick={handleCopy}
-          sx={{
-            textTransform: "none",
-            fontWeight: 600,
-            background: copied
-              ? "rgba(52,211,153,0.2)"
-              : "rgba(45,212,255,0.15)",
-            color: copied ? "#34d399" : "primary.main",
-            border: "1px solid",
-            borderColor: copied ? "#34d399" : "primary.main",
-            boxShadow: "none",
-            "&:hover": {
-              background: copied
-                ? "rgba(52,211,153,0.25)"
-                : "rgba(45,212,255,0.2)",
-              boxShadow: "none",
-            },
-          }}
-        >
-          {copied ? "Copiado!" : "Copiar prompt"}
-        </Button>
-      </DialogActions>
+          {/* Footer actions */}
+          <Box
+            sx={{
+              px: 3,
+              py: 2,
+              flexShrink: 0,
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              display: "flex",
+              gap: 1.5,
+              alignItems: "center",
+            }}
+          >
+            <Button
+              variant="contained"
+              fullWidth
+              startIcon={copied ? <Check /> : <ContentCopy />}
+              onClick={handleCopy}
+              sx={{
+                textTransform: "none",
+                fontWeight: 700,
+                fontSize: "0.875rem",
+                py: 1,
+                background: copied
+                  ? "rgba(52,211,153,0.15)"
+                  : "rgba(45,212,255,0.12)",
+                color: copied ? "#34d399" : "primary.main",
+                border: "1px solid",
+                borderColor: copied ? "#34d399" : "primary.main",
+                boxShadow: "none",
+                "&:hover": {
+                  background: copied
+                    ? "rgba(52,211,153,0.22)"
+                    : "rgba(45,212,255,0.2)",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              {copied ? "Prompt copiado!" : "Copiar prompt"}
+            </Button>
+          </Box>
+        </Box>
+      </Box>
     </Dialog>
   );
 }
