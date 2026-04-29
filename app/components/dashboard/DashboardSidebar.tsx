@@ -36,7 +36,12 @@ import type { SvgIconComponent } from "@mui/icons-material";
 ============================================ */
 const NAV_SECTIONS: Array<{
   label: string;
-  items: Array<{ label: string; icon: SvgIconComponent; href: string; badge?: string }>;
+  items: Array<{
+    label: string;
+    icon: SvgIconComponent;
+    href: string;
+    badge?: string;
+  }>;
 }> = [
   {
     label: "EXPLORAR",

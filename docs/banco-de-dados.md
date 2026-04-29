@@ -198,13 +198,13 @@ Agregação mensal de uso por usuário.
 
 Evento atômico de consumo com chave de idempotência.
 
-| Tipo (`UsageEventType`)   | `refTable`                  | Descrição                                          |
-| ------------------------- | --------------------------- | -------------------------------------------------- |
-| `TRANSCRIPT`              | —                           | Transcrição de vídeo                               |
-| `SCRIPT`                  | —                           | Geração de insight                                 |
-| `INSIGHT`                 | —                           | (alias de SCRIPT)                                  |
-| `AVATAR_VIDEO_GENERATION` | `"AvatarVideoCreation"`     | Geração de material para vídeo com avatar          |
-| `AVATAR_VIDEO_GENERATION` | `"InfluencerIAGeneration"`  | Geração de imagem via Influencer IA (limite 5/dia) |
+| Tipo (`UsageEventType`)   | `refTable`                 | Descrição                                          |
+| ------------------------- | -------------------------- | -------------------------------------------------- |
+| `TRANSCRIPT`              | —                          | Transcrição de vídeo                               |
+| `SCRIPT`                  | —                          | Geração de insight                                 |
+| `INSIGHT`                 | —                          | (alias de SCRIPT)                                  |
+| `AVATAR_VIDEO_GENERATION` | `"AvatarVideoCreation"`    | Geração de material para vídeo com avatar          |
+| `AVATAR_VIDEO_GENERATION` | `"InfluencerIAGeneration"` | Geração de imagem via Influencer IA (limite 5/dia) |
 
 O campo `refTable` discrimina os dois usos de `AVATAR_VIDEO_GENERATION`: Avatar Video debita quota mensal do plano via `UsagePeriod`; Influencer IA usa apenas contagem diária sobre `UsageEvent` (sem `UsagePeriod`).
 

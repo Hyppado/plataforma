@@ -90,8 +90,7 @@ export function GoogleAITab() {
       </Typography>
       <Typography sx={{ color: "text.secondary", mb: 3, fontSize: "0.875rem" }}>
         Chave de API do Google AI Studio usada pelo Vídeo com Avatar para gerar
-        imagens. O modelo padrão é{" "}
-        <code>gemini-3.1-flash-image-preview</code>.
+        imagens. O modelo padrão é <code>gemini-3.1-flash-image-preview</code>.
       </Typography>
 
       {/* Status */}

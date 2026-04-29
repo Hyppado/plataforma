@@ -19,9 +19,7 @@ interface UseCopyToClipboardResult {
  *
  * Both states reset to "idle" after `resetMs` milliseconds (default 2500 ms).
  */
-export function useCopyToClipboard(
-  resetMs = 2500,
-): UseCopyToClipboardResult {
+export function useCopyToClipboard(resetMs = 2500): UseCopyToClipboardResult {
   const [copyState, setCopyState] = useState<CopyState>("idle");
 
   const copy = useCallback(

@@ -41,17 +41,20 @@ import { GET } from "@/app/api/influencer-ia/avatar-uploads/route";
 // Factories
 // ---------------------------------------------------------------------------
 
-function buildUpload(overrides: Partial<{
-  id: string;
-  userId: string;
-  blobUrl: string;
-  label: string | null;
-  createdAt: Date;
-}> = {}) {
+function buildUpload(
+  overrides: Partial<{
+    id: string;
+    userId: string;
+    blobUrl: string;
+    label: string | null;
+    createdAt: Date;
+  }> = {},
+) {
   return {
     id: overrides.id ?? "upload-1",
     userId: overrides.userId ?? "user-test-id",
-    blobUrl: overrides.blobUrl ?? "https://blob.vercel-storage.com/avatar/test.jpg",
+    blobUrl:
+      overrides.blobUrl ?? "https://blob.vercel-storage.com/avatar/test.jpg",
     label: overrides.label ?? null,
     createdAt: overrides.createdAt ?? new Date("2026-04-29T12:00:00Z"),
   };
@@ -145,7 +148,7 @@ describe("GET /api/influencer-ia/avatar-uploads", () => {
       prismaMock.userAvatarUpload.findMany.mockResolvedValue([upload]);
 
       const res = await GET();
-      const body = (await res.json()) as { uploads: typeof upload[] };
+      const body = (await res.json()) as { uploads: (typeof upload)[] };
       const item = body.uploads[0];
       expect(item).toMatchObject({
         id: "up-1",
@@ -167,8 +170,14 @@ describe("GET /api/influencer-ia/avatar-uploads", () => {
 
     it("returns multiple uploads in order", async () => {
       const uploads = [
-        buildUpload({ id: "up-newest", createdAt: new Date("2026-04-29T00:00:00Z") }),
-        buildUpload({ id: "up-older", createdAt: new Date("2026-04-01T00:00:00Z") }),
+        buildUpload({
+          id: "up-newest",
+          createdAt: new Date("2026-04-29T00:00:00Z"),
+        }),
+        buildUpload({
+          id: "up-older",
+          createdAt: new Date("2026-04-01T00:00:00Z"),
+        }),
       ];
       prismaMock.userAvatarUpload.findMany.mockResolvedValue(uploads);
 

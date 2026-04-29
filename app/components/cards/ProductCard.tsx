@@ -406,9 +406,7 @@ export function ProductCard({
             variant="contained"
             component={Link}
             href={`/dashboard/influencer-ia?productId=${product.id}`}
-            startIcon={
-              <FaceRetouchingNatural sx={{ fontSize: 14 }} />
-            }
+            startIcon={<FaceRetouchingNatural sx={{ fontSize: 14 }} />}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
             sx={{
               background: "linear-gradient(90deg, #FF2D78 0%, #E0256A 100%)",
@@ -431,7 +429,6 @@ export function ProductCard({
           </Button>
         </Box>
       </Box>
-
     </Box>
   );
 }

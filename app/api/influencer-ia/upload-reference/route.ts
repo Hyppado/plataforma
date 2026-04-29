@@ -73,7 +73,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    log.info("Reference image uploaded", { userId: auth.userId, url: blob.url, purpose });
+    log.info("Reference image uploaded", {
+      userId: auth.userId,
+      url: blob.url,
+      purpose,
+    });
 
     return NextResponse.json({ url: blob.url });
   } catch (err) {

@@ -68,7 +68,10 @@ describe("DELETE /api/influencer-ia/avatar-uploads/[id]", () => {
   describe("unauthenticated", () => {
     it("returns 401 when no session", async () => {
       mockUnauthenticated();
-      const res = await DELETE(makeDeleteRequest("upload-1"), makeParams("upload-1"));
+      const res = await DELETE(
+        makeDeleteRequest("upload-1"),
+        makeParams("upload-1"),
+      );
       expect(res.status).toBe(401);
     });
 
@@ -86,7 +89,10 @@ describe("DELETE /api/influencer-ia/avatar-uploads/[id]", () => {
       mockAuthenticatedUser({ id: "user-abc" });
       prismaMock.userAvatarUpload.findUnique.mockResolvedValue(null);
 
-      const res = await DELETE(makeDeleteRequest("missing-id"), makeParams("missing-id"));
+      const res = await DELETE(
+        makeDeleteRequest("missing-id"),
+        makeParams("missing-id"),
+      );
       expect(res.status).toBe(404);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBeTruthy();
@@ -109,7 +115,10 @@ describe("DELETE /api/influencer-ia/avatar-uploads/[id]", () => {
         userId: "other-user-id",
       });
 
-      const res = await DELETE(makeDeleteRequest("upload-1"), makeParams("upload-1"));
+      const res = await DELETE(
+        makeDeleteRequest("upload-1"),
+        makeParams("upload-1"),
+      );
       expect(res.status).toBe(403);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBeTruthy();
@@ -136,7 +145,10 @@ describe("DELETE /api/influencer-ia/avatar-uploads/[id]", () => {
     });
 
     it("returns 200 with { success: true }", async () => {
-      const res = await DELETE(makeDeleteRequest("upload-1"), makeParams("upload-1"));
+      const res = await DELETE(
+        makeDeleteRequest("upload-1"),
+        makeParams("upload-1"),
+      );
       expect(res.status).toBe(200);
       const body = (await res.json()) as { success: boolean };
       expect(body.success).toBe(true);
@@ -166,7 +178,10 @@ describe("DELETE /api/influencer-ia/avatar-uploads/[id]", () => {
         new Error("DB error"),
       );
 
-      const res = await DELETE(makeDeleteRequest("upload-1"), makeParams("upload-1"));
+      const res = await DELETE(
+        makeDeleteRequest("upload-1"),
+        makeParams("upload-1"),
+      );
       expect(res.status).toBe(500);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBeTruthy();
@@ -181,7 +196,10 @@ describe("DELETE /api/influencer-ia/avatar-uploads/[id]", () => {
         new Error("Delete failed"),
       );
 
-      const res = await DELETE(makeDeleteRequest("upload-1"), makeParams("upload-1"));
+      const res = await DELETE(
+        makeDeleteRequest("upload-1"),
+        makeParams("upload-1"),
+      );
       expect(res.status).toBe(500);
     });
   });

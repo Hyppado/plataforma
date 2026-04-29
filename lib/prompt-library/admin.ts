@@ -97,21 +97,19 @@ function validateUpdate(patch: PromptLibraryItemUpdate): void {
 // Mapper
 // ---------------------------------------------------------------------------
 
-function toDTO(
-  item: {
-    id: string;
-    title: string;
-    category: string;
-    description: string | null;
-    videoBlobUrl: string;
-    promptText: string;
-    isActive: boolean;
-    createdById: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    createdBy: { name: string | null } | null;
-  }
-): PromptLibraryItemDTO {
+function toDTO(item: {
+  id: string;
+  title: string;
+  category: string;
+  description: string | null;
+  videoBlobUrl: string;
+  promptText: string;
+  isActive: boolean;
+  createdById: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: { name: string | null } | null;
+}): PromptLibraryItemDTO {
   return {
     id: item.id,
     title: item.title,
@@ -139,7 +137,9 @@ const withCreatedBy = {
  * Returns all prompt library items ordered by creation date descending.
  * Admin view: includes inactive items.
  */
-export async function listAllPromptLibraryItems(): Promise<PromptLibraryItemDTO[]> {
+export async function listAllPromptLibraryItems(): Promise<
+  PromptLibraryItemDTO[]
+> {
   const items = await prisma.promptLibraryItem.findMany({
     orderBy: { createdAt: "desc" },
     include: withCreatedBy,
@@ -152,7 +152,7 @@ export async function listAllPromptLibraryItems(): Promise<PromptLibraryItemDTO[
  * Returns null when not found.
  */
 export async function getPromptLibraryItem(
-  id: string
+  id: string,
 ): Promise<PromptLibraryItemDTO | null> {
   const item = await prisma.promptLibraryItem.findUnique({
     where: { id },
@@ -170,7 +170,7 @@ export async function getPromptLibraryItem(
  * Throws PromptLibraryValidationError on invalid input.
  */
 export async function createPromptLibraryItem(
-  input: PromptLibraryItemInput
+  input: PromptLibraryItemInput,
 ): Promise<PromptLibraryItemDTO> {
   validateInput(input);
 
@@ -199,7 +199,7 @@ export async function createPromptLibraryItem(
  */
 export async function updatePromptLibraryItem(
   id: string,
-  patch: PromptLibraryItemUpdate
+  patch: PromptLibraryItemUpdate,
 ): Promise<PromptLibraryItemDTO> {
   validateUpdate(patch);
 
@@ -210,8 +210,7 @@ export async function updatePromptLibraryItem(
     data.description = patch.description?.trim() || null;
   if (patch.videoBlobUrl !== undefined)
     data.videoBlobUrl = patch.videoBlobUrl.trim();
-  if (patch.promptText !== undefined)
-    data.promptText = patch.promptText.trim();
+  if (patch.promptText !== undefined) data.promptText = patch.promptText.trim();
   if (patch.isActive !== undefined) data.isActive = patch.isActive;
 
   const item = await prisma.promptLibraryItem.update({
@@ -229,7 +228,7 @@ export async function updatePromptLibraryItem(
  * Prefer this over hard delete to preserve history.
  */
 export async function deactivatePromptLibraryItem(
-  id: string
+  id: string,
 ): Promise<PromptLibraryItemDTO> {
   const item = await prisma.promptLibraryItem.update({
     where: { id },
