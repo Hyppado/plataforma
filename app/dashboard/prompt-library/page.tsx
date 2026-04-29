@@ -20,11 +20,13 @@ import {
   Close,
   MenuBook,
   PlayArrow,
+  ErrorOutline,
 } from "@mui/icons-material";
 import {
   usePromptLibrary,
   type PromptLibraryItem,
 } from "@/lib/swr/usePromptLibrary";
+import { useCopyToClipboard } from "@/lib/swr/useCopyToClipboard";
 
 // ---------------------------------------------------------------------------
 // Video card — plays on hover, loops silently
@@ -38,7 +40,7 @@ function PromptVideoCard({
   onViewPrompt: (item: PromptLibraryItem) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [copied, setCopied] = useState(false);
+  const { copyState, copy } = useCopyToClipboard();
   const [hovered, setHovered] = useState(false);
 
   const handleMouseEnter = useCallback(() => {
@@ -57,15 +59,7 @@ function PromptVideoCard({
     }
   }, []);
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(item.promptText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard not available — silently ignore
-    }
-  }, [item.promptText]);
+  const handleCopy = useCallback(() => copy(item.promptText), [copy, item.promptText]);
 
   return (
     <Box
@@ -189,23 +183,47 @@ function PromptVideoCard({
           >
             Ver prompt
           </Button>
-          <Tooltip title={copied ? "Copiado!" : "Copiar prompt"}>
+          <Tooltip
+            title={
+              copyState === "success"
+                ? "Copiado!"
+                : copyState === "error"
+                  ? "Falha ao copiar"
+                  : "Copiar prompt"
+            }
+          >
             <IconButton
               size="small"
               onClick={handleCopy}
               sx={{
-                border: "1px solid rgba(255,255,255,0.15)",
+                border: "1px solid",
                 borderRadius: 1,
-                color: copied ? "primary.main" : "rgba(255,255,255,0.6)",
+                borderColor:
+                  copyState === "success"
+                    ? "primary.main"
+                    : copyState === "error"
+                      ? "#ef4444"
+                      : "rgba(255,255,255,0.15)",
+                color:
+                  copyState === "success"
+                    ? "primary.main"
+                    : copyState === "error"
+                      ? "#ef4444"
+                      : "rgba(255,255,255,0.6)",
                 "&:hover": {
-                  borderColor: "primary.main",
-                  color: "primary.main",
-                  background: "rgba(45,212,255,0.05)",
+                  borderColor: copyState === "error" ? "#ef4444" : "primary.main",
+                  color: copyState === "error" ? "#ef4444" : "primary.main",
+                  background:
+                    copyState === "error"
+                      ? "rgba(239,68,68,0.05)"
+                      : "rgba(45,212,255,0.05)",
                 },
               }}
             >
-              {copied ? (
+              {copyState === "success" ? (
                 <Check sx={{ fontSize: 16 }} />
+              ) : copyState === "error" ? (
+                <ErrorOutline sx={{ fontSize: 16 }} />
               ) : (
                 <ContentCopy sx={{ fontSize: 16 }} />
               )}
@@ -259,7 +277,7 @@ function PromptDialog({
   item: PromptLibraryItem | null;
   onClose: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
+  const { copyState, copy } = useCopyToClipboard();
   const videoRef = useRef<HTMLVideoElement>(null);
   const open = item !== null;
 
@@ -276,22 +294,15 @@ function PromptDialog({
     }
   }, []);
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = useCallback(() => {
     if (!item) return;
-    try {
-      await navigator.clipboard.writeText(item.promptText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      // clipboard not available
-    }
-  }, [item]);
+    copy(item.promptText);
+  }, [copy, item]);
 
-  // Reset copied state when a different item is opened
+  // Reset copy state tracking when a different item is opened
   const prevIdRef = useRef<string | null>(null);
   if (item && item.id !== prevIdRef.current) {
     prevIdRef.current = item.id;
-    if (copied) setCopied(false);
   }
 
   return (
@@ -480,29 +491,57 @@ function PromptDialog({
             <Button
               variant="contained"
               fullWidth
-              startIcon={copied ? <Check /> : <ContentCopy />}
+              startIcon={
+                copyState === "success" ? (
+                  <Check />
+                ) : copyState === "error" ? (
+                  <ErrorOutline />
+                ) : (
+                  <ContentCopy />
+                )
+              }
               onClick={handleCopy}
               sx={{
                 textTransform: "none",
                 fontWeight: 700,
                 fontSize: "0.875rem",
                 py: 1,
-                background: copied
-                  ? "rgba(52,211,153,0.15)"
-                  : "rgba(45,212,255,0.12)",
-                color: copied ? "#34d399" : "primary.main",
+                background:
+                  copyState === "success"
+                    ? "rgba(52,211,153,0.15)"
+                    : copyState === "error"
+                      ? "rgba(239,68,68,0.12)"
+                      : "rgba(45,212,255,0.12)",
+                color:
+                  copyState === "success"
+                    ? "#34d399"
+                    : copyState === "error"
+                      ? "#ef4444"
+                      : "primary.main",
                 border: "1px solid",
-                borderColor: copied ? "#34d399" : "primary.main",
+                borderColor:
+                  copyState === "success"
+                    ? "#34d399"
+                    : copyState === "error"
+                      ? "#ef4444"
+                      : "primary.main",
                 boxShadow: "none",
                 "&:hover": {
-                  background: copied
-                    ? "rgba(52,211,153,0.22)"
-                    : "rgba(45,212,255,0.2)",
+                  background:
+                    copyState === "success"
+                      ? "rgba(52,211,153,0.22)"
+                      : copyState === "error"
+                        ? "rgba(239,68,68,0.18)"
+                        : "rgba(45,212,255,0.2)",
                   boxShadow: "none",
                 },
               }}
             >
-              {copied ? "Prompt copiado!" : "Copiar prompt"}
+              {copyState === "success"
+                ? "Prompt copiado!"
+                : copyState === "error"
+                  ? "Falha ao copiar"
+                  : "Copiar prompt"}
             </Button>
           </Box>
         </Box>
