@@ -18,11 +18,9 @@ import {
   Person,
   Paid,
   ShoppingCart,
-  Videocam,
   FaceRetouchingNatural,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
-import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSavedProducts } from "@/lib/storage/saved";
@@ -56,11 +54,9 @@ export function ProductCard({
   product,
   onViewDetails,
   isLoading = false,
-  avatarVideoSource = "products-hype",
 }: ProductCardProps) {
   const savedProducts = useSavedProducts();
   const [isPressed, setIsPressed] = useState(false);
-  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const usdToBrl = useExchangeRate();
 
   const saved = product ? savedProducts.isSaved(product.id) : false;
@@ -408,32 +404,6 @@ export function ProductCard({
           <Button
             fullWidth
             variant="outlined"
-            startIcon={<Videocam sx={{ fontSize: { xs: 14, md: 16 } }} />}
-            onClick={(e) => {
-              e.stopPropagation();
-              setAvatarDialogOpen(true);
-            }}
-            sx={{
-              color: "#FF2D78",
-              borderColor: "rgba(255,45,120,0.35)",
-              fontWeight: 600,
-              fontSize: { xs: "0.8rem", md: "0.85rem" },
-              textTransform: "none",
-              borderRadius: 2,
-              py: { xs: 0.75, md: 1 },
-              "&:hover": {
-                borderColor: "#FF2D78",
-                background: "rgba(255,45,120,0.06)",
-              },
-              transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
-            }}
-          >
-            Criar vídeo
-          </Button>
-
-          <Button
-            fullWidth
-            variant="outlined"
             component={Link}
             href={`/dashboard/influencer-ia?productId=${product.id}&productImageUrl=${encodeURIComponent(product.imageUrl)}&productName=${encodeURIComponent(product.name)}&productCategory=${encodeURIComponent(product.category ?? "")}`}
             startIcon={
@@ -460,14 +430,6 @@ export function ProductCard({
         </Box>
       </Box>
 
-      {avatarDialogOpen && product && (
-        <AvatarVideoStartDialog
-          open={avatarDialogOpen}
-          onClose={() => setAvatarDialogOpen(false)}
-          product={product}
-          source={avatarVideoSource}
-        />
-      )}
     </Box>
   );
 }
