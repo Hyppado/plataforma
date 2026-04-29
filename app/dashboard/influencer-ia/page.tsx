@@ -2568,11 +2568,23 @@ function InfluencerIAWizard() {
                       variant="outlined"
                       size="small"
                       startIcon={<Download />}
-                      component="a"
-                      href={generatedImageUrl}
-                      download="influencer-ia.png"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      onClick={() => {
+                        if (!generatedImageUrl) return;
+                        fetch(generatedImageUrl)
+                          .then((r) => r.blob())
+                          .then((blob) => {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = "influencer-ia.png";
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          })
+                          .catch(() => {
+                            // Fallback: open in same tab so browser triggers download
+                            window.location.href = generatedImageUrl;
+                          });
+                      }}
                       sx={{
                         flex: 1,
                         color: "white",
