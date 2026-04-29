@@ -412,11 +412,11 @@ export function ProductCard({
               background: "linear-gradient(90deg, #FF2D78 0%, #E0256A 100%)",
               color: "#fff",
               fontWeight: 600,
-              fontSize: "0.78rem",
+              fontSize: { xs: "0.7rem", sm: "0.78rem" },
               textTransform: "none",
               borderRadius: 2,
               py: 0.75,
-              whiteSpace: "nowrap",
+              lineHeight: 1.3,
               boxShadow: "none",
               "&:hover": {
                 background: "linear-gradient(90deg, #E0256A 0%, #c01d58 100%)",
@@ -425,7 +425,7 @@ export function ProductCard({
               transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
-            Criar vídeo com avatar
+            Criar Vídeo com Avatar
           </Button>
         </Box>
       </Box>
