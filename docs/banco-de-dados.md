@@ -308,6 +308,31 @@ Prompt VEO 3 gerado (1:1 com criação).
 
 ---
 
+### Domínio 11 — Biblioteca de Prompts
+
+#### `PromptLibraryItem`
+
+Exemplos de prompt curados manualmente pelo admin, exibidos como inspiração aos usuários.
+
+Independente do fluxo Avatar Video — não está vinculado a sessões de geração do usuário.
+
+| Campo         | Tipo      | Descrição                                                     |
+| ------------- | --------- | ------------------------------------------------------------- |
+| `id`          | String    | PK (cuid)                                                     |
+| `title`       | String    | Título do exemplo                                             |
+| `category`    | String    | Categoria em texto livre                                      |
+| `description` | String?   | Descrição opcional do exemplo                                 |
+| `videoBlobUrl`| String    | URL do vídeo de loop (Vercel Blob)                            |
+| `promptText`  | String    | Texto do prompt associado                                     |
+| `isActive`    | Boolean   | Controla visibilidade pública (padrão: `true`)                |
+| `createdById` | String?   | FK opcional para o admin que criou (`ON DELETE SET NULL`)     |
+| `createdAt`   | DateTime  | Data de criação                                               |
+| `updatedAt`   | DateTime  | Última atualização                                            |
+
+Índices: `category`, `isActive`, `createdAt`.
+
+---
+
 ### Domínio 9 — Transcrição
 
 #### `VideoTranscript`
@@ -388,6 +413,7 @@ Veja o guia completo em [docs/deploy.md](deploy.md#migrações-de-banco).
 | `20260427_seed_default_video_scenarios`    | Cenários padrão para VideoScenario                    |
 | `20260427_add_selected_image_variation_id` | selectedImageVariationId em AvatarVideoCreation       |
 | `20260428_add_avatar_video_concept`        | Modelo AvatarVideoConcept + CONCEPT_READY status      |
+| `20260429_add_prompt_library_item`         | Modelo PromptLibraryItem (biblioteca de prompts)      |
 
 ---
 

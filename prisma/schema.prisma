@@ -69,6 +69,9 @@ model User {
 
   // Avatar video creation flow
   avatarVideoCreations AvatarVideoCreation[]
+
+  // Prompt library items created by this admin
+  promptLibraryItems   PromptLibraryItem[]
 }
 
 enum UserRole {
@@ -1103,4 +1106,31 @@ model AvatarVideoPrompt {
   creation     AvatarVideoCreation     @relation(fields: [creationId], references: [id], onDelete: Cascade)
 
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// PROMPT LIBRARY — Domínio: Biblioteca de Prompts
+// ---------------------------------------------------------------------------
+// Curated by admin. Independent from Avatar Video user sessions.
+
+/// Manually curated prompt examples shown to users as inspiration.
+/// Each item has one looping video and one prompt text.
+/// Not tied to any user generation session.
+model PromptLibraryItem {
+  id           String   @id @default(cuid())
+  title        String
+  category     String
+  description  String?
+  videoBlobUrl String
+  promptText   String
+  isActive     Boolean  @default(true)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([isActive])
+  @@index([createdAt])
 }
