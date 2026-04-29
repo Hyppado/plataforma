@@ -2,7 +2,7 @@
  * Tests: app/api/influencer-ia/upload-reference/route.ts
  *
  * Coverage: auth guard, file presence, MIME validation, size limit,
- * successful upload → { url }.
+ * successful upload → { url }, purpose=avatar DB persistence.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -15,12 +15,21 @@ import { NextRequest } from "next/server";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { putMock } = vi.hoisted(() => ({
+const { putMock, prismaMock } = vi.hoisted(() => ({
   putMock: vi.fn(),
+  prismaMock: {
+    userAvatarUpload: {
+      create: vi.fn(),
+    },
+  },
 }));
 
 vi.mock("@vercel/blob", () => ({
   put: putMock,
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  default: prismaMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -40,9 +49,14 @@ import { POST } from "@/app/api/influencer-ia/upload-reference/route";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-function makeUploadRequest(file: Blob | null, fieldName = "file"): NextRequest {
+function makeUploadRequest(
+  file: Blob | null,
+  fieldName = "file",
+  purpose?: string,
+): NextRequest {
   const formData = new FormData();
   if (file) formData.append(fieldName, file, "test.jpg");
+  if (purpose) formData.append("purpose", purpose);
 
   return new NextRequest(
     "http://localhost/api/influencer-ia/upload-reference",
@@ -67,6 +81,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
     putMock.mockResolvedValue({
       url: "https://blob.vercel-storage.com/refs/test.jpg",
     });
+    prismaMock.userAvatarUpload.create.mockResolvedValue({});
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -167,5 +182,69 @@ describe("POST /api/influencer-ia/upload-reference", () => {
     const [pathname] = putMock.mock.calls[0] as [string, ...unknown[]];
     expect(pathname).toContain("influencer-ia/uploads/");
     expect(pathname).toMatch(/\.png$/);
+  });
+
+  // ── purpose=avatar — DB persistence ──────────────────────────────────────
+  describe("purpose=avatar DB persistence", () => {
+    it("saves to UserAvatarUpload when purpose=avatar", async () => {
+      mockAuthenticatedUser({ id: "user-abc" });
+      const blob = makeImageBlob(512, "image/jpeg");
+      const req = makeUploadRequest(blob, "file", "avatar");
+
+      await POST(req);
+
+      expect(prismaMock.userAvatarUpload.create).toHaveBeenCalledOnce();
+      expect(prismaMock.userAvatarUpload.create).toHaveBeenCalledWith({
+        data: {
+          userId: "user-abc",
+          blobUrl: "https://blob.vercel-storage.com/refs/test.jpg",
+        },
+      });
+    });
+
+    it("does NOT save to DB when purpose is omitted", async () => {
+      mockAuthenticatedUser();
+      const blob = makeImageBlob(512, "image/jpeg");
+      const req = makeUploadRequest(blob);
+
+      await POST(req);
+
+      expect(prismaMock.userAvatarUpload.create).not.toHaveBeenCalled();
+    });
+
+    it("does NOT save to DB when purpose=product", async () => {
+      mockAuthenticatedUser();
+      const blob = makeImageBlob(512, "image/jpeg");
+      const req = makeUploadRequest(blob, "file", "product");
+
+      await POST(req);
+
+      expect(prismaMock.userAvatarUpload.create).not.toHaveBeenCalled();
+    });
+
+    it("still returns { url } even when purpose=avatar", async () => {
+      mockAuthenticatedUser();
+      const blob = makeImageBlob(512, "image/jpeg");
+      const req = makeUploadRequest(blob, "file", "avatar");
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { url: string };
+      expect(body.url).toBe("https://blob.vercel-storage.com/refs/test.jpg");
+    });
+
+    it("returns 500 when DB create fails after successful blob upload", async () => {
+      mockAuthenticatedUser();
+      prismaMock.userAvatarUpload.create.mockRejectedValue(
+        new Error("DB write failed"),
+      );
+      const blob = makeImageBlob(512, "image/jpeg");
+      const req = makeUploadRequest(blob, "file", "avatar");
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toBeTruthy();
+    });
   });
 });
