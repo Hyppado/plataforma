@@ -34,6 +34,11 @@ import {
   Alert,
   IconButton,
   Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import {
   AutoFixHigh,
@@ -879,6 +884,17 @@ function InfluencerIAWizard() {
   // Ref for auto-scroll to VEO prompts output
   const veoOutputRef = useRef<HTMLDivElement>(null);
 
+  // Confirmation dialog state (null = closed)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    body: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  // Set to true by the session-restore effect when a previous session has
+  // meaningful content — used to gate the deep-link auto-select.
+  const sessionHasContent = useRef(false);
+
   // Restore session on mount (client-side only to avoid hydration mismatch)
   const hasRestoredSession = useRef(false);
   useEffect(() => {
@@ -887,6 +903,18 @@ function InfluencerIAWizard() {
 
     const session = readSession();
     if (!session) return;
+
+    // Track whether this session has meaningful content so the deep-link
+    // auto-select can decide whether to ask for confirmation.
+    if (
+      session.generatedImageUrl ||
+      session.selectedProduct ||
+      session.selectedAvatar ||
+      session.selectedSavedAvatarUrl ||
+      session.uploadedAvatarUrl
+    ) {
+      sessionHasContent.current = true;
+    }
 
     // Only restore if no query params are present (query params take priority)
     if (!initProductImageUrl && !initProductId) {
@@ -1018,15 +1046,110 @@ function InfluencerIAWizard() {
     (productPage + 1) * PAGE_SIZE,
   );
 
+  // ---------------------------------------------------------------------------
+  // Reset helpers (declared here so the auto-select effect below can reference
+  // doReset without a "used before declaration" error)
+  // ---------------------------------------------------------------------------
+
+  const doReset = useCallback(() => {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+    setSelectedProduct(null);
+    setUploadedProductUrl(null);
+    setUploadedProductName("");
+    setSelectedVariationUrl(null);
+    setSelectedVariationRawUrl(null);
+    setSelectedAvatar(null);
+    setUploadedAvatarUrl(null);
+    setSelectedSavedAvatarUrl(null);
+    setPose("De Frente");
+    setCustomPose("");
+    setEnvironment(null);
+    setCustomEnvironment("");
+    setStyle(null);
+    setEnhancements([]);
+    setGeneratedImageUrl(null);
+    setGenerationError(null);
+    setVeoParts([]);
+    setVeoError(null);
+    setVeoManualMode(false);
+    setVeoManualText("");
+    setVeoDuration("short");
+    setVeoStyle("ugc");
+    setSec1Open(true);
+    setSec2Open(true);
+    setSec3Open(false);
+    setProductTab(0);
+    setAvatarTab(0);
+    setProductPage(0);
+    sessionHasContent.current = false;
+  }, []);
+
+  const handleReset = () => {
+    setConfirmDialog({
+      title: "Reiniciar fluxo?",
+      body: "Todo o progresso atual será perdido — produto, influencer, configurações e imagem gerada.",
+      onConfirm: doReset,
+    });
+  };
+
+  // Select (or deselect) a product from the grid.
+  // If a different product is already selected, ask for confirmation first
+  // because it means resetting the current flow.
+  const handleSelectProduct = useCallback(
+    (p: ProductDTO) => {
+      const isSame = selectedProduct?.id === p.id;
+      if (isSame) {
+        // Toggle off
+        setSelectedProduct(null);
+        return;
+      }
+      if (!selectedProduct) {
+        setSelectedProduct(p);
+        return;
+      }
+      // Switching to a different product — confirm to avoid losing progress
+      setConfirmDialog({
+        title: "Trocar de produto?",
+        body: "Trocar o produto vai reiniciar o fluxo atual. O progresso — avatar, configurações e imagem gerada — será perdido.",
+        onConfirm: () => {
+          doReset();
+          setSelectedProduct(p);
+        },
+      });
+    },
+    [selectedProduct, doReset],
+  );
+
   // Auto-select product from deep-link query param
   const hasAutoSelected = useRef(false);
   useEffect(() => {
     if (!initProductId || hasAutoSelected.current || loadingProducts) return;
 
+    // If the user has an ongoing session, ask before overwriting it with the
+    // deep-linked product (e.g., clicking "Criar vídeo" from another page).
+    const applyProduct = (product: ProductDTO) => {
+      if (sessionHasContent.current) {
+        setConfirmDialog({
+          title: "Trocar de produto?",
+          body: `Você tem uma sessão em andamento. Carregar "${product.name}" vai reiniciar o fluxo. Deseja continuar?`,
+          onConfirm: () => {
+            doReset();
+            setSelectedProduct(product);
+          },
+        });
+      } else {
+        setSelectedProduct(product);
+      }
+    };
+
     const match = allProducts.find((p) => p.id === initProductId);
     if (match) {
       hasAutoSelected.current = true;
-      setSelectedProduct(match);
+      applyProduct(match);
       return;
     }
 
@@ -1036,7 +1159,7 @@ function InfluencerIAWizard() {
       .then((r) => (r.ok ? (r.json() as Promise<FallbackProductDetail>) : null))
       .then((detail) => {
         if (!detail) return;
-        setSelectedProduct({
+        applyProduct({
           id: detail.id,
           name: detail.name,
           imageUrl: detail.images[0] ?? "",
@@ -1060,7 +1183,7 @@ function InfluencerIAWizard() {
         });
       })
       .catch(() => {});
-  }, [initProductId, allProducts, loadingProducts]);
+  }, [initProductId, allProducts, loadingProducts, doReset]);
 
   // ── Avatars ────────────────────────────────────────────────────
   const { avatars, isLoading: loadingAvatars } = useAvatarProfiles();
@@ -1229,47 +1352,12 @@ function InfluencerIAWizard() {
     setVeoManualMode(false);
   };
 
-  const handleReset = () => {
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      /* ignore */
-    }
-    setSelectedProduct(null);
-    setUploadedProductUrl(null);
-    setUploadedProductName("");
-    setSelectedVariationUrl(null);
-    setSelectedVariationRawUrl(null);
-    setSelectedAvatar(null);
-    setUploadedAvatarUrl(null);
-    setSelectedSavedAvatarUrl(null);
-    setPose("De Frente");
-    setCustomPose("");
-    setEnvironment(null);
-    setCustomEnvironment("");
-    setStyle(null);
-    setEnhancements([]);
-    setGeneratedImageUrl(null);
-    setGenerationError(null);
-    setVeoParts([]);
-    setVeoError(null);
-    setVeoManualMode(false);
-    setVeoManualText("");
-    setVeoDuration("short");
-    setVeoStyle("ugc");
-    setSec1Open(true);
-    setSec2Open(true);
-    setSec3Open(false);
-    setProductTab(0);
-    setAvatarTab(0);
-    setProductPage(0);
-  };
-
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
+    <>
     <Box
       sx={{
         display: "flex",
@@ -1584,11 +1672,7 @@ function InfluencerIAWizard() {
                               key={p.id}
                               product={p}
                               selected={selectedProduct?.id === p.id}
-                              onSelect={() =>
-                                setSelectedProduct((prev) =>
-                                  prev?.id === p.id ? null : p,
-                                )
-                              }
+                              onSelect={() => handleSelectProduct(p)}
                             />
                           ))}
                         </Box>
@@ -2794,6 +2878,42 @@ function InfluencerIAWizard() {
         )}
       </Box>
     </Box>
+
+    {/* ── Confirmation dialog ────────────────────────────────── */}
+    <Dialog
+      open={confirmDialog !== null}
+      onClose={() => setConfirmDialog(null)}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle sx={{ fontWeight: 700 }}>
+        {confirmDialog?.title}
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText>{confirmDialog?.body}</DialogContentText>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <Button
+          variant="outlined"
+          onClick={() => setConfirmDialog(null)}
+          sx={{ borderColor: "divider", color: "text.secondary" }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          color="error"
+          onClick={() => {
+            const fn = confirmDialog?.onConfirm;
+            setConfirmDialog(null);
+            fn?.();
+          }}
+        >
+          Confirmar
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 }
 
