@@ -62,7 +62,7 @@ describe("GET /api/influencer-ia/product-images", () => {
     const req = makeGetRequest("/api/influencer-ia/product-images");
     const res = await GET(req);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("productId");
   });
 
@@ -75,7 +75,10 @@ describe("GET /api/influencer-ia/product-images", () => {
     });
     const res = await GET(req);
     expect(res.status).toBe(200);
-    const body = await res.json() as { images: unknown[]; rawImages: unknown[] };
+    const body = (await res.json()) as {
+      images: unknown[];
+      rawImages: unknown[];
+    };
     expect(body.images).toEqual([]);
     expect(body.rawImages).toEqual([]);
   });
@@ -97,7 +100,10 @@ describe("GET /api/influencer-ia/product-images", () => {
       productId: "prod-1",
     });
     const res = await GET(req);
-    const body = await res.json() as { images: string[]; rawImages: string[] };
+    const body = (await res.json()) as {
+      images: string[];
+      rawImages: string[];
+    };
     expect(body.rawImages).toHaveLength(2);
     expect(body.rawImages[0]).toBe("https://cdn.example.com/img1.jpg");
   });
@@ -119,7 +125,10 @@ describe("GET /api/influencer-ia/product-images", () => {
       productId: "prod-1",
     });
     const res = await GET(req);
-    const body = await res.json() as { images: string[]; rawImages: string[] };
+    const body = (await res.json()) as {
+      images: string[];
+      rawImages: string[];
+    };
 
     // blobUrl replaces first image
     expect(body.rawImages[0]).toBe(
@@ -145,7 +154,10 @@ describe("GET /api/influencer-ia/product-images", () => {
       productId: "prod-1",
     });
     const res = await GET(req);
-    const body = await res.json() as { images: string[]; rawImages: string[] };
+    const body = (await res.json()) as {
+      images: string[];
+      rawImages: string[];
+    };
 
     expect(body.images[0]).toContain("/api/proxy/image?url=");
     expect(body.rawImages[0]).toBe("https://cdn.example.com/img1.jpg");
@@ -163,7 +175,10 @@ describe("GET /api/influencer-ia/product-images", () => {
       productId: "prod-1",
     });
     const res = await GET(req);
-    const body = await res.json() as { images: string[]; rawImages: string[] };
+    const body = (await res.json()) as {
+      images: string[];
+      rawImages: string[];
+    };
 
     expect(body.images[0]).toBe(
       "https://public.blob.vercel-storage.com/abc.jpg",
@@ -183,7 +198,10 @@ describe("GET /api/influencer-ia/product-images", () => {
       productId: "prod-1",
     });
     const res = await GET(req);
-    const body = await res.json() as { images: string[]; rawImages: string[] };
+    const body = (await res.json()) as {
+      images: string[];
+      rawImages: string[];
+    };
     expect(body.rawImages).toHaveLength(1);
     expect(body.rawImages[0]).toBe("https://cdn.example.com/cover.jpg");
   });
@@ -199,7 +217,7 @@ describe("GET /api/influencer-ia/product-images", () => {
     });
     const res = await GET(req);
     expect(res.status).toBe(500);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBeTruthy();
   });
 });

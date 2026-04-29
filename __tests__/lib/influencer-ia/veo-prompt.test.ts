@@ -78,7 +78,10 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
       (_, i) => `Prompt part ${i + 1}`,
     );
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
     const result = await generateVeoPrompts("Produto A", null, "ugc", "short");
 
@@ -94,7 +97,10 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
       (_, i) => `Prompt ${i + 1}`,
     );
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
     const result = await generateVeoPrompts("Produto B", null, "ugc", "medium");
     expect(result).toHaveLength(expectedCount);
@@ -107,7 +113,10 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
       (_, i) => `Prompt ${i + 1}`,
     );
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
     const result = await generateVeoPrompts("Produto C", null, "ugc", "full");
     expect(result).toHaveLength(expectedCount);
@@ -116,9 +125,17 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
   it("each part has required fields", async () => {
     const fakePrompts = ["Gancho prompt", "CTA prompt"];
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
-    const result = await generateVeoPrompts("Creme X", "beleza", "ugc", "short");
+    const result = await generateVeoPrompts(
+      "Creme X",
+      "beleza",
+      "ugc",
+      "short",
+    );
 
     for (const part of result) {
       expect(part).toMatchObject({
@@ -140,7 +157,10 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
 
   it("labels match PART_LABELS for the given duration", async () => {
     const fakePrompts = ["p1", "p2"];
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
     const result = await generateVeoPrompts("Produto", null, "ugc", "short");
 
@@ -149,7 +169,10 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
 
   it("pads with fallback prompts when AI returns fewer parts than expected", async () => {
     // AI returns only 1 part, but short expects 2
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(["Only gancho"])));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(["Only gancho"])),
+    );
 
     const result = await generateVeoPrompts("Produto", null, "ugc", "short");
 
@@ -201,24 +224,34 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
 
   it("includes product category in the OpenAI request when provided", async () => {
     const fakePrompts = ["p1", "p2"];
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
     await generateVeoPrompts("Creme Solar", "beleza", "review", "short");
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as { messages: Array<{ content: string }> };
+    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+      messages: Array<{ content: string }>;
+    };
     const userMessage = body.messages.find((m) => m.content.includes("beleza"));
     expect(userMessage).toBeDefined();
   });
 
   it("sends correct style description to OpenAI", async () => {
     const fakePrompts = ["p1", "p2"];
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+    );
 
     await generateVeoPrompts("Prod", null, "unboxing", "short");
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as { messages: Array<{ content: string }> };
+    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+      messages: Array<{ content: string }>;
+    };
     const userMessage = body.messages[body.messages.length - 1]?.content ?? "";
     expect(userMessage).toContain("unboxing");
   });

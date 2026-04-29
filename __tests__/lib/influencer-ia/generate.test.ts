@@ -145,7 +145,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const requestBody = JSON.parse((call?.[1] as RequestInit)?.body as string) as unknown;
+    const requestBody = JSON.parse(
+      (call?.[1] as RequestInit)?.body as string,
+    ) as unknown;
     const bodyStr = JSON.stringify(requestBody);
     expect(bodyStr).toContain("Produto Especial XYZ");
   });
@@ -177,10 +179,11 @@ describe("lib/influencer-ia/generate", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(fakeImageResponse) // avatar fetch
         .mockResolvedValueOnce(fakeImageResponse) // product fetch
-        .mockResolvedValueOnce(geminiResponse),    // Gemini call
+        .mockResolvedValueOnce(geminiResponse), // Gemini call
     );
 
     const result = await generateInfluencerImage({
@@ -252,7 +255,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as { contents: Array<{ parts: Array<{ text?: string }> }> };
+    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string }> }>;
+    };
     const promptText = body.contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("IS WEARING");
   });
@@ -267,7 +272,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as { contents: Array<{ parts: Array<{ text?: string }> }> };
+    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string }> }>;
+    };
     const promptText = body.contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("Product-only shot");
     expect(promptText).not.toContain("PLACEMENT");
@@ -283,7 +290,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as { contents: Array<{ parts: Array<{ text?: string }> }> };
+    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string }> }>;
+    };
     const promptText = body.contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("Deitada na praia");
   });
@@ -297,7 +306,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as { contents: Array<{ parts: Array<{ text?: string }> }> };
+    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string }> }>;
+    };
     const promptText = body.contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("ultra-realistic skin texture");
     expect(promptText).toContain("perfect anatomically correct hands");

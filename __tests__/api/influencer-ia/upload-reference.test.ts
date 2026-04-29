@@ -40,10 +40,7 @@ import { POST } from "@/app/api/influencer-ia/upload-reference/route";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-function makeUploadRequest(
-  file: Blob | null,
-  fieldName = "file",
-): NextRequest {
+function makeUploadRequest(file: Blob | null, fieldName = "file"): NextRequest {
   const formData = new FormData();
   if (file) formData.append(fieldName, file, "test.jpg");
 
@@ -56,10 +53,7 @@ function makeUploadRequest(
   );
 }
 
-function makeImageBlob(
-  sizeBytes: number,
-  type = "image/jpeg",
-): Blob {
+function makeImageBlob(sizeBytes: number, type = "image/jpeg"): Blob {
   return new Blob([new Uint8Array(sizeBytes)], { type });
 }
 
@@ -87,7 +81,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
     const req = makeUploadRequest(null);
     const res = await POST(req);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("file");
   });
 
@@ -97,7 +91,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
     const req = makeUploadRequest(gifBlob);
     const res = await POST(req);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("Formato inválido");
   });
 
@@ -107,7 +101,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
     const req = makeUploadRequest(bigBlob);
     const res = await POST(req);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("5 MB");
   });
 
@@ -118,7 +112,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
-    const body = await res.json() as { url: string };
+    const body = (await res.json()) as { url: string };
     expect(body.url).toBe("https://blob.vercel-storage.com/refs/test.jpg");
   });
 
@@ -158,7 +152,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(500);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBeTruthy();
   });
 

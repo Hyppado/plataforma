@@ -80,13 +80,10 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
   it("returns 400 when productName is missing", async () => {
     mockAuthenticatedUser();
-    const req = makePostRequest(
-      "/api/influencer-ia/generate-veo-prompt",
-      {},
-    );
+    const req = makePostRequest("/api/influencer-ia/generate-veo-prompt", {});
     const res = await POST(req);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("productName");
   });
 
@@ -109,7 +106,7 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
-    const body = await res.json() as { parts: unknown[] };
+    const body = (await res.json()) as { parts: unknown[] };
     expect(body.parts).toHaveLength(2);
   });
 
@@ -122,7 +119,12 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
     await POST(req);
 
-    const [, , style] = generateVeoPromptsMock.mock.calls[0] as [string, string|null, string, string];
+    const [, , style] = generateVeoPromptsMock.mock.calls[0] as [
+      string,
+      string | null,
+      string,
+      string,
+    ];
     expect(style).toBe("ugc");
   });
 
@@ -135,7 +137,12 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
     await POST(req);
 
-    const [, , , duration] = generateVeoPromptsMock.mock.calls[0] as [string, string|null, string, string];
+    const [, , , duration] = generateVeoPromptsMock.mock.calls[0] as [
+      string,
+      string | null,
+      string,
+      string,
+    ];
     expect(duration).toBe("short");
   });
 
@@ -147,7 +154,10 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
     await POST(req);
 
-    const [, category] = generateVeoPromptsMock.mock.calls[0] as [string, string | null];
+    const [, category] = generateVeoPromptsMock.mock.calls[0] as [
+      string,
+      string | null,
+    ];
     expect(category).toBeNull();
   });
 
@@ -160,7 +170,10 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
     await POST(req);
 
-    const [, category] = generateVeoPromptsMock.mock.calls[0] as [string, string | null];
+    const [, category] = generateVeoPromptsMock.mock.calls[0] as [
+      string,
+      string | null,
+    ];
     expect(category).toBe("beleza");
   });
 
@@ -176,7 +189,7 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(500);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("Chave OpenAI");
   });
 
@@ -195,7 +208,11 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      const [, , passedStyle] = generateVeoPromptsMock.mock.calls[0] as [string, string|null, string];
+      const [, , passedStyle] = generateVeoPromptsMock.mock.calls[0] as [
+        string,
+        string | null,
+        string,
+      ];
       expect(passedStyle).toBe(style);
     }
   });
@@ -215,7 +232,12 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      const [, , , passedDuration] = generateVeoPromptsMock.mock.calls[0] as [string, string|null, string, string];
+      const [, , , passedDuration] = generateVeoPromptsMock.mock.calls[0] as [
+        string,
+        string | null,
+        string,
+        string,
+      ];
       expect(passedDuration).toBe(duration);
     }
   });

@@ -1270,59 +1270,62 @@ function InfluencerIAWizard() {
                       scrollbarWidth: "thin",
                       scrollbarColor: "rgba(255,255,255,0.1) transparent",
                       "&::-webkit-scrollbar": { width: 4 },
-                      "&::-webkit-scrollbar-track": { background: "transparent" },
+                      "&::-webkit-scrollbar-track": {
+                        background: "transparent",
+                      },
                       "&::-webkit-scrollbar-thumb": {
                         background: "rgba(255,255,255,0.1)",
                         borderRadius: 4,
                       },
                     }}
                   >
-                  <Box sx={{ p: 1 }}>
-                    {loadingProducts && allProducts.length === 0 ? (
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(5, 1fr)",
-                          gap: 0.5,
-                        }}
-                      >
-                        {Array.from({ length: 15 }).map((_, i) => (
-                          <Box key={i}>
-                            <Skeleton
-                              variant="rectangular"
-                              sx={{ borderRadius: 2, aspectRatio: "1/1" }}
+                    <Box sx={{ p: 1 }}>
+                      {loadingProducts && allProducts.length === 0 ? (
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(5, 1fr)",
+                            gap: 0.5,
+                          }}
+                        >
+                          {Array.from({ length: 15 }).map((_, i) => (
+                            <Box key={i}>
+                              <Skeleton
+                                variant="rectangular"
+                                sx={{ borderRadius: 2, aspectRatio: "1/1" }}
+                              />
+                              <Skeleton
+                                variant="text"
+                                sx={{ mt: 0.5, fontSize: "0.6rem" }}
+                              />
+                            </Box>
+                          ))}
+                        </Box>
+                      ) : (
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(5, 1fr)",
+                            gap: 0.5,
+                          }}
+                        >
+                          {displayedProducts.map((p) => (
+                            <ProductMiniCard
+                              key={p.id}
+                              product={p}
+                              selected={selectedProduct?.id === p.id}
+                              onSelect={() =>
+                                setSelectedProduct((prev) =>
+                                  prev?.id === p.id ? null : p,
+                                )
+                              }
                             />
-                            <Skeleton
-                              variant="text"
-                              sx={{ mt: 0.5, fontSize: "0.6rem" }}
-                            />
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : (
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(5, 1fr)",
-                          gap: 0.5,
-                        }}
-                      >
-                        {displayedProducts.map((p) => (
-                          <ProductMiniCard
-                            key={p.id}
-                            product={p}
-                            selected={selectedProduct?.id === p.id}
-                            onSelect={() =>
-                              setSelectedProduct((prev) =>
-                                prev?.id === p.id ? null : p,
-                              )
-                            }
-                          />
-                        ))}
-                      </Box>
-                    )}
+                          ))}
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
-                  </Box>{/* end scroll wrapper */}
+                  {/* end scroll wrapper */}
 
                   {/* ── Pagination controls ── */}
                   {allProducts.length > PAGE_SIZE && (

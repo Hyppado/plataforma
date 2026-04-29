@@ -72,7 +72,7 @@ describe("POST /api/influencer-ia/generate", () => {
     });
     const res = await POST(req as never);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("inválido");
   });
 
@@ -85,7 +85,7 @@ describe("POST /api/influencer-ia/generate", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
-    const body = await res.json() as { imageUrl: string };
+    const body = (await res.json()) as { imageUrl: string };
     expect(body.imageUrl).toBe("https://blob.vercel-storage.com/test.png");
   });
 
@@ -109,7 +109,11 @@ describe("POST /api/influencer-ia/generate", () => {
       select: { name: true, description: true, imageUrl: true },
     });
 
-    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as { avatarName: string; avatarDescription: string; avatarImageUrl: string };
+    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as {
+      avatarName: string;
+      avatarDescription: string;
+      avatarImageUrl: string;
+    };
     expect(callArgs.avatarName).toBe("Ana");
     expect(callArgs.avatarDescription).toBe("Creator");
     expect(callArgs.avatarImageUrl).toBe("https://example.com/ana.jpg");
@@ -131,7 +135,9 @@ describe("POST /api/influencer-ia/generate", () => {
 
     await POST(req);
 
-    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as { avatarImageUrl: string };
+    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as {
+      avatarImageUrl: string;
+    };
     // Body avatarImageUrl overrides DB imageUrl
     expect(callArgs.avatarImageUrl).toBe("https://uploaded.com/my-photo.jpg");
   });
@@ -152,7 +158,10 @@ describe("POST /api/influencer-ia/generate", () => {
 
     await POST(req);
 
-    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(callArgs.productName).toBe("Vestido Floral");
     expect(callArgs.productCategory).toBe("roupa");
     expect(callArgs.pose).toBe("De Frente");
@@ -175,7 +184,7 @@ describe("POST /api/influencer-ia/generate", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(500);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain("Google AI falhou");
   });
 
@@ -188,7 +197,9 @@ describe("POST /api/influencer-ia/generate", () => {
 
     await POST(req);
 
-    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as { enhancements: unknown[] };
+    const callArgs = generateInfluencerImageMock.mock.calls[0]?.[0] as {
+      enhancements: unknown[];
+    };
     expect(callArgs.enhancements).toEqual([]);
   });
 });
