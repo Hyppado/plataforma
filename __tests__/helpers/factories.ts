@@ -461,3 +461,25 @@ export function buildErasureRequest(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// PromptLibraryItem
+// ---------------------------------------------------------------------------
+
+export function buildPromptLibraryItem(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: randomUUID(),
+    title: "Prompt de referência",
+    category: "Unboxing",
+    description: "Descrição do prompt de referência",
+    videoBlobUrl: "https://blob.example.com/prompt-library/videos/sample.mp4",
+    promptText: "Este é o texto do prompt de referência.",
+    isActive: true,
+    createdById: null as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}

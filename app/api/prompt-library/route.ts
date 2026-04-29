@@ -44,11 +44,20 @@ export async function GET(req: NextRequest) {
     // Derive categories before applying filter
     const categories = Array.from(new Set(rows.map((r) => r.category))).sort();
 
+    const allItems = rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      description: r.description,
+      videoBlobUrl: r.videoBlobUrl,
+      promptText: r.promptText,
+    }));
+
     const items = categoryFilter
-      ? rows.filter(
+      ? allItems.filter(
           (r) => r.category.toLowerCase() === categoryFilter.toLowerCase(),
         )
-      : rows;
+      : allItems;
 
     return NextResponse.json({ items, categories });
   } catch (err) {
