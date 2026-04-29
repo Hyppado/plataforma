@@ -212,28 +212,28 @@ Gera o conceito inicial do vídeo UGC a partir de dados do produto + imagens de 
 
 **Dados usados na geração:**
 
-| Campo                     | Origem                               |
-| ------------------------- | ------------------------------------ |
-| `productName`             | `AvatarVideoCreation.productName`    |
-| `productCategory`         | `AvatarVideoCreation.productCategory`|
-| `productPriceCents` + `productCurrency` | `AvatarVideoCreation`  |
-| `tone`                    | `AvatarVideoCreation.tone`           |
-| `duration`                | `AvatarVideoCreation.duration`       |
-| `takeCount`               | `AvatarVideoCreation.takeCount` (padrão: 1) |
-| `customScenarioDescription` | `AvatarVideoCreation.customScenarioDescription` |
-| URLs das imagens geradas  | `AvatarVideoImageVariation.blobUrl` (apenas status READY) |
+| Campo                                   | Origem                                                    |
+| --------------------------------------- | --------------------------------------------------------- |
+| `productName`                           | `AvatarVideoCreation.productName`                         |
+| `productCategory`                       | `AvatarVideoCreation.productCategory`                     |
+| `productPriceCents` + `productCurrency` | `AvatarVideoCreation`                                     |
+| `tone`                                  | `AvatarVideoCreation.tone`                                |
+| `duration`                              | `AvatarVideoCreation.duration`                            |
+| `takeCount`                             | `AvatarVideoCreation.takeCount` (padrão: 1)               |
+| `customScenarioDescription`             | `AvatarVideoCreation.customScenarioDescription`           |
+| URLs das imagens geradas                | `AvatarVideoImageVariation.blobUrl` (apenas status READY) |
 
 **Nota:** avatar, cenário/`promptHint`, descrição do produto, especificações e payload `extra` do Echotik **não** são passados diretamente ao conceito — a IA recebe o snapshot desnormalizado em `AvatarVideoCreation` e as URLs de blob das variações de imagem.
 
 **Output (JSON validado pela lib):**
 
-| Campo        | Tipo          | Descrição                                           |
-| ------------ | ------------- | --------------------------------------------------- |
-| `videoIdea`  | string        | Resumo da ideia geral do vídeo (obrigatório)         |
-| `hook`       | string        | Frase de abertura (em português, obrigatório)        |
-| `copy`       | string        | Roteiro/copy principal (em português)                |
-| `cta`        | string        | Call-to-action (em português)                        |
-| `scenes`     | ConceptScene[]| N cenas — `sceneNumber`, `goal`, `description` (obrigatório, N = `takeCount`) |
+| Campo       | Tipo           | Descrição                                                                     |
+| ----------- | -------------- | ----------------------------------------------------------------------------- |
+| `videoIdea` | string         | Resumo da ideia geral do vídeo (obrigatório)                                  |
+| `hook`      | string         | Frase de abertura (em português, obrigatório)                                 |
+| `copy`      | string         | Roteiro/copy principal (em português)                                         |
+| `cta`       | string         | Call-to-action (em português)                                                 |
+| `scenes`    | ConceptScene[] | N cenas — `sceneNumber`, `goal`, `description` (obrigatório, N = `takeCount`) |
 
 **Validação de campos:** `videoIdea`, `hook` e `scenes` são obrigatórios — se ausentes ou mal formados, a geração falha com `FAILED` e a mensagem de erro é persistida em `AvatarVideoConcept.errorMessage`.
 
@@ -256,22 +256,22 @@ Gera **2 variações de imagem** de referência por criação, em paralelo. Cada
 
 **Imagens de referência usadas:**
 
-| Referência         | Origem                                                                 |
-| ------------------ | ---------------------------------------------------------------------- |
-| Avatar (pessoa)    | `AvatarVideoCreation.uploadedAvatarImageUrl` ou `AvatarProfile.imageUrl` |
-| Produto            | `AvatarVideoCreation.productSelectedImageUrl`                          |
+| Referência      | Origem                                                                   |
+| --------------- | ------------------------------------------------------------------------ |
+| Avatar (pessoa) | `AvatarVideoCreation.uploadedAvatarImageUrl` ou `AvatarProfile.imageUrl` |
+| Produto         | `AvatarVideoCreation.productSelectedImageUrl`                            |
 
 **Prompt builder — placement category-aware (`buildImagePromptText`):**
 
-| Categoria detectada       | Instrução de placement                                    |
-| ------------------------- | --------------------------------------------------------- |
-| Roupa / moda              | Pessoa vestindo o produto (mesmo corte/cor/estampa)       |
-| Acessório / joia / bolsa  | Pessoa usando ou carregando o acessório                   |
-| Beleza / cosmético        | Pessoa segurando o produto próximo ao rosto               |
-| Tecnologia / eletrônicos  | Pessoa usando o dispositivo naturalmente                  |
-| Alimento / bebida         | Pessoa segurando ou apresentando o produto                |
-| Casa / cozinha / decoração| Produto no ambiente; pessoa gesticulando em direção a ele |
-| Outros                    | Pessoa segurando e apresentando o produto à câmera        |
+| Categoria detectada        | Instrução de placement                                    |
+| -------------------------- | --------------------------------------------------------- |
+| Roupa / moda               | Pessoa vestindo o produto (mesmo corte/cor/estampa)       |
+| Acessório / joia / bolsa   | Pessoa usando ou carregando o acessório                   |
+| Beleza / cosmético         | Pessoa segurando o produto próximo ao rosto               |
+| Tecnologia / eletrônicos   | Pessoa usando o dispositivo naturalmente                  |
+| Alimento / bebida          | Pessoa segurando ou apresentando o produto                |
+| Casa / cozinha / decoração | Produto no ambiente; pessoa gesticulando em direção a ele |
+| Outros                     | Pessoa segurando e apresentando o produto à câmera        |
 
 O cenário (`VideoScenario.promptHint` ou `customScenarioDescription`) define o ambiente (setting). Formato: vertical 9:16, iluminação natural, sem overlays.
 
@@ -289,32 +289,32 @@ Gera prompt estruturado (`Veo3Prompt`) para VEO 3, incluindo takes com direção
 
 **Dados usados na geração:**
 
-| Campo                    | Origem                                    |
-| ------------------------ | ----------------------------------------- |
-| `productName`            | `AvatarVideoCreation.productName`         |
-| `productCategory`        | `AvatarVideoCreation.productCategory`     |
-| Preço                    | `productPriceCents` + `productCurrency`   |
-| Avatar                   | `AvatarProfile.name` + `description`     |
-| Cenário                  | `VideoScenario.name`, `description`, `promptHint` |
-| `tone`                   | `AvatarVideoCreation.tone`                |
-| `duration`               | `AvatarVideoCreation.duration`            |
-| `takeCount`              | `AvatarVideoCreation.takeCount`           |
-| URLs das imagens geradas | `AvatarVideoImageVariation.blobUrl` (status READY) |
+| Campo                    | Origem                                                    |
+| ------------------------ | --------------------------------------------------------- |
+| `productName`            | `AvatarVideoCreation.productName`                         |
+| `productCategory`        | `AvatarVideoCreation.productCategory`                     |
+| Preço                    | `productPriceCents` + `productCurrency`                   |
+| Avatar                   | `AvatarProfile.name` + `description`                      |
+| Cenário                  | `VideoScenario.name`, `description`, `promptHint`         |
+| `tone`                   | `AvatarVideoCreation.tone`                                |
+| `duration`               | `AvatarVideoCreation.duration`                            |
+| `takeCount`              | `AvatarVideoCreation.takeCount`                           |
+| URLs das imagens geradas | `AvatarVideoImageVariation.blobUrl` (status READY)        |
 | Conceito aprovado        | `AvatarVideoConcept` (videoIdea, hook, copy, cta, scenes) |
 
 O conceito (etapa anterior) é incluído como "direção criativa" — cada cena do conceito é traduzida para um take VEO 3 com `cameraDirection` e `visualDirection` em inglês e `spokenLines` em português (PT-BR). Duração máxima por take: 8 segundos.
 
 **Output (`Veo3Prompt`):**
 
-| Campo          | Tipo       | Descrição                                           |
-| -------------- | ---------- | --------------------------------------------------- |
-| `prompt`       | string     | Descrição geral do vídeo em inglês                  |
-| `duration`     | number     | Duração total em segundos (`takeCount × 8`)         |
-| `aspectRatio`  | string     | `"9:16"`                                            |
-| `style`        | string     | `"ugc"`                                             |
-| `language`     | string     | `"pt-BR"`                                           |
-| `takes`        | Veo3Take[] | N takes — `index`, `cameraDirection`, `visualDirection`, `spokenLines` |
-| `metadata`     | object?    | Opcional                                            |
+| Campo         | Tipo       | Descrição                                                              |
+| ------------- | ---------- | ---------------------------------------------------------------------- |
+| `prompt`      | string     | Descrição geral do vídeo em inglês                                     |
+| `duration`    | number     | Duração total em segundos (`takeCount × 8`)                            |
+| `aspectRatio` | string     | `"9:16"`                                                               |
+| `style`       | string     | `"ugc"`                                                                |
+| `language`    | string     | `"pt-BR"`                                                              |
+| `takes`       | Veo3Take[] | N takes — `index`, `cameraDirection`, `visualDirection`, `spokenLines` |
+| `metadata`    | object?    | Opcional                                                               |
 
 **Persistência:** Upsert em `AvatarVideoPrompt` (1:1 por criação). `promptJson` = objeto `Veo3Prompt`, `promptText` = JSON serializado. Regeneração permitida quando status é `PROMPT_READY` — sobrescreve o prompt anterior.
 
@@ -343,6 +343,7 @@ Armazenada criptografada no banco via painel admin (OpenAITab). Nunca enviada ao
 ### Visão geral
 
 O fluxo de **Vídeo com Avatar** é um wizard guiado multi-etapa que produz:
+
 1. Imagens de referência UGC (avatar + produto)
 2. Conceito de vídeo (hook, copy, CTA, cenas) — gerado por IA
 3. Prompt estruturado VEO 3 (takes com direção de câmera, visual e falas) — gerado por IA
@@ -377,15 +378,15 @@ COMPLETED
 
 ### Etapas do wizard (componentes)
 
-| Componente                                    | Etapa | Status esperado    |
-| --------------------------------------------- | ----- | ------------------ |
-| `StepProductConfirm.tsx`                      | 1     | DRAFT              |
-| `StepAvatarSelect.tsx`                        | 2     | DRAFT              |
-| `StepScenarioSelect.tsx`                      | 3     | DRAFT              |
-| `StepImageGenerate.tsx`                       | 4     | DRAFT / IMAGES_READY |
-| `StepConceptEdit.tsx`                         | 5     | IMAGES_READY / CONCEPT_READY |
-| `StepPromptEdit.tsx`                          | 6     | CONCEPT_READY / PROMPT_READY |
-| `StepDelivery.tsx`                            | 7     | COMPLETED          |
+| Componente               | Etapa | Status esperado              |
+| ------------------------ | ----- | ---------------------------- |
+| `StepProductConfirm.tsx` | 1     | DRAFT                        |
+| `StepAvatarSelect.tsx`   | 2     | DRAFT                        |
+| `StepScenarioSelect.tsx` | 3     | DRAFT                        |
+| `StepImageGenerate.tsx`  | 4     | DRAFT / IMAGES_READY         |
+| `StepConceptEdit.tsx`    | 5     | IMAGES_READY / CONCEPT_READY |
+| `StepPromptEdit.tsx`     | 6     | CONCEPT_READY / PROMPT_READY |
+| `StepDelivery.tsx`       | 7     | COMPLETED                    |
 
 ### Quota (`AVATAR_VIDEO_GENERATION`)
 
@@ -399,30 +400,30 @@ COMPLETED
 
 ### Configuração admin
 
-| Item                          | Como configurar                                           |
-| ----------------------------- | --------------------------------------------------------- |
-| Avatares disponíveis          | Admin → aba Avatar Video → gerenciar `AvatarProfile`     |
-| Cenários disponíveis          | Admin → aba Avatar Video → gerenciar `VideoScenario`     |
-| Chave OpenAI                  | Admin → OpenAI tab → `openai.api_key` (criptografado)    |
-| Template de conceito          | Admin → prompt-config → `avatar_video.concept_template`  |
-| Template de prompt VEO 3      | Admin → prompt-config → `avatar_video.prompt_template`   |
-| Quota por plano               | Admin → Hotmart tab → PlansCard → `avatarVideoQuota`     |
-| Chave Google AI (Influencer IA)| Admin → Google AI tab → `google_ai.api_key` (criptografado) |
+| Item                            | Como configurar                                             |
+| ------------------------------- | ----------------------------------------------------------- |
+| Avatares disponíveis            | Admin → aba Avatar Video → gerenciar `AvatarProfile`        |
+| Cenários disponíveis            | Admin → aba Avatar Video → gerenciar `VideoScenario`        |
+| Chave OpenAI                    | Admin → OpenAI tab → `openai.api_key` (criptografado)       |
+| Template de conceito            | Admin → prompt-config → `avatar_video.concept_template`     |
+| Template de prompt VEO 3        | Admin → prompt-config → `avatar_video.prompt_template`      |
+| Quota por plano                 | Admin → Hotmart tab → PlansCard → `avatarVideoQuota`        |
+| Chave Google AI (Influencer IA) | Admin → Google AI tab → `google_ai.api_key` (criptografado) |
 
 ### Diferença: Vídeo com Avatar × Influencer IA
 
-| Dimensão                  | Vídeo com Avatar                                   | Influencer IA                                      |
-| ------------------------- | -------------------------------------------------- | -------------------------------------------------- |
-| Objetivo                  | Wizard guiado → imagens + conceito + prompt VEO 3  | Geração direta de imagem UGC de alta qualidade     |
-| Modelo de imagem          | OpenAI `gpt-image-1` (Images edits API)            | Google Gemini (`gemini-3.1-flash-image-preview`)   |
-| Conceito de vídeo         | Sim — `gpt-4o` gera hook, copy, CTA, cenas        | Não                                                |
-| Prompt VEO                | VEO 3 (takes estruturados, editáveis pelo usuário) | VEO 3.1 (partes de 8s, via `lib/influencer-ia/veo-prompt.ts`) |
-| Quota                     | Sim — `AVATAR_VIDEO_GENERATION` (por imagem)       | Não — acesso universal para assinantes             |
-| Entrada de produto        | Produto de trending selecionado (snapshot no DB)   | Produto de trending ou upload direto               |
-| Entrada de avatar         | `AvatarProfile` do banco ou upload do usuário      | `AvatarProfile` do banco ou upload do usuário      |
-| Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`         | `AvatarProfile`, `lib/storage/blob.ts`             |
-| Fluxo                     | Wizard multi-passo (página dedicada)               | Painel lateral wizard (página dedicada)            |
-| Rota frontend             | `/dashboard/video-com-avatar`                      | `/dashboard/influencer-ia`                         |
+| Dimensão                      | Vídeo com Avatar                                   | Influencer IA                                                 |
+| ----------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| Objetivo                      | Wizard guiado → imagens + conceito + prompt VEO 3  | Geração direta de imagem UGC de alta qualidade                |
+| Modelo de imagem              | OpenAI `gpt-image-1` (Images edits API)            | Google Gemini (`gemini-3.1-flash-image-preview`)              |
+| Conceito de vídeo             | Sim — `gpt-4o` gera hook, copy, CTA, cenas         | Não                                                           |
+| Prompt VEO                    | VEO 3 (takes estruturados, editáveis pelo usuário) | VEO 3.1 (partes de 8s, via `lib/influencer-ia/veo-prompt.ts`) |
+| Quota                         | Sim — `AVATAR_VIDEO_GENERATION` (por imagem)       | Não — acesso universal para assinantes                        |
+| Entrada de produto            | Produto de trending selecionado (snapshot no DB)   | Produto de trending ou upload direto                          |
+| Entrada de avatar             | `AvatarProfile` do banco ou upload do usuário      | `AvatarProfile` do banco ou upload do usuário                 |
+| Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`             | `AvatarProfile`, `lib/storage/blob.ts`                        |
+| Fluxo                         | Wizard multi-passo (página dedicada)               | Painel lateral wizard (página dedicada)                       |
+| Rota frontend                 | `/dashboard/video-com-avatar`                      | `/dashboard/influencer-ia`                                    |
 
 ### Lacunas conhecidas / próximas implementações
 
@@ -430,9 +431,8 @@ As seguintes lacunas foram confirmadas na inspeção do código-fonte:
 
 1. **`StepPromptEdit`** — o editor de takes está implementado por take (um card por take), mas o campo `promptText` persistido é o JSON completo serializado; a edição save ainda usa o JSON completo (sem split por take no banco).
 2. **`StepDelivery`** — exibe o VEO 3 prompt como JSON copiável, mas **não** exibe o copy (falas) take a take de forma destacada — a entrega não separa visualmente hook, copy por take e CTA.
-3. **Geração de imagem** — `image-prompt.ts` foi implementado com `gpt-image-1` (não é mais um stub), mas o comentário interno do arquivo ainda diz "stub — to be wired when model is chosen". O código está funcional; o comentário está desatualizado.
-4. **Concept stage não usa** `productDescription`, `productSpecifications` nem `EchotikProductDetail.extra` — apenas o snapshot denormalizado em `AvatarVideoCreation`.
-5. **UI de quota** — a verificação de quota existe no backend, mas não há feedback visual claro de "X de Y gerações usadas" diretamente no wizard (depende do cabeçalho genérico de quota).
+3. **Concept stage não usa** `productDescription`, `productSpecifications` nem `EchotikProductDetail.extra` — apenas o snapshot denormalizado em `AvatarVideoCreation`.
+4. **UI de quota** — a verificação de quota existe no backend, mas não há feedback visual claro de "X de Y gerações usadas" diretamente no wizard (depende do cabeçalho genérico de quota).
 
 ---
 

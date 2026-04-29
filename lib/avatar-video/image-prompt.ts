@@ -5,12 +5,10 @@
  *
  * Responsibilities:
  *   - Build a prompt describing the desired reference image (avatar + product context)
- *   - Call an image generation API (stub — to be wired when model is chosen)
+ *   - Call OpenAI gpt-image-1 (Images edits API with multipart references,
+ *     or text-only Images generations API when no reference images are available)
  *   - Upload result to Vercel Blob
  *   - Persist blobUrl and status on AvatarVideoImageVariation
- *
- * This module is intentionally stubbed — the external image generation
- * API is TBD. The interface is stable; only the internal call changes.
  */
 
 import { prisma } from "@/lib/prisma";

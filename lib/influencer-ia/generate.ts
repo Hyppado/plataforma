@@ -1,11 +1,13 @@
 /**
  * lib/influencer-ia/generate.ts
  *
- * Generates UGC-style influencer images.
+ * Generates UGC-style influencer images via Google AI Studio (Gemini).
  *
- * Strategy:
- *   1. Try Google AI Studio (gemini-2.0-flash-preview-image-generation) if key is configured.
- *   2. Fall back to OpenAI gpt-image-1 if Google AI key is absent or the call fails.
+ * Model: configurable via admin settings (SETTING_KEYS.GOOGLE_AI_MODEL),
+ * defaulting to "gemini-3.1-flash-image-preview".
+ *
+ * Requires GOOGLE_AI_API_KEY secret to be configured in admin settings.
+ * Throws if the key is absent — no fallback provider.
  */
 
 import { createLogger } from "@/lib/logger";
