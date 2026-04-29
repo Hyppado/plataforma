@@ -2,10 +2,10 @@
  * app/api/admin/prompt-library/upload/route.ts
  *
  * POST — upload a looping video for a prompt library item to Vercel Blob.
- * Returns the public URL. Admin only.
+ * Returns { videoBlobUrl }. Admin only.
  *
  * Accepts multipart/form-data with a single field named "file".
- * Allowed types: video/mp4, video/webm
+ * Allowed types: video/mp4, video/webm, video/quicktime
  * Max size: 50 MB
  */
 
@@ -19,7 +19,11 @@ const log = createLogger("api/admin/prompt-library/upload");
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
-const ALLOWED_MIME_TYPES = ["video/mp4", "video/webm"] as const;
+const ALLOWED_MIME_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+] as const;
 type AllowedMime = (typeof ALLOWED_MIME_TYPES)[number];
 
 function isAllowedMime(value: string): value is AllowedMime {
@@ -27,7 +31,9 @@ function isAllowedMime(value: string): value is AllowedMime {
 }
 
 function mimeToExt(mime: AllowedMime): string {
-  return mime === "video/mp4" ? "mp4" : "webm";
+  if (mime === "video/mp4") return "mp4";
+  if (mime === "video/quicktime") return "mov";
+  return "webm";
 }
 
 export async function POST(req: NextRequest) {
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
     if (!isAllowedMime(file.type)) {
       return NextResponse.json(
-        { error: "Formato inválido. Use MP4 ou WEBM." },
+        { error: "Formato inválido. Use MP4, WEBM ou MOV." },
         { status: 400 },
       );
     }
@@ -62,7 +68,7 @@ export async function POST(req: NextRequest) {
     const blob = await put(pathname, file, { access: "public" });
 
     log.info("Prompt library video uploaded", { url: blob.url });
-    return NextResponse.json({ url: blob.url });
+    return NextResponse.json({ videoBlobUrl: blob.url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
     log.error("Failed to upload prompt library video", { error: message });
