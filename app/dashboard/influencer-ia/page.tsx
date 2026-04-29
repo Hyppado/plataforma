@@ -67,6 +67,7 @@ import {
   AutoAwesome,
   ExpandMore,
   ExpandLess,
+  Close,
 } from "@mui/icons-material";
 import type { VeoPart } from "@/lib/influencer-ia/veo-prompt";
 import { useAvatarProfiles } from "@/lib/swr/useAvatarProfiles";
@@ -520,7 +521,7 @@ function ImageUploadBox({
   onChange: (url: string | null) => void;
   label: string;
   purpose?: "product" | "avatar";
-  onUploadDone?: () => void;
+  onUploadDone?: (blobUrl: string) => void;
   showPreview?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -550,7 +551,7 @@ function ImageUploadBox({
       const json = (await res.json()) as { url?: string };
       if (!json.url) throw new Error("URL não retornada");
       onChange(json.url);
-      onUploadDone?.();
+      onUploadDone?.(json.url);
       setUploadSuccess(true);
       setTimeout(() => setUploadSuccess(false), 2500);
     } catch (err) {
@@ -628,7 +629,9 @@ function ImageUploadBox({
         <Box
           component="button"
           type="button"
-          onClick={() => !uploading && !uploadSuccess && inputRef.current?.click()}
+          onClick={() =>
+            !uploading && !uploadSuccess && inputRef.current?.click()
+          }
           sx={{
             all: "unset",
             cursor: uploading || uploadSuccess ? "default" : "pointer",
@@ -645,7 +648,8 @@ function ImageUploadBox({
             bgcolor: uploadSuccess ? "action.selected" : "action.hover",
             transition: "border-color 0.2s, background-color 0.2s",
             "&:hover": {
-              borderColor: uploading || uploadSuccess ? undefined : "primary.main",
+              borderColor:
+                uploading || uploadSuccess ? undefined : "primary.main",
             },
             boxSizing: "border-box",
           }}
@@ -821,11 +825,18 @@ function InfluencerIAWizard() {
     null,
   );
   // "Meus Uploads" — saved avatar images from DB
-  const { uploads: savedAvatarUploads, isLoading: loadingSavedAvatars, mutate: mutateSavedAvatars } =
-    useAvatarUploads();
+  const {
+    uploads: savedAvatarUploads,
+    isLoading: loadingSavedAvatars,
+    mutate: mutateSavedAvatars,
+  } = useAvatarUploads();
   const [selectedSavedAvatarUrl, setSelectedSavedAvatarUrl] = useState<
     string | null
   >(null);
+  // Tracks the blobUrl of the most recently uploaded image for auto-scroll
+  const lastUploadedBlobUrl = useRef<string | null>(null);
+  const uploadItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // ── Config state ───────────────────────────────────────────────
   const [pose, setPose] = useState<string>("De Frente");
@@ -915,6 +926,16 @@ function InfluencerIAWizard() {
       });
     }
   }, [veoParts.length]);
+
+  // After upload → scroll to the newly added item in "Meus Uploads"
+  useEffect(() => {
+    if (!lastUploadedBlobUrl.current) return;
+    const el = uploadItemRefs.current.get(lastUploadedBlobUrl.current);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      lastUploadedBlobUrl.current = null;
+    }
+  }, [savedAvatarUploads]);
 
   // Persist full session to sessionStorage whenever relevant state changes
   useEffect(() => {
@@ -1781,43 +1802,99 @@ function InfluencerIAWizard() {
                     {savedAvatarUploads.map((upload: AvatarUploadItem) => {
                       const isSelected =
                         selectedSavedAvatarUrl === upload.blobUrl;
+                      const isDeleting = deletingId === upload.id;
                       return (
                         <Box
                           key={upload.id}
-                          onClick={() =>
-                            setSelectedSavedAvatarUrl((prev) =>
-                              prev === upload.blobUrl ? null : upload.blobUrl,
-                            )
-                          }
-                          sx={{
-                            width: 80,
-                            height: 80,
-                            borderRadius: 2,
-                            overflow: "hidden",
-                            border: "2px solid",
-                            borderColor: isSelected
-                              ? "primary.main"
-                              : "transparent",
-                            cursor: "pointer",
-                            outline: isSelected
-                              ? "2px solid"
-                              : "none",
-                            outlineColor: "primary.main",
-                            outlineOffset: 2,
-                            transition: "border-color 0.15s, outline 0.15s",
-                            "&:hover": { borderColor: "primary.dark" },
+                          ref={(el: HTMLDivElement | null) => {
+                            if (el)
+                              uploadItemRefs.current.set(upload.blobUrl, el);
+                            else uploadItemRefs.current.delete(upload.blobUrl);
                           }}
+                          sx={{ position: "relative", width: 80 }}
                         >
-                          <img
-                            src={upload.blobUrl}
-                            alt={upload.label ?? "Avatar"}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              display: "block",
+                          <Box
+                            onClick={() =>
+                              !isDeleting &&
+                              setSelectedSavedAvatarUrl((prev) =>
+                                prev === upload.blobUrl ? null : upload.blobUrl,
+                              )
+                            }
+                            sx={{
+                              width: 80,
+                              height: 80,
+                              borderRadius: 2,
+                              overflow: "hidden",
+                              border: "2px solid",
+                              borderColor: isSelected
+                                ? "primary.main"
+                                : "transparent",
+                              cursor: isDeleting ? "default" : "pointer",
+                              outline: isSelected ? "2px solid" : "none",
+                              outlineColor: "primary.main",
+                              outlineOffset: 2,
+                              opacity: isDeleting ? 0.4 : 1,
+                              transition:
+                                "border-color 0.15s, outline 0.15s, opacity 0.15s",
+                              "&:hover": {
+                                borderColor: isDeleting
+                                  ? undefined
+                                  : "primary.dark",
+                              },
                             }}
-                          />
+                          >
+                            <img
+                              src={upload.blobUrl}
+                              alt={upload.label ?? "Avatar"}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                display: "block",
+                              }}
+                            />
+                          </Box>
+                          {/* Delete button */}
+                          <IconButton
+                            size="small"
+                            disabled={isDeleting}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setDeletingId(upload.id);
+                              if (selectedSavedAvatarUrl === upload.blobUrl) {
+                                setSelectedSavedAvatarUrl(null);
+                              }
+                              try {
+                                await fetch(
+                                  `/api/influencer-ia/avatar-uploads/${upload.id}`,
+                                  { method: "DELETE" },
+                                );
+                                await mutateSavedAvatars();
+                              } finally {
+                                setDeletingId(null);
+                              }
+                            }}
+                            sx={{
+                              position: "absolute",
+                              top: -6,
+                              right: -6,
+                              width: 20,
+                              height: 20,
+                              bgcolor: "background.paper",
+                              border: "1px solid",
+                              borderColor: "divider",
+                              p: 0,
+                              "&:hover": {
+                                bgcolor: "error.main",
+                                borderColor: "error.main",
+                                "& svg": { color: "white" },
+                              },
+                            }}
+                          >
+                            <Close
+                              sx={{ fontSize: 12, color: "text.secondary" }}
+                            />
+                          </IconButton>
                         </Box>
                       );
                     })}
@@ -1831,7 +1908,12 @@ function InfluencerIAWizard() {
                   label="Clique para enviar a foto do influencer"
                   purpose="avatar"
                   showPreview={false}
-                  onUploadDone={() => void mutateSavedAvatars()}
+                  onUploadDone={async (blobUrl) => {
+                    lastUploadedBlobUrl.current = blobUrl;
+                    await mutateSavedAvatars();
+                    setSelectedSavedAvatarUrl(blobUrl);
+                    setAvatarTab(1);
+                  }}
                 />
               )}
             </Collapse>
