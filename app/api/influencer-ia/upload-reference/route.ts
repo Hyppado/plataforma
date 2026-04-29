@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { put } from "@vercel/blob";
+import prisma from "@/lib/prisma";
 
 const log = createLogger("api/influencer-ia/upload-reference");
 
@@ -64,7 +65,15 @@ export async function POST(req: NextRequest) {
 
     const blob = await put(pathname, file, { access: "public" });
 
-    log.info("Reference image uploaded", { userId: auth.userId, url: blob.url });
+    // Persist avatar uploads to DB so the user can reuse them in "Meus Uploads"
+    const purpose = formData.get("purpose");
+    if (purpose === "avatar") {
+      await prisma.userAvatarUpload.create({
+        data: { userId: auth.userId, blobUrl: blob.url },
+      });
+    }
+
+    log.info("Reference image uploaded", { userId: auth.userId, url: blob.url, purpose });
 
     return NextResponse.json({ url: blob.url });
   } catch (err) {

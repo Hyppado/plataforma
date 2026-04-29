@@ -72,6 +72,9 @@ model User {
 
   // Prompt library items created by this admin
   promptLibraryItems   PromptLibraryItem[]
+
+  // Avatar images uploaded by this user (Vídeo com Avatar wizard)
+  avatarUploads        UserAvatarUpload[]
 }
 
 enum UserRole {
@@ -1133,4 +1136,20 @@ model PromptLibraryItem {
   @@index([category])
   @@index([isActive])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Domínio 12 — Uploads de Avatar do Usuário (Vídeo com Avatar)
+// ---------------------------------------------------------------------------
+
+model UserAvatarUpload {
+  id        String   @id @default(cuid())
+  userId    String
+  blobUrl   String
+  label     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

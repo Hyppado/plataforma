@@ -34,7 +34,10 @@ import type { SvgIconComponent } from "@mui/icons-material";
 /* ============================================
    NAV SECTIONS CONFIG
 ============================================ */
-const NAV_SECTIONS = [
+const NAV_SECTIONS: Array<{
+  label: string;
+  items: Array<{ label: string; icon: SvgIconComponent; href: string; badge?: string }>;
+}> = [
   {
     label: "EXPLORAR",
     items: [

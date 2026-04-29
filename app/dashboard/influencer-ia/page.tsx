@@ -72,6 +72,8 @@ import type { VeoPart } from "@/lib/influencer-ia/veo-prompt";
 import { useAvatarProfiles } from "@/lib/swr/useAvatarProfiles";
 import { useTrendingProducts } from "@/lib/swr/useTrending";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
+import { useAvatarUploads } from "@/lib/swr/useAvatarUploads";
+import type { AvatarUploadItem } from "@/lib/swr/useAvatarUploads";
 import { getStoredRegion } from "@/lib/region";
 import { formatCurrency } from "@/lib/format";
 import type { ProductDTO } from "@/lib/types/dto";
@@ -510,10 +512,14 @@ function ImageUploadBox({
   value,
   onChange,
   label,
+  purpose = "product",
+  onUploadDone,
 }: {
   value: string | null;
   onChange: (url: string | null) => void;
   label: string;
+  purpose?: "product" | "avatar";
+  onUploadDone?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -529,6 +535,7 @@ function ImageUploadBox({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("purpose", purpose);
       const res = await fetch("/api/influencer-ia/upload-reference", {
         method: "POST",
         body: formData,
@@ -540,6 +547,7 @@ function ImageUploadBox({
       const json = (await res.json()) as { url?: string };
       if (!json.url) throw new Error("URL não retornada");
       onChange(json.url);
+      onUploadDone?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no upload");
     } finally {
@@ -673,6 +681,7 @@ type SessionSnapshot = {
   avatarTab: number;
   selectedAvatar: AvatarProfileDTO | null;
   uploadedAvatarUrl: string | null;
+  selectedSavedAvatarUrl: string | null;
   pose: string;
   customPose: string;
   environment: string | null;
@@ -792,6 +801,12 @@ function InfluencerIAWizard() {
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(
     null,
   );
+  // "Meus Uploads" — saved avatar images from DB
+  const { uploads: savedAvatarUploads, isLoading: loadingSavedAvatars, mutate: mutateSavedAvatars } =
+    useAvatarUploads();
+  const [selectedSavedAvatarUrl, setSelectedSavedAvatarUrl] = useState<
+    string | null
+  >(null);
 
   // ── Config state ───────────────────────────────────────────────
   const [pose, setPose] = useState<string>("De Frente");
@@ -856,6 +871,8 @@ function InfluencerIAWizard() {
     if (session.selectedAvatar) setSelectedAvatar(session.selectedAvatar);
     if (session.uploadedAvatarUrl)
       setUploadedAvatarUrl(session.uploadedAvatarUrl);
+    if (session.selectedSavedAvatarUrl)
+      setSelectedSavedAvatarUrl(session.selectedSavedAvatarUrl);
     if (session.pose) setPose(session.pose);
     if (session.customPose) setCustomPose(session.customPose);
     if (session.environment) setEnvironment(session.environment);
@@ -893,6 +910,7 @@ function InfluencerIAWizard() {
       avatarTab,
       selectedAvatar,
       uploadedAvatarUrl,
+      selectedSavedAvatarUrl,
       pose,
       customPose,
       environment,
@@ -919,6 +937,7 @@ function InfluencerIAWizard() {
     avatarTab,
     selectedAvatar,
     uploadedAvatarUrl,
+    selectedSavedAvatarUrl,
     pose,
     customPose,
     environment,
@@ -1018,7 +1037,12 @@ function InfluencerIAWizard() {
         null);
   const effectiveAvatarId =
     avatarTab === 0 ? (selectedAvatar?.id ?? null) : null;
-  const effectiveAvatarImageUrl = avatarTab === 1 ? uploadedAvatarUrl : null;
+  const effectiveAvatarImageUrl =
+    avatarTab === 1
+      ? selectedSavedAvatarUrl
+      : avatarTab === 2
+        ? uploadedAvatarUrl
+        : null;
 
   const canGenerate =
     !!(effectiveProductRawImageUrl || effectiveProductName) &&
@@ -1171,6 +1195,7 @@ function InfluencerIAWizard() {
     setSelectedVariationRawUrl(null);
     setSelectedAvatar(null);
     setUploadedAvatarUrl(null);
+    setSelectedSavedAvatarUrl(null);
     setPose("De Frente");
     setCustomPose("");
     setEnvironment(null);
@@ -1602,9 +1627,11 @@ function InfluencerIAWizard() {
               summary={
                 avatarTab === 0 && selectedAvatar
                   ? selectedAvatar.name
-                  : avatarTab === 1 && uploadedAvatarUrl
+                  : avatarTab === 1 && selectedSavedAvatarUrl
                     ? "Foto carregada"
-                    : undefined
+                    : avatarTab === 2 && uploadedAvatarUrl
+                      ? "Foto carregada"
+                      : undefined
               }
             />
             <Collapse in={sec2Open} unmountOnExit>
@@ -1616,6 +1643,10 @@ function InfluencerIAWizard() {
               >
                 <Tab
                   label="Avatares Prontos"
+                  sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+                />
+                <Tab
+                  label="Meus Uploads"
                   sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
                 />
                 <Tab
@@ -1684,11 +1715,103 @@ function InfluencerIAWizard() {
                     ))}
                   </Box>
                 )
+              ) : avatarTab === 1 ? (
+                /* ── Meus Uploads ─────────────────────────────── */
+                loadingSavedAvatars ? (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(80px, 1fr))",
+                      gap: 2,
+                    }}
+                  >
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        variant="rounded"
+                        width={80}
+                        height={80}
+                        sx={{ borderRadius: 2 }}
+                      />
+                    ))}
+                  </Box>
+                ) : savedAvatarUploads.length === 0 ? (
+                  <Box sx={{ textAlign: "center", py: 4 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.disabled"
+                      sx={{ mb: 1 }}
+                    >
+                      Nenhuma foto enviada ainda
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      Use a aba &quot;Upload&quot; para enviar uma foto e ela
+                      aparecerá aqui automaticamente.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(80px, 1fr))",
+                      gap: 2,
+                    }}
+                  >
+                    {savedAvatarUploads.map((upload: AvatarUploadItem) => {
+                      const isSelected =
+                        selectedSavedAvatarUrl === upload.blobUrl;
+                      return (
+                        <Box
+                          key={upload.id}
+                          onClick={() =>
+                            setSelectedSavedAvatarUrl((prev) =>
+                              prev === upload.blobUrl ? null : upload.blobUrl,
+                            )
+                          }
+                          sx={{
+                            width: 80,
+                            height: 80,
+                            borderRadius: 2,
+                            overflow: "hidden",
+                            border: "2px solid",
+                            borderColor: isSelected
+                              ? "primary.main"
+                              : "transparent",
+                            cursor: "pointer",
+                            outline: isSelected
+                              ? "2px solid"
+                              : "none",
+                            outlineColor: "primary.main",
+                            outlineOffset: 2,
+                            transition: "border-color 0.15s, outline 0.15s",
+                            "&:hover": { borderColor: "primary.dark" },
+                          }}
+                        >
+                          <img
+                            src={upload.blobUrl}
+                            alt={upload.label ?? "Avatar"}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block",
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )
               ) : (
+                /* ── Upload ───────────────────────────────────── */
                 <ImageUploadBox
                   value={uploadedAvatarUrl}
                   onChange={setUploadedAvatarUrl}
                   label="Clique para enviar a foto do influencer"
+                  purpose="avatar"
+                  onUploadDone={() => void mutateSavedAvatars()}
                 />
               )}
             </Collapse>
