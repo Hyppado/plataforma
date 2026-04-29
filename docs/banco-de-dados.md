@@ -227,13 +227,13 @@ Biblioteca de avatares cadastrados pelo admin.
 
 Templates de cenário/contexto para guiar a geração de imagens e prompt VEO 3.
 
-| Campo        | Tipo    | Descrição                                                    |
-| ------------ | ------- | ------------------------------------------------------------ |
-| `name`       | String  | Nome do cenário                                              |
-| `description`| String? | Descrição livre do cenário                                   |
-| `promptHint` | String? | Instrução de ambiente/setting injetada no prompt de imagem   |
-| `isDefault`  | Boolean | Selecionado por padrão na UI                                 |
-| `isActive`   | Boolean | Disponível para seleção do usuário                           |
+| Campo         | Tipo    | Descrição                                                  |
+| ------------- | ------- | ---------------------------------------------------------- |
+| `name`        | String  | Nome do cenário                                            |
+| `description` | String? | Descrição livre do cenário                                 |
+| `promptHint`  | String? | Instrução de ambiente/setting injetada no prompt de imagem |
+| `isDefault`   | Boolean | Selecionado por padrão na UI                               |
+| `isActive`    | Boolean | Disponível para seleção do usuário                         |
 
 #### `AvatarVideoCreation`
 
@@ -241,25 +241,25 @@ Sessão de geração por usuário. Um registro por usuário — sobrescrito a ca
 
 **Ciclo de vida (`AvatarVideoCreationStatus`):** `DRAFT → PENDING_IMAGES → IMAGES_READY → PENDING_CONCEPT → CONCEPT_READY → PENDING_PROMPT → PROMPT_READY → COMPLETED | FAILED`
 
-| Campo                      | Tipo    | Descrição                                     |
-| -------------------------- | ------- | --------------------------------------------- |
-| `userId`                   | String  | FK para User (cascade delete)                        |
-| `avatarProfileId`          | String? | Avatar selecionado (set null se deletado)            |
-| `videoScenarioId`          | String? | Cenário selecionado (set null se deletado)           |
-| `status`                   | Enum    | Estado atual do fluxo                                |
-| `tone`                     | String? | Tom do vídeo (ex: professional, casual, energetic)   |
-| `duration`                 | String? | Duração alvo (ex: 15s, 30s, 60s)                     |
-| `takeCount`                | Int?    | Número de takes a gerar (1–5)                        |
-| `productExternalId`        | String? | ID externo do produto TikTok Shop selecionado        |
-| `productName`              | String? | Nome snapshot do produto                             |
-| `productImageUrl`          | String? | Imagem principal snapshot (URL Echotik)              |
-| `productSelectedImageUrl`  | String? | Imagem escolhida pelo usuário para referência (pode ser Blob URL) |
-| `productPriceCents`        | Int?    | Preço snapshot em centavos                           |
-| `productCurrency`          | String? | Moeda do preço (ex: USD, BRL)                        |
-| `productCategory`          | String? | Categoria snapshot (texto desnormalizado)            |
-| `uploadedAvatarImageUrl`   | String? | Vercel Blob URL da foto de avatar enviada pelo usuário |
-| `customScenarioDescription`| String? | Texto livre de cenário (quando usuário não escolhe cenário pré-definido) |
-| `selectedImageVariationId` | String? | ID da variação de imagem preferida pelo usuário (limpo na regeneração) |
+| Campo                       | Tipo    | Descrição                                                                |
+| --------------------------- | ------- | ------------------------------------------------------------------------ |
+| `userId`                    | String  | FK para User (cascade delete)                                            |
+| `avatarProfileId`           | String? | Avatar selecionado (set null se deletado)                                |
+| `videoScenarioId`           | String? | Cenário selecionado (set null se deletado)                               |
+| `status`                    | Enum    | Estado atual do fluxo                                                    |
+| `tone`                      | String? | Tom do vídeo (ex: professional, casual, energetic)                       |
+| `duration`                  | String? | Duração alvo (ex: 15s, 30s, 60s)                                         |
+| `takeCount`                 | Int?    | Número de takes a gerar (1–5)                                            |
+| `productExternalId`         | String? | ID externo do produto TikTok Shop selecionado                            |
+| `productName`               | String? | Nome snapshot do produto                                                 |
+| `productImageUrl`           | String? | Imagem principal snapshot (URL Echotik)                                  |
+| `productSelectedImageUrl`   | String? | Imagem escolhida pelo usuário para referência (pode ser Blob URL)        |
+| `productPriceCents`         | Int?    | Preço snapshot em centavos                                               |
+| `productCurrency`           | String? | Moeda do preço (ex: USD, BRL)                                            |
+| `productCategory`           | String? | Categoria snapshot (texto desnormalizado)                                |
+| `uploadedAvatarImageUrl`    | String? | Vercel Blob URL da foto de avatar enviada pelo usuário                   |
+| `customScenarioDescription` | String? | Texto livre de cenário (quando usuário não escolhe cenário pré-definido) |
+| `selectedImageVariationId`  | String? | ID da variação de imagem preferida pelo usuário (limpo na regeneração)   |
 
 #### `AvatarVideoConcept`
 
@@ -282,12 +282,12 @@ Referências de imagem geradas (até 2 por criação, em paralelo).
 
 **Ciclo de vida (`AvatarVideoImageStatus`):** `PENDING → PROCESSING → READY | FAILED`
 
-| Campo        | Tipo    | Descrição                                           |
-| ------------ | ------- | --------------------------------------------------- |
-| `creationId` | String  | FK para AvatarVideoCreation (cascade delete)        |
-| `blobUrl`    | String? | URL pública no Vercel Blob (disponível quando READY)|
-| `sortOrder`  | Int     | Índice do slot: 0 ou 1                              |
-| `errorMessage`| String?| Mensagem de erro quando FAILED                      |
+| Campo          | Tipo    | Descrição                                            |
+| -------------- | ------- | ---------------------------------------------------- |
+| `creationId`   | String  | FK para AvatarVideoCreation (cascade delete)         |
+| `blobUrl`      | String? | URL pública no Vercel Blob (disponível quando READY) |
+| `sortOrder`    | Int     | Índice do slot: 0 ou 1                               |
+| `errorMessage` | String? | Mensagem de erro quando FAILED                       |
 
 Quando o usuário solicita regeneração, todas as variações anteriores são deletadas e `selectedImageVariationId` na criação é limpo.
 
@@ -297,12 +297,12 @@ Prompt VEO 3 gerado (1:1 com criação).
 
 **Ciclo de vida (`AvatarVideoPromptStatus`):** `PENDING → PROCESSING → READY | FAILED`
 
-| Campo        | Tipo    | Descrição                                                        |
-| ------------ | ------- | ---------------------------------------------------------------- |
-| `promptJson` | Json?   | Payload estruturado `Veo3Prompt` (takes, duração, aspectRatio…)  |
-| `promptText` | String? | JSON serializado — usado como conteúdo editável na UI            |
-| `isEdited`   | Boolean | Indica se o usuário editou o prompt após a geração               |
-| `editedAt`   | DateTime?| Timestamp da última edição manual                               |
+| Campo        | Tipo      | Descrição                                                       |
+| ------------ | --------- | --------------------------------------------------------------- |
+| `promptJson` | Json?     | Payload estruturado `Veo3Prompt` (takes, duração, aspectRatio…) |
+| `promptText` | String?   | JSON serializado — usado como conteúdo editável na UI           |
+| `isEdited`   | Boolean   | Indica se o usuário editou o prompt após a geração              |
+| `editedAt`   | DateTime? | Timestamp da última edição manual                               |
 
 ---
 
