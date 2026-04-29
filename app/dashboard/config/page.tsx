@@ -133,7 +133,7 @@ export default function ConfigPage() {
         <Tab label="OpenAI" />
         <Tab label="Google AI" />
         <Tab label="Influencer IA" />
-        <Tab label="Prompt Library" />
+        <Tab label="Biblioteca de Prompts" />
       </Tabs>
 
       {/* Tab 0 — Geral (Prompts) */}
@@ -176,7 +176,7 @@ export default function ConfigPage() {
       {/* Tab 6 — Avatar Video */}
       {activeTab === 6 && <AvatarVideoTab />}
 
-      {/* Tab 7 — Prompt Library */}
+      {/* Tab 7 — Biblioteca de Prompts */}
       {activeTab === 7 && <PromptLibraryTab />}
     </Box>
   );

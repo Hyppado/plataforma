@@ -269,7 +269,7 @@ export function PromptLibraryTab() {
         variant="body2"
         sx={{ color: "rgba(255,255,255,0.6)", mb: 2 }}
       >
-        Gerencie os exemplos de prompt exibidos na biblioteca. Apenas itens
+        Gerencie os exemplos da Biblioteca de Prompts. Apenas itens
         ativos são visíveis para os usuários.
       </Typography>
 
