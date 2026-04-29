@@ -425,7 +425,31 @@ export function ProductCard({
               transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
-            Influencer IA
+            Criar vídeo
+            <Box
+              component="span"
+              sx={{
+                ml: 0.75,
+                px: 0.6,
+                py: 0.1,
+                fontSize: "0.5rem",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "#fff",
+                background: "#E0256A",
+                borderRadius: "4px",
+                lineHeight: 1.6,
+                flexShrink: 0,
+                animation: "hyppe-badge-pulse 2s ease-in-out infinite",
+                "@keyframes hyppe-badge-pulse": {
+                  "0%, 100%": { opacity: 1 },
+                  "50%": { opacity: 0.55 },
+                },
+              }}
+            >
+              novo
+            </Box>
           </Button>
         </Box>
       </Box>
