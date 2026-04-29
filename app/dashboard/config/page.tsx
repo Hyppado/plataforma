@@ -27,6 +27,7 @@ import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
 import { GoogleAITab } from "@/app/components/admin/google-ai/GoogleAITab";
 import { UsersTab } from "@/app/components/admin/users/UsersTab";
 import { AvatarVideoTab } from "@/app/components/admin/avatar-video/AvatarVideoTab";
+import { PromptLibraryTab } from "@/app/components/admin/prompt-library/PromptLibraryTab";
 import CircularProgress from "@mui/material/CircularProgress";
 
 export default function ConfigPage() {
@@ -132,6 +133,7 @@ export default function ConfigPage() {
         <Tab label="OpenAI" />
         <Tab label="Google AI" />
         <Tab label="Influencer IA" />
+        <Tab label="Prompt Library" />
       </Tabs>
 
       {/* Tab 0 — Geral (Prompts) */}
@@ -173,6 +175,9 @@ export default function ConfigPage() {
 
       {/* Tab 6 — Avatar Video */}
       {activeTab === 6 && <AvatarVideoTab />}
+
+      {/* Tab 7 — Prompt Library */}
+      {activeTab === 7 && <PromptLibraryTab />}
     </Box>
   );
 }
