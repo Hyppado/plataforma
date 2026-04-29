@@ -19,7 +19,6 @@ import {
   Check,
   Close,
   MenuBook,
-  PlayArrow,
   ErrorOutline,
 } from "@mui/icons-material";
 import {
@@ -29,7 +28,7 @@ import {
 import { useCopyToClipboard } from "@/lib/swr/useCopyToClipboard";
 
 // ---------------------------------------------------------------------------
-// Video card — plays on hover, loops silently
+// Video card — autoplays and loops silently
 // ---------------------------------------------------------------------------
 
 function PromptVideoCard({
@@ -39,32 +38,12 @@ function PromptVideoCard({
   item: PromptLibraryItem;
   onViewPrompt: (item: PromptLibraryItem) => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const { copyState, copy } = useCopyToClipboard();
-  const [hovered, setHovered] = useState(false);
-
-  const handleMouseEnter = useCallback(() => {
-    setHovered(true);
-    videoRef.current?.play().catch(() => {
-      // Autoplay blocked — silently ignore
-    });
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setHovered(false);
-    const v = videoRef.current;
-    if (v) {
-      v.pause();
-      v.currentTime = 0;
-    }
-  }, []);
 
   const handleCopy = useCallback(() => copy(item.promptText), [copy, item.promptText]);
 
   return (
     <Box
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       sx={{
         borderRadius: 2,
         overflow: "hidden",
@@ -81,39 +60,20 @@ function PromptVideoCard({
       {/* Video */}
       <Box
         sx={{
-          position: "relative",
           aspectRatio: "9/16",
           background: "#000",
           overflow: "hidden",
         }}
       >
         <video
-          ref={videoRef}
           src={item.videoBlobUrl}
+          autoPlay
           loop
           muted
           playsInline
-          preload="metadata"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          preload="auto"
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
-        {/* Play hint when not hovered */}
-        {!hovered && (
-          <Box
-            sx={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(0,0,0,0.25)",
-              pointerEvents: "none",
-            }}
-          >
-            <PlayArrow
-              sx={{ fontSize: 40, color: "rgba(255,255,255,0.7)" }}
-            />
-          </Box>
-        )}
       </Box>
 
       {/* Card content */}
