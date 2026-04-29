@@ -405,7 +405,7 @@ export function ProductCard({
             fullWidth
             variant="outlined"
             component={Link}
-            href={`/dashboard/influencer-ia?productId=${product.id}&productImageUrl=${encodeURIComponent(product.imageUrl)}&productName=${encodeURIComponent(product.name)}&productCategory=${encodeURIComponent(product.category ?? "")}`}
+            href={`/dashboard/influencer-ia?productId=${product.id}`}
             startIcon={
               <FaceRetouchingNatural sx={{ fontSize: { xs: 14, md: 16 } }} />
             }

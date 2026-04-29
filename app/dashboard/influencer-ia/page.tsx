@@ -12,10 +12,8 @@
  *   + Generate button + result
  *
  * Query params for deep-linking from ProductCard:
- *   ?productId=...        pre-selects product by ID
- *   ?productImageUrl=...  (URL-encoded) used when tab=upload
- *   ?productName=...      product name for upload tab
- *   ?productCategory=...  product category
+ *   ?productId=...  pre-selects product in the Produtos Hype tab (tab 0);
+ *                   if not found in trending top-100, fetches by ID as fallback.
  */
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
@@ -700,6 +698,23 @@ function readSession(): SessionSnapshot | null {
   }
 }
 
+// Minimal shape returned by GET /api/trending/products/[id] — used only
+// when the deep-linked product is not present in the trending top-100 list.
+interface FallbackProductDetail {
+  id: string;
+  name: string;
+  images: string[];
+  avgPrice: number;
+  currency: string;
+  commissionRate: number;
+  rating: number;
+  category: string | null;
+  salesTotal: number;
+  creatorCount: number;
+  sourceUrl: string;
+  tiktokUrl: string;
+}
+
 // ---------------------------------------------------------------------------
 // Main wizard (reads search params — must be inside Suspense)
 // ---------------------------------------------------------------------------
@@ -942,14 +957,46 @@ function InfluencerIAWizard() {
   // Auto-select product from deep-link query param
   const hasAutoSelected = useRef(false);
   useEffect(() => {
-    if (initProductId && !hasAutoSelected.current && allProducts.length > 0) {
-      const match = allProducts.find((p) => p.id === initProductId);
-      if (match) {
-        hasAutoSelected.current = true;
-        setSelectedProduct(match);
-      }
+    if (!initProductId || hasAutoSelected.current || loadingProducts) return;
+
+    const match = allProducts.find((p) => p.id === initProductId);
+    if (match) {
+      hasAutoSelected.current = true;
+      setSelectedProduct(match);
+      return;
     }
-  }, [initProductId, allProducts]);
+
+    // Product not in trending top-100 — fetch by ID as fallback
+    hasAutoSelected.current = true;
+    fetch(`/api/trending/products/${encodeURIComponent(initProductId)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<FallbackProductDetail>) : null))
+      .then((detail) => {
+        if (!detail) return;
+        setSelectedProduct({
+          id: detail.id,
+          name: detail.name,
+          imageUrl: detail.images[0] ?? "",
+          category: detail.category ?? "",
+          priceBRL: detail.avgPrice,
+          launchDate: "",
+          rating: detail.rating,
+          sales: detail.salesTotal,
+          avgPriceBRL: detail.avgPrice,
+          commissionRate: detail.commissionRate,
+          revenueBRL: 0,
+          liveRevenueBRL: 0,
+          videoRevenueBRL: 0,
+          mallRevenueBRL: 0,
+          currency: detail.currency,
+          creatorCount: detail.creatorCount,
+          creatorConversionRate: 0,
+          sourceUrl: detail.sourceUrl,
+          tiktokUrl: detail.tiktokUrl,
+          dateRange: "",
+        });
+      })
+      .catch(() => {});
+  }, [initProductId, allProducts, loadingProducts]);
 
   // ── Avatars ────────────────────────────────────────────────────
   const { avatars, isLoading: loadingAvatars } = useAvatarProfiles();
