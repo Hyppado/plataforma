@@ -76,7 +76,7 @@ app/
           upload-avatar/    → POST upload de imagem própria para Vercel Blob (MIME JPG/PNG/WEBP, ≤5MB)
           generate-concept/ → POST dispara geração de conceito de vídeo (gpt-4o)
           edit-concept/     → PATCH salva edições manuais do conceito pelo usuário
-          generate-image/   → POST dispara geração de imagens de referência (gpt-image-1; 2 variações em paralelo)
+          generate-image/   → POST dispara geração de imagens de referência (Google AI / Gemini; 2 variações em paralelo)
           select-variation/ → PATCH seleciona variação de imagem preferida
           generate-prompt/  → POST dispara geração de prompt VEO 3
           edit-prompt/      → PATCH salva edições manuais do prompt pelo usuário
@@ -110,7 +110,7 @@ app/
       StepProductConfirm.tsx     → etapa 1: confirmação do produto selecionado
       StepAvatarSelect.tsx       → etapa 2: galeria de avatares ou upload de foto própria
       StepScenarioSelect.tsx     → etapa 3: seleção de cenário, tom e duração
-      StepImageGenerate.tsx      → etapa 4: geração de imagens de referência (gpt-image-1) + seleção de variação preferida
+      StepImageGenerate.tsx      → etapa 4: geração de imagens de referência (Google AI / Gemini) + seleção de variação preferida
       StepConceptEdit.tsx        → etapa 5: revisão/edição do conceito gerado
       StepPromptEdit.tsx         → etapa 6: revisão/edição do prompt VEO 3
       StepDelivery.tsx           → etapa 7: entrega final (imagens + prompt)
@@ -173,7 +173,7 @@ lib/
   avatar-video/
     service.ts         → orquestração do fluxo (getOrCreateDraft, updateProduct, updateSelections, startImageGeneration, selectVariation, startConceptGeneration, startPromptGeneration, saveEditedConcept, saveEditedPrompt, completeCreation)
     concept.ts         → geração de conceito via gpt-4o (hook, copy, CTA, cenas) + persistência em AvatarVideoConcept
-    image-prompt.ts    → geração de imagem via gpt-image-1 (images edits API) com referências de avatar + produto + upload Vercel Blob
+    image-prompt.ts    → geração de imagem via Google AI Studio (Gemini generateContent API) com referências de avatar + produto + upload Vercel Blob
     veo-prompt.ts      → VEO 3 — geração de prompt estruturado (takes com cameraDirection, visualDirection, spokenLines) via gpt-4o
     quota.ts           → assertAvatarVideoQuota() / consumeAvatarVideoQuota() — verificado antes de gerar imagens; idempotente por criação
     types.ts           → CreationDTO, AvatarProfileDTO, ConceptDTO, VideoConcept, ConceptScene, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO, Veo3Prompt, ServiceResult

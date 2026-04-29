@@ -241,18 +241,17 @@ Gera o conceito inicial do vídeo UGC a partir de dados do produto + imagens de 
 
 **Template de sistema:** configurável pelo admin via `avatar_video.concept_template` (`getSetting`). Quando ausente, usa o prompt embutido na lib (em português).
 
-### Geração de imagem de referência (gpt-image-1)
+### Geração de imagem de referência (Google AI Studio / Gemini)
 
-`lib/avatar-video/image-prompt.ts` → OpenAI Images API (`gpt-image-1`).
+`lib/avatar-video/image-prompt.ts` → Google AI Studio (Gemini, `gemini-3.1-flash-image-preview` por padrão).
 
 Gera **2 variações de imagem** de referência por criação, em paralelo. Cada variação passa por:
 
 1. `buildImagePromptText()` — monta prompt em inglês, category-aware (ver abaixo)
 2. Download em paralelo das imagens de referência: avatar e produto (timeout 15s cada)
-3. Se referências disponíveis: `POST /v1/images/edits` (multipart, `gpt-image-1`) com `image[]` para grounding visual
-4. Se referências indisponíveis: `POST /v1/images/generations` (JSON, fallback texto-only)
-5. Resultado decodificado (base64) e enviado ao Vercel Blob
-6. `AvatarVideoImageVariation.blobUrl` atualizado; status → `READY` ou `FAILED`
+3. Monta partes `inlineData` com avatar e produto e chama `POST generateContent` (Google AI) com as referências visuais
+4. Resultado decodificado (base64 de `candidates[].content.parts[].inlineData.data`) e enviado ao Vercel Blob
+5. `AvatarVideoImageVariation.blobUrl` atualizado; status → `READY` ou `FAILED`
 
 **Imagens de referência usadas:**
 
@@ -412,18 +411,18 @@ COMPLETED
 
 ### Diferença: Vídeo com Avatar × Influencer IA
 
-| Dimensão                      | Vídeo com Avatar                                   | Influencer IA                                                 |
-| ----------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
-| Objetivo                      | Wizard guiado → imagens + conceito + prompt VEO 3  | Geração direta de imagem UGC de alta qualidade                |
-| Modelo de imagem              | OpenAI `gpt-image-1` (Images edits API)            | Google Gemini (`gemini-3.1-flash-image-preview`)              |
-| Conceito de vídeo             | Sim — `gpt-4o` gera hook, copy, CTA, cenas         | Não                                                           |
-| Prompt VEO                    | VEO 3 (takes estruturados, editáveis pelo usuário) | VEO 3.1 (partes de 8s, via `lib/influencer-ia/veo-prompt.ts`) |
-| Quota                         | Sim — `AVATAR_VIDEO_GENERATION` (por imagem)       | Não — acesso universal para assinantes                        |
-| Entrada de produto            | Produto de trending selecionado (snapshot no DB)   | Produto de trending ou upload direto                          |
-| Entrada de avatar             | `AvatarProfile` do banco ou upload do usuário      | `AvatarProfile` do banco ou upload do usuário                 |
-| Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`             | `AvatarProfile`, `lib/storage/blob.ts`                        |
-| Fluxo                         | Wizard multi-passo (página dedicada)               | Painel lateral wizard (página dedicada)                       |
-| Rota frontend                 | `/dashboard/avatar-video/[id]`                     | `/dashboard/influencer-ia`                                    |
+| Dimensão                      | Vídeo com Avatar                                    | Influencer IA                                                 |
+| ----------------------------- | --------------------------------------------------- | ------------------------------------------------------------- |
+| Objetivo                      | Wizard guiado → imagens + conceito + prompt VEO 3   | Geração direta de imagem UGC de alta qualidade                |
+| Modelo de imagem              | Google AI Studio (`gemini-3.1-flash-image-preview`) | Google Gemini (`gemini-3.1-flash-image-preview`)              |
+| Conceito de vídeo             | Sim — `gpt-4o` gera hook, copy, CTA, cenas          | Não                                                           |
+| Prompt VEO                    | VEO 3 (takes estruturados, editáveis pelo usuário)  | VEO 3.1 (partes de 8s, via `lib/influencer-ia/veo-prompt.ts`) |
+| Quota                         | Sim — `AVATAR_VIDEO_GENERATION` (por imagem)        | Não — acesso universal para assinantes                        |
+| Entrada de produto            | Produto de trending selecionado (snapshot no DB)    | Produto de trending ou upload direto                          |
+| Entrada de avatar             | `AvatarProfile` do banco ou upload do usuário       | `AvatarProfile` do banco ou upload do usuário                 |
+| Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`              | `AvatarProfile`, `lib/storage/blob.ts`                        |
+| Fluxo                         | Wizard multi-passo (página dedicada)                | Painel lateral wizard (página dedicada)                       |
+| Rota frontend                 | `/dashboard/avatar-video/[id]`                      | `/dashboard/influencer-ia`                                    |
 
 ### Lacunas conhecidas / próximas implementações
 

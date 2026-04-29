@@ -297,12 +297,12 @@ Prompt VEO 3 gerado (1:1 com criação).
 
 **Ciclo de vida (`AvatarVideoPromptStatus`):** `PENDING → PROCESSING → READY | FAILED`
 
-| Campo        | Tipo      | Descrição                                                       |
-| ------------ | --------- | --------------------------------------------------------------- |
-| `promptJson` | Json?     | Payload estruturado `Veo3Prompt` (takes, duração, aspectRatio…) |
+| Campo        | Tipo      | Descrição                                                                                         |
+| ------------ | --------- | ------------------------------------------------------------------------------------------------- |
+| `promptJson` | Json?     | Payload estruturado `Veo3Prompt` (takes, duração, aspectRatio…)                                   |
 | `promptText` | String?   | Texto de visão geral (`prompt` do `Veo3Prompt`) — NOT the full JSON; full JSON is in `promptJson` |
-| `isEdited`   | Boolean   | Indica se o usuário editou o prompt após a geração              |
-| `editedAt`   | DateTime? | Timestamp da última edição manual                               |
+| `isEdited`   | Boolean   | Indica se o usuário editou o prompt após a geração                                                |
+| `editedAt`   | DateTime? | Timestamp da última edição manual                                                                 |
 
 ---
 

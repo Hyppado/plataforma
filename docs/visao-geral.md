@@ -45,7 +45,7 @@ A partir de um vídeo transcrito, gerar análise estruturada via IA: contexto, g
 
 Fluxo guiado de criação de material UGC em três etapas de IA (nesta ordem):
 
-1. **Imagens de referência** — `gpt-image-1` (OpenAI) gera 2 variações de imagem UGC (avatar + produto); o usuário revisa e pode selecionar a preferida
+1. **Imagens de referência** — Google AI Studio (Gemini) gera 2 variações de imagem UGC (avatar + produto); o usuário revisa e pode selecionar a preferida
 2. **Conceito** — `gpt-4o` (OpenAI) gera ideia, gancho, copy, CTA e lista de cenas a partir dos dados do produto e das URLs das imagens geradas; o usuário pode editar
 3. **Prompt VEO 3** — `gpt-4o` (OpenAI) gera prompt estruturado por take, usando o conceito aprovado como direção criativa; o usuário pode editar e copiar
 

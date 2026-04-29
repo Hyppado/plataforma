@@ -5,15 +5,17 @@
  *
  * Responsibilities:
  *   - Build a prompt describing the desired reference image (avatar + product context)
- *   - Call OpenAI gpt-image-1 (Images edits API with multipart references,
- *     or text-only Images generations API when no reference images are available)
+ *   - Call Google AI Studio (Gemini) with inline reference images for visual grounding
  *   - Upload result to Vercel Blob
  *   - Persist blobUrl and status on AvatarVideoImageVariation
+ *
+ * Model: configurable via SETTING_KEYS.GOOGLE_AI_MODEL (default: gemini-3.1-flash-image-preview).
+ * Requires GOOGLE_AI_API_KEY secret. Fails closed if absent.
  */
 
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import { getSecretSetting, SETTING_KEYS } from "@/lib/settings";
+import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
 import { uploadBufferToBlob } from "@/lib/storage/blob";
 import type {
   AvatarVideoCreation,
@@ -260,23 +262,18 @@ async function _fetchImageBuffer(
 }
 
 // ---------------------------------------------------------------------------
-// gpt-image-1 image editing with reference images + Vercel Blob upload
+// Google AI (Gemini) image generation with reference images + Vercel Blob upload
 // ---------------------------------------------------------------------------
 
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
+
 /**
- * @internal Calls the OpenAI Images edits API (gpt-image-1) to compose a
+ * @internal Calls the Google AI Studio generateContent API to compose a
  * reference image from the avatar photo and product image, then uploads the
  * base64-encoded result directly to Vercel Blob.
  *
- * We use `/v1/images/edits` (multipart) so that gpt-image-1 can use the
- * actual avatar face and the actual product as visual anchors — rather than
- * hallucinating both from a text description alone.
- *
- * Reference priority:
- *   1. avatarImageUrl  — the person that should appear in the image
- *   2. productImageUrl — the product that the person should be holding / wearing
- *
- * If neither is available, falls back to text-only `/v1/images/generations`.
+ * Reference images are passed as inlineData parts so the model uses the
+ * actual avatar face and the actual product as visual anchors.
  *
  * @param promptText      Assembled prompt from `buildImagePromptText`
  * @param variationId     AvatarVideoImageVariation.id — blob file name
@@ -290,12 +287,18 @@ async function _callImageGenerationAPI(
   avatarImageUrl: string | null,
   productImageUrl: string | null,
 ): Promise<string> {
-  const apiKey = await getSecretSetting(SETTING_KEYS.OPENAI_API_KEY);
+  const [apiKey, modelSetting] = await Promise.all([
+    getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY),
+    getSetting(SETTING_KEYS.GOOGLE_AI_MODEL),
+  ]);
+
   if (!apiKey) {
     throw new Error(
-      "Chave OpenAI não configurada. Configure a chave no painel admin.",
+      "Chave Google AI Studio não configurada. Configure a chave no painel admin.",
     );
   }
+
+  const modelId = modelSetting?.trim() || DEFAULT_GEMINI_MODEL;
 
   // Fetch reference images in parallel (skip on failure — degrade gracefully)
   const [avatarFetch, productFetch] = await Promise.all([
@@ -303,75 +306,53 @@ async function _callImageGenerationAPI(
     productImageUrl ? _fetchImageBuffer(productImageUrl) : null,
   ]);
 
-  const hasReferences = !!(avatarFetch || productFetch);
-
   log.info("Image generation references", {
     variationId,
     hasAvatar: !!avatarFetch,
     hasProduct: !!productFetch,
+    model: modelId,
   });
+
+  // Build parts — text first, then inline image data
+  const parts: unknown[] = [{ text: promptText }];
+  if (avatarFetch) {
+    parts.push({
+      inlineData: {
+        mimeType: avatarFetch.contentType,
+        data: avatarFetch.buffer.toString("base64"),
+      },
+    });
+  }
+  if (productFetch) {
+    parts.push({
+      inlineData: {
+        mimeType: productFetch.contentType,
+        data: productFetch.buffer.toString("base64"),
+      },
+    });
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+  const body = {
+    contents: [{ role: "user", parts }],
+    generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+  };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 110_000);
 
   let response: Response;
   try {
-    if (hasReferences) {
-      // --- /v1/images/edits (multipart) with reference images ---
-      const form = new FormData();
-      form.append("model", "gpt-image-1");
-      form.append("prompt", promptText);
-      form.append("n", "1");
-      form.append("size", "1024x1024");
-      form.append("quality", "medium");
-
-      if (avatarFetch) {
-        form.append(
-          "image[]",
-          new Blob([new Uint8Array(avatarFetch.buffer)], {
-            type: avatarFetch.contentType,
-          }),
-          "avatar.png",
-        );
-      }
-      if (productFetch) {
-        form.append(
-          "image[]",
-          new Blob([new Uint8Array(productFetch.buffer)], {
-            type: productFetch.contentType,
-          }),
-          "product.png",
-        );
-      }
-
-      response = await fetch("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
-        signal: controller.signal,
-      });
-    } else {
-      // --- /v1/images/generations (JSON) fallback when no references ---
-      response = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          prompt: promptText,
-          n: 1,
-          size: "1024x1024",
-          quality: "medium",
-        }),
-        signal: controller.signal,
-      });
-    }
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Tempo limite da OpenAI excedido (110s)");
+      throw new Error("Tempo limite do Google AI excedido (110s)");
     }
     throw err;
   }
@@ -380,20 +361,30 @@ async function _callImageGenerationAPI(
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
     throw new Error(
-      `OpenAI image generation failed (${response.status}): ${errorText.slice(0, 200)}`,
+      `Google AI falhou (${response.status}): ${errorText.slice(0, 300)}`,
     );
   }
 
   const data = (await response.json()) as {
-    data?: Array<{ b64_json?: string }>;
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          text?: string;
+          inlineData?: { mimeType?: string; data?: string };
+        }>;
+      };
+    }>;
   };
-  const b64 = data.data?.[0]?.b64_json;
-  if (!b64 || typeof b64 !== "string") {
-    throw new Error("OpenAI retornou resposta inválida (sem imagem base64)");
+
+  const imagePart = data.candidates
+    ?.flatMap((c) => c.content?.parts ?? [])
+    .find((p) => p.inlineData?.data);
+
+  if (!imagePart?.inlineData?.data) {
+    throw new Error("Google AI não retornou imagem na resposta");
   }
 
-  // Decode base64 → Buffer and upload directly (no second HTTP request)
-  const buffer = Buffer.from(b64, "base64");
+  const buffer = Buffer.from(imagePart.inlineData.data, "base64");
   const blobPath = `avatar-video/${variationId}.png`;
   const blobUrl = await uploadBufferToBlob(buffer, blobPath, "image/png");
 

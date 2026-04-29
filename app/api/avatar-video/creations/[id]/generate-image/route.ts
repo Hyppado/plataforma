@@ -15,7 +15,7 @@
  * 2. Call startImageGeneration(userId, creationId)
  *    - Validates state and product selection
  *    - Enforces avatar-video quota
- *    - Generates 2 gpt-image-1 image variations (uploaded to Vercel Blob)
+ *    - Generates 2 Google AI (Gemini) image variations (uploaded to Vercel Blob)
  *    - Transitions creation to IMAGES_READY (or FAILED)
  *    - Consumes quota on success
  * 3. Return updated creation DTO

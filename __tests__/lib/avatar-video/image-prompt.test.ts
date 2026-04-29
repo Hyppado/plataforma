@@ -25,12 +25,17 @@ vi.mock("@/lib/logger", () => ({
   }),
 }));
 
-const { getSecretSettingMock } = vi.hoisted(() => ({
+const { getSecretSettingMock, getSettingMock } = vi.hoisted(() => ({
   getSecretSettingMock: vi.fn(),
+  getSettingMock: vi.fn(),
 }));
 vi.mock("@/lib/settings", () => ({
   getSecretSetting: getSecretSettingMock,
-  SETTING_KEYS: { OPENAI_API_KEY: "openai.api_key" },
+  getSetting: getSettingMock,
+  SETTING_KEYS: {
+    GOOGLE_AI_API_KEY: "google_ai.api_key",
+    GOOGLE_AI_MODEL: "google_ai.model",
+  },
 }));
 
 const { uploadImageToBlobMock, uploadBufferToBlobMock } = vi.hoisted(() => ({
@@ -53,6 +58,7 @@ describe("lib/avatar-video/image-prompt", () => {
     vi.clearAllMocks();
     // Default: API key not configured — generateImageVariation falls through to FAILED
     getSecretSettingMock.mockResolvedValue(null);
+    getSettingMock.mockResolvedValue(null);
   });
 
   // -------------------------------------------------------------------------
@@ -288,7 +294,7 @@ describe("lib/avatar-video/image-prompt", () => {
       }
     });
 
-    it("marks variation FAILED when OpenAI API key is not configured", async () => {
+    it("marks variation FAILED when Google AI API key is not configured", async () => {
       getSecretSettingMock.mockResolvedValue(null);
       const variation = buildAvatarVideoImageVariation({ id: "var-nokey" });
       (
@@ -310,7 +316,7 @@ describe("lib/avatar-video/image-prompt", () => {
     });
 
     it("persists blobUrl and returns ok on successful generation", async () => {
-      getSecretSettingMock.mockResolvedValue("sk-test-key");
+      getSecretSettingMock.mockResolvedValue("test-google-key");
       uploadBufferToBlobMock.mockResolvedValue(
         "https://blob.vercel.app/avatar-video/var-ok.png",
       );
@@ -327,13 +333,21 @@ describe("lib/avatar-video/image-prompt", () => {
         status: "READY",
       });
 
-      // gpt-image-1 returns base64-encoded image data
+      // Google AI returns base64-encoded image data in candidates
       vi.stubGlobal(
         "fetch",
         vi.fn().mockResolvedValue({
           ok: true,
           json: async () => ({
-            data: [{ b64_json: "AAAA" }], // minimal valid base64
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { inlineData: { mimeType: "image/png", data: "AAAA" } },
+                  ],
+                },
+              },
+            ],
           }),
         }),
       );
@@ -366,8 +380,8 @@ describe("lib/avatar-video/image-prompt", () => {
       );
     });
 
-    it("marks variation FAILED when OpenAI returns non-ok status", async () => {
-      getSecretSettingMock.mockResolvedValue("sk-test-key");
+    it("marks variation FAILED when Google AI returns non-ok status", async () => {
+      getSecretSettingMock.mockResolvedValue("test-google-key");
       const variation = buildAvatarVideoImageVariation({ id: "var-apierr" });
       (
         prismaMock.avatarVideoImageVariation.create as ReturnType<typeof vi.fn>
@@ -397,7 +411,7 @@ describe("lib/avatar-video/image-prompt", () => {
     });
 
     it("marks variation FAILED when blob upload returns null", async () => {
-      getSecretSettingMock.mockResolvedValue("sk-test-key");
+      getSecretSettingMock.mockResolvedValue("test-google-key");
       uploadBufferToBlobMock.mockResolvedValue(null);
 
       const variation = buildAvatarVideoImageVariation({ id: "var-blobfail" });
@@ -413,7 +427,15 @@ describe("lib/avatar-video/image-prompt", () => {
         vi.fn().mockResolvedValue({
           ok: true,
           json: async () => ({
-            data: [{ b64_json: "AAAA" }],
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { inlineData: { mimeType: "image/png", data: "AAAA" } },
+                  ],
+                },
+              },
+            ],
           }),
         }),
       );
@@ -424,8 +446,8 @@ describe("lib/avatar-video/image-prompt", () => {
       if (!result.ok) expect(result.code).toBe("internal");
     });
 
-    it("calls /v1/images/edits when reference images are provided", async () => {
-      getSecretSettingMock.mockResolvedValue("sk-test-key");
+    it("calls Google AI when reference images are provided", async () => {
+      getSecretSettingMock.mockResolvedValue("test-google-key");
       uploadBufferToBlobMock.mockResolvedValue(
         "https://blob.vercel.app/avatar-video/var-ref.png",
       );
@@ -447,10 +469,20 @@ describe("lib/avatar-video/image-prompt", () => {
         "fetch",
         vi.fn().mockImplementation((url: string) => {
           calledUrls.push(url as string);
-          if ((url as string).includes("openai.com")) {
+          if ((url as string).includes("generativelanguage.googleapis.com")) {
             return Promise.resolve({
               ok: true,
-              json: async () => ({ data: [{ b64_json: "AAAA" }] }),
+              json: async () => ({
+                candidates: [
+                  {
+                    content: {
+                      parts: [
+                        { inlineData: { mimeType: "image/png", data: "AAAA" } },
+                      ],
+                    },
+                  },
+                ],
+              }),
             });
           }
           // Reference image download
@@ -471,7 +503,9 @@ describe("lib/avatar-video/image-prompt", () => {
       );
 
       expect(result.ok).toBe(true);
-      expect(calledUrls).toContain("https://api.openai.com/v1/images/edits");
+      expect(
+        calledUrls.some((u) => u.includes("generativelanguage.googleapis.com")),
+      ).toBe(true);
     });
   });
 });
