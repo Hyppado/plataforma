@@ -53,9 +53,13 @@ O Hyppado não executa a geração do vídeo final. Sujeito a quota mensal (`ava
 
 ### 7. Influencer IA
 
-Wizard de geração de imagens UGC ultra-realistas: o usuário seleciona um produto em alta (ou faz upload de imagem), escolhe um avatar da galeria (ou faz upload de foto própria), configura pose, ambiente, estilo e melhorias, e recebe uma imagem gerada via **Google AI Studio (Gemini)** hospedada no Vercel Blob. Adicionalmente, pode gerar prompts VEO 3.1 para a imagem gerada, especificando estilo (UGC, unboxing, review, tutorial, testemunho) e duração (curto / médio / completo). Pode ser acessado diretamente do `ProductCard` via deep-link com query params. Disponível na seção **FERRAMENTAS** da sidebar.
+Wizard de geração de imagens UGC ultra-realistas: o usuário seleciona um produto em alta (ou faz upload de imagem), escolhe um avatar da galeria (ou faz upload de foto própria), configura pose, ambiente, estilo e melhorias, e recebe uma imagem gerada via **Google AI Studio (Gemini)** hospedada no Vercel Blob. Adicionalmente, pode gerar prompts VEO 3.1 para a imagem gerada, especificando estilo (UGC, unboxing, review, tutorial, testemunho) e duração (curto / médio / completo). Disponível na seção **FERRAMENTAS** da sidebar.
 
-### 8. Salvar e organizar
+Ao clicar em **"Criar vídeo"** em qualquer `ProductCard`, o wizard abre com o produto pré-selecionado no tab "Produtos Hype", exibindo automaticamente o picker de variações de imagem (SKUs). Se o produto não estiver no top-100 de tendências, é buscado individualmente via `GET /api/trending/products/[id]` e mapeado para `ProductDTO`.
+
+### 8. Biblioteca de Prompts
+
+Galeria curada de exemplos de prompt UGC, gerenciados pelo admin. Exibida como inspiração para criadores. Cada item contém um vídeo curto em loop, título, categoria, descrição e o texto do prompt copiável. Filtro por categoria e modal de detalhe com layout vídeo + prompt lado a lado. Sem quota — acesso universal para assinantes autenticados. Disponível na seção **FERRAMENTAS** da sidebar (badge **NOVO**).
 
 Favoritar vídeos e produtos, criar coleções, escrever notas e configurar alertas por item.
 
@@ -72,7 +76,8 @@ Favoritar vídeos e produtos, criar coleções, escrever notas e configurar aler
 - **Produtos salvos** — lista de produtos favoritados
 - **Tendências** — análise de tendências (em desenvolvimento)
 - **Suporte** — página de suporte in-app
-- **Influencer IA** (FERRAMENTAS) — wizard de geração de imagens UGC (Gemini) com produto e avatar + geração de prompts VEO 3.1
+- **Influencer IA** (FERRAMENTAS) — wizard de geração de imagens UGC (Gemini) com produto e avatar + geração de prompts VEO 3.1; deep-link de `ProductCard` pré-seleciona produto com picker de variações
+- **Biblioteca de Prompts** (FERRAMENTAS) — galeria de exemplos de prompt curados pelo admin (badge NOVO)
 
 ### Painel administrativo
 
@@ -82,6 +87,8 @@ Favoritar vídeos e produtos, criar coleções, escrever notas e configurar aler
 - Configuração de credenciais Hotmart e Echotik
 - Configuração da chave OpenAI e templates de prompt
 - Configuração de **Avatar Video** (em `/dashboard/config` → aba "Avatar Video"): CRUD de avatares (`AvatarProfile`) e cenários (`VideoScenario`) com upload de imagem, ativação/desativação e cenário padrão; editor dos templates de sistema `avatar_video.concept_template` e `avatar_video.prompt_template` (vazio = usa default embutido no código)
+- **Biblioteca de Prompts** (em `/dashboard/config` → aba "Biblioteca de Prompts"): CRUD de `PromptLibraryItem` com upload de vídeo (Vercel Blob), título, categoria (com sugestões), descrição e prompt; ativação/desativação; sugestão de categorias existentes
+- **Biblioteca de Prompts** (em `/dashboard/config` → aba "Biblioteca de Prompts"): CRUD de `PromptLibraryItem` com upload de vídeo (Vercel Blob), título, categoria (com sugestões), descrição e prompt; ativação/desativação; sugestão de categorias existentes
 - Notificações de eventos de sistema e webhooks
 - Logs de auditoria
 - Política de quotas por período

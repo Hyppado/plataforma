@@ -93,6 +93,7 @@ app/
       generate-veo-prompt/ → POST gera prompts VEO 3.1 para a imagem gerada
       product-images/  → GET retorna URLs de variação do produto (picker de imagem)
       upload-reference/ → POST upload de imagem de referência para Vercel Blob
+    prompt-library/    → GET lista itens ativos da Biblioteca de Prompts (requer auth)
     cron/
       echotik/         → ingestão de dados Echotik
       transcribe/      → retry de transcriões com falha
@@ -121,7 +122,7 @@ app/
       StepConceptEdit.tsx        → etapa 5: revisão/edição do conceito gerado
       StepPromptEdit.tsx         → etapa 6: revisão/edição do prompt VEO 3
       StepDelivery.tsx           → etapa 7: entrega final (imagens + prompt)
-    cards/             → VideoCard, ProductCard (com CTAs "Criar vídeo" e "Influencer IA"), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
+    cards/             → VideoCard, ProductCard (CTA "Criar vídeo" → Influencer IA + badge NOVO), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
       PasswordChangeGuard.tsx → guarda de sessão para troca de senha
@@ -131,7 +132,12 @@ app/
     ui/                → Logo, primitivos
     videos/            → TranscriptDialog, InsightDialog
   dashboard/
-    influencer-ia/     → wizard Influencer IA (produto → avatar → configuração → geração)
+    influencer-ia/     → wizard Influencer IA (produto → avatar → configuração → geração);
+                         deep-link via ?productId= pré-seleciona o produto no tab "Produtos Hype"
+                         com picker de variações; fallback via GET /api/trending/products/[id]
+                         para produtos fora do top-100 de tendências
+    prompt-library/    → página Biblioteca de Prompts (grid de cards com vídeo em loop e
+                         cópia de prompt; filtro por categoria; modal de detalhe com vídeo + prompt)
     ...                → outras páginas autenticadas (/dashboard/*)
   login/               → página de login
   criar-senha/         → criação/reset de senha por token
@@ -189,6 +195,8 @@ lib/
   influencer-ia/
     generate.ts        → buildPrompt + Gemini (google-ai) + upload para Vercel Blob
     veo-prompt.ts      → geração de prompts VEO 3.1 via OpenAI gpt-4o
+  prompt-library/
+    admin.ts           → CRUD admin (listAll, create, update, deleteOrDeactivate) para PromptLibraryItem
   insight/
     service.ts         → requestInsight / getInsight
     generate.ts        → OpenAI Chat Completions + parseInsightResponse
@@ -212,6 +220,8 @@ lib/
     useTrending.ts               → dados de trending
     useUserQuota.ts              → quotas do usuário autenticado
     useVideoScenarios.ts         → cenários de vídeo (GET /api/avatar-video/scenarios)
+    usePromptLibrary.ts          → itens da Biblioteca de Prompts (GET /api/prompt-library)
+    useCopyToClipboard.ts        → hook de cópia com feedback tri-estado (idle/success/error)
   transcription/
     service.ts         → requestTranscript / getTranscript
     media.ts           → download de vídeo via Echotik
