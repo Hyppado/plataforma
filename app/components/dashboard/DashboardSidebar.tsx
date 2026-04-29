@@ -26,6 +26,7 @@ import {
   HelpOutline,
   AutoAwesome,
   FaceRetouchingNatural,
+  MenuBook,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -54,6 +55,11 @@ const NAV_SECTIONS = [
         label: "Influencer IA",
         icon: FaceRetouchingNatural,
         href: "/dashboard/influencer-ia",
+      },
+      {
+        label: "Biblioteca de Prompts",
+        icon: MenuBook,
+        href: "/dashboard/prompt-library",
       },
     ],
   },
