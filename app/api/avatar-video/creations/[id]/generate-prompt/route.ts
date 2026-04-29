@@ -6,7 +6,7 @@
  * Generates the structured VEO 3 JSON prompt for an avatar video creation.
  *
  * Allowed statuses:
- *   - IMAGES_READY  → first prompt generation
+ *   - CONCEPT_READY → first prompt generation (concept must exist and be READY)
  *   - PROMPT_READY  → regeneration (replaces the existing prompt)
  *
  * Flow (synchronous — result returned in the same request):

@@ -249,7 +249,7 @@ Sessão de geração por usuário. Um registro por usuário — sobrescrito a ca
 | `status`                    | Enum    | Estado atual do fluxo                                                    |
 | `tone`                      | String? | Tom do vídeo (ex: professional, casual, energetic)                       |
 | `duration`                  | String? | Duração alvo (ex: 15s, 30s, 60s)                                         |
-| `takeCount`                 | Int?    | Número de takes a gerar (1–5)                                            |
+| `takeCount`                 | Int?    | Número de takes (1–5 via seleção de cenário; 1–12 via geração de prompt) |
 | `productExternalId`         | String? | ID externo do produto TikTok Shop selecionado                            |
 | `productName`               | String? | Nome snapshot do produto                                                 |
 | `productImageUrl`           | String? | Imagem principal snapshot (URL Echotik)                                  |
@@ -300,7 +300,7 @@ Prompt VEO 3 gerado (1:1 com criação).
 | Campo        | Tipo      | Descrição                                                       |
 | ------------ | --------- | --------------------------------------------------------------- |
 | `promptJson` | Json?     | Payload estruturado `Veo3Prompt` (takes, duração, aspectRatio…) |
-| `promptText` | String?   | JSON serializado — usado como conteúdo editável na UI           |
+| `promptText` | String?   | Texto de visão geral (`prompt` do `Veo3Prompt`) — NOT the full JSON; full JSON is in `promptJson` |
 | `isEdited`   | Boolean   | Indica se o usuário editou o prompt após a geração              |
 | `editedAt`   | DateTime? | Timestamp da última edição manual                               |
 

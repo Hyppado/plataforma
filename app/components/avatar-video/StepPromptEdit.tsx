@@ -3,7 +3,7 @@
 /**
  * app/components/avatar-video/StepPromptEdit.tsx
  *
- * Step 5 of the avatar video wizard — VEO 3 take-by-take prompt editor.
+ * Step 6 of the avatar video wizard — VEO 3 take-by-take prompt editor.
  *
  * Section B of Task 3.6: VEO 3 take prompts.
  *

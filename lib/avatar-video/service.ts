@@ -6,6 +6,7 @@
  * State machine:
  *   DRAFT  →  (product + avatar + scenario set)
  *          →  PENDING_IMAGES  →  IMAGES_READY
+ *          →  PENDING_CONCEPT →  CONCEPT_READY
  *          →  PENDING_PROMPT  →  PROMPT_READY
  *          →  COMPLETED
  *          →  FAILED (unrecoverable error at any step)

@@ -178,6 +178,22 @@ Use `"secondary.main"` in `sx`, never `"#FF2D78"`.
 - Hotmart provisioning: call `sendOnboardingEmail().catch(...)` — never let email failure break provisioning.
 - Raw tokens never stored in DB — store SHA-256 hash only (`lib/email/setup-token.ts`).
 
+## Avatar Video / Influencer IA — Key Facts (source of truth: code)
+
+> Code comments in this feature may be stale. Always verify against the actual implementation.
+
+- **State machine** (confirmed `lib/avatar-video/service.ts`): `DRAFT → PENDING_IMAGES → IMAGES_READY → PENDING_CONCEPT → CONCEPT_READY → PENDING_PROMPT → PROMPT_READY → COMPLETED` (± FAILED). Any step can go → FAILED.
+- **`generate-prompt` route**: allowed statuses are `CONCEPT_READY` and `PROMPT_READY` — NOT `IMAGES_READY` (stale comment in route file was fixed).
+- **`promptText` in DB** = `parsed.prompt` (overview text string, the `prompt` field of `Veo3Prompt`) — **NOT** the full JSON. Full JSON is in `promptJson`.
+- **Concept generation does NOT use** avatar name/description or scenario name/description/promptHint. It DOES receive `imageBlobUrls` (generated image URLs).
+- **VEO prompt generation DOES use** avatar (name, description) and scenario (name, description, promptHint).
+- **Image generation** generates 2 variations in **parallel** (`Promise.all`), not sequentially.
+- **`takeCount` range**: 1–5 when saved via `PATCH /creations/[id]` (StepScenarioSelect); 1–12 when sent via `POST /generate-prompt`.
+- **Influencer IA image provider**: Google AI Studio (Gemini) only — no OpenAI/gpt-image-1 fallback. Throws if `GOOGLE_AI_API_KEY` absent.
+- **Influencer IA VEO prompt**: returns `VeoPart[]` (plain text prompt strings per segment), NOT `Veo3Prompt` format.
+- **Influencer IA quota**: none — universal access for authenticated subscribers.
+- **Frontend route**: `/dashboard/avatar-video/[id]` (wizard page).
+
 ## Anti-Patterns — Never Do These
 
 - `new PrismaClient()` outside `lib/prisma.ts`

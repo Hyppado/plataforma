@@ -316,7 +316,7 @@ O conceito (etapa anterior) é incluído como "direção criativa" — cada cena
 | `takes`       | Veo3Take[] | N takes — `index`, `cameraDirection`, `visualDirection`, `spokenLines` |
 | `metadata`    | object?    | Opcional                                                               |
 
-**Persistência:** Upsert em `AvatarVideoPrompt` (1:1 por criação). `promptJson` = objeto `Veo3Prompt`, `promptText` = JSON serializado. Regeneração permitida quando status é `PROMPT_READY` — sobrescreve o prompt anterior.
+**Persistência:** Upsert em `AvatarVideoPrompt` (1:1 por criação). `promptJson` = objeto `Veo3Prompt` completo (com todos os takes). `promptText` = **apenas** o campo `prompt` (visão geral textual) do `Veo3Prompt` — **não** é o JSON serializado completo. Regeneração permitida quando status é `PROMPT_READY` — sobrescreve o prompt anterior.
 
 **Edição manual:** o usuário pode editar `promptText` via `PATCH /edit-prompt`; `isEdited = true` e `editedAt` são persistidos.
 
@@ -423,13 +423,13 @@ COMPLETED
 | Entrada de avatar             | `AvatarProfile` do banco ou upload do usuário      | `AvatarProfile` do banco ou upload do usuário                 |
 | Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`             | `AvatarProfile`, `lib/storage/blob.ts`                        |
 | Fluxo                         | Wizard multi-passo (página dedicada)               | Painel lateral wizard (página dedicada)                       |
-| Rota frontend                 | `/dashboard/video-com-avatar`                      | `/dashboard/influencer-ia`                                    |
+| Rota frontend                 | `/dashboard/avatar-video/[id]`                     | `/dashboard/influencer-ia`                                    |
 
 ### Lacunas conhecidas / próximas implementações
 
 As seguintes lacunas foram confirmadas na inspeção do código-fonte:
 
-1. **`StepPromptEdit`** — o editor de takes está implementado por take (um card por take), mas o campo `promptText` persistido é o JSON completo serializado; a edição save ainda usa o JSON completo (sem split por take no banco).
+1. **`StepPromptEdit`** — o editor de takes está implementado por take (um card por take, cada um com um textarea JSON). O `promptText` salvo no banco é **apenas o texto de visão geral** (`parsed.prompt` — campo `prompt` do `Veo3Prompt`); o objeto completo com todos os takes fica em `promptJson`. Após edição pelo usuário, `promptText = updatedJson.prompt || copyAllText` e `promptJson` = `Veo3Prompt` completo com takes editados.
 2. **`StepDelivery`** — exibe o VEO 3 prompt como JSON copiável, mas **não** exibe o copy (falas) take a take de forma destacada — a entrega não separa visualmente hook, copy por take e CTA.
 3. **Concept stage não usa** `productDescription`, `productSpecifications` nem `EchotikProductDetail.extra` — apenas o snapshot denormalizado em `AvatarVideoCreation`.
 4. **UI de quota** — a verificação de quota existe no backend, mas não há feedback visual claro de "X de Y gerações usadas" diretamente no wizard (depende do cabeçalho genérico de quota).

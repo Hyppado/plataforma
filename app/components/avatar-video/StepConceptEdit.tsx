@@ -3,7 +3,7 @@
 /**
  * app/components/avatar-video/StepConceptEdit.tsx
  *
- * Step 4 of the avatar video wizard — AI-generated video concept review and editing.
+ * Step 5 of the avatar video wizard — AI-generated video concept review and editing.
  *
  * Section A of Task 3.6: AI-generated concept.
  *
