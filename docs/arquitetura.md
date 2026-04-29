@@ -45,6 +45,13 @@ app/
     admin/           → 15+ sub-rotas administrativas
       access-grants/
       audit-logs/
+      avatar-video/
+        avatars/         → GET (lista todos) / POST (criar) AvatarProfile
+        avatars/[id]/    → PATCH / DELETE (delete-or-deactivate)
+        avatars/upload/  → POST upload admin de imagem (Vercel Blob, JPG/PNG/WEBP, ≤5MB)
+        scenarios/       → GET (lista todos) / POST (criar) VideoScenario
+        scenarios/[id]/  → PATCH / DELETE (delete-or-deactivate)
+        templates/       → GET / PUT dos settings avatar_video.concept_template e avatar_video.prompt_template
       echotik/         → config e health da Echotik
       erasure-requests/
       hotmart/
@@ -104,7 +111,7 @@ app/
       hotmart/         → webhook de eventos Hotmart
   components/
     BrandLogo.tsx      → logo responsivo (next/image)
-    admin/             → componentes do painel admin
+    admin/             → componentes do painel admin (inclui `avatar-video/AvatarVideoTab.tsx` com sub-abas Avatares, Cenários e Templates de Prompt; renderizado em `/dashboard/config` na aba "Avatar Video")
     avatar-video/
       AvatarVideoStartDialog.tsx → dialog de início do fluxo: seleção de imagem do produto + POST de criação
       StepProductConfirm.tsx     → etapa 1: confirmação do produto selecionado
@@ -172,6 +179,7 @@ lib/
     webhook.ts         → validação de assinatura + extração de campos
   avatar-video/
     service.ts         → orquestração do fluxo (getOrCreateDraft, updateProduct, updateSelections, startImageGeneration, selectVariation, startConceptGeneration, startPromptGeneration, saveEditedConcept, saveEditedPrompt, completeCreation)
+    admin.ts           → CRUD admin (listAllAvatars, createAvatar, updateAvatar, deleteOrDeactivateAvatar, listAllScenarios, createScenario, updateScenario, deleteOrDeactivateScenario); usa $transaction para garantir único cenário padrão; soft-deactivate quando há AvatarVideoCreation referenciando o registro
     concept.ts         → geração de conceito via gpt-4o (hook, copy, CTA, cenas) + persistência em AvatarVideoConcept
     image-prompt.ts    → geração de imagem via Google AI Studio (Gemini generateContent API) com referências de avatar + produto + upload Vercel Blob
     veo-prompt.ts      → VEO 3 — geração de prompt estruturado (takes com cameraDirection, visualDirection, spokenLines) via gpt-4o

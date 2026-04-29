@@ -52,10 +52,10 @@ export function isConceptError(
 // ---------------------------------------------------------------------------
 
 const DEFAULT_CONCEPT_SYSTEM_PROMPT =
-  "Você é um especialista em marketing de conteúdo para TikTok Shop. " +
-  "Cria conceitos de vídeos UGC autênticos, persuasivos e otimizados para vendas. " +
-  "Sempre responda com JSON válido conforme solicitado, sem markdown ou explicações extras. " +
-  "Escreva hook, copy e CTA em português brasileiro.";
+  "You are an expert TikTok Shop content marketing strategist. " +
+  "You create authentic, persuasive UGC video concepts optimised for sales conversions. " +
+  "Always respond with valid JSON exactly as requested, no markdown, no extra explanations. " +
+  "Write hook, copy, and CTA in Brazilian Portuguese (pt-BR).";
 
 /**
  * Assembles the full OpenAI messages array for video concept generation.
@@ -74,34 +74,35 @@ export function buildConceptMessages(
   const contextParts: string[] = [];
 
   if (creation.productName)
-    contextParts.push(`Produto: ${creation.productName}`);
+    contextParts.push(`Product: ${creation.productName}`);
   if (creation.productCategory)
-    contextParts.push(`Categoria: ${creation.productCategory}`);
+    contextParts.push(`Category: ${creation.productCategory}`);
   if (creation.productPriceCents && creation.productCurrency) {
     const price = (creation.productPriceCents / 100).toFixed(2);
-    contextParts.push(`Preço: ${creation.productCurrency} ${price}`);
+    contextParts.push(`Price: ${creation.productCurrency} ${price}`);
   }
-  if (creation.tone) contextParts.push(`Tom desejado: ${creation.tone}`);
+  if (creation.tone) contextParts.push(`Desired tone: ${creation.tone}`);
   if (creation.duration)
-    contextParts.push(`Duração alvo: ${creation.duration}`);
+    contextParts.push(`Target duration: ${creation.duration}`);
   const takeCount = creation.takeCount ?? 1;
-  contextParts.push(`Número de takes/cenas: ${takeCount}`);
+  contextParts.push(`Number of takes/scenes: ${takeCount}`);
   if (imageBlobUrls.length > 0) {
     contextParts.push(
-      `Imagens de referência geradas (avatar + produto): ${imageBlobUrls.join(", ")}`,
+      `Generated reference images (avatar + product): ${imageBlobUrls.join(", ")}`,
     );
   }
   if (creation.customScenarioDescription) {
     contextParts.push(
-      `Descrição de cenário personalizada: ${creation.customScenarioDescription}`,
+      `Custom scenario description: ${creation.customScenarioDescription}`,
     );
   }
 
   const scenesSchema = JSON.stringify(
     Array.from({ length: takeCount }, (_, i) => ({
       sceneNumber: i + 1,
-      goal: "string — objetivo desta cena (ex: apresentar o produto, demonstrar benefício, CTA)",
-      description: "string — descrição visual e narrativa da cena em português",
+      goal: "string — purpose of this scene (e.g. introduce product, demonstrate benefit, CTA)",
+      description:
+        "string — visual and narrative description of the scene in Brazilian Portuguese",
     })),
     null,
     2,
@@ -109,26 +110,26 @@ export function buildConceptMessages(
 
   const schemaExample = JSON.stringify(
     {
-      videoIdea: "string — resumo da ideia geral do vídeo (1-2 frases)",
-      hook: "string — frase de abertura que prende a atenção em português",
-      copy: "string — roteiro/copy principal do vídeo em português",
-      cta: "string — call-to-action final em português",
-      scenes: `[/* ${takeCount} cena(s) — veja estrutura abaixo */]`,
+      videoIdea: "string — overall video idea summary (1-2 sentences)",
+      hook: "string — opening line that grabs attention, in Brazilian Portuguese",
+      copy: "string — main video script/copy in Brazilian Portuguese",
+      cta: "string — final call-to-action in Brazilian Portuguese",
+      scenes: `[/* ${takeCount} scene(s) — see structure below */]`,
     },
     null,
     2,
   );
 
   const userMessage = [
-    "Com base nas informações do produto abaixo, crie um conceito de vídeo UGC para TikTok Shop.",
-    "O vídeo deve ser autêntico, envolvente e otimizado para conversão.",
-    "Responda SOMENTE com JSON válido, sem markdown. Estrutura esperada:",
+    "Based on the product information below, create a UGC video concept for TikTok Shop.",
+    "The video must be authentic, engaging, and optimised for conversion.",
+    "Respond ONLY with valid JSON, no markdown. Expected structure:",
     schemaExample,
     "",
-    `Estrutura de cada cena (gere exatamente ${takeCount} cena(s)):`,
+    `Scene structure (generate exactly ${takeCount} scene(s)):`,
     scenesSchema,
     "",
-    "Contexto do produto e vídeo:",
+    "Product and video context:",
     ...contextParts,
   ].join("\n");
 

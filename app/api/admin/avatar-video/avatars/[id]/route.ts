@@ -1,0 +1,77 @@
+/**
+ * app/api/admin/avatar-video/avatars/[id]/route.ts
+ *
+ * PATCH  — update an avatar
+ * DELETE — delete (or deactivate if in use)
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin, isAuthed } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+import {
+  deleteOrDeactivateAvatar,
+  updateAvatar,
+} from "@/lib/avatar-video/admin";
+
+const log = createLogger("api/admin/avatar-video/avatars/[id]");
+
+export const dynamic = "force-dynamic";
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
+  try {
+    const body = (await req.json()) as Record<string, unknown>;
+
+    const patch: Parameters<typeof updateAvatar>[1] = {};
+    if (typeof body.name === "string") patch.name = body.name;
+    if (body.description === null || typeof body.description === "string")
+      patch.description = body.description as string | null;
+    if (typeof body.imageUrl === "string") patch.imageUrl = body.imageUrl;
+    if (body.thumbnailUrl === null || typeof body.thumbnailUrl === "string")
+      patch.thumbnailUrl = body.thumbnailUrl as string | null;
+    if (typeof body.isActive === "boolean") patch.isActive = body.isActive;
+    if (typeof body.sortOrder === "number") patch.sortOrder = body.sortOrder;
+
+    if (patch.name !== undefined && !patch.name.trim()) {
+      return NextResponse.json(
+        { error: "name não pode ser vazio" },
+        { status: 400 },
+      );
+    }
+    if (patch.imageUrl !== undefined && !patch.imageUrl.trim()) {
+      return NextResponse.json(
+        { error: "imageUrl não pode ser vazio" },
+        { status: 400 },
+      );
+    }
+
+    const avatar = await updateAvatar(params.id, patch);
+    return NextResponse.json({ avatar });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro interno";
+    log.error("Failed to update avatar", { id: params.id, error: message });
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const auth = await requireAdmin();
+  if (!isAuthed(auth)) return auth;
+
+  try {
+    const result = await deleteOrDeactivateAvatar(params.id);
+    return NextResponse.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro interno";
+    log.error("Failed to delete avatar", { id: params.id, error: message });
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

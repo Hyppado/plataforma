@@ -45,6 +45,14 @@ export function isImageGenerationError(
   return "error" in r;
 }
 
+/**
+ * Representative example of the built-in image prompt (generic product, no
+ * category). Exported so the admin UI can display it as a placeholder when
+ * no custom template is configured, giving admins a ready-to-edit starting
+ * point without having to reverse-engineer the code.
+ */
+export { DEFAULT_IMAGE_PROMPT_EXAMPLE } from "@/lib/avatar-video/image-prompt-defaults";
+
 // ---------------------------------------------------------------------------
 // Build prompt text
 // ---------------------------------------------------------------------------
@@ -58,12 +66,19 @@ export function isImageGenerationError(
  * context, beauty is held near the face, etc. Explicit rules prevent the
  * model from distorting the product or inventing details not in the
  * reference images.
+ *
+ * @param templateOverride  Admin-configurable full prompt override. When
+ *   provided (non-empty), the built-in category-aware logic is skipped and
+ *   this string is sent to the model verbatim. Falls back to the built-in
+ *   prompt when null, undefined, or empty.
  */
 export function buildImagePromptText(
   creation: AvatarVideoCreation,
   avatar: AvatarProfile | null,
   scenario: VideoScenario | null,
+  templateOverride?: string | null,
 ): string {
+  if (templateOverride?.trim()) return templateOverride.trim();
   const product = creation.productName ?? "the product";
   const cat = (creation.productCategory ?? "").toLowerCase();
 

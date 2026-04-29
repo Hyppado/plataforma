@@ -81,6 +81,7 @@ Favoritar vídeos e produtos, criar coleções, escrever notas e configurar aler
 - Métricas de assinaturas e lista de assinantes (dados em tempo real via Hotmart)
 - Configuração de credenciais Hotmart e Echotik
 - Configuração da chave OpenAI e templates de prompt
+- Configuração de **Avatar Video** (em `/dashboard/config` → aba "Avatar Video"): CRUD de avatares (`AvatarProfile`) e cenários (`VideoScenario`) com upload de imagem, ativação/desativação e cenário padrão; editor dos templates de sistema `avatar_video.concept_template` e `avatar_video.prompt_template` (vazio = usa default embutido no código)
 - Notificações de eventos de sistema e webhooks
 - Logs de auditoria
 - Política de quotas por período

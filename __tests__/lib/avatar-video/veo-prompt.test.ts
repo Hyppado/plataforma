@@ -148,7 +148,7 @@ describe("lib/avatar-video/veo-prompt", () => {
 
       expect(userMsg).toContain("energetic");
       expect(userMsg).toContain("30s");
-      expect(userMsg).toContain("N\u00famero de takes: 3");
+      expect(userMsg).toContain("Number of takes: 3");
     });
 
     it("defaults to 1 take when takeCount is null", () => {
@@ -157,7 +157,7 @@ describe("lib/avatar-video/veo-prompt", () => {
       const messages = buildVeoPromptMessages(creation, null, null, []);
       const userMsg = messages[1].content;
 
-      expect(userMsg).toContain("N\u00famero de takes: 1");
+      expect(userMsg).toContain("Number of takes: 1");
     });
 
     it("uses custom system prompt when provided", () => {

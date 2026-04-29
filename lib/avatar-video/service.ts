@@ -34,6 +34,7 @@ import {
 } from "./quota";
 import { QuotaExceededError } from "@/lib/usage";
 import { buildImagePromptText, generateImageVariation } from "./image-prompt";
+import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { generateAndPersistVeoPrompt } from "./veo-prompt";
 import { generateAndPersistConcept } from "./concept";
 import type { ConceptScene } from "./types";
@@ -439,7 +440,12 @@ export async function startImageGeneration(
       data: { status: "PENDING_IMAGES", errorMessage: null },
     });
 
-    const promptText = buildImagePromptText(creation, avatar, scenario);
+    const promptText = buildImagePromptText(
+      creation,
+      avatar,
+      scenario,
+      await getSetting(SETTING_KEYS.AVATAR_VIDEO_IMAGE_TEMPLATE),
+    );
 
     // Avatar reference image: prefer user-uploaded, fall back to profile image
     const avatarImageUrl =

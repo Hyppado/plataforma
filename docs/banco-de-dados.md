@@ -211,6 +211,8 @@ Evento atômico de consumo com chave de idempotência.
 
 Fluxo guiado de criação de material para vídeos UGC com avatares. Existe no máximo uma criação em status `DRAFT` por usuário — quando o usuário inicia um novo fluxo, o DRAFT existente é reaproveitado. Criações `FAILED` não são reaproveitadas — um novo DRAFT é criado. Uma criação `COMPLETED` não impede a criação de um novo DRAFT.
 
+> Administração de `AvatarProfile`, `VideoScenario` e dos templates `avatar_video.concept_template` / `avatar_video.prompt_template` é feita em **`/dashboard/config` → aba "Avatar Video"** (rotas em `app/api/admin/avatar-video/*`). DELETE de avatar/cenário com criações associadas faz soft-deactivate (`isActive=false`); sem referências, faz hard-delete. Endpoints de usuário (`/api/avatar-video/avatars` e `/api/avatar-video/scenarios`) sempre filtram por `isActive=true`.
+
 #### `AvatarProfile`
 
 Biblioteca de avatares cadastrados pelo admin.

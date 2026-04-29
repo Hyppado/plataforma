@@ -75,9 +75,9 @@ export function isVeoPromptError(
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SYSTEM_PROMPT =
-  "Você é um especialista em criação de prompts para modelos de geração de vídeo como VEO 3. " +
-  "Sempre responda com JSON válido conforme solicitado, sem markdown ou explicações extras. " +
-  "Crie prompts criativos, autênticos e adequados para conteúdo de TikTok Shop.";
+  "You are an expert at writing prompts for video generation models such as VEO 3. " +
+  "Always respond with valid JSON exactly as requested, no markdown, no extra explanations. " +
+  "Create creative, authentic prompts suited for TikTok Shop UGC content.";
 
 /**
  * Assembles the full OpenAI messages array for VEO 3 prompt generation.
@@ -110,12 +110,12 @@ export function buildVeoPromptMessages(
   const contextParts: string[] = [];
 
   if (creation.productName)
-    contextParts.push(`Produto: ${creation.productName}`);
+    contextParts.push(`Product: ${creation.productName}`);
   if (creation.productCategory)
-    contextParts.push(`Categoria: ${creation.productCategory}`);
+    contextParts.push(`Category: ${creation.productCategory}`);
   if (creation.productPriceCents && creation.productCurrency) {
     const price = (creation.productPriceCents / 100).toFixed(2);
-    contextParts.push(`Preço: ${creation.productCurrency} ${price}`);
+    contextParts.push(`Price: ${creation.productCurrency} ${price}`);
   }
   if (avatar)
     contextParts.push(
@@ -123,17 +123,17 @@ export function buildVeoPromptMessages(
     );
   if (scenario) {
     contextParts.push(
-      `Cenário: ${scenario.name}${scenario.description ? ` — ${scenario.description}` : ""}`,
+      `Scenario: ${scenario.name}${scenario.description ? ` — ${scenario.description}` : ""}`,
     );
-    if (scenario.promptHint) contextParts.push(`Dica: ${scenario.promptHint}`);
+    if (scenario.promptHint) contextParts.push(`Hint: ${scenario.promptHint}`);
   }
-  if (creation.tone) contextParts.push(`Tom: ${creation.tone}`);
-  if (creation.duration) contextParts.push(`Duração: ${creation.duration}`);
+  if (creation.tone) contextParts.push(`Tone: ${creation.tone}`);
+  if (creation.duration) contextParts.push(`Duration: ${creation.duration}`);
   const takeCount = creation.takeCount ?? 1;
-  contextParts.push(`Número de takes: ${takeCount}`);
+  contextParts.push(`Number of takes: ${takeCount}`);
   if (imageBlobUrls.length > 0) {
     contextParts.push(
-      `Imagens de referência geradas: ${imageBlobUrls.join(", ")}`,
+      `Generated reference images: ${imageBlobUrls.join(", ")}`,
     );
   }
 
