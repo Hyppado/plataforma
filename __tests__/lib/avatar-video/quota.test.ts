@@ -126,31 +126,33 @@ describe("lib/avatar-video/quota", () => {
         "AVATAR_VIDEO_GENERATION",
         0,
         expect.objectContaining({
-          idempotencyKey: "avatar-video:creation-abc",
           refTable: "AvatarVideoCreation",
           refId: "creation-abc",
         }),
       );
+      const opts = consumeUsageMock.mock.calls[0][3];
+      expect(opts.idempotencyKey).toMatch(/^avatar-video:creation-abc:/);
     });
 
-    it("uses creation id as part of idempotency key", async () => {
+    it("uses creation id as prefix in idempotency key", async () => {
       consumeUsageMock.mockResolvedValue({ event: {}, duplicate: false });
 
       await consumeAvatarVideoQuota("user-1", "creation-xyz");
 
       const opts = consumeUsageMock.mock.calls[0][3];
-      expect(opts.idempotencyKey).toBe("avatar-video:creation-xyz");
+      expect(opts.idempotencyKey).toMatch(/^avatar-video:creation-xyz:/);
     });
 
-    it("is idempotent — calling twice with same id is allowed by consumeUsage", async () => {
-      consumeUsageMock
-        .mockResolvedValueOnce({ event: {}, duplicate: false })
-        .mockResolvedValueOnce({ event: {}, duplicate: true });
+    it("produces unique idempotency keys on repeated calls", async () => {
+      consumeUsageMock.mockResolvedValue({ event: {}, duplicate: false });
 
       await consumeAvatarVideoQuota("user-1", "creation-id");
       await consumeAvatarVideoQuota("user-1", "creation-id");
 
       expect(consumeUsageMock).toHaveBeenCalledTimes(2);
+      const key1 = consumeUsageMock.mock.calls[0][3].idempotencyKey as string;
+      const key2 = consumeUsageMock.mock.calls[1][3].idempotencyKey as string;
+      expect(key1).not.toBe(key2);
     });
   });
 });

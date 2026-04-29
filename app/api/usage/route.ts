@@ -33,8 +33,10 @@ export async function GET() {
       transcriptsUsed: period?.transcriptsUsed ?? 0,
       scriptsUsed: period?.scriptsUsed ?? 0,
       insightsUsed: period?.insightsUsed ?? 0,
+      avatarVideosUsed: period?.avatarVideosUsed ?? 0,
       transcriptsLimit: limits.transcriptsPerMonth,
       scriptsLimit: limits.scriptsPerMonth,
+      avatarVideoLimit: limits.avatarVideoQuota,
       periodStart: start.toISOString(),
       periodEnd: end.toISOString(),
     });

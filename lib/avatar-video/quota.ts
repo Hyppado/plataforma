@@ -11,6 +11,7 @@
 
 import { assertQuota, consumeUsage } from "@/lib/usage";
 import { QuotaExceededError } from "@/lib/usage";
+import { randomUUID } from "crypto";
 import type { ServiceErr } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -46,21 +47,18 @@ export function quotaExceededToServiceErr(err: QuotaExceededError): ServiceErr {
 
 /**
  * Records one AVATAR_VIDEO_GENERATION usage event for the user.
- * Idempotent: calling it again with the same `creationId` is a no-op.
- *
- * Call this AFTER the generation pipeline succeeds (image or prompt).
- * One creation = one event — regenerating within the same creation reuses
- * the same idempotency key and does not consume extra credits.
+ * Each call produces a distinct event — regenerating the same creation
+ * counts as a new generation and consumes another credit.
  *
  * @param userId     User being charged.
- * @param creationId AvatarVideoCreation.id — used as idempotency key.
+ * @param creationId AvatarVideoCreation.id — used for reference tracking only.
  */
 export async function consumeAvatarVideoQuota(
   userId: string,
   creationId: string,
 ): Promise<void> {
   await consumeUsage(userId, "AVATAR_VIDEO_GENERATION", 0, {
-    idempotencyKey: `avatar-video:${creationId}`,
+    idempotencyKey: `avatar-video:${creationId}:${randomUUID()}`,
     refTable: "AvatarVideoCreation",
     refId: creationId,
   });

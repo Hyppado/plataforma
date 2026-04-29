@@ -21,8 +21,10 @@ export interface UserQuotaData {
   transcriptsUsed: number;
   scriptsUsed: number;
   insightsUsed: number;
+  avatarVideosUsed: number;
   transcriptsLimit: number;
   scriptsLimit: number;
+  avatarVideoLimit: number;
   periodStart: string;
   periodEnd: string;
 }
@@ -30,6 +32,7 @@ export interface UserQuotaData {
 export interface UserQuotaState {
   transcripts: { used: number; limit: number };
   scripts: { used: number; limit: number };
+  avatarVideos: { used: number; limit: number };
   isLoading: boolean;
   error: Error | undefined;
 }
@@ -62,6 +65,10 @@ export function useUserQuota(): UserQuotaState {
     scripts: {
       used: data?.scriptsUsed ?? 0,
       limit: data?.scriptsLimit ?? 0,
+    },
+    avatarVideos: {
+      used: data?.avatarVideosUsed ?? 0,
+      limit: data?.avatarVideoLimit ?? 0,
     },
     isLoading,
     error,

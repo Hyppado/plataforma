@@ -70,6 +70,7 @@ describe("GET /api/usage", () => {
       scriptTokensMonthlyMax: 25000,
       insightMaxOutputTokens: 900,
       scriptMaxOutputTokens: 1800,
+      avatarVideoQuota: 0,
     });
     getCurrentUsagePeriodMock.mockResolvedValue({
       transcriptsUsed: 7,
@@ -86,8 +87,10 @@ describe("GET /api/usage", () => {
       transcriptsUsed: 7,
       scriptsUsed: 12,
       insightsUsed: 3,
+      avatarVideosUsed: 0,
       transcriptsLimit: 50,
       scriptsLimit: 100,
+      avatarVideoLimit: 0,
       periodStart: PERIOD_START.toISOString(),
       periodEnd: PERIOD_END.toISOString(),
     });
