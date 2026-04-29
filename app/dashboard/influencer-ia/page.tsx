@@ -514,16 +514,19 @@ function ImageUploadBox({
   label,
   purpose = "product",
   onUploadDone,
+  showPreview = true,
 }: {
   value: string | null;
   onChange: (url: string | null) => void;
   label: string;
   purpose?: "product" | "avatar";
   onUploadDone?: () => void;
+  showPreview?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -548,6 +551,8 @@ function ImageUploadBox({
       if (!json.url) throw new Error("URL não retornada");
       onChange(json.url);
       onUploadDone?.();
+      setUploadSuccess(true);
+      setTimeout(() => setUploadSuccess(false), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no upload");
     } finally {
@@ -568,7 +573,7 @@ function ImageUploadBox({
           e.target.value = "";
         }}
       />
-      {value ? (
+      {value && showPreview ? (
         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
           <Box
             sx={{
@@ -623,10 +628,10 @@ function ImageUploadBox({
         <Box
           component="button"
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => !uploading && !uploadSuccess && inputRef.current?.click()}
           sx={{
             all: "unset",
-            cursor: "pointer",
+            cursor: uploading || uploadSuccess ? "default" : "pointer",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -636,15 +641,29 @@ function ImageUploadBox({
             py: 3,
             borderRadius: 2,
             border: "1px dashed",
-            borderColor: "divider",
-            bgcolor: "action.hover",
-            transition: "border-color 0.15s",
-            "&:hover": { borderColor: "primary.main" },
+            borderColor: uploadSuccess ? "success.main" : "divider",
+            bgcolor: uploadSuccess ? "action.selected" : "action.hover",
+            transition: "border-color 0.2s, background-color 0.2s",
+            "&:hover": {
+              borderColor: uploading || uploadSuccess ? undefined : "primary.main",
+            },
             boxSizing: "border-box",
           }}
         >
           {uploading ? (
             <CircularProgress size={20} />
+          ) : uploadSuccess ? (
+            <>
+              <CheckCircle sx={{ fontSize: 24, color: "success.main" }} />
+              <Typography variant="caption" sx={{ color: "success.main" }}>
+                Foto enviada com sucesso!
+              </Typography>
+              {!showPreview && (
+                <Typography variant="caption" color="text.disabled">
+                  Visível em &quot;Meus Uploads&quot;
+                </Typography>
+              )}
+            </>
           ) : (
             <>
               <UploadFile sx={{ fontSize: 24, color: "text.disabled" }} />
@@ -1811,6 +1830,7 @@ function InfluencerIAWizard() {
                   onChange={setUploadedAvatarUrl}
                   label="Clique para enviar a foto do influencer"
                   purpose="avatar"
+                  showPreview={false}
                   onUploadDone={() => void mutateSavedAvatars()}
                 />
               )}
