@@ -403,53 +403,31 @@ export function ProductCard({
 
           <Button
             fullWidth
-            variant="outlined"
+            variant="contained"
             component={Link}
             href={`/dashboard/influencer-ia?productId=${product.id}`}
             startIcon={
-              <FaceRetouchingNatural sx={{ fontSize: { xs: 14, md: 16 } }} />
+              <FaceRetouchingNatural sx={{ fontSize: 14 }} />
             }
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
             sx={{
-              color: "rgba(45,212,255,0.85)",
-              borderColor: "rgba(45,212,255,0.25)",
+              background: "linear-gradient(90deg, #FF2D78 0%, #E0256A 100%)",
+              color: "#fff",
               fontWeight: 600,
-              fontSize: { xs: "0.8rem", md: "0.85rem" },
+              fontSize: "0.78rem",
               textTransform: "none",
               borderRadius: 2,
-              py: { xs: 0.75, md: 1 },
+              py: 0.75,
+              whiteSpace: "nowrap",
+              boxShadow: "none",
               "&:hover": {
-                borderColor: "primary.main",
-                background: "rgba(45,212,255,0.06)",
+                background: "linear-gradient(90deg, #E0256A 0%, #c01d58 100%)",
+                boxShadow: "0 4px 14px rgba(255,45,120,0.3)",
               },
               transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
-            Criar vídeo
-            <Box
-              component="span"
-              sx={{
-                ml: 0.75,
-                px: 0.6,
-                py: 0.1,
-                fontSize: "0.5rem",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: "#fff",
-                background: "#E0256A",
-                borderRadius: "4px",
-                lineHeight: 1.6,
-                flexShrink: 0,
-                animation: "hyppe-badge-pulse 2s ease-in-out infinite",
-                "@keyframes hyppe-badge-pulse": {
-                  "0%, 100%": { opacity: 1 },
-                  "50%": { opacity: 0.55 },
-                },
-              }}
-            >
-              novo
-            </Box>
+            Criar vídeo com avatar
           </Button>
         </Box>
       </Box>

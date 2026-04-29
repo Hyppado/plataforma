@@ -52,7 +52,7 @@ const NAV_SECTIONS = [
     label: "FERRAMENTAS",
     items: [
       {
-        label: "Influencer IA",
+        label: "Vídeo com Avatar",
         icon: FaceRetouchingNatural,
         href: "/dashboard/influencer-ia",
         badge: "novo",

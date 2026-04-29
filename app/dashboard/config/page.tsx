@@ -132,7 +132,7 @@ export default function ConfigPage() {
         <Tab label="Hotmart" />
         <Tab label="OpenAI" />
         <Tab label="Google AI" />
-        <Tab label="Influencer IA" />
+        <Tab label="Vídeo com Avatar" />
         <Tab label="Biblioteca de Prompts" />
       </Tabs>
 

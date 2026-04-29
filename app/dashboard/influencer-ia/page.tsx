@@ -2548,7 +2548,7 @@ export default function InfluencerIAPage() {
             lineHeight: 1.3,
           }}
         >
-          Influencer IA
+          Vídeo com Avatar
         </Typography>
         <Typography
           sx={{
