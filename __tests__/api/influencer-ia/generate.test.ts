@@ -15,17 +15,39 @@ import {
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { generateInfluencerImageMock, prismaMock } = vi.hoisted(() => ({
+const {
+  generateInfluencerImageMock,
+  prismaMock,
+  assertQuotaMock,
+  consumeMock,
+} = vi.hoisted(() => ({
   generateInfluencerImageMock: vi.fn(),
   prismaMock: {
     avatarProfile: {
       findUnique: vi.fn(),
     },
   },
+  assertQuotaMock: vi.fn(),
+  consumeMock: vi.fn(),
 }));
 
 vi.mock("@/lib/influencer-ia/generate", () => ({
   generateInfluencerImage: generateInfluencerImageMock,
+}));
+
+vi.mock("@/lib/influencer-ia/quota", () => ({
+  assertInfluencerDailyQuota: assertQuotaMock,
+  consumeInfluencerGeneration: consumeMock,
+  DailyQuotaExceededError: class DailyQuotaExceededError extends Error {
+    used: number;
+    limit: number;
+    constructor(used: number, limit: number) {
+      super(`Daily limit reached: ${used}/${limit}`);
+      this.used = used;
+      this.limit = limit;
+    }
+  },
+  INFLUENCER_IA_DAILY_LIMIT: 5,
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -54,6 +76,8 @@ describe("POST /api/influencer-ia/generate", () => {
       imageUrl: "https://blob.vercel-storage.com/test.png",
     });
     prismaMock.avatarProfile.findUnique.mockResolvedValue(null);
+    assertQuotaMock.mockResolvedValue(undefined);
+    consumeMock.mockResolvedValue(undefined);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -201,5 +225,37 @@ describe("POST /api/influencer-ia/generate", () => {
       enhancements: unknown[];
     };
     expect(callArgs.enhancements).toEqual([]);
+  });
+
+  it("returns 429 when daily quota is exceeded", async () => {
+    mockAuthenticatedUser();
+    const { DailyQuotaExceededError } =
+      await import("@/lib/influencer-ia/quota");
+    assertQuotaMock.mockRejectedValue(new DailyQuotaExceededError(5, 5));
+
+    const req = makePostRequest("/api/influencer-ia/generate", {
+      productName: "Produto X",
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as {
+      error: string;
+      used: number;
+      limit: number;
+    };
+    expect(body.used).toBe(5);
+    expect(body.limit).toBe(5);
+  });
+
+  it("consumes quota after successful generation", async () => {
+    mockAuthenticatedUser();
+    const req = makePostRequest("/api/influencer-ia/generate", {
+      productName: "Produto X",
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(consumeMock).toHaveBeenCalledOnce();
   });
 });

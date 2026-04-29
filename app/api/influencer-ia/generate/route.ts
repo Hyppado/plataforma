@@ -4,7 +4,7 @@
  * POST /api/influencer-ia/generate
  *
  * Generates a UGC-style influencer image using Google AI Studio (Gemini).
- * Requires auth. No quota consumed in MVP — can be gated later.
+ * Requires auth. Daily quota: 5 generations per user per calendar day (UTC).
  *
  * Body:
  *   productImageUrl?   — absolute product image URL (server-fetchable)
@@ -27,6 +27,11 @@ import { requireAuth, isAuthed } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { generateInfluencerImage } from "@/lib/influencer-ia/generate";
+import {
+  assertInfluencerDailyQuota,
+  consumeInfluencerGeneration,
+  DailyQuotaExceededError,
+} from "@/lib/influencer-ia/quota";
 
 const log = createLogger("api/influencer-ia/generate");
 
@@ -55,6 +60,23 @@ export async function POST(req: NextRequest) {
       { error: "Corpo da requisição inválido" },
       { status: 400 },
     );
+  }
+
+  try {
+    // Enforce daily quota before calling external services
+    await assertInfluencerDailyQuota(auth.userId);
+  } catch (err) {
+    if (err instanceof DailyQuotaExceededError) {
+      return NextResponse.json(
+        {
+          error: `Limite diário de ${err.limit} gerações atingido. Tente novamente amanhã.`,
+          used: err.used,
+          limit: err.limit,
+        },
+        { status: 429 },
+      );
+    }
+    throw err;
   }
 
   try {
@@ -88,6 +110,9 @@ export async function POST(req: NextRequest) {
       style: body.style ?? null,
       enhancements: Array.isArray(body.enhancements) ? body.enhancements : [],
     });
+
+    // Consume quota after successful generation
+    await consumeInfluencerGeneration(auth.userId);
 
     return NextResponse.json({ imageUrl: result.imageUrl });
   } catch (err) {

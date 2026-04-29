@@ -75,6 +75,10 @@ import { useTrendingProducts } from "@/lib/swr/useTrending";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
 import { useAvatarUploads } from "@/lib/swr/useAvatarUploads";
 import type { AvatarUploadItem } from "@/lib/swr/useAvatarUploads";
+import {
+  useInfluencerUsage,
+  revalidateInfluencerUsage,
+} from "@/lib/swr/useInfluencerUsage";
 import { getStoredRegion } from "@/lib/region";
 import { formatCurrency } from "@/lib/format";
 import type { ProductDTO } from "@/lib/types/dto";
@@ -839,6 +843,7 @@ function InfluencerIAWizard() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // ── Config state ───────────────────────────────────────────────
+  const { usedToday, dailyLimit } = useInfluencerUsage();
   const [pose, setPose] = useState<string>("De Frente");
   const [customPose, setCustomPose] = useState("");
   const [environment, setEnvironment] = useState<string | null>(null);
@@ -1086,7 +1091,8 @@ function InfluencerIAWizard() {
 
   const canGenerate =
     !!(effectiveProductRawImageUrl || effectiveProductName) &&
-    !!(effectiveAvatarId || effectiveAvatarImageUrl || avatarTab === 0);
+    !!(effectiveAvatarId || effectiveAvatarImageUrl || avatarTab === 0) &&
+    usedToday < dailyLimit;
 
   const handleGenerate = useCallback(async () => {
     if (!canGenerate) return;
@@ -1115,6 +1121,7 @@ function InfluencerIAWizard() {
       if (!res.ok || !json.imageUrl)
         throw new Error(json.error ?? "Erro ao gerar imagem");
       setGeneratedImageUrl(json.imageUrl);
+      revalidateInfluencerUsage();
     } catch (err) {
       setGenerationError(
         err instanceof Error ? err.message : "Erro ao gerar imagem",
@@ -1683,15 +1690,33 @@ function InfluencerIAWizard() {
               >
                 <Tab
                   label="Avatares Prontos"
-                  sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+                  sx={{
+                    minHeight: 36,
+                    py: 0.5,
+                    px: 1.5,
+                    fontSize: "0.72rem",
+                    minWidth: 0,
+                  }}
                 />
                 <Tab
                   label="Meus Uploads"
-                  sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+                  sx={{
+                    minHeight: 36,
+                    py: 0.5,
+                    px: 1.5,
+                    fontSize: "0.72rem",
+                    minWidth: 0,
+                  }}
                 />
                 <Tab
                   label="Upload"
-                  sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+                  sx={{
+                    minHeight: 36,
+                    py: 0.5,
+                    px: 1.5,
+                    fontSize: "0.72rem",
+                    minWidth: 0,
+                  }}
                 />
               </Tabs>
 
@@ -2114,6 +2139,23 @@ function InfluencerIAWizard() {
           >
             {generating ? "Gerando imagem…" : "Gerar Imagem"}
           </Button>
+
+          {/* Daily quota counter */}
+          <Typography
+            variant="caption"
+            sx={{
+              textAlign: "center",
+              color:
+                usedToday >= dailyLimit
+                  ? "error.main"
+                  : usedToday >= dailyLimit - 1
+                    ? "warning.main"
+                    : "text.disabled",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {usedToday} / {dailyLimit} gerações hoje
+          </Typography>
 
           {!canGenerate && !generating && (
             <Typography
