@@ -55,6 +55,7 @@ const NAV_SECTIONS = [
         label: "Influencer IA",
         icon: FaceRetouchingNatural,
         href: "/dashboard/influencer-ia",
+        badge: "novo",
       },
       {
         label: "Biblioteca de Prompts",
@@ -359,19 +360,10 @@ function NavItem({
               borderRadius: "4px",
               lineHeight: 1.6,
               flexShrink: 0,
-              boxShadow: "0 0 6px 1px rgba(255,45,120,0.55), 0 0 12px 2px rgba(255,45,120,0.25)",
               animation: "hyppe-badge-pulse 2s ease-in-out infinite",
               "@keyframes hyppe-badge-pulse": {
-                "0%, 100%": {
-                  boxShadow:
-                    "0 0 5px 1px rgba(255,45,120,0.55), 0 0 10px 2px rgba(255,45,120,0.2)",
-                  opacity: 1,
-                },
-                "50%": {
-                  boxShadow:
-                    "0 0 10px 3px rgba(255,45,120,0.8), 0 0 20px 6px rgba(255,45,120,0.35)",
-                  opacity: 0.85,
-                },
+                "0%, 100%": { opacity: 1 },
+                "50%": { opacity: 0.55 },
               },
             }}
           >
