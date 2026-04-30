@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
 
     // Detect actual MIME type from magic bytes — CDNs sometimes return
     // "binary/octet-stream" or "application/octet-stream" even for images.
+    // Only treat as generic binary when the primary MIME type (before params) is a binary type.
     const detectMimeType = (buf: Buffer): string => {
       if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
         return "image/jpeg";
@@ -131,13 +132,13 @@ export async function POST(req: NextRequest) {
         return "image/gif";
       return "image/jpeg"; // safe fallback for Google AI
     };
+    const primaryType = rawContentType.split(";")[0].trim().toLowerCase();
     const isGenericBinary =
-      !rawContentType ||
-      rawContentType.includes("octet-stream") ||
-      rawContentType.includes("binary");
-    const contentType = isGenericBinary
-      ? detectMimeType(buffer)
-      : rawContentType.split(";")[0].trim();
+      !primaryType ||
+      primaryType === "application/octet-stream" ||
+      primaryType === "binary/octet-stream" ||
+      primaryType === "application/binary";
+    const contentType = isGenericBinary ? detectMimeType(buffer) : primaryType;
 
     const ext = contentType.includes("png")
       ? "png"

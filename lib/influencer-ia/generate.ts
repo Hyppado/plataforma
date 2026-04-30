@@ -246,11 +246,15 @@ async function fetchImageBuffer(
     if (buf.byteLength === 0) return null;
 
     // Detect real MIME from magic bytes — some CDNs return binary/octet-stream
-    // even for valid images; Google AI rejects that content type with 400.
+    // or application/octet-stream even for valid images; Google AI rejects
+    // those content types with 400. Only treat as generic binary when the
+    // primary MIME type itself (before any parameters) is a binary type.
+    const primaryType = rawContentType.split(";")[0].trim().toLowerCase();
     const isGenericBinary =
-      !rawContentType ||
-      rawContentType.includes("octet-stream") ||
-      rawContentType.includes("binary");
+      !primaryType ||
+      primaryType === "application/octet-stream" ||
+      primaryType === "binary/octet-stream" ||
+      primaryType === "application/binary";
     let contentType: string;
     if (isGenericBinary) {
       if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
@@ -268,7 +272,7 @@ async function fetchImageBuffer(
         contentType = "image/gif";
       else contentType = "image/jpeg"; // safe fallback for Google AI
     } else {
-      contentType = rawContentType.split(";")[0].trim();
+      contentType = primaryType;
     }
 
     return { buffer: buf, contentType };
