@@ -7,6 +7,7 @@ import { type PlanDisplay, fetchPlans } from "./data/plans";
 import {
   LandingNavbar,
   HeroSection,
+  ProductPreviewSection,
   HowItWorksSection,
   ForWhoSection,
   PricingSection,
@@ -46,6 +47,7 @@ export default function HomePage() {
       >
         <LandingNavbar />
         <HeroSection />
+        <ProductPreviewSection />
         <HowItWorksSection />
         <ForWhoSection />
         <PricingSection plans={plans ?? []} />

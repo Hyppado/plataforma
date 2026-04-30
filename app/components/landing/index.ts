@@ -3,6 +3,7 @@ export { SectionShell } from "./SectionShell";
 export { ScrollArrows } from "./ScrollArrows";
 export { ImageSlot, MediaSlot } from "./ImageSlot";
 export { HeroSection } from "./HeroSection";
+export { ProductPreviewSection } from "./ProductPreviewSection";
 export { LandingNavbar } from "./LandingNavbar";
 export { HowItWorksSection } from "./HowItWorksSection";
 export { ForWhoSection } from "./ForWhoSection";
