@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Box, Typography, CircularProgress } from "@mui/material";
+import { Box, Typography, CircularProgress, Tabs, Tab } from "@mui/material";
 import { AvatarsSection } from "./AvatarsSection";
+import { ScenariosSection, type ScenarioRow } from "./ScenariosSection";
 
 export interface AvatarRow {
   id: string;
@@ -15,16 +16,25 @@ export interface AvatarRow {
 }
 
 export function AvatarVideoTab() {
+  const [subTab, setSubTab] = useState(0);
   const [avatars, setAvatars] = useState<AvatarRow[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/avatar-video/avatars");
-      if (res.ok) {
-        const data = await res.json();
+      const [avatarsRes, scenariosRes] = await Promise.all([
+        fetch("/api/admin/avatar-video/avatars"),
+        fetch("/api/admin/avatar-video/scenarios"),
+      ]);
+      if (avatarsRes.ok) {
+        const data = await avatarsRes.json();
         setAvatars(data.avatars ?? []);
+      }
+      if (scenariosRes.ok) {
+        const data = await scenariosRes.json();
+        setScenarios(data.scenarios ?? []);
       }
     } finally {
       setLoading(false);
@@ -49,11 +59,27 @@ export function AvatarVideoTab() {
         variant="body2"
         sx={{ color: "rgba(255,255,255,0.6)", mb: 2 }}
       >
-        Gerencie os avatares disponíveis para o Influencer IA. Apenas avatares
-        ativos aparecem para usuários finais.
+        Gerencie os avatares e cenários disponíveis para o Influencer IA. Apenas
+        itens ativos aparecem para usuários finais.
       </Typography>
 
-      <AvatarsSection avatars={avatars} onChanged={loadAll} />
+      <Tabs
+        value={subTab}
+        onChange={(_e, v: number) => setSubTab(v)}
+        sx={{
+          mb: 3,
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          "& .MuiTab-root": { color: "rgba(255,255,255,0.5)", fontWeight: 600 },
+          "& .Mui-selected": { color: "primary.main" },
+          "& .MuiTabs-indicator": { background: "primary.main", bgcolor: "primary.main" },
+        }}
+      >
+        <Tab label={`Avatares (${avatars.length})`} />
+        <Tab label={`Cenários (${scenarios.length})`} />
+      </Tabs>
+
+      {subTab === 0 && <AvatarsSection avatars={avatars} onChanged={loadAll} />}
+      {subTab === 1 && <ScenariosSection scenarios={scenarios} onChanged={loadAll} />}
     </Box>
   );
 }
