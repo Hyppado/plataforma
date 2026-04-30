@@ -341,7 +341,9 @@ describe("lib/influencer-ia/generate", () => {
     const fakeB64 = makeFakeImageBuffer().toString("base64");
 
     // Real PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
-    const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const pngMagic = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
     const imageResponse = {
       ok: true,
       headers: { get: () => "application/octet-stream" },

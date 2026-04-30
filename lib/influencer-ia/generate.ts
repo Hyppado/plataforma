@@ -206,7 +206,53 @@ function buildPrompt(input: InfluencerImageInput): string {
 // Image fetch helper
 // ---------------------------------------------------------------------------
 
+/** Max bytes to send per image to Google AI. Images above this threshold
+ *  are re-fetched through the Next.js image optimizer at a smaller size to
+ *  keep the Gemini payload small and avoid timeouts. */
+const MAX_IMAGE_BYTES = 600_000; // 600 KB
+
 async function fetchImageBuffer(
+  url: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const result = await _fetchImageBuffer(url);
+  if (!result) return null;
+
+  // If image is too large, re-fetch via Next.js image optimizer (lossy resize).
+  // This keeps the Gemini request payload small and avoids 110s timeouts.
+  if (result.buffer.byteLength > MAX_IMAGE_BYTES) {
+    log.info("Image too large, resizing via optimizer", {
+      bytes: result.buffer.byteLength,
+      url: url.slice(0, 100),
+    });
+    // Only works for absolute public URLs (blob URLs, product CDN).
+    let hostname = "";
+    try {
+      hostname = new URL(url).hostname;
+    } catch {
+      /* invalid url — skip optimization */
+    }
+    const isPublicUrl =
+      hostname.endsWith(".blob.vercel-storage.com") ||
+      hostname === "echosell-images.tos-ap-southeast-1.volces.com";
+    if (isPublicUrl) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "http://localhost:3000");
+      const optimizerUrl = `${baseUrl}/_next/image?url=${encodeURIComponent(url)}&w=800&q=80`;
+      const resized = await _fetchImageBuffer(optimizerUrl);
+      if (resized && resized.buffer.byteLength < result.buffer.byteLength) {
+        log.info("Resized image fetched", { bytes: resized.buffer.byteLength });
+        return resized;
+      }
+    }
+  }
+
+  return result;
+}
+
+async function _fetchImageBuffer(
   url: string,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
@@ -316,12 +362,19 @@ export async function generateInfluencerImage(
     style: input.style,
     model: modelId,
     provider: "google-ai",
+    hasAvatarUrl: !!input.avatarImageUrl,
+    hasProductUrl: !!input.productImageUrl,
   });
 
   const [avatarFetch, productFetch] = await Promise.all([
     input.avatarImageUrl ? fetchImageBuffer(input.avatarImageUrl) : null,
     input.productImageUrl ? fetchImageBuffer(input.productImageUrl) : null,
   ]);
+
+  log.info("Image buffers fetched", {
+    avatarBytes: avatarFetch?.buffer.byteLength ?? 0,
+    productBytes: productFetch?.buffer.byteLength ?? 0,
+  });
 
   if (input.productImageUrl && !productFetch) {
     log.warn("Product image fetch failed — aborting to avoid wrong product", {
@@ -411,7 +464,8 @@ async function generateWithGemini(
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 110_000);
+  // 55s timeout so the route-level retry can fire within Vercel's 60s function limit.
+  const timeout = setTimeout(() => controller.abort(), 55_000);
 
   let response: Response;
   try {
@@ -424,7 +478,7 @@ async function generateWithGemini(
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Tempo limite do Google AI excedido (110s)");
+      throw new Error("Tempo limite do Google AI excedido (55s)");
     }
     throw err;
   }
