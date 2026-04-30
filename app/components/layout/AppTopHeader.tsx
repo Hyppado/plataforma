@@ -101,8 +101,8 @@ export function AppTopHeader() {
       {/* Left side — push items to the right */}
       <Box sx={{ flex: 1 }} />
 
-      {/* Quota usage — hidden on mobile (sidebar shows it) */}
-      <Box sx={{ mr: { xs: 1, sm: 1.5 }, display: { xs: "none", md: "block" } }}>
+      {/* Quota usage */}
+      <Box sx={{ mr: { xs: 1, sm: 1.5 } }}>
         <HeaderQuota />
       </Box>
 
