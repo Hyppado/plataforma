@@ -737,6 +737,8 @@ type SessionSnapshot = {
   style: string | null;
   enhancements: string[];
   generatedImageUrl: string | null;
+  generatedImageUrls: string[];
+  imageCount: 1 | 2;
   generating: boolean;
   veoDuration: "short" | "medium" | "full";
   veoStyle: "ugc" | "unboxing" | "review" | "tutorial" | "testemunho";
@@ -879,9 +881,11 @@ function InfluencerIAWizard() {
 
   // ── Generation state ───────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
+  const [imageCount, setImageCount] = useState<1 | 2>(1);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null,
   );
+  const [generatedImageUrls, setGeneratedImageUrls] = useState<string[]>([]);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   // ── VEO 3.1 prompt state ───────────────────────────────────────
@@ -964,6 +968,9 @@ function InfluencerIAWizard() {
     if (session.enhancements) setEnhancements(session.enhancements);
     if (session.generatedImageUrl)
       setGeneratedImageUrl(session.generatedImageUrl);
+    if (session.generatedImageUrls?.length)
+      setGeneratedImageUrls(session.generatedImageUrls);
+    if (session.imageCount) setImageCount(session.imageCount);
     if (session.veoDuration) setVeoDuration(session.veoDuration);
     if (session.veoStyle) setVeoStyle(session.veoStyle);
     if (session.veoParts) setVeoParts(session.veoParts);
@@ -991,6 +998,7 @@ function InfluencerIAWizard() {
 
     setGenerating(true);
     setGeneratedImageUrl(null);
+    setGeneratedImageUrls([]);
     setGenerationError(null);
 
     activeGeneration.promise.then((result) => {
@@ -998,6 +1006,7 @@ function InfluencerIAWizard() {
       setGenerating(false);
       if (result.ok) {
         setGeneratedImageUrl(result.imageUrl);
+        setGeneratedImageUrls([result.imageUrl]);
         revalidateInfluencerUsage();
       } else {
         setGenerationError(result.error);
@@ -1037,6 +1046,8 @@ function InfluencerIAWizard() {
       style,
       enhancements,
       generatedImageUrl,
+      generatedImageUrls,
+      imageCount,
       generating,
       veoDuration,
       veoStyle,
@@ -1066,6 +1077,8 @@ function InfluencerIAWizard() {
     style,
     enhancements,
     generatedImageUrl,
+    generatedImageUrls,
+    imageCount,
     generating,
     veoStyle,
     veoParts,
@@ -1123,6 +1136,7 @@ function InfluencerIAWizard() {
     setStyle(null);
     setEnhancements([]);
     setGeneratedImageUrl(null);
+    setGeneratedImageUrls([]);
     setGenerationError(null);
     setGenerating(false);
     setVeoParts([]);
@@ -1268,68 +1282,87 @@ function InfluencerIAWizard() {
   const canGenerate =
     !!(effectiveProductRawImageUrl || effectiveProductName) &&
     !!(effectiveAvatarId || effectiveAvatarImageUrl || avatarTab === 0) &&
-    usedToday < dailyLimit;
+    usedToday + imageCount <= dailyLimit;
 
   const handleGenerate = useCallback(async () => {
     if (!canGenerate || activeGeneration) return;
     setGenerating(true);
     setGenerationError(null);
     setGeneratedImageUrl(null);
+    setGeneratedImageUrls([]);
 
-    // Build the fetch promise — NOT connected to an AbortController so it
-    // survives navigation (component unmount). Result is mapped to a tagged
-    // union so callers never need to catch.
-    const fetchPromise = fetch("/api/influencer-ia/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productImageUrl: effectiveProductRawImageUrl,
-        productName: effectiveProductName,
-        productCategory: effectiveProductCategory,
-        avatarId: effectiveAvatarId,
-        avatarImageUrl: effectiveAvatarImageUrl,
-        pose,
-        customPose: customPose.trim() || undefined,
-        environment,
-        customEnvironment: customEnvironment.trim() || undefined,
-        style,
-        enhancements,
-      }),
-    })
-      .then(async (res): Promise<GenerationResult> => {
-        const json = (await res.json()) as {
-          imageUrl?: string;
-          error?: string;
-        };
-        if (!res.ok || !json.imageUrl) {
-          return { ok: false, error: json.error ?? "Erro ao gerar imagem" };
-        }
-        return { ok: true, imageUrl: json.imageUrl };
+    const body = JSON.stringify({
+      productImageUrl: effectiveProductRawImageUrl,
+      productName: effectiveProductName,
+      productCategory: effectiveProductCategory,
+      avatarId: effectiveAvatarId,
+      avatarImageUrl: effectiveAvatarImageUrl,
+      pose,
+      customPose: customPose.trim() || undefined,
+      environment,
+      customEnvironment: customEnvironment.trim() || undefined,
+      style,
+      enhancements,
+    });
+
+    const doFetch = (): Promise<GenerationResult> =>
+      fetch("/api/influencer-ia/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
       })
-      .catch(
-        (err): GenerationResult => ({
-          ok: false,
-          error: err instanceof Error ? err.message : "Erro ao gerar imagem",
-        }),
-      );
+        .then(async (res): Promise<GenerationResult> => {
+          const json = (await res.json()) as {
+            imageUrl?: string;
+            error?: string;
+          };
+          if (!res.ok || !json.imageUrl) {
+            return { ok: false, error: json.error ?? "Erro ao gerar imagem" };
+          }
+          return { ok: true, imageUrl: json.imageUrl };
+        })
+        .catch(
+          (err): GenerationResult => ({
+            ok: false,
+            error: err instanceof Error ? err.message : "Erro ao gerar imagem",
+          }),
+        );
+
+    // Fire N requests in parallel (each one consumes 1 quota on the server)
+    const allPromises = Array.from({ length: imageCount }, doFetch);
+    const combinedPromise = Promise.all(allPromises);
 
     // Register singleton — reconnect on remount
-    activeGeneration = { promise: fetchPromise, startedAt: Date.now() };
+    activeGeneration = {
+      promise: combinedPromise.then((results) => {
+        const first = results.find((r) => r.ok) ?? results[0];
+        return first;
+      }),
+      startedAt: Date.now(),
+    };
 
-    const result = await fetchPromise;
+    const results = await combinedPromise;
 
     // Clear singleton
     activeGeneration = null;
 
-    if (result.ok) {
-      setGeneratedImageUrl(result.imageUrl);
+    const successes = results.filter(
+      (r): r is { ok: true; imageUrl: string } => r.ok,
+    );
+    const firstError = results.find((r): r is { ok: false; error: string } => !r.ok);
+
+    if (successes.length > 0) {
+      const urls = successes.map((r) => r.imageUrl);
+      setGeneratedImageUrls(urls);
+      setGeneratedImageUrl(urls[0]);
       revalidateInfluencerUsage();
     } else {
-      setGenerationError(result.error);
+      setGenerationError(firstError?.error ?? "Erro ao gerar imagem");
     }
     setGenerating(false);
   }, [
     canGenerate,
+    imageCount,
     effectiveProductRawImageUrl,
     effectiveProductName,
     effectiveProductCategory,
@@ -2285,6 +2318,48 @@ function InfluencerIAWizard() {
               borderColor: { md: "divider" },
             }}
           >
+            {/* Image count selector */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+              }}
+            >
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontWeight: 600 }}
+              >
+                Quantidade de imagens
+              </Typography>
+              <Box sx={{ display: "flex", gap: 0.5 }}>
+                {([1, 2] as const).map((n) => (
+                  <Button
+                    key={n}
+                    size="small"
+                    variant={imageCount === n ? "contained" : "outlined"}
+                    onClick={() => setImageCount(n)}
+                    disabled={generating}
+                    sx={{
+                      minWidth: 36,
+                      px: 1,
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      borderRadius: 1.5,
+                      ...(imageCount === n && {
+                        bgcolor: "primary.main",
+                        color: "primary.contrastText",
+                      }),
+                    }}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </Box>
+            </Box>
+
             <Button
               variant="contained"
               size="large"
@@ -2305,16 +2380,22 @@ function InfluencerIAWizard() {
                 borderRadius: 2,
               }}
             >
-              {generating ? "Gerando imagem…" : "Gerar Imagem"}
+              {generating
+                ? imageCount === 2
+                  ? "Gerando imagens…"
+                  : "Gerando imagem…"
+                : imageCount === 2
+                  ? "Gerar 2 Imagens"
+                  : "Gerar Imagem"}
             </Button>
 
-            {/* Daily quota counter */}
+            {/* Quota info */}
             <Typography
               variant="caption"
               sx={{
                 textAlign: "center",
                 color:
-                  usedToday >= dailyLimit
+                  usedToday + imageCount > dailyLimit
                     ? "error.main"
                     : usedToday >= dailyLimit - 1
                       ? "warning.main"
@@ -2323,7 +2404,19 @@ function InfluencerIAWizard() {
               }}
             >
               {usedToday} / {dailyLimit} gerações hoje
+              {imageCount === 2 && ` · consome 2`}
             </Typography>
+
+            {imageCount === 2 && !generating && (
+              <Typography
+                variant="caption"
+                color="text.disabled"
+                sx={{ textAlign: "center", lineHeight: 1.4 }}
+              >
+                Cada imagem gerada consome 1 geração do limite diário. A
+                geração não pode ser desfeita.
+              </Typography>
+            )}
 
             {!canGenerate && !generating && (
               <Typography
@@ -2331,7 +2424,9 @@ function InfluencerIAWizard() {
                 color="text.disabled"
                 sx={{ textAlign: "center" }}
               >
-                Escolha um produto e um influencer para gerar a imagem
+                {usedToday + imageCount > dailyLimit
+                  ? `Sem gerações suficientes (restam ${dailyLimit - usedToday})`
+                  : "Escolha um produto e um influencer para gerar a imagem"}
               </Typography>
             )}
 
@@ -2518,95 +2613,112 @@ function InfluencerIAWizard() {
                   resultado estará aqui ao voltar.
                 </Alert>
               </Paper>
-            ) : generatedImageUrl ? (
+            ) : generatedImageUrls.length > 0 ? (
               <Paper
                 variant="outlined"
                 sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}
               >
                 <Box
                   sx={{
-                    position: "relative",
-                    borderRadius: 2,
-                    overflow: "hidden",
-                    border: "1px solid",
-                    borderColor: "divider",
-                    maxWidth: { xs: "60%", sm: 230 },
-                    mx: "auto",
-                    width: "100%",
-                    bgcolor: "rgba(0,0,0,0.02)",
+                    display: "flex",
+                    gap: 1.5,
+                    justifyContent: "center",
+                    flexWrap: "wrap",
                   }}
                 >
-                  <img
-                    src={generatedImageUrl}
-                    alt="Imagem gerada"
-                    style={{
-                      width: "100%",
-                      height: "auto",
-                      display: "block",
-                      maxHeight: "none",
-                    }}
-                  />
-                  <Box
+                  {generatedImageUrls.map((url, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        position: "relative",
+                        borderRadius: 2,
+                        overflow: "hidden",
+                        border: "1px solid",
+                        borderColor: "divider",
+                        flex: generatedImageUrls.length === 1 ? "0 1 230px" : "1 1 0",
+                        maxWidth:
+                          generatedImageUrls.length === 1
+                            ? { xs: "60%", sm: 230 }
+                            : "50%",
+                        width: "100%",
+                        bgcolor: "rgba(0,0,0,0.02)",
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt={`Imagem gerada ${idx + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "auto",
+                          display: "block",
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          display: "flex",
+                          gap: 0.5,
+                          p: 1,
+                          background:
+                            "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+                        }}
+                      >
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<Download sx={{ fontSize: 13 }} />}
+                          onClick={() => {
+                            fetch(url)
+                              .then((r) => r.blob())
+                              .then((blob) => {
+                                const blobUrl = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = blobUrl;
+                                a.download = `influencer-ia-${idx + 1}.png`;
+                                a.click();
+                                URL.revokeObjectURL(blobUrl);
+                              })
+                              .catch(() => {
+                                window.location.href = url;
+                              });
+                          }}
+                          sx={{
+                            flex: 1,
+                            fontSize: "0.7rem",
+                            color: "white",
+                            borderColor: "rgba(255,255,255,0.5)",
+                            "&:hover": {
+                              borderColor: "white",
+                              bgcolor: "rgba(255,255,255,0.1)",
+                            },
+                          }}
+                        >
+                          Baixar
+                        </Button>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+                {/* Regenerate below images */}
+                <Box sx={{ mt: 1.5 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    fullWidth
+                    startIcon={<Refresh />}
+                    onClick={() => void handleGenerate()}
+                    disabled={generating}
                     sx={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      display: "flex",
-                      gap: 1,
-                      p: 2,
-                      background:
-                        "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+                      fontSize: "0.8rem",
+                      color: "text.secondary",
+                      borderColor: "divider",
                     }}
                   >
-                    <Button
-                      variant="text"
-                      size="small"
-                      startIcon={<Refresh />}
-                      onClick={() => void handleGenerate()}
-                      disabled={generating}
-                      sx={{
-                        flex: 1,
-                        color: "white",
-                        "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
-                      }}
-                    >
-                      Regenerar
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<Download />}
-                      onClick={() => {
-                        if (!generatedImageUrl) return;
-                        fetch(generatedImageUrl)
-                          .then((r) => r.blob())
-                          .then((blob) => {
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = "influencer-ia.png";
-                            a.click();
-                            URL.revokeObjectURL(url);
-                          })
-                          .catch(() => {
-                            // Fallback: open in same tab so browser triggers download
-                            window.location.href = generatedImageUrl;
-                          });
-                      }}
-                      sx={{
-                        flex: 1,
-                        color: "white",
-                        borderColor: "rgba(255,255,255,0.5)",
-                        "&:hover": {
-                          borderColor: "white",
-                          bgcolor: "rgba(255,255,255,0.1)",
-                        },
-                      }}
-                    >
-                      Baixar
-                    </Button>
-                  </Box>
+                    Regenerar
+                  </Button>
                 </Box>
               </Paper>
             ) : (
@@ -2638,7 +2750,7 @@ function InfluencerIAWizard() {
             )}
 
             {/* ── Section 4: VEO 3.1 Prompt Style ───────────────── */}
-            {generatedImageUrl && (
+            {generatedImageUrls.length > 0 && (
               <Paper
                 variant="outlined"
                 sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3 }}
@@ -3095,7 +3207,7 @@ function InfluencerIAWizard() {
           </Box>
 
           {/* ── Sticky VEO generate button ──────────────────────── */}
-          {generatedImageUrl && (
+          {generatedImageUrls.length > 0 && (
             <Box
               sx={{
                 flexShrink: 0,
