@@ -28,6 +28,8 @@ vi.mock("@/lib/settings", () => ({
 
 vi.mock("@/lib/storage/blob", () => ({
   uploadBufferToBlob: uploadBufferToBlobMock,
+  isEchotikCdnUrl: () => false,
+  signEchotikCoverUrl: vi.fn(),
 }));
 
 vi.mock("@/lib/logger", () => ({
