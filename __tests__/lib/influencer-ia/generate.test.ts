@@ -282,6 +282,156 @@ describe("lib/influencer-ia/generate", () => {
     expect(promptText).not.toContain("PLACEMENT");
   });
 
+  // -------------------------------------------------------------------------
+  // MIME type detection from magic bytes
+  // -------------------------------------------------------------------------
+
+  it("detects image/jpeg from magic bytes when CDN returns binary/octet-stream", async () => {
+    const fakeB64 = makeFakeImageBuffer().toString("base64");
+
+    // Real JPEG magic bytes: FF D8 FF
+    const jpegMagic = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    const imageResponse = {
+      ok: true,
+      headers: { get: () => "binary/octet-stream" },
+      arrayBuffer: async () =>
+        jpegMagic.buffer.slice(
+          jpegMagic.byteOffset,
+          jpegMagic.byteOffset + jpegMagic.byteLength,
+        ),
+    };
+    const geminiResponse = {
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
+            },
+          },
+        ],
+      }),
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(imageResponse) // product fetch
+        .mockResolvedValueOnce(geminiResponse), // Gemini call
+    );
+
+    await generateInfluencerImage({
+      ...BASE_INPUT,
+      productImageUrl: "https://example.com/product",
+    });
+
+    // Verify the inlineData sent to Gemini uses image/jpeg, NOT binary/octet-stream
+    const geminiCall = vi.mocked(fetch).mock.calls[1];
+    const body = JSON.parse(
+      (geminiCall?.[1] as RequestInit)?.body as string,
+    ) as {
+      contents: Array<{ parts: Array<{ inlineData?: { mimeType?: string } }> }>;
+    };
+    const inlinePart = body.contents[0]?.parts.find((p) => p.inlineData);
+    expect(inlinePart?.inlineData?.mimeType).toBe("image/jpeg");
+  });
+
+  it("detects image/png from magic bytes when CDN returns application/octet-stream", async () => {
+    const fakeB64 = makeFakeImageBuffer().toString("base64");
+
+    // Real PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+    const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const imageResponse = {
+      ok: true,
+      headers: { get: () => "application/octet-stream" },
+      arrayBuffer: async () =>
+        pngMagic.buffer.slice(
+          pngMagic.byteOffset,
+          pngMagic.byteOffset + pngMagic.byteLength,
+        ),
+    };
+    const geminiResponse = {
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
+            },
+          },
+        ],
+      }),
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(imageResponse) // product fetch
+        .mockResolvedValueOnce(geminiResponse), // Gemini call
+    );
+
+    await generateInfluencerImage({
+      ...BASE_INPUT,
+      productImageUrl: "https://example.com/product.png",
+    });
+
+    const geminiCall = vi.mocked(fetch).mock.calls[1];
+    const body = JSON.parse(
+      (geminiCall?.[1] as RequestInit)?.body as string,
+    ) as {
+      contents: Array<{ parts: Array<{ inlineData?: { mimeType?: string } }> }>;
+    };
+    const inlinePart = body.contents[0]?.parts.find((p) => p.inlineData);
+    expect(inlinePart?.inlineData?.mimeType).toBe("image/png");
+  });
+
+  it("passes correct content-type when CDN returns proper image/webp header", async () => {
+    const fakeB64 = makeFakeImageBuffer().toString("base64");
+
+    const imageResponse = {
+      ok: true,
+      headers: { get: () => "image/webp; charset=binary" },
+      arrayBuffer: async () => Buffer.from([0x52, 0x49, 0x46, 0x46]).buffer,
+    };
+    const geminiResponse = {
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
+            },
+          },
+        ],
+      }),
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(imageResponse) // product fetch
+        .mockResolvedValueOnce(geminiResponse), // Gemini call
+    );
+
+    await generateInfluencerImage({
+      ...BASE_INPUT,
+      productImageUrl: "https://example.com/product.webp",
+    });
+
+    const geminiCall = vi.mocked(fetch).mock.calls[1];
+    const body = JSON.parse(
+      (geminiCall?.[1] as RequestInit)?.body as string,
+    ) as {
+      contents: Array<{ parts: Array<{ inlineData?: { mimeType?: string } }> }>;
+    };
+    const inlinePart = body.contents[0]?.parts.find((p) => p.inlineData);
+    // Content-Type header was a valid image type — strips params and passes through
+    expect(inlinePart?.inlineData?.mimeType).toBe("image/webp");
+  });
+
   it("uses customPose when provided (overrides preset)", async () => {
     mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
 
