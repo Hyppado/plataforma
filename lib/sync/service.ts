@@ -164,11 +164,21 @@ async function syncTable(
     rows = rows.map((row) => applyNullColumns(row, nullColumns));
   }
 
-  // Write to preview inside a transaction per table:
-  // TRUNCATE CASCADE + batched INSERTs
+  // Write to preview inside a transaction per table.
+  //
+  // - Without rowFilter: TRUNCATE CASCADE + batched INSERTs (full replace).
+  // - With rowFilter:    DELETE WHERE <rowFilter> + INSERT — preserves all
+  //   other rows in preview. Critical for the Setting table, where preview
+  //   has its own Hotmart credentials, Google AI keys, and admin secrets
+  //   that must NOT be wiped by the prod sync (we only copy the exchange
+  //   rate row).
   await preview.query("BEGIN");
   try {
-    await preview.query(`TRUNCATE "${table}" CASCADE`);
+    if (def.rowFilter) {
+      await preview.query(`DELETE FROM "${table}" WHERE ${def.rowFilter}`);
+    } else {
+      await preview.query(`TRUNCATE "${table}" CASCADE`);
+    }
 
     for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
       const batch = rows.slice(offset, offset + BATCH_SIZE);

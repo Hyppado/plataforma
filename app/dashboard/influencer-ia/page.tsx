@@ -1386,9 +1386,7 @@ function InfluencerIAWizard() {
     }
     // Skip preparation for blob URLs that the user uploaded — already on Vercel Blob.
     if (
-      effectiveProductRawImageUrl.includes(
-        ".public.blob.vercel-storage.com",
-      )
+      effectiveProductRawImageUrl.includes(".public.blob.vercel-storage.com")
     ) {
       setPreparedProductBlobUrl(effectiveProductRawImageUrl);
       setPreparingProduct(false);
@@ -2624,7 +2622,8 @@ function InfluencerIAWizard() {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {usedToday} / {dailyLimit >= 999999 ? "∞" : dailyLimit} gerações hoje
+              {usedToday} / {dailyLimit >= 999999 ? "∞" : dailyLimit} gerações
+              hoje
               {imageCount === 2 && ` · consome 2`}
             </Typography>
 
