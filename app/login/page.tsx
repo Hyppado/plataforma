@@ -37,7 +37,7 @@ export default function LoginPage() {
       setError("Email ou senha incorretos.");
       setLoading(false);
     } else {
-      window.location.href = "/dashboard";
+      window.location.href = "/dashboard/home";
     }
   };
 

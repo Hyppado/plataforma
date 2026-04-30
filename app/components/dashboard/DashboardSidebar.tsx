@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   Box,
+  IconButton,
   List,
   ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -28,6 +30,8 @@ import {
   FaceRetouchingNatural,
   MenuBook,
   SpaceDashboard,
+  ChevronLeft,
+  ChevronRight,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -110,11 +114,15 @@ const NAV_SECTIONS: Array<{
 interface DashboardSidebarProps {
   onNavigate?: () => void;
   inDrawer?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function DashboardSidebar({
   onNavigate,
   inDrawer,
+  collapsed = false,
+  onToggleCollapse,
 }: DashboardSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -129,7 +137,8 @@ export function DashboardSidebar({
     <Box
       className="app-sidebar"
       sx={{
-        width: 260,
+        width: collapsed ? 60 : 260,
+        transition: "width 200ms ease",
         height: inDrawer ? "100%" : { xs: "100dvh", md: "100dvh" },
         minHeight: inDrawer ? 0 : { xs: "100dvh", md: "100dvh" },
         maxHeight: inDrawer ? "100%" : { xs: "100dvh", md: "100dvh" },
@@ -144,31 +153,68 @@ export function DashboardSidebar({
       <Box
         sx={{
           position: "relative",
-          minHeight: 100,
+          minHeight: collapsed ? 64 : 100,
           flexShrink: 0,
           background: "rgba(255, 255, 255, 0.02)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: collapsed ? "center" : "flex-start",
+          transition: "min-height 200ms ease",
         }}
       >
-        <Box
-          sx={{
-            position: "absolute",
-            top: "50%",
-            left: 20,
-            transform: "translateY(-50%)",
-            height: { xs: 48, sm: 56, md: 64 },
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <BrandLogo
-            href="/dashboard/videos"
-            mode="dark"
-            variant="full"
-            size="lg"
-            priority
-          />
-        </Box>
+        {!collapsed ? (
+          <>
+            <Box
+              sx={{
+                position: "absolute",
+                top: "50%",
+                left: 20,
+                transform: "translateY(-50%)",
+                height: { xs: 48, sm: 56, md: 64 },
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <BrandLogo
+                href="/dashboard/videos"
+                mode="dark"
+                variant="full"
+                size="lg"
+                priority
+              />
+            </Box>
+            {!inDrawer && onToggleCollapse && (
+              <IconButton
+                onClick={onToggleCollapse}
+                size="small"
+                sx={{
+                  position: "absolute",
+                  right: 6,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "rgba(255,255,255,0.35)",
+                  "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.06)" },
+                }}
+              >
+                <ChevronLeft sx={{ fontSize: 18 }} />
+              </IconButton>
+            )}
+          </>
+        ) : (
+          <Tooltip title="Expandir menu" placement="right" arrow>
+            <IconButton
+              onClick={onToggleCollapse}
+              size="small"
+              sx={{
+                color: "rgba(255,255,255,0.35)",
+                "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.06)" },
+              }}
+            >
+              <ChevronRight sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
 
       {/* Navigation */}
@@ -190,7 +236,7 @@ export function DashboardSidebar({
             key={section.label || `section-${sectionIndex}`}
             sx={{ mb: sectionIndex < NAV_SECTIONS.length - 1 ? 0.9 : 0 }}
           >
-            {section.label && <SectionLabel text={section.label} />}
+            {section.label && !collapsed && <SectionLabel text={section.label} />}
             <List
               disablePadding
               sx={{ display: "flex", flexDirection: "column", gap: 0.15 }}
@@ -204,6 +250,7 @@ export function DashboardSidebar({
                   active={isActive(href)}
                   onClick={onNavigate}
                   badge={badge}
+                  collapsed={collapsed}
                 />
               ))}
             </List>
@@ -215,14 +262,14 @@ export function DashboardSidebar({
       <Box
         sx={{
           flexShrink: 0,
-          px: 1.25,
+          px: collapsed ? 0.5 : 1.25,
           pb: { xs: 4, md: 2 },
           pt: 0.75,
         }}
       >
         {isAdmin && (
           <Box sx={{ mb: 0.6 }}>
-            <SectionLabel text="ADMIN" />
+            {!collapsed && <SectionLabel text="ADMIN" />}
             <List disablePadding>
               <NavItem
                 label="Admin"
@@ -230,6 +277,7 @@ export function DashboardSidebar({
                 href="/dashboard/admin"
                 active={isActive("/dashboard/admin")}
                 onClick={onNavigate}
+                collapsed={collapsed}
               />
               <NavItem
                 label="Configuração"
@@ -237,36 +285,57 @@ export function DashboardSidebar({
                 href="/dashboard/config"
                 active={isActive("/dashboard/config")}
                 onClick={onNavigate}
+                collapsed={collapsed}
               />
             </List>
           </Box>
         )}
 
         <List disablePadding>
-          <ListItem disablePadding>
-            <ListItemButton
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              sx={{
-                borderRadius: 2,
-                minHeight: 32,
-                px: 1,
-                py: 0.35,
-                "&:hover": { background: "rgba(255,255,255,0.03)" },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 24 }}>
-                <Logout sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }} />
-              </ListItemIcon>
-              <ListItemText
-                primary="Sair"
-                primaryTypographyProps={{
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                  color: "rgba(255,255,255,0.75)",
+          {collapsed ? (
+            <Tooltip title="Sair" placement="right" arrow>
+              <ListItem disablePadding>
+                <ListItemButton
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  sx={{
+                    borderRadius: 2,
+                    minHeight: 32,
+                    px: 0,
+                    py: 0.35,
+                    justifyContent: "center",
+                    "&:hover": { background: "rgba(255,255,255,0.03)" },
+                  }}
+                >
+                  <Logout sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }} />
+                </ListItemButton>
+              </ListItem>
+            </Tooltip>
+          ) : (
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                sx={{
+                  borderRadius: 2,
+                  minHeight: 32,
+                  px: 1,
+                  py: 0.35,
+                  "&:hover": { background: "rgba(255,255,255,0.03)" },
                 }}
-              />
-            </ListItemButton>
-          </ListItem>
+              >
+                <ListItemIcon sx={{ minWidth: 24 }}>
+                  <Logout sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }} />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Sair"
+                  primaryTypographyProps={{
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    color: "rgba(255,255,255,0.75)",
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          )}
         </List>
       </Box>
     </Box>
@@ -302,6 +371,7 @@ function NavItem({
   active,
   onClick,
   badge,
+  collapsed,
 }: {
   label: string;
   icon: SvgIconComponent;
@@ -309,8 +379,9 @@ function NavItem({
   active: boolean;
   onClick?: () => void;
   badge?: string;
+  collapsed?: boolean;
 }) {
-  return (
+  const item = (
     <ListItem disablePadding>
       <ListItemButton
         component={Link}
@@ -319,8 +390,9 @@ function NavItem({
         sx={{
           borderRadius: 2,
           minHeight: 32,
-          px: 1,
+          px: collapsed ? 0 : 1,
           py: 0.35,
+          justifyContent: collapsed ? "center" : undefined,
           position: "relative",
           background: active ? "rgba(45, 212, 255, 0.08)" : "transparent",
           "&:hover": {
@@ -343,7 +415,7 @@ function NavItem({
             : {},
         }}
       >
-        <ListItemIcon sx={{ minWidth: 24 }}>
+        <ListItemIcon sx={{ minWidth: collapsed ? "auto" : 24 }}>
           <Icon
             sx={{
               fontSize: 15,
@@ -351,15 +423,17 @@ function NavItem({
             }}
           />
         </ListItemIcon>
-        <ListItemText
-          primary={label}
-          primaryTypographyProps={{
-            fontSize: "0.75rem",
-            fontWeight: active ? 600 : 500,
-            color: active ? "#2DD4FF" : "rgba(255,255,255,0.75)",
-          }}
-        />
-        {badge && (
+        {!collapsed && (
+          <ListItemText
+            primary={label}
+            primaryTypographyProps={{
+              fontSize: "0.75rem",
+              fontWeight: active ? 600 : 500,
+              color: active ? "#2DD4FF" : "rgba(255,255,255,0.75)",
+            }}
+          />
+        )}
+        {!collapsed && badge && (
           <Box
             component="span"
             sx={{
@@ -388,4 +462,13 @@ function NavItem({
       </ListItemButton>
     </ListItem>
   );
+
+  if (collapsed) {
+    return (
+      <Tooltip title={label} placement="right" arrow>
+        {item}
+      </Tooltip>
+    );
+  }
+  return item;
 }

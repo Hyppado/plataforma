@@ -25,12 +25,42 @@ function fmt(n: number): string {
 }
 
 const TOOLS = [
-  { label: "Produtos Hype", icon: Whatshot, href: "/dashboard/trends", color: "#FF2D78" },
-  { label: "Vídeos em Alta", icon: VideoLibrary, href: "/dashboard/videos", color: "#2DD4FF" },
-  { label: "Vídeo com Avatar", icon: FaceRetouchingNatural, href: "/dashboard/influencer-ia", color: "#C7A3FF" },
-  { label: "Novos Produtos", icon: FiberNew, href: "/dashboard/products", color: "#81C784" },
-  { label: "Creators", icon: Person, href: "/dashboard/creators", color: "#FFB74D" },
-  { label: "Prompts", icon: MenuBook, href: "/dashboard/prompt-library", color: "#FF8A65" },
+  {
+    label: "Produtos Hype",
+    icon: Whatshot,
+    href: "/dashboard/trends",
+    color: "#FF2D78",
+  },
+  {
+    label: "Vídeos em Alta",
+    icon: VideoLibrary,
+    href: "/dashboard/videos",
+    color: "#2DD4FF",
+  },
+  {
+    label: "Vídeo com Avatar",
+    icon: FaceRetouchingNatural,
+    href: "/dashboard/influencer-ia",
+    color: "#C7A3FF",
+  },
+  {
+    label: "Novos Produtos",
+    icon: FiberNew,
+    href: "/dashboard/products",
+    color: "#81C784",
+  },
+  {
+    label: "Creators",
+    icon: Person,
+    href: "/dashboard/creators",
+    color: "#FFB74D",
+  },
+  {
+    label: "Prompts",
+    icon: MenuBook,
+    href: "/dashboard/prompt-library",
+    color: "#FF8A65",
+  },
 ] as const;
 
 function HeroBanner({ firstName }: { firstName: string | null }) {
@@ -83,9 +113,15 @@ function HeroBanner({ firstName }: { firstName: string | null }) {
               CRIAR HOJE?
             </Box>
           </Typography>
-          <Typography sx={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>
-            {firstName ? `Olá, ${firstName}. ` : ""}Da mineração de produtos ao vídeo
-            final — tudo que você precisa para dominar o TikTok Shop.
+          <Typography
+            sx={{
+              fontSize: "0.82rem",
+              color: "rgba(255,255,255,0.5)",
+              lineHeight: 1.5,
+            }}
+          >
+            {firstName ? `Olá, ${firstName}. ` : ""}Da mineração de produtos ao
+            vídeo final — tudo que você precisa para dominar o TikTok Shop.
           </Typography>
         </Box>
 
@@ -99,11 +135,18 @@ function HeroBanner({ firstName }: { firstName: string | null }) {
             pb: 0.5,
             "&::-webkit-scrollbar": { height: 4 },
             "&::-webkit-scrollbar-track": { bgcolor: "transparent" },
-            "&::-webkit-scrollbar-thumb": { bgcolor: "rgba(255,255,255,0.1)", borderRadius: 4 },
+            "&::-webkit-scrollbar-thumb": {
+              bgcolor: "rgba(255,255,255,0.1)",
+              borderRadius: 4,
+            },
           }}
         >
           {TOOLS.map(({ label, icon: Icon, href, color }) => (
-            <Link key={href} href={href} style={{ textDecoration: "none", flexShrink: 0 }}>
+            <Link
+              key={href}
+              href={href}
+              style={{ textDecoration: "none", flexShrink: 0 }}
+            >
               <Box
                 sx={{
                   display: "flex",
@@ -117,7 +160,8 @@ function HeroBanner({ firstName }: { firstName: string | null }) {
                   border: "1px solid rgba(255,255,255,0.07)",
                   background: "rgba(255,255,255,0.03)",
                   cursor: "pointer",
-                  transition: "border-color 150ms, background 150ms, transform 150ms",
+                  transition:
+                    "border-color 150ms, background 150ms, transform 150ms",
                   "&:hover": {
                     borderColor: `${color}50`,
                     background: `${color}0D`,
@@ -193,7 +237,9 @@ function TopProductsPanel({
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
           <Whatshot sx={{ fontSize: 18, color: "secondary.main" }} />
-          <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff" }}>
+          <Typography
+            sx={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff" }}
+          >
             Top Produtos {flag} {regionLabel}
           </Typography>
           <Box
@@ -217,13 +263,30 @@ function TopProductsPanel({
                 boxShadow: "0 0 6px #81C784",
               }}
             />
-            <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, color: "#81C784", letterSpacing: "0.05em" }}>
+            <Typography
+              sx={{
+                fontSize: "0.6rem",
+                fontWeight: 700,
+                color: "#81C784",
+                letterSpacing: "0.05em",
+              }}
+            >
               AO VIVO
             </Typography>
           </Box>
         </Box>
-        <Link href="/dashboard/trends" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-          <Typography sx={{ fontSize: "0.74rem", color: "primary.main", fontWeight: 600 }}>
+        <Link
+          href="/dashboard/trends"
+          style={{
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Typography
+            sx={{ fontSize: "0.74rem", color: "primary.main", fontWeight: 600 }}
+          >
             Ver ranking completo
           </Typography>
           <EastOutlined sx={{ fontSize: 13, color: "primary.main" }} />
@@ -271,21 +334,52 @@ function TopProductsPanel({
                 borderBottom: "1px solid rgba(255,255,255,0.03)",
               }}
             >
-              <Skeleton width={18} height={14} sx={{ bgcolor: "rgba(255,255,255,0.06)" }} />
+              <Skeleton
+                width={18}
+                height={14}
+                sx={{ bgcolor: "rgba(255,255,255,0.06)" }}
+              />
               <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
-                <Skeleton variant="rounded" width={38} height={38} sx={{ bgcolor: "rgba(255,255,255,0.06)", borderRadius: 1.5, flexShrink: 0 }} />
+                <Skeleton
+                  variant="rounded"
+                  width={38}
+                  height={38}
+                  sx={{
+                    bgcolor: "rgba(255,255,255,0.06)",
+                    borderRadius: 1.5,
+                    flexShrink: 0,
+                  }}
+                />
                 <Box>
-                  <Skeleton width={160} height={13} sx={{ bgcolor: "rgba(255,255,255,0.06)" }} />
-                  <Skeleton width={70} height={11} sx={{ bgcolor: "rgba(255,255,255,0.04)", mt: 0.5 }} />
+                  <Skeleton
+                    width={160}
+                    height={13}
+                    sx={{ bgcolor: "rgba(255,255,255,0.06)" }}
+                  />
+                  <Skeleton
+                    width={70}
+                    height={11}
+                    sx={{ bgcolor: "rgba(255,255,255,0.04)", mt: 0.5 }}
+                  />
                 </Box>
               </Box>
-              <Skeleton width={36} height={13} sx={{ bgcolor: "rgba(255,255,255,0.06)", ml: "auto" }} />
+              <Skeleton
+                width={36}
+                height={13}
+                sx={{ bgcolor: "rgba(255,255,255,0.06)", ml: "auto" }}
+              />
             </Box>
           ))
         : products.slice(0, 8).map((p, i) => {
             const rank = i + 1;
             const rankColor =
-              rank === 1 ? "#FFD700" : rank === 2 ? "#C0C0C0" : rank === 3 ? "#CD7F32" : "rgba(255,255,255,0.28)";
+              rank === 1
+                ? "#FFD700"
+                : rank === 2
+                  ? "#C0C0C0"
+                  : rank === 3
+                    ? "#CD7F32"
+                    : "rgba(255,255,255,0.28)";
             return (
               <Box
                 key={p.id}
@@ -304,14 +398,33 @@ function TopProductsPanel({
                   "&:last-child": { borderBottom: "none" },
                 }}
               >
-                <Typography sx={{ fontSize: rank <= 3 ? "0.85rem" : "0.72rem", fontWeight: 800, color: rankColor }}>
+                <Typography
+                  sx={{
+                    fontSize: rank <= 3 ? "0.85rem" : "0.72rem",
+                    fontWeight: 800,
+                    color: rankColor,
+                  }}
+                >
                   {rank <= 3 ? `#${rank}` : rank}
                 </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    minWidth: 0,
+                  }}
+                >
                   <Avatar
                     src={p.imageUrl}
                     variant="rounded"
-                    sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: "rgba(255,255,255,0.06)", flexShrink: 0 }}
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 1.5,
+                      bgcolor: "rgba(255,255,255,0.06)",
+                      flexShrink: 0,
+                    }}
                   />
                   <Box sx={{ minWidth: 0 }}>
                     <Typography
@@ -326,12 +439,24 @@ function TopProductsPanel({
                     >
                       {p.name}
                     </Typography>
-                    <Typography sx={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.38)" }}>
+                    <Typography
+                      sx={{
+                        fontSize: "0.68rem",
+                        color: "rgba(255,255,255,0.38)",
+                      }}
+                    >
                       {p.category}
                     </Typography>
                   </Box>
                 </Box>
-                <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: "rgba(255,255,255,0.8)", textAlign: "right" }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.82rem",
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.8)",
+                    textAlign: "right",
+                  }}
+                >
                   {fmt(p.sales)}
                 </Typography>
               </Box>
@@ -341,7 +466,13 @@ function TopProductsPanel({
   );
 }
 
-function TopVideosPanel({ videos, loading }: { videos: VideoDTO[]; loading: boolean }) {
+function TopVideosPanel({
+  videos,
+  loading,
+}: {
+  videos: VideoDTO[];
+  loading: boolean;
+}) {
   return (
     <Box
       sx={{
@@ -363,12 +494,24 @@ function TopVideosPanel({ videos, loading }: { videos: VideoDTO[]; loading: bool
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
           <VideoLibrary sx={{ fontSize: 18, color: "primary.main" }} />
-          <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff" }}>
+          <Typography
+            sx={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff" }}
+          >
             Vídeos em Alta
           </Typography>
         </Box>
-        <Link href="/dashboard/videos" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-          <Typography sx={{ fontSize: "0.74rem", color: "primary.main", fontWeight: 600 }}>
+        <Link
+          href="/dashboard/videos"
+          style={{
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Typography
+            sx={{ fontSize: "0.74rem", color: "primary.main", fontWeight: 600 }}
+          >
             Ver todos
           </Typography>
           <EastOutlined sx={{ fontSize: 13, color: "primary.main" }} />
@@ -417,14 +560,39 @@ function TopVideosPanel({ videos, loading }: { videos: VideoDTO[]; loading: bool
               }}
             >
               <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
-                <Skeleton variant="rounded" width={34} height={46} sx={{ bgcolor: "rgba(255,255,255,0.06)", borderRadius: 1, flexShrink: 0 }} />
+                <Skeleton
+                  variant="rounded"
+                  width={34}
+                  height={46}
+                  sx={{
+                    bgcolor: "rgba(255,255,255,0.06)",
+                    borderRadius: 1,
+                    flexShrink: 0,
+                  }}
+                />
                 <Box>
-                  <Skeleton width={130} height={13} sx={{ bgcolor: "rgba(255,255,255,0.06)" }} />
-                  <Skeleton width={70} height={11} sx={{ bgcolor: "rgba(255,255,255,0.04)", mt: 0.5 }} />
+                  <Skeleton
+                    width={130}
+                    height={13}
+                    sx={{ bgcolor: "rgba(255,255,255,0.06)" }}
+                  />
+                  <Skeleton
+                    width={70}
+                    height={11}
+                    sx={{ bgcolor: "rgba(255,255,255,0.04)", mt: 0.5 }}
+                  />
                 </Box>
               </Box>
-              <Skeleton width={34} height={13} sx={{ bgcolor: "rgba(255,255,255,0.06)", ml: "auto" }} />
-              <Skeleton width={42} height={13} sx={{ bgcolor: "rgba(255,255,255,0.06)", ml: "auto" }} />
+              <Skeleton
+                width={34}
+                height={13}
+                sx={{ bgcolor: "rgba(255,255,255,0.06)", ml: "auto" }}
+              />
+              <Skeleton
+                width={42}
+                height={13}
+                sx={{ bgcolor: "rgba(255,255,255,0.06)", ml: "auto" }}
+              />
             </Box>
           ))
         : videos.slice(0, 6).map((v) => (
@@ -449,11 +617,24 @@ function TopVideosPanel({ videos, loading }: { videos: VideoDTO[]; loading: bool
                 "&:last-child": { borderBottom: "none" },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  minWidth: 0,
+                }}
+              >
                 <Avatar
                   src={v.thumbnailUrl ?? undefined}
                   variant="rounded"
-                  sx={{ width: 34, height: 46, borderRadius: 1, bgcolor: "rgba(255,255,255,0.06)", flexShrink: 0 }}
+                  sx={{
+                    width: 34,
+                    height: 46,
+                    borderRadius: 1,
+                    bgcolor: "rgba(255,255,255,0.06)",
+                    flexShrink: 0,
+                  }}
                 />
                 <Box sx={{ minWidth: 0 }}>
                   <Typography
@@ -481,10 +662,24 @@ function TopVideosPanel({ videos, loading }: { videos: VideoDTO[]; loading: bool
                   </Typography>
                 </Box>
               </Box>
-              <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.75)", textAlign: "right" }}>
+              <Typography
+                sx={{
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  color: "rgba(255,255,255,0.75)",
+                  textAlign: "right",
+                }}
+              >
                 {fmt(v.sales)}
               </Typography>
-              <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.75)", textAlign: "right" }}>
+              <Typography
+                sx={{
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  color: "rgba(255,255,255,0.75)",
+                  textAlign: "right",
+                }}
+              >
                 {fmt(v.views)}
               </Typography>
             </Box>
@@ -527,7 +722,11 @@ export default function DashboardHomePage() {
           gap: 3,
         }}
       >
-        <TopProductsPanel products={products} loading={productsLoading} region={region} />
+        <TopProductsPanel
+          products={products}
+          loading={productsLoading}
+          region={region}
+        />
         <TopVideosPanel videos={videos} loading={videosLoading} />
       </Box>
     </Box>

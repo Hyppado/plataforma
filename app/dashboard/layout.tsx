@@ -12,6 +12,7 @@ import { appTheme } from "@/app/theme";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const handleDrawerToggle = () => setMobileOpen((o) => !o);
   const closeMobile = () => setMobileOpen(false);
 
@@ -36,13 +37,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Box
           component="nav"
           sx={{
-            width: { md: 260 },
+            width: { md: collapsed ? 60 : 260 },
             flexShrink: 0,
             display: { xs: "none", md: "block" },
             height: "100%",
+            transition: "width 200ms ease",
           }}
         >
-          <DashboardSidebar />
+          <DashboardSidebar
+            collapsed={collapsed}
+            onToggleCollapse={() => setCollapsed((c) => !c)}
+          />
         </Box>
 
         {/* Mobile Drawer */}
