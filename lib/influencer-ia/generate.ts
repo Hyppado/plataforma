@@ -241,9 +241,37 @@ async function fetchImageBuffer(
       });
       return null;
     }
-    const contentType = res.headers.get("content-type") ?? "image/png";
+    const rawContentType = res.headers.get("content-type") ?? "";
     const buf = Buffer.from(await res.arrayBuffer());
-    return buf.byteLength > 0 ? { buffer: buf, contentType } : null;
+    if (buf.byteLength === 0) return null;
+
+    // Detect real MIME from magic bytes — some CDNs return binary/octet-stream
+    // even for valid images; Google AI rejects that content type with 400.
+    const isGenericBinary =
+      !rawContentType ||
+      rawContentType.includes("octet-stream") ||
+      rawContentType.includes("binary");
+    let contentType: string;
+    if (isGenericBinary) {
+      if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
+        contentType = "image/jpeg";
+      else if (
+        buf[0] === 0x89 &&
+        buf[1] === 0x50 &&
+        buf[2] === 0x4e &&
+        buf[3] === 0x47
+      )
+        contentType = "image/png";
+      else if (buf[0] === 0x52 && buf[1] === 0x49 && buf[4] === 0x57)
+        contentType = "image/webp";
+      else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)
+        contentType = "image/gif";
+      else contentType = "image/jpeg"; // safe fallback for Google AI
+    } else {
+      contentType = rawContentType.split(";")[0].trim();
+    }
+
+    return { buffer: buf, contentType };
   } catch (err) {
     log.warn("Image fetch threw", {
       url: url.slice(0, 120),
