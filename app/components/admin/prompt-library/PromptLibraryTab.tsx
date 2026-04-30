@@ -20,6 +20,8 @@ import {
   Chip,
   CircularProgress,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import {
   Add,
@@ -27,24 +29,123 @@ import {
   Delete,
   CloudUpload,
   PlayCircleOutline,
+  ViewList,
+  GridView,
 } from "@mui/icons-material";
+import { resolveEmbed } from "@/lib/prompt-library/embed";
 
 // ---------------------------------------------------------------------------
-// Vimeo helpers
+// Video thumbnail — shows static poster when available, falls back to play icon
 // ---------------------------------------------------------------------------
 
-function getVimeoId(value: string): string | null {
-  if (!value) return null;
-  const match = value.match(
-    /(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)([\d]+)/,
+function VideoThumb({
+  url,
+  width,
+  height,
+  onClick,
+}: {
+  url: string;
+  width: number | string;
+  height: number | string;
+  onClick?: () => void;
+}) {
+  const embed = resolveEmbed(url);
+  const sx = {
+    width,
+    height,
+    flexShrink: 0,
+    borderRadius: 1.5,
+    bgcolor: "#000",
+    overflow: "hidden",
+    position: "relative" as const,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: onClick ? "pointer" : "default",
+    border: "1px solid rgba(255,255,255,0.08)",
+    transition: "border-color 0.15s",
+    "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
+  };
+
+  // Static thumbnail (YouTube / Vimeo)
+  if (embed?.thumbnail) {
+    return (
+      <Box sx={sx} onClick={onClick}>
+        <Box
+          component="img"
+          src={embed.thumbnail}
+          alt=""
+          loading="lazy"
+          sx={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%)",
+          }}
+        >
+          <PlayCircleOutline
+            sx={{ color: "#fff", fontSize: 28, opacity: 0.9 }}
+          />
+        </Box>
+      </Box>
+    );
+  }
+
+  // Direct video file — use first frame as poster
+  if (embed?.kind === "video") {
+    return (
+      <Box sx={sx} onClick={onClick}>
+        <Box
+          component="video"
+          src={`${embed.src}#t=0.5`}
+          preload="metadata"
+          muted
+          playsInline
+          sx={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%)",
+          }}
+        >
+          <PlayCircleOutline
+            sx={{ color: "#fff", fontSize: 28, opacity: 0.9 }}
+          />
+        </Box>
+      </Box>
+    );
+  }
+
+  // Unknown / TikTok / Instagram — placeholder
+  return (
+    <Box sx={sx} onClick={onClick}>
+      <PlayCircleOutline
+        sx={{ color: "primary.main", fontSize: 28, opacity: 0.8 }}
+      />
+    </Box>
   );
-  return match?.[1] ?? null;
-}
-
-function getVimeoEmbedUrl(value: string): string | null {
-  const id = getVimeoId(value);
-  if (!id) return null;
-  return `https://player.vimeo.com/video/${id}?badge=0&autopause=0&loop=1&autoplay=1&muted=1&background=1`;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +207,27 @@ export function PromptLibraryTab() {
   const [uploading, setUploading] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+
+  // Persist view-mode preference per user across sessions.
+  useEffect(() => {
+    const stored =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("hyppado:promptLibraryAdminView")
+        : null;
+    if (stored === "grid" || stored === "list") setViewMode(stored);
+  }, []);
+
+  const handleViewModeChange = useCallback(
+    (_: React.MouseEvent<HTMLElement>, next: "list" | "grid" | null) => {
+      if (!next) return;
+      setViewMode(next);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("hyppado:promptLibraryAdminView", next);
+      }
+    },
+    [],
+  );
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -300,27 +422,166 @@ export function PromptLibraryTab() {
         <Typography variant="h6" sx={{ color: "#fff" }}>
           Itens ({items.length})
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          sx={{ bgcolor: "primary.main", color: "#000", fontWeight: 700 }}
-        >
-          Novo item
-        </Button>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={handleViewModeChange}
+            size="small"
+            aria-label="modo de visualização"
+            sx={{
+              "& .MuiToggleButton-root": {
+                color: "rgba(255,255,255,0.5)",
+                borderColor: "rgba(255,255,255,0.12)",
+                px: 1.25,
+              },
+              "& .Mui-selected": {
+                color: "primary.main !important",
+                bgcolor: "rgba(45,212,255,0.08) !important",
+              },
+            }}
+          >
+            <ToggleButton value="list" aria-label="lista">
+              <ViewList fontSize="small" />
+            </ToggleButton>
+            <ToggleButton value="grid" aria-label="grade">
+              <GridView fontSize="small" />
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={openCreate}
+            sx={{ bgcolor: "primary.main", color: "#000", fontWeight: 700 }}
+          >
+            Novo item
+          </Button>
+        </Stack>
       </Stack>
 
-      <Stack spacing={1.5}>
-        {items.length === 0 ? (
-          <Card sx={cardStyle}>
-            <CardContent>
-              <Typography sx={{ color: "rgba(255,255,255,0.5)" }}>
-                Nenhum item cadastrado.
-              </Typography>
-            </CardContent>
-          </Card>
-        ) : (
-          items.map((item) => (
+      {items.length === 0 ? (
+        <Card sx={cardStyle}>
+          <CardContent>
+            <Typography sx={{ color: "rgba(255,255,255,0.5)" }}>
+              Nenhum item cadastrado.
+            </Typography>
+          </CardContent>
+        </Card>
+      ) : viewMode === "grid" ? (
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(2, 1fr)",
+              sm: "repeat(3, 1fr)",
+              md: "repeat(4, 1fr)",
+              lg: "repeat(5, 1fr)",
+            },
+            gap: 2,
+          }}
+        >
+          {items.map((item) => (
+            <Card key={item.id} sx={cardStyle}>
+              <Box
+                sx={{
+                  position: "relative",
+                  aspectRatio: "9/16",
+                  bgcolor: "#000",
+                  overflow: "hidden",
+                  borderTopLeftRadius: 12,
+                  borderTopRightRadius: 12,
+                }}
+              >
+                <VideoThumb
+                  url={item.videoBlobUrl}
+                  width="100%"
+                  height="100%"
+                  onClick={() => setPreviewOpen(item.videoBlobUrl)}
+                />
+                {!item.isActive && (
+                  <Chip
+                    label="Inativo"
+                    size="small"
+                    sx={{
+                      position: "absolute",
+                      top: 8,
+                      left: 8,
+                      bgcolor: "rgba(0,0,0,0.7)",
+                      color: "rgba(255,255,255,0.7)",
+                      fontSize: 10,
+                      height: 20,
+                    }}
+                  />
+                )}
+              </Box>
+              <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                <Typography
+                  sx={{
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    lineHeight: 1.3,
+                    mb: 0.75,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {item.title}
+                </Typography>
+                <Chip
+                  label={item.category}
+                  size="small"
+                  sx={{
+                    bgcolor: "rgba(45,212,255,0.1)",
+                    color: "primary.main",
+                    fontSize: 10,
+                    height: 20,
+                    mb: 1,
+                  }}
+                />
+                <Stack
+                  direction="row"
+                  spacing={0.5}
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <Tooltip title={item.isActive ? "Desativar" : "Ativar"}>
+                    <Switch
+                      checked={item.isActive}
+                      onChange={() => handleToggleActive(item)}
+                      size="small"
+                    />
+                  </Tooltip>
+                  <Box sx={{ display: "flex", gap: 0.25 }}>
+                    <Tooltip title="Editar">
+                      <IconButton size="small" onClick={() => openEdit(item)}>
+                        <Edit fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Desativar / Excluir">
+                      <IconButton
+                        size="small"
+                        onClick={() =>
+                          item.isActive
+                            ? handleDeactivate(item)
+                            : handleHardDelete(item)
+                        }
+                        sx={{ color: "secondary.main" }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+      ) : (
+        <Stack spacing={1.5}>
+          {items.map((item) => (
             <Card key={item.id} sx={cardStyle}>
               <CardContent
                 sx={{
@@ -332,16 +593,13 @@ export function PromptLibraryTab() {
                   "&:last-child": { pb: 1.5 },
                 }}
               >
-                {/* Video preview icon */}
-                <Tooltip title="Pré-visualizar vídeo">
-                  <IconButton
-                    size="small"
-                    onClick={() => setPreviewOpen(item.videoBlobUrl)}
-                    sx={{ color: "primary.main", flexShrink: 0 }}
-                  >
-                    <PlayCircleOutline />
-                  </IconButton>
-                </Tooltip>
+                {/* Video thumbnail */}
+                <VideoThumb
+                  url={item.videoBlobUrl}
+                  width={56}
+                  height={80}
+                  onClick={() => setPreviewOpen(item.videoBlobUrl)}
+                />
 
                 {/* Info */}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -424,9 +682,9 @@ export function PromptLibraryTab() {
                 </Tooltip>
               </CardContent>
             </Card>
-          ))
-        )}
-      </Stack>
+          ))}
+        </Stack>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Create / Edit dialog                                                */}
@@ -536,27 +794,31 @@ export function PromptLibraryTab() {
               {form?.videoBlobUrl &&
                 !uploading &&
                 (() => {
-                  const vimeoUrl = getVimeoEmbedUrl(form.videoBlobUrl);
-                  return vimeoUrl ? (
-                    <Box
-                      component="iframe"
-                      src={vimeoUrl}
-                      allow="autoplay; fullscreen; picture-in-picture"
-                      frameBorder={0}
-                      sx={{
-                        mt: 1.5,
-                        width: "100%",
-                        height: 200,
-                        borderRadius: 2,
-                        bgcolor: "#000",
-                        border: "none",
-                        display: "block",
-                      }}
-                    />
-                  ) : (
+                  const embed = resolveEmbed(form.videoBlobUrl);
+                  if (!embed) return null;
+                  if (embed.kind === "iframe") {
+                    return (
+                      <Box
+                        component="iframe"
+                        src={embed.src}
+                        allow="autoplay; fullscreen; picture-in-picture"
+                        frameBorder={0}
+                        sx={{
+                          mt: 1.5,
+                          width: "100%",
+                          height: 200,
+                          borderRadius: 2,
+                          bgcolor: "#000",
+                          border: "none",
+                          display: "block",
+                        }}
+                      />
+                    );
+                  }
+                  return (
                     <Box
                       component="video"
-                      src={form.videoBlobUrl}
+                      src={embed.src}
                       autoPlay
                       loop
                       muted
@@ -636,26 +898,30 @@ export function PromptLibraryTab() {
         <DialogContent sx={{ textAlign: "center", pb: 3 }}>
           {previewOpen &&
             (() => {
-              const vimeoUrl = getVimeoEmbedUrl(previewOpen);
-              return vimeoUrl ? (
-                <Box
-                  component="iframe"
-                  src={vimeoUrl}
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  frameBorder={0}
-                  sx={{
-                    width: "100%",
-                    height: 480,
-                    borderRadius: 2,
-                    bgcolor: "#000",
-                    border: "none",
-                    display: "block",
-                  }}
-                />
-              ) : (
+              const embed = resolveEmbed(previewOpen);
+              if (!embed) return null;
+              if (embed.kind === "iframe") {
+                return (
+                  <Box
+                    component="iframe"
+                    src={embed.src}
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    frameBorder={0}
+                    sx={{
+                      width: "100%",
+                      height: 480,
+                      borderRadius: 2,
+                      bgcolor: "#000",
+                      border: "none",
+                      display: "block",
+                    }}
+                  />
+                );
+              }
+              return (
                 <Box
                   component="video"
-                  src={previewOpen}
+                  src={embed.src}
                   autoPlay
                   loop
                   muted
