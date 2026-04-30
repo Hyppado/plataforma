@@ -74,6 +74,7 @@ import {
   ExpandMore,
   ExpandLess,
   Close,
+  Undo,
 } from "@mui/icons-material";
 import type { VeoPart } from "@/lib/influencer-ia/veo-prompt";
 import { useAvatarProfiles } from "@/lib/swr/useAvatarProfiles";
@@ -740,6 +741,7 @@ type SessionSnapshot = {
   veoDuration: "short" | "medium" | "full";
   veoStyle: "ugc" | "unboxing" | "review" | "tutorial" | "testemunho";
   veoParts: VeoPart[];
+  originalVeoParts: VeoPart[];
 };
 
 function readSession(): SessionSnapshot | null {
@@ -892,6 +894,7 @@ function InfluencerIAWizard() {
   const [veoGenerating, setVeoGenerating] = useState(false);
   const [veoError, setVeoError] = useState<string | null>(null);
   const [veoParts, setVeoParts] = useState<VeoPart[]>([]);
+  const [originalVeoParts, setOriginalVeoParts] = useState<VeoPart[]>([]);
   const [veoManualMode, setVeoManualMode] = useState(false);
   const [veoManualText, setVeoManualText] = useState("");
   const [veoCopiedIndex, setVeoCopiedIndex] = useState<number | null>(null);
@@ -964,6 +967,8 @@ function InfluencerIAWizard() {
     if (session.veoDuration) setVeoDuration(session.veoDuration);
     if (session.veoStyle) setVeoStyle(session.veoStyle);
     if (session.veoParts) setVeoParts(session.veoParts);
+    if (session.originalVeoParts) setOriginalVeoParts(session.originalVeoParts);
+    if (session.originalVeoParts) setOriginalVeoParts(session.originalVeoParts);
   }, [initProductImageUrl, initProductId, initProductName]);
 
   // Auto-scroll to VEO prompts when generation completes
@@ -1036,6 +1041,7 @@ function InfluencerIAWizard() {
       veoDuration,
       veoStyle,
       veoParts,
+      originalVeoParts,
     };
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(snap));
@@ -1063,6 +1069,7 @@ function InfluencerIAWizard() {
     generating,
     veoStyle,
     veoParts,
+    originalVeoParts,
   ]);
 
   // ── Products: load 100, display with IntersectionObserver scroll
@@ -1119,6 +1126,7 @@ function InfluencerIAWizard() {
     setGenerationError(null);
     setGenerating(false);
     setVeoParts([]);
+    setOriginalVeoParts([]);
     setVeoError(null);
     setVeoManualMode(false);
     setVeoManualText("");
@@ -1364,6 +1372,7 @@ function InfluencerIAWizard() {
       if (!res.ok || !json.parts)
         throw new Error(json.error ?? "Erro ao gerar prompts");
       setVeoParts(json.parts);
+      setOriginalVeoParts(json.parts);
       setVeoManualMode(false);
     } catch (err) {
       setVeoError(
@@ -2886,6 +2895,21 @@ function InfluencerIAWizard() {
                     </Typography>
                   </Box>
                   <Box sx={{ display: "flex", gap: 1 }}>
+                    {originalVeoParts.length > 0 &&
+                      veoParts.some(
+                        (p, i) => p.prompt !== originalVeoParts[i]?.prompt,
+                      ) && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          startIcon={<Undo sx={{ fontSize: 14 }} />}
+                          onClick={() => setVeoParts([...originalVeoParts])}
+                          sx={{ fontSize: "0.75rem" }}
+                        >
+                          Desfazer edições
+                        </Button>
+                      )}
                     <Button
                       size="small"
                       variant={veoCopiedAll ? "contained" : "outlined"}
@@ -2925,75 +2949,146 @@ function InfluencerIAWizard() {
                 <Box
                   sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
                 >
-                  {veoParts.map((part, i) => (
-                    <Box key={i}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1,
-                          mb: 0.75,
-                        }}
-                      >
-                        <Chip
-                          label={`Parte ${part.part}`}
-                          size="small"
+                  {veoParts.map((part, i) => {
+                    const isEdited =
+                      originalVeoParts[i] !== undefined &&
+                      part.prompt !== originalVeoParts[i].prompt;
+                    return (
+                      <Box key={i}>
+                        <Box
                           sx={{
-                            bgcolor: "rgba(167,139,250,0.15)",
-                            color: "#a78bfa",
-                            fontWeight: 700,
-                            fontSize: "0.65rem",
-                            height: 20,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            mb: 0.75,
+                          }}
+                        >
+                          <Chip
+                            label={`Parte ${part.part}`}
+                            size="small"
+                            sx={{
+                              bgcolor: "rgba(167,139,250,0.15)",
+                              color: "#a78bfa",
+                              fontWeight: 700,
+                              fontSize: "0.65rem",
+                              height: 20,
+                            }}
+                          />
+                          <Typography
+                            variant="caption"
+                            sx={{ fontWeight: 600, color: "text.primary" }}
+                          >
+                            {part.label}
+                          </Typography>
+                          {isEdited && (
+                            <Tooltip title="Desfazer edição desta parte">
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  setVeoParts((prev) =>
+                                    prev.map((p, j) =>
+                                      j === i
+                                        ? {
+                                            ...p,
+                                            prompt: originalVeoParts[i].prompt,
+                                          }
+                                        : p,
+                                    ),
+                                  )
+                                }
+                                sx={{ color: "warning.main" }}
+                              >
+                                <Undo sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip
+                            title={
+                              veoCopiedIndex === i ? "Copiado!" : "Copiar JSON"
+                            }
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => void handleVeoCopy(part, i)}
+                              sx={{
+                                ml: isEdited ? 0 : "auto",
+                                color: "text.disabled",
+                              }}
+                            >
+                              <ContentCopy
+                                sx={{
+                                  fontSize: 14,
+                                  color:
+                                    veoCopiedIndex === i
+                                      ? "success.main"
+                                      : "inherit",
+                                }}
+                              />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+
+                        {/* Editable prompt text */}
+                        <TextField
+                          multiline
+                          fullWidth
+                          size="small"
+                          value={part.prompt}
+                          onChange={(e) =>
+                            setVeoParts((prev) =>
+                              prev.map((p, j) =>
+                                j === i ? { ...p, prompt: e.target.value } : p,
+                              ),
+                            )
+                          }
+                          inputProps={{
+                            style: {
+                              fontFamily: "monospace",
+                              fontSize: "0.72rem",
+                              lineHeight: 1.6,
+                            },
+                          }}
+                          sx={{
+                            mb: 0.5,
+                            "& .MuiOutlinedInput-root": {
+                              bgcolor: "rgba(0,0,0,0.3)",
+                              borderRadius: 1.5,
+                              ...(isEdited && {
+                                "& fieldset": { borderColor: "warning.main" },
+                              }),
+                            },
                           }}
                         />
-                        <Typography
-                          variant="caption"
-                          sx={{ fontWeight: 600, color: "text.primary" }}
+
+                        {/* Other fields read-only */}
+                        <Box
+                          sx={{
+                            bgcolor: "rgba(0,0,0,0.2)",
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: 1.5,
+                            p: 1.5,
+                            fontFamily: "monospace",
+                            fontSize: "0.68rem",
+                            color: "text.disabled",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            lineHeight: 1.6,
+                          }}
                         >
-                          {part.label}
-                        </Typography>
-                        <Tooltip
-                          title={
-                            veoCopiedIndex === i ? "Copiado!" : "Copiar JSON"
-                          }
-                        >
-                          <IconButton
-                            size="small"
-                            onClick={() => void handleVeoCopy(part, i)}
-                            sx={{ ml: "auto", color: "text.disabled" }}
-                          >
-                            <ContentCopy
-                              sx={{
-                                fontSize: 14,
-                                color:
-                                  veoCopiedIndex === i
-                                    ? "success.main"
-                                    : "inherit",
-                              }}
-                            />
-                          </IconButton>
-                        </Tooltip>
+                          {JSON.stringify(
+                            Object.fromEntries(
+                              Object.entries(part).filter(
+                                ([k]) => k !== "prompt",
+                              ),
+                            ),
+                            null,
+                            2,
+                          )}
+                        </Box>
                       </Box>
-                      <Box
-                        sx={{
-                          bgcolor: "rgba(0,0,0,0.3)",
-                          border: "1px solid",
-                          borderColor: "divider",
-                          borderRadius: 1.5,
-                          p: 1.5,
-                          fontFamily: "monospace",
-                          fontSize: "0.72rem",
-                          color: "text.secondary",
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                          lineHeight: 1.6,
-                          overflowX: "auto",
-                        }}
-                      >
-                        {JSON.stringify(part, null, 2)}
-                      </Box>
-                    </Box>
-                  ))}
+                    );
+                  })}
                 </Box>
               </Paper>
             )}
