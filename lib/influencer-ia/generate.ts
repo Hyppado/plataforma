@@ -224,17 +224,17 @@ async function fetchImageBuffer(
       bytes: result.buffer.byteLength,
       url: url.slice(0, 100),
     });
-    // Only works for absolute public URLs (blob URLs, product CDN).
+    // Only use the Next.js image optimizer for Vercel Blob URLs.
+    // Echotik CDN URLs have expiring signed tokens — Next.js would cache
+    // a stale version, so we skip optimization for those.
     let hostname = "";
     try {
       hostname = new URL(url).hostname;
     } catch {
-      /* invalid url — skip optimization */
+      /* invalid URL — skip optimization */
     }
-    const isPublicUrl =
-      hostname.endsWith(".blob.vercel-storage.com") ||
-      hostname === "echosell-images.tos-ap-southeast-1.volces.com";
-    if (isPublicUrl) {
+    const isBlob = hostname.endsWith(".public.blob.vercel-storage.com");
+    if (isBlob) {
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL ||
         (process.env.VERCEL_URL
