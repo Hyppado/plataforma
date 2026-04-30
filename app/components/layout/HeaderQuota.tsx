@@ -98,6 +98,7 @@ function MiniQuotaBar({
           fontWeight: 600,
           color: "rgba(255,255,255,0.55)",
           whiteSpace: "nowrap",
+          display: { xs: "none", sm: "inline" },
         }}
       >
         {label}
