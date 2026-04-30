@@ -32,7 +32,7 @@ import {
   LocalShipping,
   ChevronLeft,
   ChevronRight,
-  Videocam,
+  FaceRetouchingNatural,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import type { ProductDetailResponse } from "@/app/api/trending/products/[id]/route";
@@ -709,14 +709,9 @@ export function ProductDetailsModal({
         <Button
           fullWidth
           variant="contained"
-          startIcon={<Videocam />}
+          startIcon={<FaceRetouchingNatural />}
           onClick={() => {
-            const params = new URLSearchParams();
-            params.set("productId", product.id);
-            if (product.name) params.set("productName", product.name);
-            if (product.imageUrl)
-              params.set("productImageUrl", product.imageUrl);
-            router.push(`/dashboard/influencer-ia?${params.toString()}`);
+            router.push(`/dashboard/influencer-ia?productId=${product.id}`);
           }}
           sx={{
             background: "linear-gradient(90deg, #FF2D78 0%, #e0256a 100%)",
@@ -733,7 +728,7 @@ export function ProductDetailsModal({
             },
           }}
         >
-          Criar imagem com Influencer IA
+          Criar Vídeo com Avatar
         </Button>
       </Box>
     </Dialog>
