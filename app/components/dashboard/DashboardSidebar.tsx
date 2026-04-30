@@ -27,6 +27,7 @@ import {
   AutoAwesome,
   FaceRetouchingNatural,
   MenuBook,
+  SpaceDashboard,
 } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -43,6 +44,12 @@ const NAV_SECTIONS: Array<{
     badge?: string;
   }>;
 }> = [
+  {
+    label: "",
+    items: [
+      { label: "Dashboard", icon: SpaceDashboard, href: "/dashboard/home" },
+    ],
+  },
   {
     label: "EXPLORAR",
     items: [
