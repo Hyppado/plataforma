@@ -910,8 +910,10 @@ function InfluencerIAWizard() {
 
   // Set to true once the initial loadDraft() has resolved — prevents the
   // persist effect from overwriting the DB draft with empty defaults before
-  // the async load finishes.
-  const draftLoaded = useRef(false);
+  // the async load finishes. Using state (not a ref) so that when it flips
+  // to true it re-triggers the persist effect and saves any changes the user
+  // made while the load was in-flight.
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   // Restore draft on mount (loaded from DB for cross-device persistence)
   const hasRestoredSession = useRef(false);
@@ -973,10 +975,27 @@ function InfluencerIAWizard() {
       if (session.originalVeoParts)
         setOriginalVeoParts(session.originalVeoParts);
     }).finally(() => {
-      // Allow the persist effect to save from this point on
-      draftLoaded.current = true;
+      // Allow the persist effect to save from this point on.
+      // setDraftLoaded causes a re-render which re-runs the persist effect,
+      // flushing any state changes the user made while loading.
+      setDraftLoaded(true);
     }); // end loadDraft
   }, [initProductImageUrl, initProductId, initProductName]);
+
+  // Flush any pending draft save when the user navigates away or refreshes.
+  // keepalive: true lets the browser complete the fetch even after unload.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!draftLoaded || !latestSnap.current) return;
+      if (saveDraftTimer.current) {
+        clearTimeout(saveDraftTimer.current);
+        saveDraftTimer.current = null;
+      }
+      saveDraft(latestSnap.current, true);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [draftLoaded]);
 
   // Auto-scroll to VEO prompts when generation completes
   useEffect(() => {
@@ -1025,6 +1044,10 @@ function InfluencerIAWizard() {
     }
   }, [savedAvatarUploads]);
 
+  // Latest snapshot ref — kept in sync by the persist effect so the
+  // beforeunload handler can flush it synchronously with keepalive.
+  const latestSnap = useRef<SessionSnapshot | null>(null);
+
   // Debounce ref for draft saves
   const saveDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1057,11 +1080,12 @@ function InfluencerIAWizard() {
       veoParts,
       originalVeoParts,
     };
-    if (!draftLoaded.current) return;
+    if (!draftLoaded) return;
+    latestSnap.current = snap;
     if (saveDraftTimer.current) clearTimeout(saveDraftTimer.current);
     saveDraftTimer.current = setTimeout(() => {
       saveDraft(snap);
-    }, 1000);
+    }, 400);
   }, [
     productTab,
     selectedProduct,
@@ -1086,6 +1110,7 @@ function InfluencerIAWizard() {
     veoStyle,
     veoParts,
     originalVeoParts,
+    draftLoaded,
   ]);
 
   // ── Products: load 100, display with IntersectionObserver scroll

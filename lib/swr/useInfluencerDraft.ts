@@ -23,12 +23,13 @@ export async function loadDraft<T>(): Promise<T | null> {
   }
 }
 
-export async function saveDraft(data: unknown): Promise<void> {
+export async function saveDraft(data: unknown, keepalive = false): Promise<void> {
   try {
     await fetch(DRAFT_URL, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+      keepalive,
     });
   } catch {
     // Best-effort — never let a save failure break the UI
