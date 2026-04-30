@@ -110,10 +110,7 @@ export async function POST(req: NextRequest) {
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.byteLength === 0) {
-      return NextResponse.json(
-        { error: "Imagem vazia" },
-        { status: 502 },
-      );
+      return NextResponse.json({ error: "Imagem vazia" }, { status: 502 });
     }
 
     const ext = contentType.includes("png")

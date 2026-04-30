@@ -333,7 +333,8 @@ export function ProductTable({
                           e.stopPropagation();
                           const params = new URLSearchParams();
                           params.set("productId", product.id);
-                          if (product.name) params.set("productName", product.name);
+                          if (product.name)
+                            params.set("productName", product.name);
                           if (product.imageUrl)
                             params.set("productImageUrl", product.imageUrl);
                           router.push(

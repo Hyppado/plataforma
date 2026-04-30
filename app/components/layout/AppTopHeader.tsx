@@ -141,6 +141,7 @@ export function AppTopHeader() {
             fontWeight: 700,
             color: "rgba(255,255,255,0.85)",
             letterSpacing: "0.03em",
+            display: { xs: "none", sm: "block" },
           }}
         >
           {currentRegion}
@@ -151,6 +152,7 @@ export function AppTopHeader() {
             color: "rgba(255,255,255,0.45)",
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s",
+            display: { xs: "none", sm: "block" },
           }}
         />
       </ButtonBase>

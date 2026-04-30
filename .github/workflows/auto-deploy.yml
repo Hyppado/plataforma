@@ -1,16 +1,18 @@
 # .github/workflows/auto-deploy.yml
 #
-# Opens a PR from develop → main after CI passes.
+# Opens (and auto-merges) a PR from develop → main after CI passes.
 #
 # Strategy:
 #   1. Triggered on every push to `develop`
 #   2. Waits for `ci.yml` to pass on the same SHA
 #   3. Creates (or updates) a PR from develop → main
-#      Auto-merge is intentionally disabled — merge must be done manually.
+#   4. Enables auto-merge (squash) — GitHub merges as soon as required
+#      checks pass and branch protection rules are satisfied.
 #
 # Requirements:
 #   - Only `GITHUB_TOKEN` — no PAT needed
 #   - `ci.yml` must exist and run on `develop` pushes
+#   - "Allow auto-merge" must be enabled in repo settings
 #
 name: Auto Deploy develop → main
 
@@ -23,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   actions: read
   pull-requests: write
 
@@ -88,7 +90,7 @@ jobs:
           SHA="${GITHUB_SHA}"
           SHORT_SHA="${SHA:0:7}"
           TITLE="chore: deploy develop → main (${SHORT_SHA})"
-          BODY="Automated PR opened after CI passed on \`develop\` @ \`${SHA}\`.\n\n⚠️ Auto-merge is disabled. Review and merge manually when ready."
+          BODY="Automated PR opened after CI passed on \`develop\` @ \`${SHA}\`.\n\nAuto-merge is enabled — GitHub will merge once required checks pass."
 
           # Check if an open PR already exists
           EXISTING=$(gh pr list \
@@ -105,6 +107,7 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "$TITLE" \
               --body "$BODY"
+            PR_NUMBER="$EXISTING"
             echo "✅ PR #${EXISTING} updated."
           else
             echo "➕ Creating new PR..."
@@ -114,5 +117,20 @@ jobs:
               --head develop \
               --title "$TITLE" \
               --body "$BODY"
-            echo "✅ PR created."
+            PR_NUMBER=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head develop \
+              --state open \
+              --json number \
+              --jq '.[0].number')
+            echo "✅ PR #${PR_NUMBER} created."
           fi
+
+          echo "🤖 Enabling auto-merge (squash) on PR #${PR_NUMBER}..."
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --auto \
+            --squash \
+            --delete-branch=false
+          echo "✅ Auto-merge enabled on PR #${PR_NUMBER}."
