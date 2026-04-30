@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Box,
   Typography,
@@ -17,6 +18,7 @@ import {
   Person,
   Paid,
   ShoppingCart,
+  FaceRetouchingNatural,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import { formatCurrency, formatNumber } from "@/lib/format";
@@ -45,6 +47,7 @@ interface ProductCardProps {
   product?: ProductDTO;
   onViewDetails?: (product: ProductDTO) => void;
   isLoading?: boolean;
+  avatarVideoSource?: "products-hype" | "new-products";
 }
 
 export function ProductCard({
@@ -373,29 +376,58 @@ export function ProductCard({
           </Box>
         </Box>
 
-        {/* CTA Button */}
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<TrendingUp />}
-          onClick={handleViewDetails}
-          sx={{
-            color: UI.accent,
-            borderColor: `${UI.accent}40`,
-            fontWeight: 600,
-            fontSize: { xs: "0.8rem", md: "0.85rem" },
-            textTransform: "none",
-            borderRadius: 2,
-            py: { xs: 0.75, md: 1 },
-            "&:hover": {
-              borderColor: UI.accent,
-              background: `${UI.accent}10`,
-            },
-            transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-        >
-          Ver Detalhes
-        </Button>
+        {/* CTA Buttons */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<TrendingUp />}
+            onClick={handleViewDetails}
+            sx={{
+              color: UI.accent,
+              borderColor: `${UI.accent}40`,
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", md: "0.85rem" },
+              textTransform: "none",
+              borderRadius: 2,
+              py: { xs: 0.75, md: 1 },
+              "&:hover": {
+                borderColor: UI.accent,
+                background: `${UI.accent}10`,
+              },
+              transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Ver Detalhes
+          </Button>
+
+          <Button
+            fullWidth
+            variant="contained"
+            component={Link}
+            href={`/dashboard/influencer-ia?productId=${product.id}`}
+            startIcon={<FaceRetouchingNatural sx={{ fontSize: 14 }} />}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            sx={{
+              background: "linear-gradient(90deg, #FF2D78 0%, #E0256A 100%)",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: { xs: "0.7rem", sm: "0.78rem" },
+              textTransform: "none",
+              borderRadius: 2,
+              py: 0.75,
+              lineHeight: 1.3,
+              boxShadow: "none",
+              "&:hover": {
+                background: "linear-gradient(90deg, #E0256A 0%, #c01d58 100%)",
+                boxShadow: "0 4px 14px rgba(255,45,120,0.3)",
+              },
+              transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Criar Vídeo com Avatar
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

@@ -8,6 +8,7 @@ export interface QuotaLimits {
   scriptTokensMonthlyMax: number;
   insightMaxOutputTokens: number;
   scriptMaxOutputTokens: number;
+  avatarVideoQuota: number;
 }
 
 /**
@@ -83,6 +84,7 @@ export function getQuotaLimits(plan: Plan | null): QuotaLimits {
       scriptTokensMonthlyMax: 0,
       insightMaxOutputTokens: 0,
       scriptMaxOutputTokens: 0,
+      avatarVideoQuota: 0,
     };
   }
   return {
@@ -92,5 +94,6 @@ export function getQuotaLimits(plan: Plan | null): QuotaLimits {
     scriptTokensMonthlyMax: plan.scriptTokensMonthlyMax,
     insightMaxOutputTokens: plan.insightMaxOutputTokens,
     scriptMaxOutputTokens: plan.scriptMaxOutputTokens,
+    avatarVideoQuota: plan.avatarVideoQuota,
   };
 }

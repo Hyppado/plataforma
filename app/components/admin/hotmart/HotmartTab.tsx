@@ -68,6 +68,8 @@ interface LocalPlan {
   hotmartPlanCode: string | null;
   transcriptsPerMonth: number;
   scriptsPerMonth: number;
+  avatarVideoQuota: number;
+  influencerIaDailyQuota: number;
   highlight: boolean;
   badge: string | null;
   description: string | null;
@@ -435,11 +437,13 @@ function ProductConfigCard() {
 // Plan row (quotas + highlight toggle + visibility toggle + description/features collapse)
 // ---------------------------------------------------------------------------
 
-const COL_COUNT = 9;
+const COL_COUNT = 10;
 
 interface QuotaEditState {
   transcriptsPerMonth: number;
   scriptsPerMonth: number;
+  avatarVideoQuota: number;
+  influencerIaDailyQuota: number;
 }
 
 interface DetailsEditState {
@@ -456,12 +460,16 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
   const [quotas, setQuotas] = useState<QuotaEditState>({
     transcriptsPerMonth: plan.transcriptsPerMonth,
     scriptsPerMonth: plan.scriptsPerMonth,
+    avatarVideoQuota: plan.avatarVideoQuota,
+    influencerIaDailyQuota: plan.influencerIaDailyQuota,
   });
 
   const startEdit = () => {
     setQuotas({
       transcriptsPerMonth: plan.transcriptsPerMonth,
       scriptsPerMonth: plan.scriptsPerMonth,
+      avatarVideoQuota: plan.avatarVideoQuota,
+      influencerIaDailyQuota: plan.influencerIaDailyQuota,
     });
     setEditing(true);
   };
@@ -677,6 +685,34 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
             />
           ) : (
             plan.scriptsPerMonth
+          )}
+        </TableCell>
+        {/* Vídeos Avatar */}
+        <TableCell sx={cellSx}>
+          {editing ? (
+            <TextField
+              size="small"
+              value={quotas.avatarVideoQuota}
+              onChange={(e) => setField("avatarVideoQuota", e.target.value)}
+              sx={inputSx}
+            />
+          ) : (
+            plan.avatarVideoQuota
+          )}
+        </TableCell>
+        {/* Influencer IA / dia */}
+        <TableCell sx={cellSx}>
+          {editing ? (
+            <TextField
+              size="small"
+              value={quotas.influencerIaDailyQuota}
+              onChange={(e) =>
+                setField("influencerIaDailyQuota", e.target.value)
+              }
+              sx={inputSx}
+            />
+          ) : (
+            plan.influencerIaDailyQuota
           )}
         </TableCell>
         {/* Status */}
@@ -1041,6 +1077,8 @@ export function PlansCard() {
                   <TableCell sx={headerCellSx}>Período</TableCell>
                   <TableCell sx={headerCellSx}>Transcrições</TableCell>
                   <TableCell sx={headerCellSx}>Scripts</TableCell>
+                  <TableCell sx={headerCellSx}>Vídeos Avatar</TableCell>
+                  <TableCell sx={headerCellSx}>Influencer IA / dia</TableCell>
                   <TableCell sx={headerCellSx}>Status</TableCell>
                   <TableCell sx={headerCellSx} width={50}>
                     Visível

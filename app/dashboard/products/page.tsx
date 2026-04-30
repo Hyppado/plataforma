@@ -2,14 +2,17 @@
 
 import { useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Grid, IconButton, Tooltip } from "@mui/material";
+import { GridView, ViewList } from "@mui/icons-material";
 import { ProductTable } from "@/app/components/dashboard/DataTable";
+import { ProductCard } from "@/app/components/cards/ProductCard";
 import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { matchesCategory, ALL_CATEGORY_ID } from "@/lib/categories";
 import { getStoredRegion } from "@/lib/region";
 import { useNewProducts } from "@/lib/swr/useTrending";
 import { useCategories } from "@/lib/swr/useCategories";
+import { useViewMode } from "@/lib/useViewMode";
 import type { ProductDTO } from "@/lib/types/dto";
 
 const PAGE_SIZE = 100;
@@ -20,6 +23,7 @@ function TrendsContent() {
   const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
     null,
   );
+  const [viewMode, setViewMode] = useViewMode("hyppado-new-products-view");
 
   const categoryFilter = searchParams.get("category") || "";
   const regionFilter = (
@@ -100,6 +104,36 @@ function TrendsContent() {
           onCategoryChange={handleCategoryChange}
           categories={categories}
         />
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+          <Tooltip title="Cards">
+            <IconButton
+              size="small"
+              onClick={() => setViewMode("card")}
+              sx={{
+                color:
+                  viewMode === "card"
+                    ? "primary.main"
+                    : "rgba(255,255,255,0.3)",
+              }}
+            >
+              <GridView fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Lista">
+            <IconButton
+              size="small"
+              onClick={() => setViewMode("list")}
+              sx={{
+                color:
+                  viewMode === "list"
+                    ? "primary.main"
+                    : "rgba(255,255,255,0.3)",
+              }}
+            >
+              <ViewList fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* Scrollable Content */}
@@ -124,12 +158,40 @@ function TrendsContent() {
         )}
 
         {/* Trending Products Table */}
-        <ProductTable
-          products={filteredItems}
-          loading={isLoading}
-          title="Novos Produtos"
-          onProductClick={setSelectedProduct}
-        />
+        {viewMode === "list" ? (
+          <ProductTable
+            products={filteredItems}
+            loading={isLoading}
+            title="Novos Produtos"
+            onProductClick={setSelectedProduct}
+            avatarVideoSource="new-products"
+          />
+        ) : (
+          <Grid container spacing={{ xs: 2, md: 2.5 }}>
+            {filteredItems.map((product) => (
+              <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
+                <ProductCard
+                  product={product}
+                  onViewDetails={(p) => setSelectedProduct(p)}
+                  avatarVideoSource="new-products"
+                />
+              </Grid>
+            ))}
+            {isLoading &&
+              Array.from({ length: 12 }).map((_, idx) => (
+                <Grid
+                  item
+                  xs={6}
+                  sm={6}
+                  md={4}
+                  lg={2.4}
+                  key={`skeleton-${idx}`}
+                >
+                  <ProductCard isLoading />
+                </Grid>
+              ))}
+          </Grid>
+        )}
       </Box>
 
       {selectedProduct && (
@@ -137,6 +199,7 @@ function TrendsContent() {
           open={!!selectedProduct}
           onClose={() => setSelectedProduct(null)}
           product={selectedProduct}
+          avatarVideoSource="new-products"
         />
       )}
     </Box>

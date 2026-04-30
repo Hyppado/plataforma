@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Table,
@@ -20,6 +22,7 @@ import {
   NewReleases,
   OpenInNew,
   Inventory2,
+  Videocam,
 } from "@mui/icons-material";
 import type { ProductDTO, CreatorDTO } from "@/lib/types/dto";
 import { formatCurrency, formatNumber } from "@/lib/format";
@@ -31,6 +34,7 @@ interface ProductTableProps {
   title: string;
   showNewBadge?: boolean;
   onProductClick?: (product: ProductDTO) => void;
+  avatarVideoSource?: "products-hype" | "new-products";
 }
 
 interface CreatorTableProps {
@@ -92,8 +96,12 @@ export function ProductTable({
   title,
   showNewBadge = false,
   onProductClick,
+  avatarVideoSource = "products-hype",
 }: ProductTableProps) {
   const usdToBrl = useExchangeRate();
+  const router = useRouter();
+  // avatarVideoSource is kept for backward compatibility but no longer used
+  void avatarVideoSource;
   return (
     <Box
       sx={{
@@ -143,17 +151,20 @@ export function ProductTable({
                 Creators
               </TableCell>
               <TableCell sx={tableHeaderSx} align="center">
-                Links
+                TikTok
+              </TableCell>
+              <TableCell sx={tableHeaderSx} align="center">
+                Criar vídeo
               </TableCell>
             </TableRow>
           </TableHead>
           {loading ? (
-            <TableSkeleton rows={5} cols={6} />
+            <TableSkeleton rows={5} cols={7} />
           ) : products.length === 0 ? (
             <TableBody>
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   sx={{ ...tableCellSx, textAlign: "center", py: 4 }}
                 >
                   Nenhum produto encontrado.
@@ -283,35 +294,60 @@ export function ProductTable({
                     {formatNumber(product.creatorCount)}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="center">
-                    <Box
-                      sx={{
-                        display: "flex",
-                        gap: 0.5,
-                        justifyContent: "center",
-                      }}
-                    >
-                      {product.tiktokUrl && product.tiktokUrl !== "—" && (
-                        <Tooltip title="Abrir no TikTok">
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(
-                                product.tiktokUrl,
-                                "_blank",
-                                "noopener,noreferrer",
-                              );
-                            }}
-                            sx={{
-                              color: "rgba(255,255,255,0.5)",
-                              "&:hover": { color: "#2DD4FF" },
-                            }}
-                          >
-                            <OpenInNew sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Box>
+                    {product.tiktokUrl && product.tiktokUrl !== "—" ? (
+                      <Tooltip title="Ver no TikTok">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(
+                              product.tiktokUrl,
+                              "_blank",
+                              "noopener,noreferrer",
+                            );
+                          }}
+                          sx={{
+                            color: "rgba(255,255,255,0.5)",
+                            "&:hover": { color: "primary.main" },
+                          }}
+                        >
+                          <OpenInNew sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    ) : (
+                      <Typography
+                        sx={{
+                          color: "rgba(255,255,255,0.2)",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        —
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell sx={tableCellSx} align="center">
+                    <Tooltip title="Criar imagem com Influencer IA">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const params = new URLSearchParams();
+                          params.set("productId", product.id);
+                          if (product.name) params.set("productName", product.name);
+                          if (product.imageUrl)
+                            params.set("productImageUrl", product.imageUrl);
+                          router.push(
+                            `/dashboard/influencer-ia?${params.toString()}`,
+                          );
+                        }}
+                        sx={{
+                          color: "rgba(255,255,255,0.5)",
+                          "&:hover": { color: "secondary.main" },
+                        }}
+                      >
+                        <Videocam sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}

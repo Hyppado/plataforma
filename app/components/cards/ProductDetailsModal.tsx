@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
   Grid,
   CircularProgress,
   Skeleton,
+  Button,
 } from "@mui/material";
 import {
   Close,
@@ -30,6 +32,7 @@ import {
   LocalShipping,
   ChevronLeft,
   ChevronRight,
+  Videocam,
 } from "@mui/icons-material";
 import type { ProductDTO } from "@/lib/types/dto";
 import type { ProductDetailResponse } from "@/app/api/trending/products/[id]/route";
@@ -230,13 +233,18 @@ interface ProductDetailsModalProps {
   onClose: () => void;
   /** Base product data (shown immediately) */
   product: ProductDTO;
+  avatarVideoSource?: "products-hype" | "new-products";
 }
 
 export function ProductDetailsModal({
   open,
   onClose,
   product,
+  avatarVideoSource = "products-hype",
 }: ProductDetailsModalProps) {
+  // avatarVideoSource is kept for backward compatibility but no longer used
+  void avatarVideoSource;
+  const router = useRouter();
   const { data: detail, isLoading } = useSWR<ProductDetailResponse>(
     open ? `/api/trending/products/${product.id}` : null,
     fetcher,
@@ -539,7 +547,11 @@ export function ProductDetailsModal({
                     <MetricCell
                       icon={<Paid sx={{ fontSize: 13 }} />}
                       label="Receita total"
-                      value={formatCurrency(detail.gmvTotal, currency, usdToBrl)}
+                      value={formatCurrency(
+                        detail.gmvTotal,
+                        currency,
+                        usdToBrl,
+                      )}
                     />
                   </Grid>
                 )}
@@ -603,7 +615,11 @@ export function ProductDetailsModal({
                   <MetricCell
                     icon={<Paid sx={{ fontSize: 13 }} />}
                     label="Receita"
-                    value={formatCurrency(product.revenueBRL, currency, usdToBrl)}
+                    value={formatCurrency(
+                      product.revenueBRL,
+                      currency,
+                      usdToBrl,
+                    )}
                   />
                 </Grid>
                 <Grid item xs={6} sm={4}>
@@ -680,6 +696,46 @@ export function ProductDetailsModal({
           </Grid>
         </Grid>
       </DialogContent>
+
+      {/* Footer CTA */}
+      <Box
+        sx={{
+          px: { xs: 1.5, sm: 2 },
+          pb: { xs: 1.5, sm: 2 },
+          pt: 0,
+          flexShrink: 0,
+        }}
+      >
+        <Button
+          fullWidth
+          variant="contained"
+          startIcon={<Videocam />}
+          onClick={() => {
+            const params = new URLSearchParams();
+            params.set("productId", product.id);
+            if (product.name) params.set("productName", product.name);
+            if (product.imageUrl)
+              params.set("productImageUrl", product.imageUrl);
+            router.push(`/dashboard/influencer-ia?${params.toString()}`);
+          }}
+          sx={{
+            background: "linear-gradient(90deg, #FF2D78 0%, #e0256a 100%)",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: "0.9rem",
+            textTransform: "none",
+            borderRadius: 2,
+            py: 1.25,
+            boxShadow: "none",
+            "&:hover": {
+              background: "linear-gradient(90deg, #e0256a 0%, #c01d58 100%)",
+              boxShadow: "0 4px 16px rgba(255,45,120,0.3)",
+            },
+          }}
+        >
+          Criar imagem com Influencer IA
+        </Button>
+      </Box>
     </Dialog>
   );
 }

@@ -11,9 +11,21 @@ export function HeaderQuota() {
   const quota = useUserQuota();
   const t = quota.transcripts;
   const s = quota.scripts;
+  const av = quota.avatarVideos;
 
   const pct = (used: number, limit: number) =>
     limit > 0 && used > 0 ? Math.min(1, used / limit) : 0;
+
+  const divider = (
+    <Box
+      sx={{
+        width: "1px",
+        height: 18,
+        background: "rgba(255,255,255,0.08)",
+        flexShrink: 0,
+      }}
+    />
+  );
 
   return (
     <Box
@@ -35,20 +47,21 @@ export function HeaderQuota() {
         pct={pct(t.used, t.limit)}
         color="#2DD4FF"
       />
-      <Box
-        sx={{
-          width: "1px",
-          height: 18,
-          background: "rgba(255,255,255,0.08)",
-          flexShrink: 0,
-        }}
-      />
+      {divider}
       <MiniQuotaBar
         label="Scripts"
         used={s.used}
         max={s.limit}
         pct={pct(s.used, s.limit)}
         color="#C7A3FF"
+      />
+      {divider}
+      <MiniQuotaBar
+        label="Vídeos"
+        used={av.used}
+        max={av.limit}
+        pct={pct(av.used, av.limit)}
+        color="#FF2D78"
       />
     </Box>
   );

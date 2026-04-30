@@ -66,6 +66,18 @@ model User {
 
   // Video insights (user-specific AI analysis)
   videoInsights     VideoInsight[]
+
+  // Avatar video creation flow
+  avatarVideoCreations AvatarVideoCreation[]
+
+  // Prompt library items created by this admin
+  promptLibraryItems   PromptLibraryItem[]
+
+  // Avatar images uploaded by this user (Vídeo com Avatar wizard)
+  avatarUploads        UserAvatarUpload[]
+
+  // Influencer IA wizard draft (cross-device persistence)
+  influencerIADraft    InfluencerIADraft?
 }
 
 enum UserRole {
@@ -112,6 +124,8 @@ model Plan {
   scriptTokensMonthlyMax    Int  @default(20000)
   insightMaxOutputTokens    Int  @default(800)
   scriptMaxOutputTokens     Int  @default(1500)
+  avatarVideoQuota          Int  @default(0)
+  influencerIaDailyQuota    Int  @default(5)
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]
@@ -522,6 +536,7 @@ enum UsageEventType {
   TRANSCRIPT
   SCRIPT
   INSIGHT
+  AVATAR_VIDEO_GENERATION
 }
 
 /// Período de uso mensal por usuário (criado sob demanda na primeira ação do mês)
@@ -531,10 +546,11 @@ model UsagePeriod {
   periodStart     DateTime // 1º dia do mês, 00:00:00 UTC
   periodEnd       DateTime // último momento do mês, UTC
 
-  transcriptsUsed Int      @default(0)
-  scriptsUsed     Int      @default(0)
-  insightsUsed    Int      @default(0)
-  tokensUsed      Int      @default(0)
+  transcriptsUsed    Int      @default(0)
+  scriptsUsed        Int      @default(0)
+  insightsUsed       Int      @default(0)
+  tokensUsed         Int      @default(0)
+  avatarVideosUsed   Int      @default(0)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -923,4 +939,239 @@ model AdminNotification {
   @@index([createdAt])                  // time-based queries and cleanup
   @@index([userId])                     // notifications per user
   @@index([type, createdAt])            // type-based filtering
+}
+
+// ---------------------------------------------------------------------------
+// AVATAR VIDEO CREATION FLOW
+// ---------------------------------------------------------------------------
+
+/// Admin-managed avatar library — reusable avatar templates for guided video generation.
+model AvatarProfile {
+  id           String    @id @default(uuid())
+  name         String
+  description  String?
+  imageUrl     String                        // Vercel Blob URL — full avatar image
+  thumbnailUrl String?                       // Vercel Blob URL — smaller preview
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  creations    AvatarVideoCreation[]
+
+  @@index([isActive, sortOrder])
+}
+
+/// Default and admin-created scenario templates for guided video generation.
+model VideoScenario {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  promptHint  String?                        // Guidance injected into VEO 3 prompt generation
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  creations   AvatarVideoCreation[]
+
+  @@index([isActive, isDefault, sortOrder])
+}
+
+enum AvatarVideoCreationStatus {
+  DRAFT             // user selecting product / avatar / scenario
+  PENDING_IMAGES    // submitted, awaiting image generation
+  IMAGES_READY      // image(s) generated, user reviewing
+  PENDING_CONCEPT   // awaiting AI concept generation (hook, copy, CTA, scenes)
+  CONCEPT_READY     // concept generated, user may review before prompt generation
+  PENDING_PROMPT    // awaiting VEO 3 prompt generation
+  PROMPT_READY      // prompt ready, user may edit
+  COMPLETED         // user finished the flow
+  FAILED            // unrecoverable error
+}
+
+/// One guided generation session owned by a user.
+/// Product fields are denormalized so the record survives future Echotik API changes.
+model AvatarVideoCreation {
+  id                      String                    @id @default(uuid())
+  userId                  String
+  avatarProfileId         String?                   // null if user skips avatar selection
+  videoScenarioId         String?                   // null if user skips scenario selection
+  status                  AvatarVideoCreationStatus @default(DRAFT)
+
+  // Product snapshot — denormalized at the moment of selection
+  productExternalId       String?                   // Echotik product_id
+  productName             String?
+  productImageUrl         String?                   // canonical image URL from Echotik
+  productSelectedImageUrl String?                   // image user chose (may be Blob URL)
+  productPriceCents       Int?                      // price in smallest currency unit
+  productCurrency         String?                   // e.g. "USD", "BRL"
+  productCategory         String?                   // category name (text, denormalized)
+
+  // Avatar / scenario selection (set in DRAFT, persist for reuse)
+  uploadedAvatarImageUrl    String?                 // Vercel Blob URL of user-uploaded avatar reference image
+  customScenarioDescription String?                 // free-text description when scenario is custom
+  tone                      String?                 // e.g. "professional", "casual", "energetic"
+  duration                  String?                 // e.g. "15s", "30s", "60s"
+  takeCount                 Int?                    // number of video takes to generate (1–5)
+
+  // Image generation result selection (set in IMAGES_READY, cleared on regeneration)
+  selectedImageVariationId  String?                 // ID of the AvatarVideoImageVariation the user prefers
+
+  errorMessage            String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+
+  user            User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarProfile   AvatarProfile?              @relation(fields: [avatarProfileId], references: [id], onDelete: SetNull)
+  videoScenario   VideoScenario?              @relation(fields: [videoScenarioId], references: [id], onDelete: SetNull)
+  imageVariations AvatarVideoImageVariation[]
+  concept         AvatarVideoConcept?
+  prompt          AvatarVideoPrompt?
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum AvatarVideoImageStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// Generated image references for a creation session — up to 2 per creation.
+model AvatarVideoImageVariation {
+  id           String                 @id @default(uuid())
+  creationId   String
+  blobUrl      String?                // Vercel Blob URL once generated and uploaded
+  status       AvatarVideoImageStatus @default(PENDING)
+  sortOrder    Int                    @default(0)   // 0 or 1 (slot index)
+  errorMessage String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  creation     AvatarVideoCreation    @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([creationId])
+}
+
+enum AvatarVideoPromptStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum AvatarVideoConceptStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// AI-generated video concept for a creation session.
+/// One concept per creation (1:1 via unique creationId).
+/// Generated from images + product data; used as input for VEO 3 prompt generation.
+model AvatarVideoConcept {
+  id           String                   @id @default(uuid())
+  creationId   String                   @unique
+  status       AvatarVideoConceptStatus @default(PENDING)
+  videoIdea    String?                  // Resumo geral da ideia do vídeo
+  hook         String?                  // Frase de gancho inicial (em português)
+  copy         String?                  // Texto de copy/roteiro principal (em português)
+  cta          String?                  // Call-to-action (em português)
+  scenesJson   Json?                    // [{ sceneNumber, goal, description }]
+  isEdited     Boolean                  @default(false)
+  editedAt     DateTime?
+  errorMessage String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  creation     AvatarVideoCreation      @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+
+/// VEO 3 prompt generated (and optionally edited) for a creation session.
+/// One prompt per creation (1:1 via unique creationId).
+model AvatarVideoPrompt {
+  id           String                  @id @default(uuid())
+  creationId   String                  @unique
+  promptJson   Json?                   // Structured VEO 3 prompt payload
+  promptText   String?                 // Flat text version, editable by the user
+  status       AvatarVideoPromptStatus @default(PENDING)
+  isEdited     Boolean                 @default(false)  // true when user modifies generated prompt
+  editedAt     DateTime?
+  errorMessage String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  creation     AvatarVideoCreation     @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// PROMPT LIBRARY — Domínio: Biblioteca de Prompts
+// ---------------------------------------------------------------------------
+// Curated by admin. Independent from Avatar Video user sessions.
+
+/// Manually curated prompt examples shown to users as inspiration.
+/// Each item has one looping video and one prompt text.
+/// Not tied to any user generation session.
+model PromptLibraryItem {
+  id           String   @id @default(cuid())
+  title        String
+  category     String
+  description  String?
+  videoBlobUrl String
+  promptText   String
+  isActive     Boolean  @default(true)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Domínio 12 — Uploads de Avatar do Usuário (Vídeo com Avatar)
+// ---------------------------------------------------------------------------
+
+model UserAvatarUpload {
+  id        String   @id @default(cuid())
+  userId    String
+  blobUrl   String
+  label     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Domínio 13 — Influencer IA Draft (wizard state persistence)
+// ---------------------------------------------------------------------------
+
+/// Persists the full Influencer IA wizard state for a user so progress is
+/// retained cross-device and across browser sessions.
+/// One record per user (upserted on every save, deleted on reset).
+model InfluencerIADraft {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("influencer_ia_draft")
 }

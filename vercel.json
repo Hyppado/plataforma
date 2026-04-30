@@ -2,6 +2,11 @@
   "framework": "nextjs",
   "installCommand": "npm install",
   "buildCommand": "npx prisma generate && next build",
+  "functions": {
+    "app/api/avatar-video/creations/[id]/generate-image/route.ts": {
+      "maxDuration": 120
+    }
+  },
   "git": {
     "deploymentEnabled": {
       "develop": true,

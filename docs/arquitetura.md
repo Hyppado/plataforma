@@ -42,9 +42,16 @@
 ```
 app/
   api/
-    admin/           → 15 sub-rotas administrativas
+    admin/           → 15+ sub-rotas administrativas
       access-grants/
       audit-logs/
+      avatar-video/
+        avatars/         → GET (lista todos) / POST (criar) AvatarProfile
+        avatars/[id]/    → PATCH / DELETE (delete-or-deactivate)
+        avatars/upload/  → POST upload admin de imagem (Vercel Blob, JPG/PNG/WEBP, ≤5MB)
+        scenarios/       → GET (lista todos) / POST (criar) VideoScenario
+        scenarios/[id]/  → PATCH / DELETE (delete-or-deactivate)
+        templates/       → GET / PUT dos settings avatar_video.concept_template e avatar_video.prompt_template
       echotik/         → config e health da Echotik
       erasure-requests/
       hotmart/
@@ -53,23 +60,50 @@ app/
         product/       → ID do produto Hotmart
       notifications/
       plans/
+      privacy-policy/  → texto da política de privacidade (GET/PUT)
       prompt-config/
       quota-policy/
       quota-usage/
       settings/
       subscribers/
       subscription-metrics/
+      terms-of-use/    → texto dos termos de uso (GET/PUT)
       users/
       webhook-events/
     auth/
       reset-password/  → solicitação de reset (público)
       setup-password/  → validação de token + criação de senha (público)
+    avatar-video/
+      avatars/         → GET lista de AvatarProfiles ativos
+      scenarios/       → GET lista de VideoScenarios ativos
+      creations/
+        route.ts       → POST cria/retoma rascunho de criação
+        [id]/
+          route.ts          → GET estado da criação; PATCH seleções (avatarProfileId, tone, duration, etc.)
+          upload-avatar/    → POST upload de imagem própria para Vercel Blob (MIME JPG/PNG/WEBP, ≤5MB)
+          generate-concept/ → POST dispara geração de conceito de vídeo (gpt-4o)
+          edit-concept/     → PATCH salva edições manuais do conceito pelo usuário
+          generate-image/   → POST dispara geração de imagens de referência (Google AI / Gemini; 2 variações em paralelo)
+          select-variation/ → PATCH seleciona variação de imagem preferida
+          generate-prompt/  → POST dispara geração de prompt VEO 3
+          edit-prompt/      → PATCH salva edições manuais do prompt pelo usuário
+          complete/         → POST marca criação como COMPLETED
+    influencer-ia/
+      generate/        → POST gera imagem UGC via Google AI Studio (Gemini) com avatar + produto; rejeita com 429 quando quota diária (5/dia) esgotada
+      generate-veo-prompt/ → POST gera prompts VEO 3.1 para a imagem gerada
+      product-images/  → GET retorna URLs de variação do produto (picker de imagem)
+      upload-reference/ → POST upload de imagem de referência para Vercel Blob
+      usage/           → GET retorna { usedToday, dailyLimit } do usuário autenticado (quota diária de imagens)
+    prompt-library/    → GET lista itens ativos da Biblioteca de Prompts (requer auth)
     cron/
       echotik/         → ingestão de dados Echotik
-      transcribe/      → retry de transcrições com falha
+      transcribe/      → retry de transcriões com falha
+    exchange-rate/     → GET taxa de câmbio BRL (cache 12h)
     insights/          → Insight Hyppado (POST + GET [videoExternalId])
     me/                → perfil e dados do usuário autenticado
+    plans/             → GET planos públicos ativos (landing page)
     proxy/             → proxy de imagem externo (fallback)
+    public/            → endpoints públicos sem auth (termos, privacidade)
     regions/           → regiões ativas
     transcripts/       → transcrição sob demanda
     trending/          → dados de tendências (vídeos, produtos, creators)
@@ -79,8 +113,17 @@ app/
       hotmart/         → webhook de eventos Hotmart
   components/
     BrandLogo.tsx      → logo responsivo (next/image)
-    admin/             → componentes do painel admin
-    cards/             → VideoCard, ProductCard, CreatorCard, RankCard, ProductDetailsModal
+    admin/             → componentes do painel admin (inclui `avatar-video/AvatarVideoTab.tsx` com sub-abas Avatares, Cenários e Templates de Prompt; renderizado em `/dashboard/config` na aba "Avatar Video")
+    avatar-video/
+      AvatarVideoStartDialog.tsx → dialog de início do fluxo: seleção de imagem do produto + POST de criação
+      StepProductConfirm.tsx     → etapa 1: confirmação do produto selecionado
+      StepAvatarSelect.tsx       → etapa 2: galeria de avatares ou upload de foto própria
+      StepScenarioSelect.tsx     → etapa 3: seleção de cenário, tom e duração
+      StepImageGenerate.tsx      → etapa 4: geração de imagens de referência (Google AI / Gemini) + seleção de variação preferida
+      StepConceptEdit.tsx        → etapa 5: revisão/edição do conceito gerado
+      StepPromptEdit.tsx         → etapa 6: revisão/edição do prompt VEO 3
+      StepDelivery.tsx           → etapa 7: entrega final (imagens + prompt)
+    cards/             → VideoCard, ProductCard (CTA "Criar vídeo" → Influencer IA + badge NOVO), CreatorCard, RankCard, ProductDetailsModal (com CTA "Criar vídeo com avatar")
     dashboard/
       ForcePasswordChange.tsx → modal de troca de senha obrigatória
       PasswordChangeGuard.tsx → guarda de sessão para troca de senha
@@ -89,7 +132,14 @@ app/
     layout/            → sidebar, header
     ui/                → Logo, primitivos
     videos/            → TranscriptDialog, InsightDialog
-  dashboard/           → páginas autenticadas (/dashboard/*)
+  dashboard/
+    influencer-ia/     → wizard Influencer IA (produto → avatar → configuração → geração);
+                         deep-link via ?productId= pré-seleciona o produto no tab "Produtos Hype"
+                         com picker de variações; fallback via GET /api/trending/products/[id]
+                         para produtos fora do top-100 de tendências
+    prompt-library/    → página Biblioteca de Prompts (grid de cards com vídeo em loop e
+                         cópia de prompt; filtro por categoria; modal de detalhe com vídeo + prompt)
+    ...                → outras páginas autenticadas (/dashboard/*)
   login/               → página de login
   criar-senha/         → criação/reset de senha por token
   recuperar/           → solicitação de reset por email
@@ -134,6 +184,21 @@ lib/
     plans.ts           → sincronização de planos
     processor.ts       → processamento de eventos webhook
     webhook.ts         → validação de assinatura + extração de campos
+  avatar-video/
+    service.ts         → orquestração do fluxo (getOrCreateDraft, updateProduct, updateSelections, startImageGeneration, selectVariation, startConceptGeneration, startPromptGeneration, saveEditedConcept, saveEditedPrompt, completeCreation)
+    admin.ts           → CRUD admin (listAllAvatars, createAvatar, updateAvatar, deleteOrDeactivateAvatar, listAllScenarios, createScenario, updateScenario, deleteOrDeactivateScenario); usa $transaction para garantir único cenário padrão; soft-deactivate quando há AvatarVideoCreation referenciando o registro
+    concept.ts         → geração de conceito via gpt-4o (hook, copy, CTA, cenas) + persistência em AvatarVideoConcept
+    image-prompt.ts    → geração de imagem via Google AI Studio (Gemini generateContent API) com referências de avatar + produto + upload Vercel Blob
+    veo-prompt.ts      → VEO 3 — geração de prompt estruturado (takes com cameraDirection, visualDirection, spokenLines) via gpt-4o
+    quota.ts           → assertAvatarVideoQuota() / consumeAvatarVideoQuota() — verificado antes de gerar imagens; idempotente por criação
+    types.ts           → CreationDTO, AvatarProfileDTO, ConceptDTO, VideoConcept, ConceptScene, AvatarVideoCreationStatus, ImageVariationDTO, PromptDTO, Veo3Prompt, ServiceResult
+    index.ts           → re-exports públicos do domínio
+  influencer-ia/
+    generate.ts        → buildPrompt + Gemini (google-ai) + upload para Vercel Blob
+    quota.ts           → assertInfluencerDailyQuota() / consumeInfluencerGeneration() — limite de 5 gerações por dia (UTC) por usuário; usa UsageEvent com refTable="InfluencerIAGeneration"
+    veo-prompt.ts      → geração de prompts VEO 3.1 via OpenAI gpt-4o
+  prompt-library/
+    admin.ts           → CRUD admin (listAll, create, update, deleteOrDeactivate) para PromptLibraryItem
   insight/
     service.ts         → requestInsight / getInsight
     generate.ts        → OpenAI Chat Completions + parseInsightResponse
@@ -147,9 +212,18 @@ lib/
     blob.ts            → Vercel Blob helpers
     saved.ts           → itens salvos
   swr/
-    fetcher.ts         → SWR fetcher padrão
-    useCategories.ts
-    useTrending.ts
+    fetcher.ts          → SWR fetcher padrão
+    useAvatarProfiles.ts         → avatares disponíveis (GET /api/avatar-video/avatars)
+    useAvatarVideoCreation.ts    → estado de uma criação específica (polling)
+    useAvatarVideoCreations.ts   → lista de criações do usuário
+    useCategories.ts             → categorias de produtos
+    useExchangeRate.ts           → taxa de câmbio BRL (cache 12h)
+    useRegions.ts                → regiões ativas
+    useTrending.ts               → dados de trending
+    useUserQuota.ts              → quotas do usuário autenticado
+    useVideoScenarios.ts         → cenários de vídeo (GET /api/avatar-video/scenarios)
+    usePromptLibrary.ts          → itens da Biblioteca de Prompts (GET /api/prompt-library)
+    useCopyToClipboard.ts        → hook de cópia com feedback tri-estado (idle/success/error)
   transcription/
     service.ts         → requestTranscript / getTranscript
     media.ts           → download de vídeo via Echotik

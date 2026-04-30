@@ -152,6 +152,7 @@ export default function ProdutosSalvosPage() {
               <ProductCard
                 product={product}
                 onViewDetails={(p) => setSelectedProduct(p)}
+                avatarVideoSource="products-hype"
               />
             </Grid>
           ))}
@@ -163,6 +164,7 @@ export default function ProdutosSalvosPage() {
           open={!!selectedProduct}
           onClose={() => setSelectedProduct(null)}
           product={selectedProduct}
+          avatarVideoSource="products-hype"
         />
       )}
     </Container>

@@ -1,9 +1,18 @@
--- CreateEnum (skipped — types already exist in production)
--- CREATE TYPE "NotificationSeverity" AS ENUM ('INFO', 'WARNING', 'HIGH', 'CRITICAL');
--- CREATE TYPE "NotificationStatus" AS ENUM ('UNREAD', 'READ', 'ARCHIVED');
+-- CreateEnum (idempotent — enums already exist in baseline)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'NotificationSeverity') THEN
+    CREATE TYPE "NotificationSeverity" AS ENUM ('INFO', 'WARNING', 'HIGH', 'CRITICAL');
+  END IF;
+END $$;
 
--- CreateTable
-CREATE TABLE "AdminNotification" (
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'NotificationStatus') THEN
+    CREATE TYPE "NotificationStatus" AS ENUM ('UNREAD', 'READ', 'ARCHIVED');
+  END IF;
+END $$;
+
+-- CreateTable (idempotent — table already exists in baseline)
+CREATE TABLE IF NOT EXISTS "AdminNotification" (
     "id" TEXT NOT NULL,
     "source" TEXT NOT NULL DEFAULT 'hotmart',
     "type" TEXT NOT NULL,
@@ -26,29 +35,38 @@ CREATE TABLE "AdminNotification" (
     CONSTRAINT "AdminNotification_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "AdminNotification_dedupeKey_key" ON "AdminNotification"("dedupeKey");
+-- CreateIndex (idempotent)
+CREATE UNIQUE INDEX IF NOT EXISTS "AdminNotification_dedupeKey_key" ON "AdminNotification"("dedupeKey");
+CREATE INDEX IF NOT EXISTS "AdminNotification_status_severity_idx" ON "AdminNotification"("status", "severity");
+CREATE INDEX IF NOT EXISTS "AdminNotification_source_createdAt_idx" ON "AdminNotification"("source", "createdAt");
+CREATE INDEX IF NOT EXISTS "AdminNotification_createdAt_idx" ON "AdminNotification"("createdAt");
+CREATE INDEX IF NOT EXISTS "AdminNotification_userId_idx" ON "AdminNotification"("userId");
+CREATE INDEX IF NOT EXISTS "AdminNotification_type_createdAt_idx" ON "AdminNotification"("type", "createdAt");
 
--- CreateIndex
-CREATE INDEX "AdminNotification_status_severity_idx" ON "AdminNotification"("status", "severity");
+-- AddForeignKey (idempotent — skip if constraint already exists)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'AdminNotification_userId_fkey'
+  ) THEN
+    ALTER TABLE "AdminNotification" ADD CONSTRAINT "AdminNotification_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- CreateIndex
-CREATE INDEX "AdminNotification_source_createdAt_idx" ON "AdminNotification"("source", "createdAt");
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'AdminNotification_subscriptionId_fkey'
+  ) THEN
+    ALTER TABLE "AdminNotification" ADD CONSTRAINT "AdminNotification_subscriptionId_fkey"
+      FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- CreateIndex
-CREATE INDEX "AdminNotification_createdAt_idx" ON "AdminNotification"("createdAt");
-
--- CreateIndex
-CREATE INDEX "AdminNotification_userId_idx" ON "AdminNotification"("userId");
-
--- CreateIndex
-CREATE INDEX "AdminNotification_type_createdAt_idx" ON "AdminNotification"("type", "createdAt");
-
--- AddForeignKey
-ALTER TABLE "AdminNotification" ADD CONSTRAINT "AdminNotification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AdminNotification" ADD CONSTRAINT "AdminNotification_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AdminNotification" ADD CONSTRAINT "AdminNotification_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "HotmartWebhookEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'AdminNotification_eventId_fkey'
+  ) THEN
+    ALTER TABLE "AdminNotification" ADD CONSTRAINT "AdminNotification_eventId_fkey"
+      FOREIGN KEY ("eventId") REFERENCES "HotmartWebhookEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;

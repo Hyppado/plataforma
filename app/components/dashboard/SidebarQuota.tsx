@@ -8,6 +8,7 @@ export function SidebarQuota() {
   const quota = useUserQuota();
   const t = quota.transcripts;
   const s = quota.scripts;
+  const av = quota.avatarVideos;
 
   const pct = (used: number, limit: number) =>
     limit > 0 && used > 0 ? Math.min(1, used / limit) : 0;
@@ -60,6 +61,15 @@ export function SidebarQuota() {
           max={s.limit}
           pct={pct(s.used, s.limit)}
           color="#C7A3FF"
+        />
+
+        {/* Vídeos com Avatar */}
+        <QuotaBar
+          label="Vídeos"
+          used={av.used}
+          max={av.limit}
+          pct={pct(av.used, av.limit)}
+          color="#FF2D78"
           isLast
         />
       </Box>

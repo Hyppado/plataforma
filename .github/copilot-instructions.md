@@ -46,16 +46,16 @@ e2e/              → Playwright smoke and login tests
 
 ## Where Things Go
 
-| What | Where |
-|---|---|
-| Business logic | `lib/<domain>/` |
-| External API integrations | `lib/<domain>/` |
-| Route handlers (thin) | `app/api/<domain>/route.ts` |
-| React components | `app/components/<category>/` |
-| SWR data hooks | `lib/swr/` |
-| Shared types and DTOs | `lib/types/` |
-| DB-backed config | `lib/settings.ts` |
-| Page-level auth guard | `requireAuth()` / `requireAdmin()` |
+| What                      | Where                              |
+| ------------------------- | ---------------------------------- |
+| Business logic            | `lib/<domain>/`                    |
+| External API integrations | `lib/<domain>/`                    |
+| Route handlers (thin)     | `app/api/<domain>/route.ts`        |
+| React components          | `app/components/<category>/`       |
+| SWR data hooks            | `lib/swr/`                         |
+| Shared types and DTOs     | `lib/types/`                       |
+| DB-backed config          | `lib/settings.ts`                  |
+| Page-level auth guard     | `requireAuth()` / `requireAdmin()` |
 
 ## Mandatory Code Rules
 
@@ -84,6 +84,7 @@ if (!isAuthed(auth)) return auth; // returns 401
 For admin routes: use `requireAdmin()` (returns 401 if unauthenticated, 403 if not ADMIN). Do not rely on middleware alone — every route needs its own guard.
 
 **Valid exceptions** (no NextAuth session):
+
 - `/api/webhooks/hotmart` — auth by HMAC/token with `timingSafeEqual`; fail closed if secret is absent
 - `/api/cron/*` — auth by `CRON_SECRET` in `Authorization: Bearer`; also blocked locally if `VERCEL` env var is absent
 - `/api/auth/reset-password` — public POST for password reset; always returns 200, never reveals if email exists
@@ -114,6 +115,7 @@ Hotmart credentials: always use `getHotmartConfig()` from `lib/hotmart/config.ts
 ## Echotik — Critical Rule
 
 `echotikRequest` (from `lib/echotik/client.ts`) must **only** be called from:
+
 - Cron ingestion modules in `lib/echotik/cron/`
 - Image upload cron (`uploadImages.ts`)
 - Download URL caching cron (`cacheDownloadUrls.ts`)
@@ -136,6 +138,7 @@ Hotmart credentials: always use `getHotmartConfig()` from `lib/hotmart/config.ts
 **Non-destructive first**: default approach is additive. Never drop columns/tables without a formal two-step migration (remove code references first, deploy, then drop).
 
 Migration workflow:
+
 1. Edit `prisma/schema.prisma`
 2. `npx prisma migrate dev --name <description> --create-only`
 3. **Read the generated SQL** — confirm no `DROP`, `DELETE`, `TRUNCATE`; confirm `ADD COLUMN` has a `DEFAULT` or is nullable
@@ -146,14 +149,14 @@ Prohibited in production: `prisma db push`, `prisma migrate reset`, `--create-on
 
 ## Theme — Palette Tokens
 
-| Token | Hex | Usage |
-|---|---|---|
-| `primary.main` | `#2DD4FF` | Main brand cyan — links, active states |
-| `primary.light` | `#6BE0FF` | Lighter cyan variant |
-| `primary.dark` | `#00B8E6` | Darker cyan variant |
-| `secondary.main` | `#FF2D78` | Accent pink — dialog titles, badges |
-| `secondary.light` | `#FF5C9A` | Lighter pink |
-| `secondary.dark` | `#E0256A` | Darker pink — hover states |
+| Token             | Hex       | Usage                                  |
+| ----------------- | --------- | -------------------------------------- |
+| `primary.main`    | `#2DD4FF` | Main brand cyan — links, active states |
+| `primary.light`   | `#6BE0FF` | Lighter cyan variant                   |
+| `primary.dark`    | `#00B8E6` | Darker cyan variant                    |
+| `secondary.main`  | `#FF2D78` | Accent pink — dialog titles, badges    |
+| `secondary.light` | `#FF5C9A` | Lighter pink                           |
+| `secondary.dark`  | `#E0256A` | Darker pink — hover states             |
 
 Use `"secondary.main"` in `sx`, never `"#FF2D78"`.
 
@@ -177,6 +180,22 @@ Use `"secondary.main"` in `sx`, never `"#FF2D78"`.
 - Password reset: always return 200 — never reveal if email exists.
 - Hotmart provisioning: call `sendOnboardingEmail().catch(...)` — never let email failure break provisioning.
 - Raw tokens never stored in DB — store SHA-256 hash only (`lib/email/setup-token.ts`).
+
+## Avatar Video / Influencer IA — Key Facts (source of truth: code)
+
+> Code comments in this feature may be stale. Always verify against the actual implementation.
+
+- **State machine** (confirmed `lib/avatar-video/service.ts`): `DRAFT → PENDING_IMAGES → IMAGES_READY → PENDING_CONCEPT → CONCEPT_READY → PENDING_PROMPT → PROMPT_READY → COMPLETED` (± FAILED). Any step can go → FAILED.
+- **`generate-prompt` route**: allowed statuses are `CONCEPT_READY` and `PROMPT_READY` — NOT `IMAGES_READY` (stale comment in route file was fixed).
+- **`promptText` in DB** = `parsed.prompt` (overview text string, the `prompt` field of `Veo3Prompt`) — **NOT** the full JSON. Full JSON is in `promptJson`.
+- **Concept generation does NOT use** avatar name/description or scenario name/description/promptHint. It DOES receive `imageBlobUrls` (generated image URLs).
+- **VEO prompt generation DOES use** avatar (name, description) and scenario (name, description, promptHint).
+- **Image generation** generates 2 variations in **parallel** (`Promise.all`), not sequentially.
+- **`takeCount` range**: 1–5 when saved via `PATCH /creations/[id]` (StepScenarioSelect); 1–12 when sent via `POST /generate-prompt`.
+- **Influencer IA image provider**: Google AI Studio (Gemini) only — same model/API as Avatar Video image generation.
+- **Influencer IA VEO prompt**: returns `VeoPart[]` (plain text prompt strings per segment), NOT `Veo3Prompt` format.
+- **Influencer IA quota**: **5 image generations per user per UTC day** (constant, not plan-based). Enforced server-side in `POST /api/influencer-ia/generate` via `assertInfluencerDailyQuota` (429 on exceeded) + `consumeInfluencerGeneration` after success. Daily count queries `UsageEvent` with `type=AVATAR_VIDEO_GENERATION, refTable="InfluencerIAGeneration"`. No schema migration needed — `refTable` discriminates from Avatar Video events (`refTable="AvatarVideoCreation"`). Hook: `useInfluencerUsage` (`lib/swr/useInfluencerUsage.ts`). UI counter shown below "Gerar Imagem" button.
+- **Frontend route**: `/dashboard/avatar-video/[id]` (wizard page).
 
 ## Anti-Patterns — Never Do These
 

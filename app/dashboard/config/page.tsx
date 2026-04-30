@@ -24,7 +24,10 @@ import { SupportEmailSection } from "@/app/components/admin/SupportEmailSection"
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
+import { GoogleAITab } from "@/app/components/admin/google-ai/GoogleAITab";
 import { UsersTab } from "@/app/components/admin/users/UsersTab";
+import { AvatarVideoTab } from "@/app/components/admin/avatar-video/AvatarVideoTab";
+import { PromptLibraryTab } from "@/app/components/admin/prompt-library/PromptLibraryTab";
 import CircularProgress from "@mui/material/CircularProgress";
 
 export default function ConfigPage() {
@@ -128,6 +131,9 @@ export default function ConfigPage() {
         <Tab label="Echotik" />
         <Tab label="Hotmart" />
         <Tab label="OpenAI" />
+        <Tab label="Google AI" />
+        <Tab label="Vídeo com Avatar" />
+        <Tab label="Biblioteca de Prompts" />
       </Tabs>
 
       {/* Tab 0 — Geral (Prompts) */}
@@ -163,6 +169,15 @@ export default function ConfigPage() {
 
       {/* Tab 4 — OpenAI */}
       {activeTab === 4 && <OpenAITab />}
+
+      {/* Tab 5 — Google AI */}
+      {activeTab === 5 && <GoogleAITab />}
+
+      {/* Tab 6 — Avatar Video */}
+      {activeTab === 6 && <AvatarVideoTab />}
+
+      {/* Tab 7 — Biblioteca de Prompts */}
+      {activeTab === 7 && <PromptLibraryTab />}
     </Box>
   );
 }

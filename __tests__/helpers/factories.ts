@@ -53,6 +53,7 @@ export function buildPlan(overrides: Record<string, unknown> = {}) {
     insightMaxOutputTokens: 4096,
     scriptMaxOutputTokens: 4096,
     displayOrder: 1,
+    avatarVideoQuota: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -116,6 +117,7 @@ export function buildUsagePeriod(overrides: Record<string, unknown> = {}) {
     scriptsUsed: 0,
     insightsUsed: 0,
     tokensUsed: 0,
+    avatarVideosUsed: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -133,6 +135,40 @@ export function buildUsageEvent(overrides: Record<string, unknown> = {}) {
     refId: null,
     idempotencyKey: `key-${randomUUID()}`,
     createdAt: new Date(),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Avatar Video
+// ---------------------------------------------------------------------------
+
+export function buildAvatarProfile(overrides: Record<string, unknown> = {}) {
+  return {
+    id: randomUUID(),
+    name: "Test Avatar",
+    description: "A test avatar description",
+    imageUrl: "https://blob.test/avatar.jpg",
+    thumbnailUrl: "https://blob.test/avatar-thumb.jpg",
+    isActive: true,
+    sortOrder: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+export function buildVideoScenario(overrides: Record<string, unknown> = {}) {
+  return {
+    id: randomUUID(),
+    name: "Test Scenario",
+    description: "A test scenario description",
+    promptHint: "Test prompt hint for UGC",
+    isDefault: false,
+    isActive: true,
+    sortOrder: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
     ...overrides,
   };
 }
@@ -329,6 +365,28 @@ export function buildErasureRequest(overrides: Record<string, unknown> = {}) {
     status: "PENDING" as const,
     processedBy: null,
     processedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PromptLibraryItem
+// ---------------------------------------------------------------------------
+
+export function buildPromptLibraryItem(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: randomUUID(),
+    title: "Prompt de referência",
+    category: "Unboxing",
+    description: "Descrição do prompt de referência",
+    videoBlobUrl: "https://blob.example.com/prompt-library/videos/sample.mp4",
+    promptText: "Este é o texto do prompt de referência.",
+    isActive: true,
+    createdById: null as string | null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

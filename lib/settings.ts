@@ -86,6 +86,11 @@ export const SETTING_KEYS = {
   OPENAI_API_KEY: "openai.api_key",
   OPENAI_WHISPER_MODEL: "openai.whisper_model",
   OPENAI_WHISPER_LANGUAGE: "openai.whisper_language",
+  AVATAR_VIDEO_PROMPT_TEMPLATE: "avatar_video.prompt_template",
+  AVATAR_VIDEO_CONCEPT_TEMPLATE: "avatar_video.concept_template",
+  AVATAR_VIDEO_IMAGE_TEMPLATE: "avatar_video.image_template",
+  GOOGLE_AI_API_KEY: "google_ai.api_key",
+  GOOGLE_AI_MODEL: "google_ai.model",
 } as const;
 
 // ---------------------------------------------------------------------------
