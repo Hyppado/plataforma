@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, Container, Grid, Stack, Typography, Button } from "@mui/material";
-import { CheckCircleOutline } from "@mui/icons-material";
+import { CheckCircleOutline, CancelOutlined } from "@mui/icons-material";
 import { SectionShell } from "./SectionShell";
 import { Reveal } from "./Reveal";
 
@@ -10,99 +10,81 @@ export function ForWhoSection() {
     <SectionShell id="para-quem-e" variant="who" tone="dark">
       <Container maxWidth="lg">
         <Reveal>
-          <Typography
-            component="h2"
-            sx={{
-              fontSize: { xs: "1.75rem", sm: "2rem", md: "2.5rem" },
-              fontWeight: 800,
-              lineHeight: 1.15,
-              letterSpacing: "-0.02em",
-              color: "#fff",
-              textAlign: "center",
-              mb: 2,
-            }}
-          >
-            Para quem é a Hyppado
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: { xs: "1rem", md: "1.125rem" },
-              color: "#A0B0C0",
-              textAlign: "center",
-              maxWidth: 640,
-              mx: "auto",
-              mb: 6,
-            }}
-          >
-            Para criadores e afiliados que querem decidir o que testar e
-            acelerar a criação de criativos com clareza.
-          </Typography>
+          <Box sx={{ textAlign: "center", mb: 8 }}>
+            <Typography
+              sx={{
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                color: "primary.main",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                mb: 2,
+              }}
+            >
+              PARA QUEM É
+            </Typography>
+            <Typography
+              component="h2"
+              sx={{
+                fontSize: { xs: "1.75rem", sm: "2.25rem", md: "2.75rem" },
+                fontWeight: 900,
+                lineHeight: 1.1,
+                letterSpacing: "-0.03em",
+                color: "#fff",
+                mb: 2,
+              }}
+            >
+              Para criadores e afiliados que querem{" "}
+              <Box component="span" sx={{ color: "primary.main" }}>
+                resultados reais
+              </Box>
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: { xs: "1rem", md: "1.1rem" },
+                color: "rgba(255,255,255,0.5)",
+                maxWidth: 540,
+                mx: "auto",
+                lineHeight: 1.65,
+              }}
+            >
+              Sem adivinhação, sem desperdício de tempo. Dados reais + IA para quem quer escalar no TikTok Shop.
+            </Typography>
+          </Box>
         </Reveal>
 
-        {/* Two column cards */}
         <Reveal delay={100}>
-          <Grid container spacing={3} sx={{ mb: 5 }}>
-            {/* Left - Ideal for */}
+          <Grid container spacing={3} sx={{ mb: 6 }}>
+            {/* Ideal for */}
             <Grid item xs={12} md={6}>
               <Box
                 sx={{
                   p: { xs: 3, md: 4 },
                   borderRadius: 4,
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.008) 100%)",
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(120, 90, 255, 0.10)",
+                  background: "rgba(45,212,255,0.04)",
+                  border: "1px solid rgba(45,212,255,0.12)",
                   height: "100%",
-                  transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-                  boxShadow:
-                    "0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.03)",
-                  "&:hover": {
-                    transform: "translateY(-4px)",
-                    borderColor: "rgba(120, 90, 255, 0.25)",
-                    boxShadow:
-                      "0 12px 36px rgba(0,0,0,0.25), 0 0 24px rgba(120, 90, 255, 0.08), inset 0 1px 0 rgba(255,255,255,0.05)",
-                  },
+                  transition: "border-color 200ms",
+                  "&:hover": { borderColor: "rgba(45,212,255,0.28)" },
                 }}
               >
                 <Typography
                   component="h3"
-                  sx={{
-                    fontSize: "1.125rem",
-                    fontWeight: 700,
-                    color: "#9B7AFF",
-                    mb: 3,
-                  }}
+                  sx={{ fontSize: "1.05rem", fontWeight: 700, color: "primary.main", mb: 3 }}
                 >
-                  Ideal para você se...
+                  Hyppado é para você se…
                 </Typography>
                 <Stack spacing={2}>
                   {[
-                    "Você quer escolher produtos com mais chance de performar",
-                    "Você precisa de um processo simples para testar ideias com consistência",
-                    "Você quer transformar vídeos em insights práticos (sem adivinhação)",
-                    "Você quer produzir criativos mais rápido, sem perder qualidade",
-                  ].map((item, index) => (
-                    <Stack
-                      key={index}
-                      direction="row"
-                      spacing={1.5}
-                      alignItems="flex-start"
-                    >
-                      <CheckCircleOutline
-                        sx={{
-                          fontSize: 18,
-                          color: "#9B7AFF",
-                          mt: 0.25,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Typography
-                        sx={{
-                          fontSize: "0.95rem",
-                          color: "#C0D0E0",
-                          lineHeight: 1.6,
-                        }}
-                      >
+                    "Quer descobrir produtos em alta antes de saturar",
+                    "Precisa criar vídeos rápido sem começar do zero",
+                    "Quer um avatar IA para gerar referências visuais",
+                    "Busca um fluxo completo: dado → imagem → vídeo",
+                    "Quer escalar no TikTok Shop com mais eficiência",
+                  ].map((item) => (
+                    <Stack key={item} direction="row" spacing={1.5} alignItems="flex-start">
+                      <CheckCircleOutline sx={{ fontSize: 18, color: "primary.main", mt: 0.2, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>
                         {item}
                       </Typography>
                     </Stack>
@@ -111,80 +93,36 @@ export function ForWhoSection() {
               </Box>
             </Grid>
 
-            {/* Right - You gain */}
+            {/* Not for */}
             <Grid item xs={12} md={6}>
               <Box
                 sx={{
                   p: { xs: 3, md: 4 },
                   borderRadius: 4,
-                  background:
-                    "linear-gradient(135deg, rgba(120, 90, 255, 0.10) 0%, rgba(57, 213, 255, 0.04) 50%, rgba(13, 21, 32, 0.65) 100%)",
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(120, 90, 255, 0.20)",
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.07)",
                   height: "100%",
-                  transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-                  boxShadow:
-                    "0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(120, 90, 255, 0.08)",
-                  position: "relative",
-                  overflow: "hidden",
-                  "&::before": {
-                    content: '""',
-                    position: "absolute",
-                    top: 0,
-                    left: "15%",
-                    right: "15%",
-                    height: "1px",
-                    background:
-                      "linear-gradient(90deg, transparent 0%, rgba(120, 90, 255, 0.4) 50%, transparent 100%)",
-                    boxShadow: "0 0 8px 1px rgba(120, 90, 255, 0.2)",
-                  },
-                  "&:hover": {
-                    transform: "translateY(-4px)",
-                    borderColor: "rgba(120, 90, 255, 0.35)",
-                    boxShadow:
-                      "0 12px 36px rgba(0,0,0,0.25), 0 0 40px rgba(120, 90, 255, 0.12), inset 0 1px 0 rgba(120, 90, 255, 0.12)",
-                  },
+                  transition: "border-color 200ms",
+                  "&:hover": { borderColor: "rgba(255,255,255,0.14)" },
                 }}
               >
                 <Typography
                   component="h3"
-                  sx={{
-                    fontSize: "1.125rem",
-                    fontWeight: 700,
-                    color: "#fff",
-                    mb: 3,
-                  }}
+                  sx={{ fontSize: "1.05rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", mb: 3 }}
                 >
-                  Você ganha com...
+                  Não é para você se…
                 </Typography>
                 <Stack spacing={2}>
                   {[
-                    "Transcrição do vídeo para entender o que prende atenção",
-                    "Sugestões de ângulos e roteiros para modelar o criativo",
-                    "Estrutura pronta para testar variações (gancho, prova, CTA)",
-                    "Mais velocidade para publicar e aprender com os testes",
-                  ].map((item, index) => (
-                    <Stack
-                      key={index}
-                      direction="row"
-                      spacing={1.5}
-                      alignItems="flex-start"
-                    >
-                      <CheckCircleOutline
-                        sx={{
-                          fontSize: 18,
-                          color: "#39D5FF",
-                          mt: 0.25,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Typography
-                        sx={{
-                          fontSize: "0.95rem",
-                          color: "#C0D0E0",
-                          lineHeight: 1.6,
-                        }}
-                      >
+                    "Quer uma fórmula mágica sem esforço",
+                    "Não está disposto a testar e iterar",
+                    "Busca resultado sem produzir conteúdo",
+                    "Quer apenas salvar vídeos sem analisar",
+                    "Prefere criar no improviso sem dados",
+                  ].map((item) => (
+                    <Stack key={item} direction="row" spacing={1.5} alignItems="flex-start">
+                      <CancelOutlined sx={{ fontSize: 18, color: "rgba(255,255,255,0.2)", mt: 0.2, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.35)", lineHeight: 1.55 }}>
                         {item}
                       </Typography>
                     </Stack>
@@ -195,18 +133,10 @@ export function ForWhoSection() {
           </Grid>
         </Reveal>
 
-        {/* CTA */}
-        <Reveal delay={200}>
+        <Reveal delay={150}>
           <Box sx={{ textAlign: "center" }}>
-            <Typography
-              sx={{
-                fontSize: "0.9rem",
-                color: "#8595A5",
-                mb: 3,
-              }}
-            >
-              Sem promessas mágicas. Só um processo mais inteligente para
-              testar.
+            <Typography sx={{ fontSize: "0.88rem", color: "rgba(255,255,255,0.35)", mb: 3 }}>
+              Processo inteligente. Resultados reais.
             </Typography>
             <Button
               variant="contained"
@@ -214,26 +144,22 @@ export function ForWhoSection() {
               href="#planos"
               onClick={(e) => {
                 e.preventDefault();
-                document
-                  .getElementById("planos")
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document.getElementById("planos")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               sx={{
-                px: 4,
+                px: 5,
                 py: 1.5,
                 fontSize: "0.95rem",
-                fontWeight: 600,
+                fontWeight: 700,
                 borderRadius: "999px",
-                background: "#39D5FF",
+                bgcolor: "primary.main",
                 color: "#070B12",
                 textTransform: "none",
-                boxShadow:
-                  "0 0 24px rgba(57, 213, 255, 0.4), 0 4px 16px rgba(0,0,0,0.25)",
-                transition: "all 0.25s ease",
+                boxShadow: "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
+                transition: "all 0.22s ease",
                 "&:hover": {
-                  background: "#5BE0FF",
-                  boxShadow:
-                    "0 0 32px rgba(57, 213, 255, 0.55), 0 6px 20px rgba(0,0,0,0.3)",
+                  bgcolor: "primary.light",
+                  boxShadow: "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
                   transform: "translateY(-2px)",
                 },
               }}
