@@ -20,7 +20,7 @@ export function HeaderQuota() {
     <Box
       sx={{
         width: "1px",
-        height: 18,
+        height: 14,
         background: "rgba(255,255,255,0.08)",
         flexShrink: 0,
       }}
@@ -32,7 +32,7 @@ export function HeaderQuota() {
       sx={{
         display: "flex",
         alignItems: "center",
-        gap: { xs: 1, sm: 1.5 },
+        gap: { xs: 0.75, sm: 1.5 },
         px: { xs: 0.75, sm: 1.25 },
         py: 0.35,
         borderRadius: 1.5,
@@ -90,27 +90,27 @@ function MiniQuotaBar({
 }) {
   return (
     <Box
-      sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 0.75 } }}
+      sx={{ display: "flex", alignItems: "center", gap: { xs: 0.4, sm: 0.75 } }}
     >
       <Typography
         sx={{
-          fontSize: { xs: "0.6rem", sm: "0.65rem" },
+          fontSize: { xs: "0.55rem", sm: "0.65rem" },
           fontWeight: 600,
           color: "rgba(255,255,255,0.55)",
           whiteSpace: "nowrap",
-          display: { xs: "none", sm: "inline" },
         }}
       >
         {label}
       </Typography>
       <Box
         sx={{
-          width: { xs: 28, sm: 40 },
+          width: { xs: 24, sm: 40 },
           height: 4,
           borderRadius: 999,
           background: `${color}20`,
           overflow: "hidden",
           flexShrink: 0,
+          display: { xs: "none", sm: "block" },
         }}
       >
         <Box
@@ -125,7 +125,7 @@ function MiniQuotaBar({
       </Box>
       <Typography
         sx={{
-          fontSize: { xs: "0.56rem", sm: "0.62rem" },
+          fontSize: { xs: "0.6rem", sm: "0.62rem" },
           fontWeight: 700,
           color,
           whiteSpace: "nowrap",
