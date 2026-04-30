@@ -8,10 +8,11 @@ export const UI = {
     bg: "rgba(255,255,255,0.03)",
     bgHover: "rgba(255,255,255,0.05)",
     border: "rgba(255,255,255,0.06)",
-    borderHover: "rgba(45,212,255,0.15)",
+    borderHover: "rgba(45,212,255,0.3)",
     radius: 4,
     shadow: "0 1px 2px rgba(0,0,0,0.05)",
-    shadowHover: "0 4px 16px rgba(0,0,0,0.15), 0 0 6px rgba(45,212,255,0.04)",
+    shadowHover:
+      "0 6px 24px rgba(0,0,0,0.25), 0 0 20px rgba(45,212,255,0.12), 0 0 1px rgba(45,212,255,0.4)",
   },
   text: {
     primary: "rgba(255,255,255,0.92)",

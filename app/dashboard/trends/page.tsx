@@ -11,6 +11,7 @@ import {
   IconButton,
   Tooltip,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { DashboardHeader } from "@/app/components/dashboard/DashboardHeader";
 import { ProductCard } from "@/app/components/cards/ProductCard";
 import { ProductDetailsModal } from "@/app/components/cards/ProductDetailsModal";
@@ -128,18 +129,67 @@ function ProductsContent() {
     >
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
-          <Typography
-            component="h1"
-            sx={{
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              color: "#fff",
-              mb: 0.25,
-              lineHeight: 1.3,
-            }}
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.25 }}
           >
-            Produtos em Alta
-          </Typography>
+            <Typography
+              component="h1"
+              sx={(theme) => ({
+                fontSize: "1.25rem",
+                fontWeight: 800,
+                lineHeight: 1.3,
+                background: `linear-gradient(90deg, #fff 0%, ${theme.palette.primary.main} 60%, #fff 100%)`,
+                backgroundSize: "200% auto",
+                backgroundClip: "text",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                animation: "titleShimmer 4s linear infinite",
+                "@keyframes titleShimmer": {
+                  "0%": { backgroundPosition: "0% center" },
+                  "100%": { backgroundPosition: "200% center" },
+                },
+              })}
+            >
+              Produtos em Alta
+            </Typography>
+            <Box
+              sx={(theme) => ({
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 0.9,
+                py: 0.25,
+                borderRadius: 10,
+                background: alpha(theme.palette.primary.main, 0.08),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              })}
+            >
+              <Box
+                sx={(theme) => ({
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  bgcolor: theme.palette.primary.main,
+                  boxShadow: `0 0 6px ${theme.palette.primary.main}`,
+                  animation: "liveDot 1.8s ease-in-out infinite",
+                  "@keyframes liveDot": {
+                    "0%, 100%": { opacity: 1, transform: "scale(1)" },
+                    "50%": { opacity: 0.4, transform: "scale(0.7)" },
+                  },
+                })}
+              />
+              <Typography
+                sx={{
+                  fontSize: "0.58rem",
+                  fontWeight: 700,
+                  color: "primary.main",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                AO VIVO
+              </Typography>
+            </Box>
+          </Box>
           <Typography
             sx={{
               fontSize: "0.75rem",
@@ -178,26 +228,30 @@ function ProductsContent() {
                   key={rf.key}
                   component="button"
                   onClick={() => updateUrl({ sort: rf.key })}
-                  sx={{
+                  sx={(theme) => ({
                     px: 1.5,
                     py: 0.5,
                     borderRadius: 99,
                     border: active
-                      ? "1px solid #2DD4FF"
+                      ? `1px solid ${theme.palette.primary.main}`
                       : "1px solid rgba(255,255,255,0.15)",
                     background: active
-                      ? "rgba(45,212,255,0.12)"
+                      ? alpha(theme.palette.primary.main, 0.15)
                       : "rgba(255,255,255,0.05)",
-                    color: active ? "#2DD4FF" : "rgba(255,255,255,0.6)",
+                    color: active ? theme.palette.primary.main : "rgba(255,255,255,0.6)",
                     fontSize: "0.75rem",
-                    fontWeight: active ? 600 : 400,
+                    fontWeight: active ? 700 : 400,
                     cursor: "pointer",
                     transition: "all 150ms ease",
+                    boxShadow: active
+                      ? `0 0 12px ${alpha(theme.palette.primary.main, 0.3)}, inset 0 0 8px ${alpha(theme.palette.primary.main, 0.05)}`
+                      : "none",
                     "&:hover": {
-                      borderColor: "#2DD4FF",
-                      color: "#2DD4FF",
+                      borderColor: theme.palette.primary.main,
+                      color: theme.palette.primary.main,
+                      boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.2)}`,
                     },
-                  }}
+                  })}
                 >
                   {rf.label}
                 </Box>
@@ -266,8 +320,23 @@ function ProductsContent() {
           />
         ) : (
           <Grid container spacing={{ xs: 2, md: 2.5 }}>
-            {displayedProducts.map((product) => (
-              <Grid item xs={6} sm={6} md={4} lg={2.4} key={product.id}>
+            {displayedProducts.map((product, idx) => (
+              <Grid
+                item
+                xs={6}
+                sm={6}
+                md={4}
+                lg={2.4}
+                key={product.id}
+                sx={{
+                  animation: "cardEntry 0.35s ease both",
+                  animationDelay: `${Math.min(idx * 25, 300)}ms`,
+                  "@keyframes cardEntry": {
+                    "0%": { opacity: 0, transform: "translateY(12px)" },
+                    "100%": { opacity: 1, transform: "translateY(0)" },
+                  },
+                }}
+              >
                 <ProductCard
                   product={product}
                   onViewDetails={(p) => setSelectedProduct(p)}

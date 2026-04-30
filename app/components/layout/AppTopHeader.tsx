@@ -95,7 +95,7 @@ export function AppTopHeader() {
         px: { xs: 2, md: 2.5 },
         background: "rgba(6, 8, 15, 0.75)",
         backdropFilter: "blur(12px)",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        borderBottom: "1px solid rgba(45,212,255,0.1)",
       }}
     >
       {/* Left side — push items to the right */}
@@ -236,7 +236,8 @@ export function AppTopHeader() {
           ml: 1,
           borderRadius: "50%",
           "&:hover .MuiAvatar-root": {
-            borderColor: "rgba(255,255,255,0.3)",
+            borderColor: "rgba(45,212,255,0.5)",
+            boxShadow: "0 0 0 2px rgba(45,212,255,0.12)",
           },
         }}
       >
@@ -248,8 +249,8 @@ export function AppTopHeader() {
             fontWeight: 700,
             bgcolor: "rgba(255,255,255,0.08)",
             color: "rgba(255,255,255,0.7)",
-            border: "1px solid rgba(255,255,255,0.15)",
-            transition: "border-color 150ms ease",
+            border: "1px solid rgba(45,212,255,0.22)",
+            transition: "border-color 150ms ease, box-shadow 150ms ease",
           }}
         >
           {initials}

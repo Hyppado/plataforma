@@ -32,6 +32,15 @@ export function RankBadge({ rank }: RankBadgeProps) {
         alignItems: "center",
         justifyContent: "center",
         transition: "transform 180ms ease, box-shadow 180ms ease",
+        ...(rank === 1 && {
+          animation: "goldPulse 2.5s ease-in-out infinite",
+          "@keyframes goldPulse": {
+            "0%, 100%": { boxShadow: style.glow },
+            "50%": {
+              boxShadow: `${style.glow}, 0 0 28px rgba(212,168,71,0.5)`,
+            },
+          },
+        }),
         "@media (hover: hover)": {
           "&:hover": {
             transform: "scale(1.03)",

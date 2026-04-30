@@ -161,6 +161,16 @@ export function DashboardSidebar({
           alignItems: "center",
           justifyContent: collapsed ? "center" : "flex-start",
           transition: "min-height 200ms ease",
+          "&::after": {
+            content: '""',
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            background:
+              "linear-gradient(90deg, transparent, rgba(45,212,255,0.25), rgba(255,45,120,0.15), transparent)",
+          },
         }}
       >
         {!collapsed ? (
@@ -194,7 +204,10 @@ export function DashboardSidebar({
                   top: "50%",
                   transform: "translateY(-50%)",
                   color: "rgba(255,255,255,0.35)",
-                  "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.06)" },
+                  "&:hover": {
+                    color: "#fff",
+                    bgcolor: "rgba(255,255,255,0.06)",
+                  },
                 }}
               >
                 <ChevronLeft sx={{ fontSize: 18 }} />
@@ -236,7 +249,9 @@ export function DashboardSidebar({
             key={section.label || `section-${sectionIndex}`}
             sx={{ mb: sectionIndex < NAV_SECTIONS.length - 1 ? 0.9 : 0 }}
           >
-            {section.label && !collapsed && <SectionLabel text={section.label} />}
+            {section.label && !collapsed && (
+              <SectionLabel text={section.label} />
+            )}
             <List
               disablePadding
               sx={{ display: "flex", flexDirection: "column", gap: 0.15 }}
@@ -306,7 +321,9 @@ export function DashboardSidebar({
                     "&:hover": { background: "rgba(255,255,255,0.03)" },
                   }}
                 >
-                  <Logout sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }} />
+                  <Logout
+                    sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }}
+                  />
                 </ListItemButton>
               </ListItem>
             </Tooltip>
@@ -323,7 +340,9 @@ export function DashboardSidebar({
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 24 }}>
-                  <Logout sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }} />
+                  <Logout
+                    sx={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }}
+                  />
                 </ListItemIcon>
                 <ListItemText
                   primary="Sair"
@@ -351,10 +370,10 @@ function SectionLabel({ text }: { text: string }) {
     <Typography
       sx={{
         fontSize: "0.55rem",
-        fontWeight: 600,
-        letterSpacing: "0.08em",
+        fontWeight: 700,
+        letterSpacing: "0.09em",
         textTransform: "uppercase",
-        color: "rgba(255,255,255,0.35)",
+        color: "rgba(45,212,255,0.45)",
         px: 1,
         mb: 0.3,
       }}

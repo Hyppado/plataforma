@@ -221,6 +221,7 @@ function TopProductsPanel({
       sx={{
         borderRadius: 3,
         border: "1px solid rgba(255,255,255,0.07)",
+        borderTop: "2px solid rgba(255,45,120,0.45)",
         background: "#0C1018",
         overflow: "hidden",
       }}
@@ -478,6 +479,7 @@ function TopVideosPanel({
       sx={{
         borderRadius: 3,
         border: "1px solid rgba(255,255,255,0.07)",
+        borderTop: "2px solid rgba(45,212,255,0.4)",
         background: "#0C1018",
         overflow: "hidden",
       }}

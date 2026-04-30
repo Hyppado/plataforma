@@ -168,20 +168,36 @@ export function HeaderNotifications() {
         >
           <Badge
             badgeContent={unreadCount}
-            color={hasCritical ? "error" : "primary"}
             max={99}
             sx={{
               "& .MuiBadge-badge": {
                 fontSize: "0.65rem",
                 height: 16,
                 minWidth: 16,
-                ...(hasCritical && {
-                  animation: "pulse 2s ease-in-out infinite",
-                  "@keyframes pulse": {
-                    "0%, 100%": { transform: "scale(1) translate(50%, -50%)" },
-                    "50%": { transform: "scale(1.15) translate(50%, -50%)" },
-                  },
-                }),
+                fontWeight: 800,
+                ...(hasCritical
+                  ? {
+                      backgroundColor: "#f44336",
+                      color: "#fff",
+                      boxShadow: "0 0 10px rgba(244,67,54,0.8)",
+                      animation: "badgePulse 2s ease-in-out infinite",
+                      "@keyframes badgePulse": {
+                        "0%, 100%": {
+                          transform: "scale(1) translate(50%, -50%)",
+                        },
+                        "50%": { transform: "scale(1.2) translate(50%, -50%)" },
+                      },
+                    }
+                  : unreadCount > 0
+                    ? {
+                        backgroundColor: "#FF2D78",
+                        color: "#fff",
+                        boxShadow: "0 0 10px rgba(255,45,120,0.7)",
+                      }
+                    : {
+                        backgroundColor: "rgba(255,255,255,0.15)",
+                        color: "#fff",
+                      }),
               },
             }}
           >
