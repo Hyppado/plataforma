@@ -10,9 +10,25 @@
 
 import { prisma } from "@/lib/prisma";
 import { consumeUsage } from "@/lib/usage";
+import { getSetting } from "@/lib/settings";
 import { randomUUID } from "crypto";
 
-export const INFLUENCER_IA_DAILY_LIMIT = 5;
+/** Default daily limit — overridden by the DB setting `influencer_ia_daily_limit`. */
+const DEFAULT_DAILY_LIMIT = 5;
+
+/**
+ * Returns the effective daily limit for Influencer IA image generation.
+ * Reads the `influencer_ia_daily_limit` setting from the DB; falls back to 5.
+ * Admins can update this via `upsertSetting("influencer_ia_daily_limit", "10")`.
+ */
+export async function getInfluencerDailyLimit(): Promise<number> {
+  const val = await getSetting("influencer_ia_daily_limit");
+  if (val) {
+    const n = parseInt(val, 10);
+    if (!isNaN(n) && n > 0) return n;
+  }
+  return DEFAULT_DAILY_LIMIT;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,9 +88,12 @@ export class DailyQuotaExceededError extends Error {
 export async function assertInfluencerDailyQuota(
   userId: string,
 ): Promise<void> {
-  const used = await getInfluencerGenerationsToday(userId);
-  if (used >= INFLUENCER_IA_DAILY_LIMIT) {
-    throw new DailyQuotaExceededError(used, INFLUENCER_IA_DAILY_LIMIT);
+  const [used, limit] = await Promise.all([
+    getInfluencerGenerationsToday(userId),
+    getInfluencerDailyLimit(),
+  ]);
+  if (used >= limit) {
+    throw new DailyQuotaExceededError(used, limit);
   }
 }
 

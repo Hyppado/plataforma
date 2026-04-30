@@ -13,13 +13,14 @@ import {
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { getGenerationsTodayMock } = vi.hoisted(() => ({
+const { getGenerationsTodayMock, getDailyLimitMock } = vi.hoisted(() => ({
   getGenerationsTodayMock: vi.fn(),
+  getDailyLimitMock: vi.fn(),
 }));
 
 vi.mock("@/lib/influencer-ia/quota", () => ({
   getInfluencerGenerationsToday: getGenerationsTodayMock,
-  INFLUENCER_IA_DAILY_LIMIT: 5,
+  getInfluencerDailyLimit: getDailyLimitMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -41,6 +42,7 @@ describe("GET /api/influencer-ia/usage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getGenerationsTodayMock.mockResolvedValue(2);
+    getDailyLimitMock.mockResolvedValue(5);
   });
 
   it("returns 401 when unauthenticated", async () => {

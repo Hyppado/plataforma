@@ -13,7 +13,7 @@ import { requireAuth, isAuthed } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import {
   getInfluencerGenerationsToday,
-  INFLUENCER_IA_DAILY_LIMIT,
+  getInfluencerDailyLimit,
 } from "@/lib/influencer-ia/quota";
 
 const log = createLogger("api/influencer-ia/usage");
@@ -23,10 +23,13 @@ export async function GET() {
   if (!isAuthed(auth)) return auth;
 
   try {
-    const usedToday = await getInfluencerGenerationsToday(auth.userId);
+    const [usedToday, dailyLimit] = await Promise.all([
+      getInfluencerGenerationsToday(auth.userId),
+      getInfluencerDailyLimit(),
+    ]);
     return NextResponse.json({
       usedToday,
-      dailyLimit: INFLUENCER_IA_DAILY_LIMIT,
+      dailyLimit,
     });
   } catch (err) {
     log.error("Failed to fetch influencer-ia usage", {

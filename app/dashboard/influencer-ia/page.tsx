@@ -86,6 +86,11 @@ import {
   useInfluencerUsage,
   revalidateInfluencerUsage,
 } from "@/lib/swr/useInfluencerUsage";
+import {
+  loadDraft,
+  saveDraft,
+  deleteDraft,
+} from "@/lib/swr/useInfluencerDraft";
 import { getStoredRegion } from "@/lib/region";
 import { formatCurrency } from "@/lib/format";
 import type { ProductDTO } from "@/lib/types/dto";
@@ -713,10 +718,8 @@ let activeGeneration: {
 } | null = null;
 
 // ---------------------------------------------------------------------------
-// Session persistence
+// Draft persistence (DB-backed, cross-device)
 // ---------------------------------------------------------------------------
-
-const SESSION_KEY = "influencer-ia-session";
 
 type SessionSnapshot = {
   v: 1;
@@ -745,19 +748,6 @@ type SessionSnapshot = {
   veoParts: VeoPart[];
   originalVeoParts: VeoPart[];
 };
-
-function readSession(): SessionSnapshot | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as SessionSnapshot;
-    if (parsed?.v !== 1) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 // Minimal shape returned by GET /api/trending/products/[id] — used only
 // when the deep-linked product is not present in the trending top-100 list.
@@ -918,13 +908,13 @@ function InfluencerIAWizard() {
   // meaningful content — used to gate the deep-link auto-select.
   const sessionHasContent = useRef(false);
 
-  // Restore session on mount (client-side only to avoid hydration mismatch)
+  // Restore draft on mount (loaded from DB for cross-device persistence)
   const hasRestoredSession = useRef(false);
   useEffect(() => {
     if (hasRestoredSession.current) return;
     hasRestoredSession.current = true;
 
-    const session = readSession();
+    loadDraft<SessionSnapshot>().then((session) => {
     if (!session) return;
 
     // Track whether this session has meaningful content so the deep-link
@@ -975,7 +965,7 @@ function InfluencerIAWizard() {
     if (session.veoStyle) setVeoStyle(session.veoStyle);
     if (session.veoParts) setVeoParts(session.veoParts);
     if (session.originalVeoParts) setOriginalVeoParts(session.originalVeoParts);
-    if (session.originalVeoParts) setOriginalVeoParts(session.originalVeoParts);
+    }); // end loadDraft
   }, [initProductImageUrl, initProductId, initProductName]);
 
   // Auto-scroll to VEO prompts when generation completes
@@ -1025,7 +1015,10 @@ function InfluencerIAWizard() {
     }
   }, [savedAvatarUploads]);
 
-  // Persist full session to sessionStorage whenever relevant state changes
+  // Debounce ref for draft saves
+  const saveDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Persist draft to DB whenever relevant state changes (debounced 1s)
   useEffect(() => {
     const snap: SessionSnapshot = {
       v: 1,
@@ -1054,11 +1047,10 @@ function InfluencerIAWizard() {
       veoParts,
       originalVeoParts,
     };
-    try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(snap));
-    } catch {
-      // storage unavailable or quota exceeded
-    }
+    if (saveDraftTimer.current) clearTimeout(saveDraftTimer.current);
+    saveDraftTimer.current = setTimeout(() => {
+      saveDraft(snap);
+    }, 1000);
   }, [
     productTab,
     selectedProduct,
@@ -1116,11 +1108,8 @@ function InfluencerIAWizard() {
   const doReset = useCallback(() => {
     // Abandon any in-flight generation so future triggers work
     activeGeneration = null;
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      /* ignore */
-    }
+    if (saveDraftTimer.current) clearTimeout(saveDraftTimer.current);
+    deleteDraft();
     setSelectedProduct(null);
     setUploadedProductUrl(null);
     setUploadedProductName("");
@@ -1349,7 +1338,9 @@ function InfluencerIAWizard() {
     const successes = results.filter(
       (r): r is { ok: true; imageUrl: string } => r.ok,
     );
-    const firstError = results.find((r): r is { ok: false; error: string } => !r.ok);
+    const firstError = results.find(
+      (r): r is { ok: false; error: string } => !r.ok,
+    );
 
     if (successes.length > 0) {
       const urls = successes.map((r) => r.imageUrl);
@@ -2413,8 +2404,8 @@ function InfluencerIAWizard() {
                 color="text.disabled"
                 sx={{ textAlign: "center", lineHeight: 1.4 }}
               >
-                Cada imagem gerada consome 1 geração do limite diário. A
-                geração não pode ser desfeita.
+                Cada imagem gerada consome 1 geração do limite diário. A geração
+                não pode ser desfeita.
               </Typography>
             )}
 
@@ -2635,7 +2626,10 @@ function InfluencerIAWizard() {
                         overflow: "hidden",
                         border: "1px solid",
                         borderColor: "divider",
-                        flex: generatedImageUrls.length === 1 ? "0 1 230px" : "1 1 0",
+                        flex:
+                          generatedImageUrls.length === 1
+                            ? "0 1 230px"
+                            : "1 1 0",
                         maxWidth:
                           generatedImageUrls.length === 1
                             ? { xs: "60%", sm: 230 }
