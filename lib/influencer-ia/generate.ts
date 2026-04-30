@@ -169,10 +169,20 @@ function buildPrompt(input: InfluencerImageInput): string {
     poseIsSoProduct
       ? "SUBJECT: Product-only shot — no person in the image."
       : `SUBJECT: ${subject}.`,
-    `PRODUCT: "${product}" — the reference image is the absolute source of truth. ` +
-      `Reproduce EVERY detail exactly: color (especially the specific shade/hue of the selected variation), ` +
-      `shape, fabric, labels, text, logos, and finish. ` +
+    `PRODUCT: "${product}" — the reference image is the SOLE source of truth for the product's physical appearance. ` +
+      `Reproduce EVERY intrinsic detail exactly: color (especially the specific shade/hue of the selected variation), ` +
+      `shape, fabric, labels, text printed ON the product itself, logos, and finish. ` +
       `Do NOT substitute, invent, or alter ANY aspect of the product.`,
+    "READING THE REFERENCE IMAGE — CRITICAL RULES:",
+    `- IGNORE everything that is NOT part of the physical product: price stickers, promotional stamps, ` +
+      `watermarks, e-commerce badges, review stars, shipping labels, certification seals, ` +
+      `website URLs, or any text/graphic overlaid on the photo background. ` +
+      `These are photo artifacts, NOT product features. Reproduce only what is physically ON the product.`,
+    `- Infer the REAL-WORLD SIZE of the product from its shape and category. ` +
+      `A supplement bottle should look like a hand-sized bottle (~15–20 cm tall). ` +
+      `A serum should look small in the palm. A clothing item should drape over a full body. ` +
+      `Scale the product PROPORTIONALLY and REALISTICALLY relative to the person or hand — ` +
+      `never make it unnaturally large or tiny compared to a real human hand or body.`,
     poseIsSoProduct ? "" : `PLACEMENT: ${placement}`,
     `POSE: ${poseDescription}.`,
     `SETTING: ${envDescription}.`,
@@ -181,10 +191,11 @@ function buildPrompt(input: InfluencerImageInput): string {
     "TECHNICAL REQUIREMENTS:",
     "- Vertical 9:16 portrait format",
     "- Photorealistic editorial quality — must look like a real professional photo, NOT AI-generated",
-    "- No text overlays, watermarks, or UI elements",
+    "- No text overlays, watermarks, or UI elements in the final image",
     "- Product must be the clear hero of the image and perfectly sharp",
     "- The product color must EXACTLY match the reference — do not change or approximate the shade",
     "- If the product is clothing, the influencer MUST be wearing it — not holding it",
+    "- Product scale must match real-world proportions relative to the person's hands and body",
     ...enhancementLines,
   ].filter((l) => l !== "");
 
