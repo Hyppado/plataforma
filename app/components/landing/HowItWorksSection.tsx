@@ -18,7 +18,12 @@ const FEATURES = [
     title: "Encontre o produto antes do mercado saturar",
     description:
       "Monitore produtos e vídeos em alta no TikTok Shop em tempo real. Filtre por região, categoria e período para descobrir oportunidades antes dos concorrentes.",
-    chips: ["Ranking de produtos", "Vídeos virais", "Creators em alta", "Filtros avançados"],
+    chips: [
+      "Ranking de produtos",
+      "Vídeos virais",
+      "Creators em alta",
+      "Filtros avançados",
+    ],
   },
   {
     icon: FaceRetouchingNatural,
@@ -29,7 +34,12 @@ const FEATURES = [
     title: "Crie vídeos com um avatar influenciador digital",
     description:
       "Selecione um avatar, escolha um cenário e gere prompts de vídeo completos com gancho, roteiro e chamada para ação — prontos para produção no Veo.",
-    chips: ["Avatar digital", "Cenários customizados", "Prompt Veo", "Roteiro completo"],
+    chips: [
+      "Avatar digital",
+      "Cenários customizados",
+      "Prompt Veo",
+      "Roteiro completo",
+    ],
   },
   {
     icon: ImageSearch,
@@ -40,7 +50,12 @@ const FEATURES = [
     title: "Gere imagens realistas do seu produto com o avatar",
     description:
       "Envie uma foto do produto e deixe a IA compor imagens com o avatar segurando ou usando o item — referência visual pronta para briefing ou criativo.",
-    chips: ["Upload do produto", "Composição IA", "Referência visual", "Múltiplas variações"],
+    chips: [
+      "Upload do produto",
+      "Composição IA",
+      "Referência visual",
+      "Múltiplas variações",
+    ],
   },
   {
     icon: AutoFixHigh,
@@ -51,7 +66,12 @@ const FEATURES = [
     title: "Do dado ao vídeo sem sair da plataforma",
     description:
       "Valide o produto, transcreva vídeos de referência, gere o prompt, componha as imagens. Um fluxo completo de inteligência à criação sem trocar de ferramenta.",
-    chips: ["Transcrição Whisper", "Análise de gancho", "Prompt gerado", "Fluxo completo"],
+    chips: [
+      "Transcrição Whisper",
+      "Análise de gancho",
+      "Prompt gerado",
+      "Fluxo completo",
+    ],
   },
 ];
 
@@ -98,7 +118,8 @@ export function HowItWorksSection() {
                 lineHeight: 1.65,
               }}
             >
-              Da mineração de tendências à criação de criativos com IA — num único lugar.
+              Da mineração de tendências à criação de criativos com IA — num
+              único lugar.
             </Typography>
           </Box>
         </Reveal>
@@ -124,7 +145,14 @@ export function HowItWorksSection() {
                     }}
                   >
                     {/* Icon + label */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2.5 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        mb: 2.5,
+                      }}
+                    >
                       <Box
                         sx={{
                           width: 42,
@@ -209,7 +237,9 @@ export function HowItWorksSection() {
               href="#planos"
               onClick={(e) => {
                 e.preventDefault();
-                document.getElementById("planos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document
+                  .getElementById("planos")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               sx={{
                 px: 5,
@@ -220,11 +250,13 @@ export function HowItWorksSection() {
                 bgcolor: "primary.main",
                 color: "#070B12",
                 textTransform: "none",
-                boxShadow: "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
+                boxShadow:
+                  "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
                 transition: "all 0.22s ease",
                 "&:hover": {
                   bgcolor: "primary.light",
-                  boxShadow: "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
+                  boxShadow:
+                    "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
                   transform: "translateY(-2px)",
                 },
               }}

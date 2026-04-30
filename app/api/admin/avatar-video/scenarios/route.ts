@@ -39,7 +39,10 @@ export async function POST(req: NextRequest) {
 
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) {
-      return NextResponse.json({ error: "name é obrigatório" }, { status: 400 });
+      return NextResponse.json(
+        { error: "name é obrigatório" },
+        { status: 400 },
+      );
     }
 
     const isDefault =
@@ -64,10 +67,8 @@ export async function POST(req: NextRequest) {
               ? body.promptHint.trim() || null
               : null,
           isDefault,
-          isActive:
-            typeof body.isActive === "boolean" ? body.isActive : true,
-          sortOrder:
-            typeof body.sortOrder === "number" ? body.sortOrder : 0,
+          isActive: typeof body.isActive === "boolean" ? body.isActive : true,
+          sortOrder: typeof body.sortOrder === "number" ? body.sortOrder : 0,
         },
       });
     });

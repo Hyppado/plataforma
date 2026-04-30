@@ -238,7 +238,9 @@ function ProductsContent() {
                     background: active
                       ? alpha(theme.palette.primary.main, 0.15)
                       : "rgba(255,255,255,0.05)",
-                    color: active ? theme.palette.primary.main : "rgba(255,255,255,0.6)",
+                    color: active
+                      ? theme.palette.primary.main
+                      : "rgba(255,255,255,0.6)",
                     fontSize: "0.75rem",
                     fontWeight: active ? 700 : 400,
                     cursor: "pointer",

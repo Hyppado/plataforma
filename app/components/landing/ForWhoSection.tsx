@@ -48,7 +48,8 @@ export function ForWhoSection() {
                 lineHeight: 1.65,
               }}
             >
-              Sem adivinhação, sem desperdício de tempo. Dados reais + IA para quem quer escalar no TikTok Shop.
+              Sem adivinhação, sem desperdício de tempo. Dados reais + IA para
+              quem quer escalar no TikTok Shop.
             </Typography>
           </Box>
         </Reveal>
@@ -70,7 +71,12 @@ export function ForWhoSection() {
               >
                 <Typography
                   component="h3"
-                  sx={{ fontSize: "1.05rem", fontWeight: 700, color: "primary.main", mb: 3 }}
+                  sx={{
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    color: "primary.main",
+                    mb: 3,
+                  }}
                 >
                   Hyppado é para você se…
                 </Typography>
@@ -82,9 +88,27 @@ export function ForWhoSection() {
                     "Busca um fluxo completo: dado → imagem → vídeo",
                     "Quer escalar no TikTok Shop com mais eficiência",
                   ].map((item) => (
-                    <Stack key={item} direction="row" spacing={1.5} alignItems="flex-start">
-                      <CheckCircleOutline sx={{ fontSize: 18, color: "primary.main", mt: 0.2, flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>
+                    <Stack
+                      key={item}
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="flex-start"
+                    >
+                      <CheckCircleOutline
+                        sx={{
+                          fontSize: 18,
+                          color: "primary.main",
+                          mt: 0.2,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: "0.9rem",
+                          color: "rgba(255,255,255,0.7)",
+                          lineHeight: 1.55,
+                        }}
+                      >
                         {item}
                       </Typography>
                     </Stack>
@@ -108,7 +132,12 @@ export function ForWhoSection() {
               >
                 <Typography
                   component="h3"
-                  sx={{ fontSize: "1.05rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", mb: 3 }}
+                  sx={{
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.45)",
+                    mb: 3,
+                  }}
                 >
                   Não é para você se…
                 </Typography>
@@ -120,9 +149,27 @@ export function ForWhoSection() {
                     "Quer apenas salvar vídeos sem analisar",
                     "Prefere criar no improviso sem dados",
                   ].map((item) => (
-                    <Stack key={item} direction="row" spacing={1.5} alignItems="flex-start">
-                      <CancelOutlined sx={{ fontSize: 18, color: "rgba(255,255,255,0.2)", mt: 0.2, flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.35)", lineHeight: 1.55 }}>
+                    <Stack
+                      key={item}
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="flex-start"
+                    >
+                      <CancelOutlined
+                        sx={{
+                          fontSize: 18,
+                          color: "rgba(255,255,255,0.2)",
+                          mt: 0.2,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: "0.9rem",
+                          color: "rgba(255,255,255,0.35)",
+                          lineHeight: 1.55,
+                        }}
+                      >
                         {item}
                       </Typography>
                     </Stack>
@@ -135,7 +182,13 @@ export function ForWhoSection() {
 
         <Reveal delay={150}>
           <Box sx={{ textAlign: "center" }}>
-            <Typography sx={{ fontSize: "0.88rem", color: "rgba(255,255,255,0.35)", mb: 3 }}>
+            <Typography
+              sx={{
+                fontSize: "0.88rem",
+                color: "rgba(255,255,255,0.35)",
+                mb: 3,
+              }}
+            >
               Processo inteligente. Resultados reais.
             </Typography>
             <Button
@@ -144,7 +197,9 @@ export function ForWhoSection() {
               href="#planos"
               onClick={(e) => {
                 e.preventDefault();
-                document.getElementById("planos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document
+                  .getElementById("planos")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               sx={{
                 px: 5,
@@ -155,11 +210,13 @@ export function ForWhoSection() {
                 bgcolor: "primary.main",
                 color: "#070B12",
                 textTransform: "none",
-                boxShadow: "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
+                boxShadow:
+                  "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
                 transition: "all 0.22s ease",
                 "&:hover": {
                   bgcolor: "primary.light",
-                  boxShadow: "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
+                  boxShadow:
+                    "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
                   transform: "translateY(-2px)",
                 },
               }}

@@ -98,7 +98,7 @@ export function ProductPreviewSection() {
           observer.disconnect();
         }
       },
-      { threshold: 0.12, rootMargin: "0px 0px -60px 0px" }
+      { threshold: 0.12, rootMargin: "0px 0px -60px 0px" },
     );
 
     observer.observe(node);

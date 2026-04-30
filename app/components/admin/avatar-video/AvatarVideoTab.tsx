@@ -71,7 +71,10 @@ export function AvatarVideoTab() {
           borderBottom: "1px solid rgba(255,255,255,0.08)",
           "& .MuiTab-root": { color: "rgba(255,255,255,0.5)", fontWeight: 600 },
           "& .Mui-selected": { color: "primary.main" },
-          "& .MuiTabs-indicator": { background: "primary.main", bgcolor: "primary.main" },
+          "& .MuiTabs-indicator": {
+            background: "primary.main",
+            bgcolor: "primary.main",
+          },
         }}
       >
         <Tab label={`Avatares (${avatars.length})`} />
@@ -79,7 +82,9 @@ export function AvatarVideoTab() {
       </Tabs>
 
       {subTab === 0 && <AvatarsSection avatars={avatars} onChanged={loadAll} />}
-      {subTab === 1 && <ScenariosSection scenarios={scenarios} onChanged={loadAll} />}
+      {subTab === 1 && (
+        <ScenariosSection scenarios={scenarios} onChanged={loadAll} />
+      )}
     </Box>
   );
 }

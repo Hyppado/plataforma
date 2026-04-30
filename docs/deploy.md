@@ -59,15 +59,24 @@ O CI usa `concurrency: ci-${{ github.ref }}` com `cancel-in-progress: true` — 
 Configurado em `vercel.json`:
 
 ```
-npx prisma generate && npx prisma migrate deploy && next build
+npx prisma generate && next build
 ```
 
-`prisma migrate deploy` aplica migrações pendentes automaticamente em todo deploy. É idempotente: se não houver migrações pendentes, não faz nada.
+`prisma migrate deploy` **não está no buildCommand** — deve ser executado manualmente antes do deploy quando há novas migrações pendentes (via `npm run db:deploy` apontando para o banco de produção).
 
 ### Limites
 
-- Funções serverless: **60 segundos** por execução
-- O cron de ingestão é projetado para respeitar esse limite (uma tarefa por invocação)
+- Funções serverless: **60 segundos** por execução (padrão)
+- `app/api/avatar-video/creations/[id]/generate-image/route.ts`: **120 segundos** (configuração explícita em `vercel.json`)
+- O cron de injeção é projetado para respeitar o limite de 60s (uma tarefa por invocação)
+
+### Crons configurados
+
+| Rota                      | Schedule                            | Descrição                                         |
+| ------------------------- | ----------------------------------- | ------------------------------------------------- |
+| `/api/cron/echotik`       | `*/15 * * * *` (15min)              | Injeção de dados Echotik                          |
+| `/api/cron/sync-db`       | `0 6 * * *` (06:00 UTC)             | Cópia diária prod→preview com mascaramento de PII |
+| `/api/cron/exchange-rate` | `30 16 * * 1-5` (Seg–Sex 16:30 UTC) | Taxa USD→BRL (após PTAX do BCB)                   |
 
 ### Variáveis de ambiente
 
