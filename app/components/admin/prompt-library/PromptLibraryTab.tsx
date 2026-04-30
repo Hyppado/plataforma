@@ -533,43 +533,45 @@ export function PromptLibraryTab() {
               </Stack>
 
               {/* Video preview */}
-              {form?.videoBlobUrl && !uploading && (() => {
-                const vimeoUrl = getVimeoEmbedUrl(form.videoBlobUrl);
-                return vimeoUrl ? (
-                  <Box
-                    component="iframe"
-                    src={vimeoUrl}
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    frameBorder={0}
-                    sx={{
-                      mt: 1.5,
-                      width: "100%",
-                      height: 200,
-                      borderRadius: 2,
-                      bgcolor: "#000",
-                      border: "none",
-                      display: "block",
-                    }}
-                  />
-                ) : (
-                  <Box
-                    component="video"
-                    src={form.videoBlobUrl}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    sx={{
-                      mt: 1.5,
-                      width: "100%",
-                      maxHeight: 200,
-                      borderRadius: 2,
-                      bgcolor: "#000",
-                      objectFit: "contain",
-                    }}
-                  />
-                );
-              })()}
+              {form?.videoBlobUrl &&
+                !uploading &&
+                (() => {
+                  const vimeoUrl = getVimeoEmbedUrl(form.videoBlobUrl);
+                  return vimeoUrl ? (
+                    <Box
+                      component="iframe"
+                      src={vimeoUrl}
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      frameBorder={0}
+                      sx={{
+                        mt: 1.5,
+                        width: "100%",
+                        height: 200,
+                        borderRadius: 2,
+                        bgcolor: "#000",
+                        border: "none",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      component="video"
+                      src={form.videoBlobUrl}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      sx={{
+                        mt: 1.5,
+                        width: "100%",
+                        maxHeight: 200,
+                        borderRadius: 2,
+                        bgcolor: "#000",
+                        objectFit: "contain",
+                      }}
+                    />
+                  );
+                })()}
             </Box>
 
             <TextField
@@ -632,41 +634,42 @@ export function PromptLibraryTab() {
           Pré-visualização
         </DialogTitle>
         <DialogContent sx={{ textAlign: "center", pb: 3 }}>
-          {previewOpen && (() => {
-            const vimeoUrl = getVimeoEmbedUrl(previewOpen);
-            return vimeoUrl ? (
-              <Box
-                component="iframe"
-                src={vimeoUrl}
-                allow="autoplay; fullscreen; picture-in-picture"
-                frameBorder={0}
-                sx={{
-                  width: "100%",
-                  height: 480,
-                  borderRadius: 2,
-                  bgcolor: "#000",
-                  border: "none",
-                  display: "block",
-                }}
-              />
-            ) : (
-              <Box
-                component="video"
-                src={previewOpen}
-                autoPlay
-                loop
-                muted
-                playsInline
-                controls
-                sx={{
-                  width: "100%",
-                  maxHeight: 480,
-                  borderRadius: 2,
-                  bgcolor: "#000",
-                }}
-              />
-            );
-          })()}
+          {previewOpen &&
+            (() => {
+              const vimeoUrl = getVimeoEmbedUrl(previewOpen);
+              return vimeoUrl ? (
+                <Box
+                  component="iframe"
+                  src={vimeoUrl}
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  frameBorder={0}
+                  sx={{
+                    width: "100%",
+                    height: 480,
+                    borderRadius: 2,
+                    bgcolor: "#000",
+                    border: "none",
+                    display: "block",
+                  }}
+                />
+              ) : (
+                <Box
+                  component="video"
+                  src={previewOpen}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  controls
+                  sx={{
+                    width: "100%",
+                    maxHeight: 480,
+                    borderRadius: 2,
+                    bgcolor: "#000",
+                  }}
+                />
+              );
+            })()}
         </DialogContent>
       </Dialog>
     </Box>

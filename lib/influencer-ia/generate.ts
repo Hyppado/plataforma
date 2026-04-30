@@ -17,6 +17,7 @@ import {
   signEchotikCoverUrl,
   uploadBufferToBlob,
 } from "@/lib/storage/blob";
+import sharp from "sharp";
 
 const log = createLogger("influencer-ia/generate");
 
@@ -207,8 +208,8 @@ function buildPrompt(input: InfluencerImageInput): string {
 // ---------------------------------------------------------------------------
 
 /** Max bytes to send per image to Google AI. Images above this threshold
- *  are re-fetched through the Next.js image optimizer at a smaller size to
- *  keep the Gemini payload small and avoid timeouts. */
+ *  are resized in-process with sharp to keep the Gemini payload small
+ *  and avoid timeouts. */
 const MAX_IMAGE_BYTES = 600_000; // 600 KB
 
 async function fetchImageBuffer(
@@ -219,33 +220,29 @@ async function fetchImageBuffer(
 
   // If image is too large, re-fetch via Next.js image optimizer (lossy resize).
   // This keeps the Gemini request payload small and avoids 110s timeouts.
+  // If image is too large, resize in-process with sharp.
   if (result.buffer.byteLength > MAX_IMAGE_BYTES) {
-    log.info("Image too large, resizing via optimizer", {
-      bytes: result.buffer.byteLength,
-      url: url.slice(0, 100),
-    });
-    // Only use the Next.js image optimizer for Vercel Blob URLs.
-    // Echotik CDN URLs have expiring signed tokens — Next.js would cache
-    // a stale version, so we skip optimization for those.
-    let hostname = "";
     try {
-      hostname = new URL(url).hostname;
-    } catch {
-      /* invalid URL — skip optimization */
-    }
-    const isBlob = hostname.endsWith(".public.blob.vercel-storage.com");
-    if (isBlob) {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_APP_URL ||
-        (process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "http://localhost:3000");
-      const optimizerUrl = `${baseUrl}/_next/image?url=${encodeURIComponent(url)}&w=800&q=80`;
-      const resized = await _fetchImageBuffer(optimizerUrl);
-      if (resized && resized.buffer.byteLength < result.buffer.byteLength) {
-        log.info("Resized image fetched", { bytes: resized.buffer.byteLength });
-        return resized;
-      }
+      const resized = await sharp(result.buffer)
+        .rotate() // honour EXIF orientation
+        .resize({
+          width: 1024,
+          height: 1024,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 82, mozjpeg: true })
+        .toBuffer();
+      log.info("Image resized via sharp", {
+        before: result.buffer.byteLength,
+        after: resized.byteLength,
+      });
+      return { buffer: resized, contentType: "image/jpeg" };
+    } catch (err) {
+      log.warn("Sharp resize failed, sending original", {
+        bytes: result.buffer.byteLength,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

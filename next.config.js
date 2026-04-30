@@ -50,8 +50,6 @@ const nextConfig = {
       { protocol: "https", hostname: "p19-sign.tiktokcdn-us.com" },
       { protocol: "https", hostname: "*.tiktokcdn.com" },
       { protocol: "https", hostname: "*.tiktokcdn-us.com" },
-      // Vercel Blob storage — used for avatar/product images sent to Google AI
-      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
     ],
   },
   // ---------------------------------------------------------------------------
