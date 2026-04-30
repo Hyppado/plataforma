@@ -28,6 +28,78 @@ import {
 import { useCopyToClipboard } from "@/lib/swr/useCopyToClipboard";
 
 // ---------------------------------------------------------------------------
+// Vimeo helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts a Vimeo video ID from:
+ *  - Share URL: https://vimeo.com/1188144914?...
+ *  - Player URL: https://player.vimeo.com/video/1188144914?...
+ *  - iframe embed HTML: <iframe src="https://player.vimeo.com/video/1188144914?...">
+ * Returns null if the string does not look like a Vimeo resource.
+ */
+function getVimeoId(value: string): string | null {
+  if (!value) return null;
+  const match = value.match(
+    /(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)(\d+)/,
+  );
+  return match?.[1] ?? null;
+}
+
+function getVimeoEmbedUrl(value: string): string | null {
+  const id = getVimeoId(value);
+  if (!id) return null;
+  return `https://player.vimeo.com/video/${id}?badge=0&autopause=0&loop=1&autoplay=1&muted=1&background=1`;
+}
+
+// ---------------------------------------------------------------------------
+// Shared video renderer — handles both blob URLs and Vimeo
+// ---------------------------------------------------------------------------
+
+function VideoRenderer({
+  src,
+  videoRef,
+  style,
+  sx,
+}: {
+  src: string;
+  videoRef?: React.RefObject<HTMLVideoElement>;
+  style?: React.CSSProperties;
+  sx?: object;
+}) {
+  const vimeoUrl = getVimeoEmbedUrl(src);
+  if (vimeoUrl) {
+    return (
+      <Box
+        component="iframe"
+        src={vimeoUrl}
+        allow="autoplay; fullscreen; picture-in-picture"
+        frameBorder={0}
+        sx={{
+          width: "100%",
+          height: "100%",
+          border: "none",
+          display: "block",
+          ...sx,
+        }}
+      />
+    );
+  }
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      autoPlay
+      loop
+      muted
+      playsInline
+      preload="auto"
+      style={style}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Video card — autoplays and loops silently
 // ---------------------------------------------------------------------------
 
@@ -68,19 +140,15 @@ function PromptVideoCard({
           overflow: "hidden",
         }}
       >
-        <video
+        <VideoRenderer
           src={item.videoBlobUrl}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
           style={{
             width: "100%",
             height: "100%",
             objectFit: "cover",
             display: "block",
           }}
+          sx={{ aspectRatio: "9/16" }}
         />
       </Box>
 
@@ -262,19 +330,21 @@ function PromptDialog({
   const { copyState, copy } = useCopyToClipboard();
   const videoRef = useRef<HTMLVideoElement>(null);
   const open = item !== null;
+  const isVimeo = item ? !!getVimeoId(item.videoBlobUrl) : false;
 
-  // Play video when dialog opens, pause when it closes
+  // Play video when dialog opens, pause when it closes (native video only)
   const handleEntered = useCallback(() => {
-    videoRef.current?.play().catch(() => {});
-  }, []);
+    if (!isVimeo) videoRef.current?.play().catch(() => {});
+  }, [isVimeo]);
 
   const handleExited = useCallback(() => {
+    if (isVimeo) return;
     const v = videoRef.current;
     if (v) {
       v.pause();
       v.currentTime = 0;
     }
-  }, []);
+  }, [isVimeo]);
 
   const handleCopy = useCallback(() => {
     if (!item) return;
@@ -344,15 +414,14 @@ function PromptDialog({
             alignItems: "stretch",
           }}
         >
-          <video
-            ref={videoRef}
-            src={item?.videoBlobUrl ?? ""}
-            loop
-            muted
-            playsInline
-            preload="metadata"
-            style={{ width: "100%", objectFit: "cover", display: "block" }}
-          />
+          {item && (
+            <VideoRenderer
+              src={item.videoBlobUrl}
+              videoRef={videoRef}
+              style={{ width: "100%", objectFit: "cover", display: "block" }}
+              sx={{ flex: 1 }}
+            />
+          )}
         </Box>
 
         {/* Right — content */}
