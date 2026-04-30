@@ -908,6 +908,11 @@ function InfluencerIAWizard() {
   // meaningful content — used to gate the deep-link auto-select.
   const sessionHasContent = useRef(false);
 
+  // Set to true once the initial loadDraft() has resolved — prevents the
+  // persist effect from overwriting the DB draft with empty defaults before
+  // the async load finishes.
+  const draftLoaded = useRef(false);
+
   // Restore draft on mount (loaded from DB for cross-device persistence)
   const hasRestoredSession = useRef(false);
   useEffect(() => {
@@ -915,56 +920,61 @@ function InfluencerIAWizard() {
     hasRestoredSession.current = true;
 
     loadDraft<SessionSnapshot>().then((session) => {
-    if (!session) return;
+      if (!session) return;
 
-    // Track whether this session has meaningful content so the deep-link
-    // auto-select can decide whether to ask for confirmation.
-    if (
-      session.generatedImageUrl ||
-      session.selectedProduct ||
-      session.selectedAvatar ||
-      session.selectedSavedAvatarUrl ||
-      session.uploadedAvatarUrl
-    ) {
-      sessionHasContent.current = true;
-    }
+      // Track whether this session has meaningful content so the deep-link
+      // auto-select can decide whether to ask for confirmation.
+      if (
+        session.generatedImageUrl ||
+        session.selectedProduct ||
+        session.selectedAvatar ||
+        session.selectedSavedAvatarUrl ||
+        session.uploadedAvatarUrl
+      ) {
+        sessionHasContent.current = true;
+      }
 
-    // Only restore if no query params are present (query params take priority)
-    if (!initProductImageUrl && !initProductId) {
-      if (session.productTab !== undefined) setProductTab(session.productTab);
-      if (session.selectedProduct) setSelectedProduct(session.selectedProduct);
-      if (session.uploadedProductUrl)
-        setUploadedProductUrl(session.uploadedProductUrl);
-      if (session.uploadedProductName)
-        setUploadedProductName(session.uploadedProductName);
-      if (session.selectedVariationUrl)
-        setSelectedVariationUrl(session.selectedVariationUrl);
-      if (session.selectedVariationRawUrl)
-        setSelectedVariationRawUrl(session.selectedVariationRawUrl);
-    }
+      // Only restore if no query params are present (query params take priority)
+      if (!initProductImageUrl && !initProductId) {
+        if (session.productTab !== undefined) setProductTab(session.productTab);
+        if (session.selectedProduct)
+          setSelectedProduct(session.selectedProduct);
+        if (session.uploadedProductUrl)
+          setUploadedProductUrl(session.uploadedProductUrl);
+        if (session.uploadedProductName)
+          setUploadedProductName(session.uploadedProductName);
+        if (session.selectedVariationUrl)
+          setSelectedVariationUrl(session.selectedVariationUrl);
+        if (session.selectedVariationRawUrl)
+          setSelectedVariationRawUrl(session.selectedVariationRawUrl);
+      }
 
-    if (session.avatarTab !== undefined) setAvatarTab(session.avatarTab);
-    if (session.selectedAvatar) setSelectedAvatar(session.selectedAvatar);
-    if (session.uploadedAvatarUrl)
-      setUploadedAvatarUrl(session.uploadedAvatarUrl);
-    if (session.selectedSavedAvatarUrl)
-      setSelectedSavedAvatarUrl(session.selectedSavedAvatarUrl);
-    if (session.pose) setPose(session.pose);
-    if (session.customPose) setCustomPose(session.customPose);
-    if (session.environment) setEnvironment(session.environment);
-    if (session.customEnvironment)
-      setCustomEnvironment(session.customEnvironment);
-    if (session.style) setStyle(session.style);
-    if (session.enhancements) setEnhancements(session.enhancements);
-    if (session.generatedImageUrl)
-      setGeneratedImageUrl(session.generatedImageUrl);
-    if (session.generatedImageUrls?.length)
-      setGeneratedImageUrls(session.generatedImageUrls);
-    if (session.imageCount) setImageCount(session.imageCount);
-    if (session.veoDuration) setVeoDuration(session.veoDuration);
-    if (session.veoStyle) setVeoStyle(session.veoStyle);
-    if (session.veoParts) setVeoParts(session.veoParts);
-    if (session.originalVeoParts) setOriginalVeoParts(session.originalVeoParts);
+      if (session.avatarTab !== undefined) setAvatarTab(session.avatarTab);
+      if (session.selectedAvatar) setSelectedAvatar(session.selectedAvatar);
+      if (session.uploadedAvatarUrl)
+        setUploadedAvatarUrl(session.uploadedAvatarUrl);
+      if (session.selectedSavedAvatarUrl)
+        setSelectedSavedAvatarUrl(session.selectedSavedAvatarUrl);
+      if (session.pose) setPose(session.pose);
+      if (session.customPose) setCustomPose(session.customPose);
+      if (session.environment) setEnvironment(session.environment);
+      if (session.customEnvironment)
+        setCustomEnvironment(session.customEnvironment);
+      if (session.style) setStyle(session.style);
+      if (session.enhancements) setEnhancements(session.enhancements);
+      if (session.generatedImageUrl)
+        setGeneratedImageUrl(session.generatedImageUrl);
+      if (session.generatedImageUrls?.length)
+        setGeneratedImageUrls(session.generatedImageUrls);
+      if (session.imageCount) setImageCount(session.imageCount);
+      if (session.veoDuration) setVeoDuration(session.veoDuration);
+      if (session.veoStyle) setVeoStyle(session.veoStyle);
+      if (session.veoParts) setVeoParts(session.veoParts);
+      if (session.originalVeoParts)
+        setOriginalVeoParts(session.originalVeoParts);
+    }).finally(() => {
+      // Allow the persist effect to save from this point on
+      draftLoaded.current = true;
     }); // end loadDraft
   }, [initProductImageUrl, initProductId, initProductName]);
 
@@ -1047,6 +1057,7 @@ function InfluencerIAWizard() {
       veoParts,
       originalVeoParts,
     };
+    if (!draftLoaded.current) return;
     if (saveDraftTimer.current) clearTimeout(saveDraftTimer.current);
     saveDraftTimer.current = setTimeout(() => {
       saveDraft(snap);
