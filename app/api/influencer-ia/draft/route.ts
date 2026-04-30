@@ -35,7 +35,10 @@ export async function GET() {
       userId: auth.userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -47,7 +50,10 @@ export async function PUT(req: NextRequest) {
   try {
     data = await req.json();
   } catch {
-    return NextResponse.json({ error: "Corpo da requisição inválido" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Corpo da requisição inválido" },
+      { status: 400 },
+    );
   }
 
   try {
@@ -62,7 +68,10 @@ export async function PUT(req: NextRequest) {
       userId: auth.userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -80,6 +89,9 @@ export async function DELETE() {
       userId: auth.userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
