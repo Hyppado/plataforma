@@ -26,35 +26,17 @@ import {
   type PromptLibraryItem,
 } from "@/lib/swr/usePromptLibrary";
 import { useCopyToClipboard } from "@/lib/swr/useCopyToClipboard";
+import { resolveEmbed } from "@/lib/prompt-library/embed";
 
 // ---------------------------------------------------------------------------
-// Vimeo helpers
+// Shared video renderer — handles all supported platforms (YouTube, Vimeo,
+// TikTok, Instagram, direct file URLs)
 // ---------------------------------------------------------------------------
 
-/**
- * Extracts a Vimeo video ID from:
- *  - Share URL: https://vimeo.com/1188144914?...
- *  - Player URL: https://player.vimeo.com/video/1188144914?...
- *  - iframe embed HTML: <iframe src="https://player.vimeo.com/video/1188144914?...">
- * Returns null if the string does not look like a Vimeo resource.
- */
-function getVimeoId(value: string): string | null {
-  if (!value) return null;
-  const match = value.match(
-    /(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)(\d+)/,
-  );
-  return match?.[1] ?? null;
+function isVimeoOrIframeOnly(src: string): boolean {
+  const embed = resolveEmbed(src);
+  return !!embed && embed.kind === "iframe";
 }
-
-function getVimeoEmbedUrl(value: string): string | null {
-  const id = getVimeoId(value);
-  if (!id) return null;
-  return `https://player.vimeo.com/video/${id}?badge=0&autopause=0&loop=1&autoplay=1&muted=1&background=1`;
-}
-
-// ---------------------------------------------------------------------------
-// Shared video renderer — handles both blob URLs and Vimeo
-// ---------------------------------------------------------------------------
 
 function VideoRenderer({
   src,
@@ -67,12 +49,13 @@ function VideoRenderer({
   style?: React.CSSProperties;
   sx?: object;
 }) {
-  const vimeoUrl = getVimeoEmbedUrl(src);
-  if (vimeoUrl) {
+  const embed = resolveEmbed(src);
+  if (!embed) return null;
+  if (embed.kind === "iframe") {
     return (
       <Box
         component="iframe"
-        src={vimeoUrl}
+        src={embed.src}
         allow="autoplay; fullscreen; picture-in-picture"
         frameBorder={0}
         sx={{
@@ -88,7 +71,7 @@ function VideoRenderer({
   return (
     <video
       ref={videoRef}
-      src={src}
+      src={embed.src}
       autoPlay
       loop
       muted
@@ -330,7 +313,7 @@ function PromptDialog({
   const { copyState, copy } = useCopyToClipboard();
   const videoRef = useRef<HTMLVideoElement>(null);
   const open = item !== null;
-  const isVimeo = item ? !!getVimeoId(item.videoBlobUrl) : false;
+  const isVimeo = item ? isVimeoOrIframeOnly(item.videoBlobUrl) : false;
 
   // Play video when dialog opens, pause when it closes (native video only)
   const handleEntered = useCallback(() => {
