@@ -52,7 +52,6 @@ function BrowserChrome() {
           alignItems: "center",
           gap: 0.75,
           maxWidth: 320,
-          mx: "auto",
         }}
       >
         {/* Lock icon */}
