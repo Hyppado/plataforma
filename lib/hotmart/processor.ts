@@ -761,8 +761,37 @@ async function _processEvent(
   let subscriptionId: string | undefined;
 
   if (identity && plan) {
+    const isActivation = ACTIVATION_EVENTS.has(eventType);
+    const isRenewal = (fields.recurrenceNumber ?? 1) > 1;
+
+    // Reativa usuário INACTIVE em eventos de ativação (mesmo comportamento que handleApproved)
+    // SUSPENDED permanece — admin deve revisar antes da reativação
+    if (isActivation && identity.user.status === "INACTIVE") {
+      await prisma.user.update({
+        where: { id: identity.userId },
+        data: { status: "ACTIVE" },
+      });
+      await prisma.auditLog.create({
+        data: {
+          userId: identity.userId,
+          actorId: "system",
+          action: "USER_REACTIVATED_BY_PURCHASE",
+          entityType: "User",
+          entityId: identity.userId,
+          after: {
+            previousStatus: "INACTIVE",
+            newStatus: "ACTIVE",
+            trigger: eventType,
+            transactionId: fields.transactionId,
+          },
+        },
+      });
+      // Atualiza referência local para que sendOnboardingEmail não pule por status
+      identity.user.status = "ACTIVE";
+    }
+
     // Determina status da assinatura
-    const newStatus = ACTIVATION_EVENTS.has(eventType)
+    const newStatus = isActivation
       ? "ACTIVE"
       : CANCELLATION_EVENTS.has(eventType)
         ? "CANCELLED"
@@ -847,7 +876,19 @@ async function _processEvent(
       });
     });
 
-    // 6. Auto-suspensão em CHARGEBACK (proteção contra fraude)
+    // 6. Email de onboarding — primeira compra via evento de ativação (ex: PURCHASE_COMPLETE
+    //    sem PURCHASE_APPROVED prévio, como ocorre em compras gratuitas/R$ 0,00).
+    //    Idempotente: sendOnboardingEmail pula se usuário já tem senha.
+    if (isActivation && !isRenewal) {
+      await sendOnboardingEmail({ userId: identity.userId }).catch((err) => {
+        log.warn("Failed to send onboarding email", {
+          userId: identity.userId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+
+    // 7. Auto-suspensão em CHARGEBACK (proteção contra fraude)
     if (eventType === "PURCHASE_CHARGEBACK") {
       await prisma.user.update({
         where: { id: identity.userId },

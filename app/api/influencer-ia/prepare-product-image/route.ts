@@ -107,11 +107,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    const rawContentType = res.headers.get("content-type") ?? "";
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.byteLength === 0) {
       return NextResponse.json({ error: "Imagem vazia" }, { status: 502 });
     }
+
+    // Detect actual MIME type from magic bytes — CDNs sometimes return
+    // "binary/octet-stream" or "application/octet-stream" even for images.
+    const detectMimeType = (buf: Buffer): string => {
+      if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
+        return "image/jpeg";
+      if (
+        buf[0] === 0x89 &&
+        buf[1] === 0x50 &&
+        buf[2] === 0x4e &&
+        buf[3] === 0x47
+      )
+        return "image/png";
+      if (buf[0] === 0x52 && buf[1] === 0x49 && buf[4] === 0x57)
+        return "image/webp";
+      if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)
+        return "image/gif";
+      return "image/jpeg"; // safe fallback for Google AI
+    };
+    const isGenericBinary =
+      !rawContentType ||
+      rawContentType.includes("octet-stream") ||
+      rawContentType.includes("binary");
+    const contentType = isGenericBinary
+      ? detectMimeType(buffer)
+      : rawContentType.split(";")[0].trim();
 
     const ext = contentType.includes("png")
       ? "png"

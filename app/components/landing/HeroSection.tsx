@@ -65,13 +65,27 @@ function ParticleCanvas() {
       ctx!.clearRect(0, 0, w, h);
 
       // Subtle radial glow blobs
-      const g1 = ctx!.createRadialGradient(w * 0.25, h * 0.4, 0, w * 0.25, h * 0.4, w * 0.38);
+      const g1 = ctx!.createRadialGradient(
+        w * 0.25,
+        h * 0.4,
+        0,
+        w * 0.25,
+        h * 0.4,
+        w * 0.38,
+      );
       g1.addColorStop(0, "rgba(45,212,255,0.055)");
       g1.addColorStop(1, "transparent");
       ctx!.fillStyle = g1;
       ctx!.fillRect(0, 0, w, h);
 
-      const g2 = ctx!.createRadialGradient(w * 0.78, h * 0.6, 0, w * 0.78, h * 0.6, w * 0.28);
+      const g2 = ctx!.createRadialGradient(
+        w * 0.78,
+        h * 0.6,
+        0,
+        w * 0.78,
+        h * 0.6,
+        w * 0.28,
+      );
       g2.addColorStop(0, "rgba(255,45,120,0.04)");
       g2.addColorStop(1, "transparent");
       ctx!.fillStyle = g2;
@@ -164,7 +178,9 @@ const FEATURES = [
 export function HeroSection() {
   const scrollToPlanos = (e: React.MouseEvent) => {
     e.preventDefault();
-    document.getElementById("planos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById("planos")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -216,7 +232,15 @@ export function HeroSection() {
           }}
         >
           <AutoAwesome sx={{ fontSize: 13, color: "primary.main" }} />
-          <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "primary.main", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          <Typography
+            sx={{
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              color: "primary.main",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
             Inteligência TikTok Shop com IA
           </Typography>
         </Box>
@@ -244,8 +268,8 @@ export function HeroSection() {
             })}
           >
             ao vídeo pronto
-          </Box>
-          {" "}com IA
+          </Box>{" "}
+          com IA
         </Typography>
 
         {/* Subtext */}
@@ -259,11 +283,19 @@ export function HeroSection() {
             mb: 5,
           }}
         >
-          Descubra produtos em alta, crie prompts de vídeo com um avatar influenciador IA e gere imagens realistas do seu produto com referência visual — tudo numa plataforma.
+          Descubra produtos em alta, crie prompts de vídeo com um avatar
+          influenciador IA e gere imagens realistas do seu produto com
+          referência visual — tudo numa plataforma.
         </Typography>
 
         {/* CTA buttons */}
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="center" alignItems="center" sx={{ mb: 6 }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          justifyContent="center"
+          alignItems="center"
+          sx={{ mb: 6 }}
+        >
           <Button
             variant="contained"
             size="large"
@@ -280,11 +312,13 @@ export function HeroSection() {
               bgcolor: "primary.main",
               color: "#070B12",
               textTransform: "none",
-              boxShadow: "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
+              boxShadow:
+                "0 0 28px rgba(45,212,255,0.35), 0 4px 16px rgba(0,0,0,0.3)",
               transition: "all 0.22s ease",
               "&:hover": {
                 bgcolor: "primary.light",
-                boxShadow: "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
+                boxShadow:
+                  "0 0 40px rgba(45,212,255,0.5), 0 6px 20px rgba(0,0,0,0.35)",
                 transform: "translateY(-2px)",
               },
             }}
@@ -297,7 +331,9 @@ export function HeroSection() {
             href="#como-funciona"
             onClick={(e) => {
               e.preventDefault();
-              document.getElementById("como-funciona")?.scrollIntoView({ behavior: "smooth" });
+              document
+                .getElementById("como-funciona")
+                ?.scrollIntoView({ behavior: "smooth" });
             }}
             sx={{
               px: 4,
@@ -320,7 +356,14 @@ export function HeroSection() {
         </Stack>
 
         {/* Feature pills */}
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, justifyContent: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 1,
+            justifyContent: "center",
+          }}
+        >
           {FEATURES.map((f) => (
             <Chip
               key={f}

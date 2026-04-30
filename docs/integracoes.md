@@ -399,16 +399,16 @@ COMPLETED
 
 ### Configuração admin
 
-| Item                            | Como configurar                                                                                                                                                                                                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Avatares disponíveis            | `/dashboard/config` → aba **Influencer IA** → sub-aba Avatares — CRUD de `AvatarProfile` (upload Vercel Blob, ativar/desativar, ordem). DELETE com criações associadas faz soft-deactivate; sem referências, hard-delete. |
-| Cenários disponíveis            | `/dashboard/config` → aba **Influencer IA** → sub-aba Cenários — CRUD de `VideoScenario` (`name`, `description`, `promptHint`, `isDefault`, `isActive`); apenas um cenário pode ser padrão (garantido em `$transaction`). |
-| Chave OpenAI                    | Admin → OpenAI tab → `openai.api_key` (criptografado)                                                                                                                                                                     |
-| System prompt — Conceito        | `/dashboard/config` → aba **Influencer IA** → sub-aba Templates de Prompt → `avatar_video.concept_template` (vazio = default embutido em inglês)                                                                          |
-| System prompt — Prompt VEO 3    | `/dashboard/config` → aba **Influencer IA** → sub-aba Templates de Prompt → `avatar_video.prompt_template` (vazio = default embutido em inglês)                                                                           |
-| Template de geração de imagem   | `/dashboard/config` → aba **Influencer IA** → sub-aba Templates de Prompt → `avatar_video.image_template` (vazio = prompt automático por categoria; preenchido = substitui integralmente)                                 |
-| Quota por plano                 | Admin → Hotmart tab → PlansCard → `avatarVideoQuota`                                                                                                                                                                      |
-| Chave Google AI (Influencer IA) | Admin → Google AI tab → `google_ai.api_key` (criptografado)                                                                                                                                                               |
+| Item                            | Como configurar                                                                                                                                                                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Avatares disponíveis            | `/dashboard/config` → aba **Vídeo com Avatar** → sub-aba Avatares — CRUD de `AvatarProfile` (upload Vercel Blob, ativar/desativar, ordem). DELETE com criações associadas faz soft-deactivate; sem referências, hard-delete.              |
+| Cenários disponíveis            | `/dashboard/config` → aba **Vídeo com Avatar** → sub-aba Cenários — CRUD de `VideoScenario` (`name`, `description`, `promptHint`, `isDefault`, `isActive`, `sortOrder`); apenas um cenário pode ser padrão (garantido em `$transaction`). |
+| Chave OpenAI                    | Admin → OpenAI tab → `openai.api_key` (criptografado)                                                                                                                                                                                     |
+| System prompt — Conceito        | `/dashboard/config` → aba **Geral** → sub-aba Conceito → `avatar_video.concept_template` (vazio = default embutido em inglês)                                                                                                             |
+| System prompt — Prompt VEO 3    | `/dashboard/config` → aba **Geral** → sub-aba Prompt → `avatar_video.prompt_template` (vazio = default embutido em inglês)                                                                                                                |
+| Template de geração de imagem   | `avatar_video.image_template` (Setting) — vazio = prompt automático por categoria; preenchido = substitui integralmente                                                                                                                   |
+| Quota por plano                 | Admin → Hotmart tab → PlansCard → `avatarVideoQuota`                                                                                                                                                                                      |
+| Chave Google AI (Influencer IA) | Admin → Google AI tab → `google_ai.api_key` (criptografado)                                                                                                                                                                               |
 
 ### Diferença: Vídeo com Avatar × Influencer IA
 
@@ -491,4 +491,4 @@ Armazenada criptografada no banco via painel admin. Resolução via `getSecretSe
 
 ### Sem quota
 
-A geração de imagem via Influencer IA não consome quota — acesso universal a usuários autenticados com assinatura ativa (via `resolveAccess`).
+A geração de imagem via Influencer IA usa quota diária configurada por plano (`Plan.influencerIaDailyQuota`, padrão 5/dia UTC por usuário). Administradores têm acesso ilimitado. A prioridade de resolução: quota do plano ativo do usuário → setting global `influencer_ia_daily_limit` → default 5.

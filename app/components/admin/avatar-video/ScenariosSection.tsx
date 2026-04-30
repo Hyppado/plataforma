@@ -267,9 +267,7 @@ export function ScenariosSection({
                     <IconButton
                       size="small"
                       title={
-                        row.isDefault
-                          ? "Cenário padrão"
-                          : "Definir como padrão"
+                        row.isDefault ? "Cenário padrão" : "Definir como padrão"
                       }
                       onClick={() => handleSetDefault(row)}
                       sx={{

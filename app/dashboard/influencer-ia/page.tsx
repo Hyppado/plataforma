@@ -1417,6 +1417,14 @@ function InfluencerIAWizard() {
       return;
     }
 
+    // Skip preparation for relative/proxy URLs (e.g. /api/proxy/image?url=...).
+    // These are display-only URLs that cannot be fetched server-side.
+    // The generate endpoint resolves the real image via productId fallback in the DB.
+    if (effectiveProductRawImageUrl.startsWith("/")) {
+      setPreparingProduct(false);
+      return;
+    }
+
     const ctrl = new AbortController();
     setPreparingProduct(true);
     fetch("/api/influencer-ia/prepare-product-image", {

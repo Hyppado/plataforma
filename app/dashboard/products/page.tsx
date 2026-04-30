@@ -74,7 +74,9 @@ function TrendsContent() {
       {/* Fixed Header */}
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.25 }}>
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.25 }}
+          >
             <Typography
               component="h1"
               sx={(theme) => ({
@@ -122,7 +124,12 @@ function TrendsContent() {
                 })}
               />
               <Typography
-                sx={{ fontSize: "0.58rem", fontWeight: 700, color: "primary.main", letterSpacing: "0.06em" }}
+                sx={{
+                  fontSize: "0.58rem",
+                  fontWeight: 700,
+                  color: "primary.main",
+                  letterSpacing: "0.06em",
+                }}
               >
                 AO VIVO
               </Typography>

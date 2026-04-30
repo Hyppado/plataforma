@@ -62,7 +62,9 @@ function CreatorsContent() {
     >
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.25 }}>
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.25 }}
+          >
             <Typography
               component="h1"
               sx={(theme) => ({
@@ -110,7 +112,12 @@ function CreatorsContent() {
                 })}
               />
               <Typography
-                sx={{ fontSize: "0.58rem", fontWeight: 700, color: "primary.main", letterSpacing: "0.06em" }}
+                sx={{
+                  fontSize: "0.58rem",
+                  fontWeight: 700,
+                  color: "primary.main",
+                  letterSpacing: "0.06em",
+                }}
               >
                 AO VIVO
               </Typography>
@@ -153,7 +160,9 @@ function CreatorsContent() {
                   background: active
                     ? alpha(theme.palette.primary.main, 0.12)
                     : "rgba(255,255,255,0.05)",
-                  color: active ? theme.palette.primary.main : "rgba(255,255,255,0.6)",
+                  color: active
+                    ? theme.palette.primary.main
+                    : "rgba(255,255,255,0.6)",
                   fontSize: "0.75rem",
                   fontWeight: active ? 600 : 400,
                   cursor: "pointer",

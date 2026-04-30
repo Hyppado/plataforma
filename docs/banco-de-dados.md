@@ -50,20 +50,21 @@ Convite de usuário com token seguro e pré-atribuição de plano.
 
 Planos de assinatura com quotas e features. Agnóstico de provedor.
 
-| Campo              | Tipo       | Descrição                                       |
-| ------------------ | ---------- | ----------------------------------------------- |
-| `id`               | String     | PK                                              |
-| `code`             | String     | Código interno único                            |
-| `name`             | String     | Nome exibido                                    |
-| `isActive`         | Boolean    | Visível no sistema                              |
-| `showOnLanding`    | Boolean    | Exibido na landing page                         |
-| `sortOrder`        | Int        | Ordem de exibição                               |
-| `hotmartPlanCode`  | String?    | Código do plano no Hotmart (vínculo automático) |
-| `checkoutUrl`      | String?    | URL de checkout                                 |
-| `periodicity`      | PlanPeriod | MONTHLY \| ANNUAL                               |
-| `transcriptQuota`  | Int        | Máximo de transcrições por período              |
-| `scriptQuota`      | Int        | Máximo de insights por período                  |
-| `avatarVideoQuota` | Int        | Máximo de gerações de vídeo avatar por período  |
+| Campo                    | Tipo       | Descrição                                                          |
+| ------------------------ | ---------- | ------------------------------------------------------------------ |
+| `id`                     | String     | PK                                                                 |
+| `code`                   | String     | Código interno único                                               |
+| `name`                   | String     | Nome exibido                                                       |
+| `isActive`               | Boolean    | Visível no sistema                                                 |
+| `showOnLanding`          | Boolean    | Exibido na landing page                                            |
+| `sortOrder`              | Int        | Ordem de exibição                                                  |
+| `hotmartPlanCode`        | String?    | Código do plano no Hotmart (vínculo automático)                    |
+| `checkoutUrl`            | String?    | URL de checkout                                                    |
+| `periodicity`            | PlanPeriod | MONTHLY \| ANNUAL                                                  |
+| `transcriptQuota`        | Int        | Máximo de transcrições por período                                 |
+| `scriptQuota`            | Int        | Máximo de insights por período                                     |
+| `avatarVideoQuota`       | Int        | Máximo de gerações de vídeo avatar por período                     |
+| `influencerIaDailyQuota` | Int        | Máximo de gerações de imagem Influencer IA por dia (UTC); padrão 5 |
 
 #### `Subscription`
 
@@ -120,21 +121,23 @@ Configurações dinâmicas chave-valor (painel admin). Suporta valores em texto 
 
 **Chaves principais (`SETTING_KEYS` em `lib/settings.ts`):**
 
-| Chave                           | Tipo      | Descrição                                                |
-| ------------------------------- | --------- | -------------------------------------------------------- |
-| `hotmart.product_id`            | Texto     | ID do produto Hotmart                                    |
-| `hotmart.client_id`             | Texto     | Client ID da API Hotmart                                 |
-| `hotmart.client_secret`         | Criptogr. | Client Secret Hotmart                                    |
-| `hotmart.basic_token`           | Criptogr. | Basic token Hotmart                                      |
-| `hotmart.webhook_secret`        | Criptogr. | Secret de validação de webhook                           |
-| `hotmart.sandbox`               | Texto     | Modo sandbox (true/false)                                |
-| `openai.api_key`                | Criptogr. | Chave da API OpenAI                                      |
-| `openai.whisper_model`          | Texto     | Modelo Whisper (padrão: `whisper-1`)                     |
-| `openai.whisper_language`       | Texto     | Idioma para Whisper (padrão: `pt`)                       |
-| `avatar_video.prompt_template`  | Texto     | Template de sistema para geração de prompt VEO 3         |
-| `avatar_video.concept_template` | Texto     | Template de sistema para geração de conceito de vídeo    |
-| `google_ai.api_key`             | Criptogr. | Chave da API Google AI Studio (Gemini)                   |
-| `google_ai.model`               | Texto     | Modelo Gemini (padrão: `gemini-3.1-flash-image-preview`) |
+| Chave                           | Tipo      | Descrição                                                                                        |
+| ------------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
+| `hotmart.product_id`            | Texto     | ID do produto Hotmart                                                                            |
+| `hotmart.client_id`             | Texto     | Client ID da API Hotmart                                                                         |
+| `hotmart.client_secret`         | Criptogr. | Client Secret Hotmart                                                                            |
+| `hotmart.basic_token`           | Criptogr. | Basic token Hotmart                                                                              |
+| `hotmart.webhook_secret`        | Criptogr. | Secret de validação de webhook                                                                   |
+| `hotmart.sandbox`               | Texto     | Modo sandbox (true/false)                                                                        |
+| `openai.api_key`                | Criptogr. | Chave da API OpenAI                                                                              |
+| `openai.whisper_model`          | Texto     | Modelo Whisper (padrão: `whisper-1`)                                                             |
+| `openai.whisper_language`       | Texto     | Idioma para Whisper (padrão: `pt`)                                                               |
+| `avatar_video.prompt_template`  | Texto     | Template de sistema para geração de prompt VEO 3                                                 |
+| `avatar_video.concept_template` | Texto     | Template de sistema para geração de conceito de vídeo                                            |
+| `avatar_video.image_template`   | Texto     | Template para geração de imagem (vazio = prompt automático por categoria)                        |
+| `google_ai.api_key`             | Criptogr. | Chave da API Google AI Studio (Gemini)                                                           |
+| `google_ai.model`               | Texto     | Modelo Gemini (padrão: `gemini-3.1-flash-image-preview`)                                         |
+| `influencer_ia_daily_limit`     | Texto     | Limite diário global de gerações Influencer IA (fallback quando plano não tem quota configurada) |
 
 ---
 
@@ -214,7 +217,7 @@ O campo `refTable` discrimina os dois usos de `AVATAR_VIDEO_GENERATION`: Avatar 
 
 Fluxo guiado de criação de material para vídeos UGC com avatares. Existe no máximo uma criação em status `DRAFT` por usuário — quando o usuário inicia um novo fluxo, o DRAFT existente é reaproveitado. Criações `FAILED` não são reaproveitadas — um novo DRAFT é criado. Uma criação `COMPLETED` não impede a criação de um novo DRAFT.
 
-> Administração de `AvatarProfile`, `VideoScenario` e dos templates `avatar_video.concept_template` / `avatar_video.prompt_template` é feita em **`/dashboard/config` → aba "Avatar Video"** (rotas em `app/api/admin/avatar-video/*`). DELETE de avatar/cenário com criações associadas faz soft-deactivate (`isActive=false`); sem referências, faz hard-delete. Endpoints de usuário (`/api/avatar-video/avatars` e `/api/avatar-video/scenarios`) sempre filtram por `isActive=true`.
+> Administração de `AvatarProfile` e `VideoScenario` é feita em **`/dashboard/config` → aba "Vídeo com Avatar"** (sub-abas **Avatares** e **Cenários**; rotas em `app/api/admin/avatar-video/*`). DELETE de avatar/cenário com criações associadas faz soft-deactivate (`isActive=false`); sem referências, faz hard-delete. Templates de prompt VEO 3 e conceito são configurados na aba **Geral** do painel (via `PromptsSection`). O endpoint de usuário (`/api/avatar-video/avatars`) sempre filtra por `isActive=true`.
 
 #### `AvatarProfile`
 
@@ -239,6 +242,7 @@ Templates de cenário/contexto para guiar a geração de imagens e prompt VEO 3.
 | `promptHint`  | String? | Instrução de ambiente/setting injetada no prompt de imagem |
 | `isDefault`   | Boolean | Selecionado por padrão na UI                               |
 | `isActive`    | Boolean | Disponível para seleção do usuário                         |
+| `sortOrder`   | Int     | Ordem de exibição                                          |
 
 #### `AvatarVideoCreation`
 
@@ -360,6 +364,39 @@ Campos de output: `contextText`, `hookText`, `problemText`, `solutionText`, `cta
 
 ---
 
+### Domínio 12 — Uploads de Avatar do Usuário
+
+#### `UserAvatarUpload`
+
+Armazena URLs de imagens de avatar enviadas pelo usuário para reutilização no wizard Influencer IA. Múltiplos registros por usuário (galéria pessoal).
+
+| Campo       | Tipo     | Descrição                              |
+| ----------- | -------- | -------------------------------------- |
+| `id`        | String   | PK (cuid)                              |
+| `userId`    | String   | FK para User (cascade delete)          |
+| `blobUrl`   | String   | URL pública no Vercel Blob             |
+| `label`     | String?  | Rótulo opcional atribuído pelo usuário |
+| `createdAt` | DateTime | Data de criação                        |
+
+Índices: `(userId, createdAt)`.
+
+---
+
+### Domínio 13 — Influencer IA Draft
+
+#### `InfluencerIADraft`
+
+Estado completo do wizard Influencer IA persistido por usuário. Permite recuperar o progresso entre sessões e dispositivos. Um registro por usuário (upsert a cada salvar, delete no reset).
+
+| Campo       | Tipo     | Descrição                            |
+| ----------- | -------- | ------------------------------------ |
+| `id`        | String   | PK (cuid)                            |
+| `userId`    | String   | Unique FK para User (cascade delete) |
+| `data`      | Json     | Estado arbitrário do wizard          |
+| `updatedAt` | DateTime | Timestamp da última atualização      |
+
+---
+
 ## Enums
 
 | Enum                        | Valores                                                                                                              |
@@ -391,32 +428,35 @@ Veja o guia completo em [docs/deploy.md](deploy.md#migrações-de-banco).
 
 ### Resumo do histórico
 
-| Migration                                  | Descrição                                             |
-| ------------------------------------------ | ----------------------------------------------------- |
-| `0000_baseline`                            | Schema inicial                                        |
-| `20260402_add_video_transcript`            | Modelo VideoTranscript                                |
-| `20260404_add_video_insight`               | Modelo VideoInsight                                   |
-| `20260406_remove_coupon_plan_mapping`      | Limpeza de campos externos de plano                   |
-| `20260407_remove_plan_hotmart_fields`      | Remoção de campos Hotmart diretos no Plan             |
-| `20260408_add_plan_hotmart_plan_code`      | hotmartPlanCode no Plan                               |
-| `20260408_add_charge_status_overdue`       | Novos valores de ChargeStatus                         |
-| `20260409_add_cascade_delete`              | Regras de cascade delete                              |
-| `20260409_add_user_setup_token`            | setupToken + setupTokenExpiresAt no User              |
-| `20260413_add_must_change_password`        | mustChangePassword no User                            |
-| `20260413_add_blob_url_download_url`       | blobUrl e downloadUrl no trend                        |
-| `20260415_add_plan_checkout_url`           | checkoutUrl no Plan                                   |
-| `20260416_add_plan_show_on_landing`        | showOnLanding no Plan                                 |
-| `20260418_add_category_name_pt`            | nome em português nas categorias                      |
-| `20260418_add_first_crawl_dt_to_product`   | firstCrawlDt em EchotikProductDetail                  |
-| `20260419_add_admin_notification`          | Modelo AdminNotification                              |
-| `20260419_fix_admin_notification_columns`  | Correção de colunas em AdminNotification              |
-| `20260427_add_avatar_video_creation_flow`  | Modelos do fluxo de vide com avatar                   |
-| `20260427_add_avatar_video_quota`          | avatarVideoQuota no Plan + AVATAR_VIDEO_GENERATION    |
-| `20260427_add_avatar_video_selections`     | Seleções avançadas em AvatarVideoCreation (tone, etc) |
-| `20260427_seed_default_video_scenarios`    | Cenários padrão para VideoScenario                    |
-| `20260427_add_selected_image_variation_id` | selectedImageVariationId em AvatarVideoCreation       |
-| `20260428_add_avatar_video_concept`        | Modelo AvatarVideoConcept + CONCEPT_READY status      |
-| `20260429_add_prompt_library_item`         | Modelo PromptLibraryItem (biblioteca de prompts)      |
+| Migration                                              | Descrição                                                |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| `0000_baseline`                                        | Schema inicial                                           |
+| `20260402_add_video_transcript`                        | Modelo VideoTranscript                                   |
+| `20260404_add_video_insight`                           | Modelo VideoInsight                                      |
+| `20260406_remove_coupon_plan_mapping`                  | Limpeza de campos externos de plano                      |
+| `20260407_remove_plan_hotmart_fields`                  | Remoção de campos Hotmart diretos no Plan                |
+| `20260408_add_plan_hotmart_plan_code`                  | hotmartPlanCode no Plan                                  |
+| `20260408_add_charge_status_overdue`                   | Novos valores de ChargeStatus                            |
+| `20260409_add_cascade_delete`                          | Regras de cascade delete                                 |
+| `20260409_add_user_setup_token`                        | setupToken + setupTokenExpiresAt no User                 |
+| `20260413_add_must_change_password`                    | mustChangePassword no User                               |
+| `20260413_add_blob_url_download_url`                   | blobUrl e downloadUrl no trend                           |
+| `20260415_add_plan_checkout_url`                       | checkoutUrl no Plan                                      |
+| `20260416_add_plan_show_on_landing`                    | showOnLanding no Plan                                    |
+| `20260418_add_category_name_pt`                        | nome em português nas categorias                         |
+| `20260418_add_first_crawl_dt_to_product`               | firstCrawlDt em EchotikProductDetail                     |
+| `20260419_add_admin_notification`                      | Modelo AdminNotification                                 |
+| `20260419_fix_admin_notification_columns`              | Correção de colunas em AdminNotification                 |
+| `20260427_add_avatar_video_creation_flow`              | Modelos do fluxo de vide com avatar                      |
+| `20260427_add_avatar_video_quota`                      | avatarVideoQuota no Plan + AVATAR_VIDEO_GENERATION       |
+| `20260427_add_avatar_video_selections`                 | Seleções avançadas em AvatarVideoCreation (tone, etc)    |
+| `20260427_seed_default_video_scenarios`                | Cenários padrão para VideoScenario                       |
+| `20260427_add_selected_image_variation_id`             | selectedImageVariationId em AvatarVideoCreation          |
+| `20260428_add_avatar_video_concept`                    | Modelo AvatarVideoConcept + CONCEPT_READY status         |
+| `20260429_add_prompt_library_item`                     | Modelo PromptLibraryItem (biblioteca de prompts)         |
+| `20260429221540_add_user_avatar_uploads`               | Modelo UserAvatarUpload (galeria de avatares do usuário) |
+| `20260430013733_add_influencer_ia_draft`               | Modelo InfluencerIADraft (persistência do wizard)        |
+| `20260430021842_add_influencer_ia_daily_quota_to_plan` | influencerIaDailyQuota no Plan                           |
 
 ---
 
