@@ -758,7 +758,7 @@ function ImageUploadBox({
 
 type GenerationResult =
   | { ok: true; imageUrl: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; timedOut?: boolean };
 
 let activeGeneration: {
   promise: Promise<GenerationResult>;
@@ -1460,7 +1460,11 @@ function InfluencerIAWizard() {
             error?: string;
           };
           if (!res.ok || !json.imageUrl) {
-            return { ok: false, error: json.error ?? "Erro ao gerar imagem" };
+            const msg = json.error ?? "Erro ao gerar imagem";
+            const isTimeout =
+              res.status === 504 ||
+              /tempo limite|timeout|excedido|timed\s*out/i.test(msg);
+            return { ok: false, error: msg, timedOut: isTimeout };
           }
           return { ok: true, imageUrl: json.imageUrl };
         })
@@ -1468,11 +1472,30 @@ function InfluencerIAWizard() {
           (err): GenerationResult => ({
             ok: false,
             error: err instanceof Error ? err.message : "Erro ao gerar imagem",
+            timedOut: true,
           }),
         );
 
+    // Transparent single retry on timeout — user stays in loading state
+    const doFetchWithRetry = async (): Promise<GenerationResult> => {
+      const first = await doFetch();
+      if (!first.ok && first.timedOut) {
+        const second = await doFetch();
+        if (!second.ok && second.timedOut) {
+          return {
+            ok: false,
+            error:
+              "O servidor está sobrecarregado no momento. Tente novamente em alguns minutos.",
+            timedOut: true,
+          };
+        }
+        return second;
+      }
+      return first;
+    };
+
     // Fire N requests in parallel (each one consumes 1 quota on the server)
-    const allPromises = Array.from({ length: imageCount }, doFetch);
+    const allPromises = Array.from({ length: imageCount }, doFetchWithRetry);
     const combinedPromise = Promise.all(allPromises);
 
     // Register singleton — reconnect on remount
