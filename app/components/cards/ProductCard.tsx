@@ -30,10 +30,11 @@ const UI = {
   card: {
     bg: "linear-gradient(165deg, #0D1422 0%, #0A0F18 100%)",
     border: "rgba(255,255,255,0.08)",
-    borderHover: "rgba(45,212,255,0.22)",
+    borderHover: "rgba(45,212,255,0.35)",
     radius: 4.5,
     shadow: "0 2px 8px rgba(0,0,0,0.12)",
-    shadowHover: "0 8px 24px rgba(0,0,0,0.25), 0 0 12px rgba(45,212,255,0.08)",
+    shadowHover:
+      "0 8px 32px rgba(0,0,0,0.3), 0 0 20px rgba(45,212,255,0.15), 0 0 1px rgba(45,212,255,0.45)",
   },
   text: {
     primary: "rgba(255,255,255,0.92)",

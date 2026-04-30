@@ -3,6 +3,7 @@
 import { useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Typography, Grid, IconButton, Tooltip } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { GridView, ViewList } from "@mui/icons-material";
 import { ProductTable } from "@/app/components/dashboard/DataTable";
 import { ProductCard } from "@/app/components/cards/ProductCard";
@@ -73,18 +74,60 @@ function TrendsContent() {
       {/* Fixed Header */}
       <Box sx={{ flexShrink: 0 }}>
         <Box sx={{ mb: 1.5 }}>
-          <Typography
-            component="h1"
-            sx={{
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              color: "#fff",
-              mb: 0.25,
-              lineHeight: 1.3,
-            }}
-          >
-            Novos Produtos
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.25 }}>
+            <Typography
+              component="h1"
+              sx={(theme) => ({
+                fontSize: "1.25rem",
+                fontWeight: 800,
+                lineHeight: 1.3,
+                background: `linear-gradient(90deg, #fff 0%, ${theme.palette.primary.main} 60%, #fff 100%)`,
+                backgroundSize: "200% auto",
+                backgroundClip: "text",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                animation: "titleShimmer 4s linear infinite",
+                "@keyframes titleShimmer": {
+                  "0%": { backgroundPosition: "0% center" },
+                  "100%": { backgroundPosition: "200% center" },
+                },
+              })}
+            >
+              Novos Produtos
+            </Typography>
+            <Box
+              sx={(theme) => ({
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 0.9,
+                py: 0.25,
+                borderRadius: 10,
+                background: alpha(theme.palette.primary.main, 0.08),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              })}
+            >
+              <Box
+                sx={(theme) => ({
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  bgcolor: theme.palette.primary.main,
+                  boxShadow: `0 0 6px ${theme.palette.primary.main}`,
+                  animation: "liveDot 1.8s ease-in-out infinite",
+                  "@keyframes liveDot": {
+                    "0%, 100%": { opacity: 1, transform: "scale(1)" },
+                    "50%": { opacity: 0.4, transform: "scale(0.7)" },
+                  },
+                })}
+              />
+              <Typography
+                sx={{ fontSize: "0.58rem", fontWeight: 700, color: "primary.main", letterSpacing: "0.06em" }}
+              >
+                AO VIVO
+              </Typography>
+            </Box>
+          </Box>
           <Typography
             sx={{
               fontSize: "0.75rem",

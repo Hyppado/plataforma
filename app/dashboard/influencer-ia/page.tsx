@@ -390,19 +390,16 @@ function ProductMiniCard({
       <Tooltip
         title={
           product.imageUrl ? (
-            <Box sx={{ p: 0.5 }}>
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                style={{
-                  maxWidth: 260,
-                  maxHeight: 260,
-                  objectFit: "contain",
-                  display: "block",
-                  borderRadius: 4,
-                }}
-              />
-            </Box>
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              style={{
+                maxWidth: 260,
+                maxHeight: 260,
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
           ) : (
             ""
           )
@@ -411,6 +408,18 @@ function ProductMiniCard({
         arrow
         enterDelay={400}
         enterNextDelay={200}
+        componentsProps={{
+          tooltip: {
+            sx: {
+              p: 0,
+              bgcolor: "transparent",
+              boxShadow: "none",
+              borderRadius: 0,
+              maxWidth: "none",
+              "& .MuiTooltip-arrow": { display: "none" },
+            },
+          },
+        }}
       >
         <Box
           sx={{
@@ -510,24 +519,33 @@ function AvatarCard({
     >
       <Tooltip
         title={
-          <Box sx={{ p: 0.5 }}>
-            <img
-              src={avatar.imageUrl}
-              alt={avatar.name}
-              style={{
-                maxWidth: 220,
-                maxHeight: 220,
-                objectFit: "cover",
-                display: "block",
-                borderRadius: "50%",
-              }}
-            />
-          </Box>
+          <img
+            src={avatar.imageUrl}
+            alt={avatar.name}
+            style={{
+              maxWidth: 220,
+              maxHeight: 220,
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
         }
         placement="right"
         arrow
         enterDelay={400}
         enterNextDelay={200}
+        componentsProps={{
+          tooltip: {
+            sx: {
+              p: 0,
+              bgcolor: "transparent",
+              boxShadow: "none",
+              borderRadius: 0,
+              maxWidth: "none",
+              "& .MuiTooltip-arrow": { display: "none" },
+            },
+          },
+        }}
       >
         <Box
           sx={{
@@ -827,8 +845,14 @@ function InfluencerIAWizard() {
   const initProductId = searchParams.get("productId");
 
   // ── Section collapse state ─────────────────────────────────────
-  const [sec1Open, setSec1Open] = useState(true);
-  const [sec2Open, setSec2Open] = useState(true);
+  // All sections start collapsed by default.
+  // Exception: if the user enters with a product already chosen via query
+  // params (?productId / ?productImageUrl), sec1 starts expanded so they
+  // can confirm the pre-selected product.
+  const [sec1Open, setSec1Open] = useState(
+    !!(initProductId || initProductImageUrl),
+  );
+  const [sec2Open, setSec2Open] = useState(false);
   const [sec3Open, setSec3Open] = useState(false);
 
   // ── Product state ──────────────────────────────────────────────
