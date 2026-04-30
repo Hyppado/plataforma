@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
-import { echotikRequest } from "@/lib/echotik/client";
+import { signEchotikCoverUrl } from "@/lib/storage/blob";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api/proxy/image");
@@ -88,7 +88,11 @@ async function proxyEchotikImage(coverUrl: string) {
       signedUrl = cached.signedUrl;
     } else {
       // 2. Chamar batch/cover/download para obter URL assinada
-      signedUrl = await getSignedCoverUrl(coverUrl);
+      const signed = await signEchotikCoverUrl(coverUrl);
+      if (!signed) {
+        return new NextResponse("Failed to sign URL", { status: 502 });
+      }
+      signedUrl = signed;
 
       // 3. Cachear URL assinada
       signedUrlCache.set(coverUrl, {
@@ -106,7 +110,10 @@ async function proxyEchotikImage(coverUrl: string) {
       // URL assinada expirou — limpar cache e tentar novamente
       if (upstream.status === 403) {
         signedUrlCache.delete(coverUrl);
-        const freshUrl = await getSignedCoverUrl(coverUrl);
+        const freshUrl = await signEchotikCoverUrl(coverUrl);
+        if (!freshUrl) {
+          return new NextResponse(null, { status: 502 });
+        }
         signedUrlCache.set(coverUrl, {
           signedUrl: freshUrl,
           expiresAt: Date.now() + SIGNED_URL_TTL_MS,
@@ -130,40 +137,6 @@ async function proxyEchotikImage(coverUrl: string) {
     });
     return new NextResponse("Upstream error", { status: 502 });
   }
-}
-
-/** Chama a API batch/cover/download para obter URLs assinadas temporárias */
-async function getSignedCoverUrl(coverUrl: string): Promise<string> {
-  interface CoverDownloadResponse {
-    code: number;
-    message: string;
-    data: Array<Record<string, string>>;
-  }
-
-  const result = await echotikRequest<CoverDownloadResponse>(
-    "/api/v3/echotik/batch/cover/download",
-    { params: { cover_urls: coverUrl } },
-  );
-
-  if (
-    result.code !== 0 ||
-    !Array.isArray(result.data) ||
-    result.data.length === 0
-  ) {
-    throw new Error(
-      `[image-proxy] batch/cover/download failed: ${result.message}`,
-    );
-  }
-
-  // data é um array de { sourceUrl: signedUrl }
-  const entry = result.data[0];
-  const signedUrl = Object.values(entry)[0];
-
-  if (!signedUrl) {
-    throw new Error("[image-proxy] No signed URL returned");
-  }
-
-  return signedUrl;
 }
 
 /** Constrói a resposta de imagem com headers de cache */

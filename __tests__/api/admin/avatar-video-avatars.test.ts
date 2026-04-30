@@ -130,27 +130,8 @@ describe("PATCH /api/admin/avatar-video/avatars/[id]", () => {
 describe("DELETE /api/admin/avatar-video/avatars/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("deactivates when avatar is referenced", async () => {
+  it("deletes the avatar", async () => {
     mockAuthenticatedAdmin();
-    prismaMock.avatarVideoCreation.count.mockResolvedValue(3);
-    prismaMock.avatarProfile.update.mockResolvedValue({
-      ...sampleAvatar,
-      isActive: false,
-    });
-
-    const res = await deleteAvatar(
-      makeGetRequest("/api/admin/avatar-video/avatars/av-1"),
-      { params: { id: "av-1" } },
-    );
-    const body = await res.json();
-    expect(res.status).toBe(200);
-    expect(body.deleted).toBe(false);
-    expect(body.deactivated).toBe(true);
-  });
-
-  it("hard-deletes when not referenced", async () => {
-    mockAuthenticatedAdmin();
-    prismaMock.avatarVideoCreation.count.mockResolvedValue(0);
     prismaMock.avatarProfile.delete.mockResolvedValue(sampleAvatar);
 
     const res = await deleteAvatar(
@@ -159,6 +140,9 @@ describe("DELETE /api/admin/avatar-video/avatars/[id]", () => {
     );
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.deleted).toBe(true);
+    expect(body.ok).toBe(true);
+    expect(prismaMock.avatarProfile.delete).toHaveBeenCalledWith({
+      where: { id: "av-1" },
+    });
   });
 });

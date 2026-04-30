@@ -12,7 +12,11 @@
 
 import { createLogger } from "@/lib/logger";
 import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
-import { uploadBufferToBlob } from "@/lib/storage/blob";
+import {
+  isEchotikCdnUrl,
+  signEchotikCoverUrl,
+  uploadBufferToBlob,
+} from "@/lib/storage/blob";
 
 const log = createLogger("influencer-ia/generate");
 
@@ -195,12 +199,45 @@ async function fetchImageBuffer(
   url: string,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) return null;
+    // Echotik CDN URLs require a freshly signed URL — a plain GET returns 403.
+    // Resolve to a signed URL before fetching so server-side downloads succeed.
+    let fetchUrl = url;
+    if (isEchotikCdnUrl(url)) {
+      const signed = await signEchotikCoverUrl(url);
+      if (signed) {
+        fetchUrl = signed;
+      } else {
+        log.warn("Failed to sign Echotik cover URL \u2014 will try raw URL", {
+          url: url.slice(0, 120),
+        });
+      }
+    }
+
+    const res = await fetch(fetchUrl, {
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        // Some CDNs (e.g. Echotik) block plain server-side fetches without a UA
+        "User-Agent":
+          "Mozilla/5.0 (compatible; Hyppado/1.0; +https://hyppado.com)",
+        Accept: "image/webp,image/png,image/jpeg,image/*,*/*",
+        Referer: "https://hyppado.com/",
+      },
+    });
+    if (!res.ok) {
+      log.warn("Image fetch returned non-OK status", {
+        status: res.status,
+        url: fetchUrl.slice(0, 120),
+      });
+      return null;
+    }
     const contentType = res.headers.get("content-type") ?? "image/png";
     const buf = Buffer.from(await res.arrayBuffer());
     return buf.byteLength > 0 ? { buffer: buf, contentType } : null;
-  } catch {
+  } catch (err) {
+    log.warn("Image fetch threw", {
+      url: url.slice(0, 120),
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -243,6 +280,23 @@ export async function generateInfluencerImage(
     input.productImageUrl ? fetchImageBuffer(input.productImageUrl) : null,
   ]);
 
+  if (input.productImageUrl && !productFetch) {
+    log.warn("Product image fetch failed — aborting to avoid wrong product", {
+      productImageUrl: input.productImageUrl,
+    });
+    throw new Error(
+      "Não foi possível baixar a imagem do produto selecionado. Tente novamente em instantes.",
+    );
+  }
+  if (input.avatarImageUrl && !avatarFetch) {
+    log.warn(
+      "Avatar image fetch failed — generating without avatar reference",
+      {
+        avatarImageUrl: input.avatarImageUrl,
+      },
+    );
+  }
+
   const buffer = await generateWithGemini(
     googleApiKey,
     modelId,
@@ -276,22 +330,32 @@ async function generateWithGemini(
 ): Promise<Buffer> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
-  // Build parts — text first, then inline image data
+  // Build parts — text prompt first, then labeled image references.
+  // We label each image explicitly so Gemini knows which is the product
+  // reference and which is the influencer/avatar appearance reference.
+  // Product image comes before avatar so it has highest weight as reference.
   const parts: unknown[] = [{ text: promptText }];
 
-  if (avatarFetch) {
-    parts.push({
-      inlineData: {
-        mimeType: avatarFetch.contentType,
-        data: avatarFetch.buffer.toString("base64"),
-      },
-    });
-  }
   if (productFetch) {
+    parts.push({
+      text: "PRODUCT REFERENCE IMAGE — reproduce this product exactly (color, shape, label, texture, all details):",
+    });
     parts.push({
       inlineData: {
         mimeType: productFetch.contentType,
         data: productFetch.buffer.toString("base64"),
+      },
+    });
+  }
+
+  if (avatarFetch) {
+    parts.push({
+      text: "INFLUENCER REFERENCE IMAGE — use this person's face, skin tone, and appearance as the influencer in the photo:",
+    });
+    parts.push({
+      inlineData: {
+        mimeType: avatarFetch.contentType,
+        data: avatarFetch.buffer.toString("base64"),
       },
     });
   }

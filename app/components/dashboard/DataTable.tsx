@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Table,
@@ -26,7 +27,6 @@ import {
 import type { ProductDTO, CreatorDTO } from "@/lib/types/dto";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
-import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
 
 interface ProductTableProps {
   products: ProductDTO[];
@@ -99,7 +99,9 @@ export function ProductTable({
   avatarVideoSource = "products-hype",
 }: ProductTableProps) {
   const usdToBrl = useExchangeRate();
-  const [avatarProduct, setAvatarProduct] = useState<ProductDTO | null>(null);
+  const router = useRouter();
+  // avatarVideoSource is kept for backward compatibility but no longer used
+  void avatarVideoSource;
   return (
     <Box
       sx={{
@@ -324,12 +326,19 @@ export function ProductTable({
                     )}
                   </TableCell>
                   <TableCell sx={tableCellSx} align="center">
-                    <Tooltip title="Criar vídeo com avatar">
+                    <Tooltip title="Criar imagem com Influencer IA">
                       <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setAvatarProduct(product);
+                          const params = new URLSearchParams();
+                          params.set("productId", product.id);
+                          if (product.name) params.set("productName", product.name);
+                          if (product.imageUrl)
+                            params.set("productImageUrl", product.imageUrl);
+                          router.push(
+                            `/dashboard/influencer-ia?${params.toString()}`,
+                          );
                         }}
                         sx={{
                           color: "rgba(255,255,255,0.5)",
@@ -346,15 +355,6 @@ export function ProductTable({
           )}
         </Table>
       </TableContainer>
-
-      {avatarProduct && (
-        <AvatarVideoStartDialog
-          open={!!avatarProduct}
-          onClose={() => setAvatarProduct(null)}
-          product={avatarProduct}
-          source={avatarVideoSource}
-        />
-      )}
     </Box>
   );
 }

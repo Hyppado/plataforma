@@ -17,6 +17,7 @@ import {
   SubtitlesOutlined,
   TerminalOutlined,
   SettingsOutlined,
+  AutoAwesome as AutoAwesomeIcon,
 } from "@mui/icons-material";
 import type { QuotaPolicy, QuotaUsage } from "@/lib/types/admin";
 
@@ -40,9 +41,11 @@ interface LimitsSectionProps {
   quotaUsage: QuotaUsage;
   transcriptsLimit: string;
   scriptsLimit: string;
+  influencerDailyLimit: string;
   limitsSaved: boolean;
   onTranscriptsLimitChange: (value: string) => void;
   onScriptsLimitChange: (value: string) => void;
+  onInfluencerDailyLimitChange: (value: string) => void;
   onSave: () => void;
 }
 
@@ -51,9 +54,11 @@ export function LimitsSection({
   quotaUsage,
   transcriptsLimit,
   scriptsLimit,
+  influencerDailyLimit,
   limitsSaved,
   onTranscriptsLimitChange,
   onScriptsLimitChange,
+  onInfluencerDailyLimitChange,
   onSave,
 }: LimitsSectionProps) {
   return (
@@ -215,6 +220,45 @@ export function LimitsSection({
                   },
                 }}
               />
+            </Box>
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
+            {/* Influencer IA daily limit */}
+            <Box>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ mb: 1 }}
+              >
+                <AutoAwesomeIcon sx={{ fontSize: 18, color: "#FF2D78" }} />
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.7)" }}
+                >
+                  Influencer IA — gerações / dia (por usuário)
+                </Typography>
+              </Stack>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <TextField
+                  value={influencerDailyLimit}
+                  onChange={(e) => onInfluencerDailyLimitChange(e.target.value)}
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 1 }}
+                  sx={{
+                    width: 100,
+                    "& .MuiOutlinedInput-root": {
+                      background: "rgba(0,0,0,0.2)",
+                    },
+                  }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.5)" }}
+                >
+                  Admins têm geração ilimitada
+                </Typography>
+              </Stack>
             </Box>
           </Stack>
         </CardContent>

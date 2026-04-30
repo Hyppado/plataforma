@@ -25,11 +25,13 @@ export async function GET() {
   try {
     const [usedToday, dailyLimit] = await Promise.all([
       getInfluencerGenerationsToday(auth.userId),
-      getInfluencerDailyLimit(),
+      getInfluencerDailyLimit(auth.userId),
     ]);
     return NextResponse.json({
       usedToday,
-      dailyLimit,
+      // Admins have no cap — represent as a very large number so the UI
+      // still renders sensibly (Infinity is not valid JSON).
+      dailyLimit: auth.role === "ADMIN" ? 999999 : dailyLimit,
     });
   } catch (err) {
     log.error("Failed to fetch influencer-ia usage", {

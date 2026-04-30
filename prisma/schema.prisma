@@ -125,6 +125,7 @@ model Plan {
   insightMaxOutputTokens    Int  @default(800)
   scriptMaxOutputTokens     Int  @default(1500)
   avatarVideoQuota          Int  @default(0)
+  influencerIaDailyQuota    Int  @default(5)
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]

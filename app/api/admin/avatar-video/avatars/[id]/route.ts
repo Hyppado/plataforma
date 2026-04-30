@@ -2,20 +2,26 @@
  * app/api/admin/avatar-video/avatars/[id]/route.ts
  *
  * PATCH  — update an avatar
- * DELETE — delete (or deactivate if in use)
+ * DELETE — delete the avatar
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
-import {
-  deleteOrDeactivateAvatar,
-  updateAvatar,
-} from "@/lib/avatar-video/admin";
+import { prisma } from "@/lib/prisma";
 
 const log = createLogger("api/admin/avatar-video/avatars/[id]");
 
 export const dynamic = "force-dynamic";
+
+interface AvatarPatch {
+  name?: string;
+  description?: string | null;
+  imageUrl?: string;
+  thumbnailUrl?: string | null;
+  isActive?: boolean;
+  sortOrder?: number;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -27,7 +33,7 @@ export async function PATCH(
   try {
     const body = (await req.json()) as Record<string, unknown>;
 
-    const patch: Parameters<typeof updateAvatar>[1] = {};
+    const patch: AvatarPatch = {};
     if (typeof body.name === "string") patch.name = body.name;
     if (body.description === null || typeof body.description === "string")
       patch.description = body.description as string | null;
@@ -50,7 +56,10 @@ export async function PATCH(
       );
     }
 
-    const avatar = await updateAvatar(params.id, patch);
+    const avatar = await prisma.avatarProfile.update({
+      where: { id: params.id },
+      data: patch,
+    });
     return NextResponse.json({ avatar });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
@@ -67,8 +76,8 @@ export async function DELETE(
   if (!isAuthed(auth)) return auth;
 
   try {
-    const result = await deleteOrDeactivateAvatar(params.id);
-    return NextResponse.json(result);
+    await prisma.avatarProfile.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
     log.error("Failed to delete avatar", { id: params.id, error: message });

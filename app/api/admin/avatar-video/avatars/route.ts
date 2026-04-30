@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, isAuthed } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
-import { createAvatar, listAllAvatars } from "@/lib/avatar-video/admin";
+import { prisma } from "@/lib/prisma";
 
 const log = createLogger("api/admin/avatar-video/avatars");
 
@@ -19,7 +19,9 @@ export async function GET() {
   if (!isAuthed(auth)) return auth;
 
   try {
-    const avatars = await listAllAvatars();
+    const avatars = await prisma.avatarProfile.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
     return NextResponse.json({ avatars });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
@@ -52,16 +54,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const avatar = await createAvatar({
-      name,
-      imageUrl,
-      description:
-        typeof body.description === "string" ? body.description : null,
-      thumbnailUrl:
-        typeof body.thumbnailUrl === "string" ? body.thumbnailUrl : null,
-      isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
-      sortOrder:
-        typeof body.sortOrder === "number" ? body.sortOrder : undefined,
+    const avatar = await prisma.avatarProfile.create({
+      data: {
+        name,
+        imageUrl,
+        description:
+          typeof body.description === "string" ? body.description : null,
+        thumbnailUrl:
+          typeof body.thumbnailUrl === "string" ? body.thumbnailUrl : null,
+        isActive:
+          typeof body.isActive === "boolean" ? body.isActive : true,
+        sortOrder:
+          typeof body.sortOrder === "number" ? body.sortOrder : 0,
+      },
     });
 
     return NextResponse.json({ avatar }, { status: 201 });

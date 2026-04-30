@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
   Dialog,
@@ -38,7 +39,6 @@ import type { ProductDetailResponse } from "@/app/api/trending/products/[id]/rou
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { fetcher } from "@/lib/swr/fetcher";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
-import { AvatarVideoStartDialog } from "@/app/components/avatar-video/AvatarVideoStartDialog";
 
 // ── palette ────────────────────────────────────────────────────
 const ACCENT = "#2DD4FF";
@@ -242,13 +242,15 @@ export function ProductDetailsModal({
   product,
   avatarVideoSource = "products-hype",
 }: ProductDetailsModalProps) {
+  // avatarVideoSource is kept for backward compatibility but no longer used
+  void avatarVideoSource;
+  const router = useRouter();
   const { data: detail, isLoading } = useSWR<ProductDetailResponse>(
     open ? `/api/trending/products/${product.id}` : null,
     fetcher,
     { revalidateOnFocus: false },
   );
   const usdToBrl = useExchangeRate();
-  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
 
   const images = detail?.images ?? (product.imageUrl ? [product.imageUrl] : []);
   const currency = detail?.currency ?? product.currency ?? "USD";
@@ -708,7 +710,14 @@ export function ProductDetailsModal({
           fullWidth
           variant="contained"
           startIcon={<Videocam />}
-          onClick={() => setAvatarDialogOpen(true)}
+          onClick={() => {
+            const params = new URLSearchParams();
+            params.set("productId", product.id);
+            if (product.name) params.set("productName", product.name);
+            if (product.imageUrl)
+              params.set("productImageUrl", product.imageUrl);
+            router.push(`/dashboard/influencer-ia?${params.toString()}`);
+          }}
           sx={{
             background: "linear-gradient(90deg, #FF2D78 0%, #e0256a 100%)",
             color: "#fff",
@@ -724,17 +733,9 @@ export function ProductDetailsModal({
             },
           }}
         >
-          Criar vídeo com avatar
+          Criar imagem com Influencer IA
         </Button>
       </Box>
-
-      <AvatarVideoStartDialog
-        open={avatarDialogOpen}
-        onClose={() => setAvatarDialogOpen(false)}
-        product={product}
-        source={avatarVideoSource}
-        preloadedImages={detail?.images}
-      />
     </Dialog>
   );
 }

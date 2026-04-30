@@ -387,40 +387,66 @@ function ProductMiniCard({
         width: "100%",
       }}
     >
-      <Box
-        sx={{
-          width: "100%",
-          aspectRatio: "1/1",
-          overflow: "hidden",
-          bgcolor: "action.hover",
-        }}
+      <Tooltip
+        title={
+          product.imageUrl ? (
+            <Box sx={{ p: 0.5 }}>
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                style={{
+                  maxWidth: 260,
+                  maxHeight: 260,
+                  objectFit: "contain",
+                  display: "block",
+                  borderRadius: 4,
+                }}
+              />
+            </Box>
+          ) : (
+            ""
+          )
+        }
+        placement="right"
+        arrow
+        enterDelay={400}
+        enterNextDelay={200}
       >
-        {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            loading="lazy"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-        ) : (
-          <Box
-            sx={{
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <ImageIcon sx={{ color: "text.disabled", fontSize: 24 }} />
-          </Box>
-        )}
-      </Box>
+        <Box
+          sx={{
+            width: "100%",
+            aspectRatio: "1/1",
+            overflow: "hidden",
+            bgcolor: "action.hover",
+          }}
+        >
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              loading="lazy"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : (
+            <Box
+              sx={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ImageIcon sx={{ color: "text.disabled", fontSize: 24 }} />
+            </Box>
+          )}
+        </Box>
+      </Tooltip>
       <Box sx={{ px: 0.75, py: 0.5 }}>
         <Typography
           sx={{
@@ -482,29 +508,51 @@ function AvatarCard({
         gap: 0.75,
       }}
     >
-      <Box
-        sx={{
-          width: 64,
-          height: 64,
-          borderRadius: "50%",
-          overflow: "hidden",
-          border: "2px solid",
-          borderColor: selected ? "primary.main" : "divider",
-          transition: "border-color 0.15s",
-          "&:hover": { borderColor: "primary.main" },
-        }}
+      <Tooltip
+        title={
+          <Box sx={{ p: 0.5 }}>
+            <img
+              src={avatar.imageUrl}
+              alt={avatar.name}
+              style={{
+                maxWidth: 220,
+                maxHeight: 220,
+                objectFit: "cover",
+                display: "block",
+                borderRadius: "50%",
+              }}
+            />
+          </Box>
+        }
+        placement="right"
+        arrow
+        enterDelay={400}
+        enterNextDelay={200}
       >
-        <img
-          src={avatar.thumbnailUrl ?? avatar.imageUrl}
-          alt={avatar.name}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
+        <Box
+          sx={{
+            width: 64,
+            height: 64,
+            borderRadius: "50%",
+            overflow: "hidden",
+            border: "2px solid",
+            borderColor: selected ? "primary.main" : "divider",
+            transition: "border-color 0.15s",
+            "&:hover": { borderColor: "primary.main" },
           }}
-        />
-      </Box>
+        >
+          <img
+            src={avatar.thumbnailUrl ?? avatar.imageUrl}
+            alt={avatar.name}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        </Box>
+      </Tooltip>
       <Typography
         sx={{
           fontSize: "0.62rem",
@@ -889,6 +937,7 @@ function InfluencerIAWizard() {
   const [veoError, setVeoError] = useState<string | null>(null);
   const [veoParts, setVeoParts] = useState<VeoPart[]>([]);
   const [originalVeoParts, setOriginalVeoParts] = useState<VeoPart[]>([]);
+  const [veoPartsJson, setVeoPartsJson] = useState<string[]>([]);
   const [veoManualMode, setVeoManualMode] = useState(false);
   const [veoManualText, setVeoManualText] = useState("");
   const [veoCopiedIndex, setVeoCopiedIndex] = useState<number | null>(null);
@@ -921,65 +970,73 @@ function InfluencerIAWizard() {
     if (hasRestoredSession.current) return;
     hasRestoredSession.current = true;
 
-    loadDraft<SessionSnapshot>().then((session) => {
-      if (!session) return;
+    loadDraft<SessionSnapshot>()
+      .then((session) => {
+        if (!session) return;
 
-      // Track whether this session has meaningful content so the deep-link
-      // auto-select can decide whether to ask for confirmation.
-      if (
-        session.generatedImageUrl ||
-        session.selectedProduct ||
-        session.selectedAvatar ||
-        session.selectedSavedAvatarUrl ||
-        session.uploadedAvatarUrl
-      ) {
-        sessionHasContent.current = true;
-      }
+        // Track whether this session has meaningful content so the deep-link
+        // auto-select can decide whether to ask for confirmation.
+        if (
+          session.generatedImageUrl ||
+          session.selectedProduct ||
+          session.selectedAvatar ||
+          session.selectedSavedAvatarUrl ||
+          session.uploadedAvatarUrl
+        ) {
+          sessionHasContent.current = true;
+        }
 
-      // Only restore if no query params are present (query params take priority)
-      if (!initProductImageUrl && !initProductId) {
-        if (session.productTab !== undefined) setProductTab(session.productTab);
-        if (session.selectedProduct)
-          setSelectedProduct(session.selectedProduct);
-        if (session.uploadedProductUrl)
-          setUploadedProductUrl(session.uploadedProductUrl);
-        if (session.uploadedProductName)
-          setUploadedProductName(session.uploadedProductName);
-        if (session.selectedVariationUrl)
-          setSelectedVariationUrl(session.selectedVariationUrl);
-        if (session.selectedVariationRawUrl)
-          setSelectedVariationRawUrl(session.selectedVariationRawUrl);
-      }
+        // Only restore if no query params are present (query params take priority)
+        if (!initProductImageUrl && !initProductId) {
+          if (session.productTab !== undefined)
+            setProductTab(session.productTab);
+          if (session.selectedProduct)
+            setSelectedProduct(session.selectedProduct);
+          if (session.uploadedProductUrl)
+            setUploadedProductUrl(session.uploadedProductUrl);
+          if (session.uploadedProductName)
+            setUploadedProductName(session.uploadedProductName);
+          if (session.selectedVariationUrl)
+            setSelectedVariationUrl(session.selectedVariationUrl);
+          if (session.selectedVariationRawUrl)
+            setSelectedVariationRawUrl(session.selectedVariationRawUrl);
+        }
 
-      if (session.avatarTab !== undefined) setAvatarTab(session.avatarTab);
-      if (session.selectedAvatar) setSelectedAvatar(session.selectedAvatar);
-      if (session.uploadedAvatarUrl)
-        setUploadedAvatarUrl(session.uploadedAvatarUrl);
-      if (session.selectedSavedAvatarUrl)
-        setSelectedSavedAvatarUrl(session.selectedSavedAvatarUrl);
-      if (session.pose) setPose(session.pose);
-      if (session.customPose) setCustomPose(session.customPose);
-      if (session.environment) setEnvironment(session.environment);
-      if (session.customEnvironment)
-        setCustomEnvironment(session.customEnvironment);
-      if (session.style) setStyle(session.style);
-      if (session.enhancements) setEnhancements(session.enhancements);
-      if (session.generatedImageUrl)
-        setGeneratedImageUrl(session.generatedImageUrl);
-      if (session.generatedImageUrls?.length)
-        setGeneratedImageUrls(session.generatedImageUrls);
-      if (session.imageCount) setImageCount(session.imageCount);
-      if (session.veoDuration) setVeoDuration(session.veoDuration);
-      if (session.veoStyle) setVeoStyle(session.veoStyle);
-      if (session.veoParts) setVeoParts(session.veoParts);
-      if (session.originalVeoParts)
-        setOriginalVeoParts(session.originalVeoParts);
-    }).finally(() => {
-      // Allow the persist effect to save from this point on.
-      // setDraftLoaded causes a re-render which re-runs the persist effect,
-      // flushing any state changes the user made while loading.
-      setDraftLoaded(true);
-    }); // end loadDraft
+        if (session.avatarTab !== undefined) setAvatarTab(session.avatarTab);
+        if (session.selectedAvatar) setSelectedAvatar(session.selectedAvatar);
+        if (session.uploadedAvatarUrl)
+          setUploadedAvatarUrl(session.uploadedAvatarUrl);
+        if (session.selectedSavedAvatarUrl)
+          setSelectedSavedAvatarUrl(session.selectedSavedAvatarUrl);
+        if (session.pose) setPose(session.pose);
+        if (session.customPose) setCustomPose(session.customPose);
+        if (session.environment) setEnvironment(session.environment);
+        if (session.customEnvironment)
+          setCustomEnvironment(session.customEnvironment);
+        if (session.style) setStyle(session.style);
+        if (session.enhancements) setEnhancements(session.enhancements);
+        if (session.generatedImageUrl)
+          setGeneratedImageUrl(session.generatedImageUrl);
+        if (session.generatedImageUrls?.length)
+          setGeneratedImageUrls(session.generatedImageUrls);
+        if (session.imageCount) setImageCount(session.imageCount);
+        if (session.veoDuration) setVeoDuration(session.veoDuration);
+        if (session.veoStyle) setVeoStyle(session.veoStyle);
+        if (session.veoParts) {
+          setVeoParts(session.veoParts);
+          setVeoPartsJson(
+            session.veoParts.map((p) => JSON.stringify(p, null, 2)),
+          );
+        }
+        if (session.originalVeoParts)
+          setOriginalVeoParts(session.originalVeoParts);
+      })
+      .finally(() => {
+        // Allow the persist effect to save from this point on.
+        // setDraftLoaded causes a re-render which re-runs the persist effect,
+        // flushing any state changes the user made while loading.
+        setDraftLoaded(true);
+      }); // end loadDraft
   }, [initProductImageUrl, initProductId, initProductName]);
 
   // Flush any pending draft save when the user navigates away or refreshes.
@@ -1166,6 +1223,7 @@ function InfluencerIAWizard() {
     setGenerating(false);
     setVeoParts([]);
     setOriginalVeoParts([]);
+    setVeoPartsJson([]);
     setVeoError(null);
     setVeoManualMode(false);
     setVeoManualText("");
@@ -1203,7 +1261,13 @@ function InfluencerIAWizard() {
         setSelectedProduct(p);
         return;
       }
-      // Switching to a different product — confirm to avoid losing progress
+      // No generations yet — swap silently without confirmation.
+      if (generatedImageUrls.length === 0) {
+        doReset();
+        setSelectedProduct(p);
+        return;
+      }
+      // Switching to a different product after generating — confirm.
       setConfirmDialog({
         title: "Trocar de produto?",
         body: "Trocar o produto vai reiniciar o fluxo atual. O progresso — avatar, configurações e imagem gerada — será perdido.",
@@ -1213,7 +1277,7 @@ function InfluencerIAWizard() {
         },
       });
     },
-    [selectedProduct, doReset],
+    [selectedProduct, doReset, generatedImageUrls.length],
   );
 
   // Auto-select product from deep-link query param
@@ -1304,6 +1368,60 @@ function InfluencerIAWizard() {
         ? uploadedAvatarUrl
         : null;
 
+  // ── Pre-prepared product blob URL ──────────────────────────────
+  // When the user picks a product/variation, kick off a background upload to
+  // Vercel Blob so the generate call doesn't have to do the Echotik signing
+  // + CDN download on the synchronous Gemini path. Speeds up generation and
+  // makes timeouts much less likely.
+  const [preparedProductBlobUrl, setPreparedProductBlobUrl] = useState<
+    string | null
+  >(null);
+  const [preparingProduct, setPreparingProduct] = useState(false);
+
+  useEffect(() => {
+    setPreparedProductBlobUrl(null);
+    if (!effectiveProductRawImageUrl) {
+      setPreparingProduct(false);
+      return;
+    }
+    // Skip preparation for blob URLs that the user uploaded — already on Vercel Blob.
+    if (
+      effectiveProductRawImageUrl.includes(
+        ".public.blob.vercel-storage.com",
+      )
+    ) {
+      setPreparedProductBlobUrl(effectiveProductRawImageUrl);
+      setPreparingProduct(false);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    setPreparingProduct(true);
+    fetch("/api/influencer-ia/prepare-product-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: effectiveProductRawImageUrl }),
+      signal: ctrl.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const json = (await res.json()) as { blobUrl?: string };
+        return json.blobUrl ?? null;
+      })
+      .then((blobUrl) => {
+        if (ctrl.signal.aborted) return;
+        if (blobUrl) setPreparedProductBlobUrl(blobUrl);
+      })
+      .catch(() => {
+        // Silent fail — generate endpoint still has a fallback path
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setPreparingProduct(false);
+      });
+
+    return () => ctrl.abort();
+  }, [effectiveProductRawImageUrl]);
+
   const canGenerate =
     !!(effectiveProductRawImageUrl || effectiveProductName) &&
     !!(effectiveAvatarId || effectiveAvatarImageUrl || avatarTab === 0) &&
@@ -1317,7 +1435,9 @@ function InfluencerIAWizard() {
     setGeneratedImageUrls([]);
 
     const body = JSON.stringify({
-      productImageUrl: effectiveProductRawImageUrl,
+      productId:
+        productTab === 0 ? (selectedProduct?.id ?? undefined) : undefined,
+      productImageUrl: preparedProductBlobUrl ?? effectiveProductRawImageUrl,
       productName: effectiveProductName,
       productCategory: effectiveProductCategory,
       avatarId: effectiveAvatarId,
@@ -1390,7 +1510,10 @@ function InfluencerIAWizard() {
   }, [
     canGenerate,
     imageCount,
+    productTab,
+    selectedProduct,
     effectiveProductRawImageUrl,
+    preparedProductBlobUrl,
     effectiveProductName,
     effectiveProductCategory,
     effectiveAvatarId,
@@ -1414,6 +1537,7 @@ function InfluencerIAWizard() {
     setVeoGenerating(true);
     setVeoError(null);
     setVeoParts([]);
+    setVeoPartsJson([]);
     try {
       const res = await fetch("/api/influencer-ia/generate-veo-prompt", {
         method: "POST",
@@ -1433,6 +1557,9 @@ function InfluencerIAWizard() {
         throw new Error(json.error ?? "Erro ao gerar prompts");
       setVeoParts(json.parts);
       setOriginalVeoParts(json.parts);
+      setVeoPartsJson(
+        json.parts.map((p: VeoPart) => JSON.stringify(p, null, 2)),
+      );
       setVeoManualMode(false);
     } catch (err) {
       setVeoError(
@@ -1443,9 +1570,9 @@ function InfluencerIAWizard() {
     }
   }, [effectiveProductName, effectiveProductCategory, veoStyle, veoDuration]);
 
-  const handleVeoCopy = async (part: VeoPart, index: number) => {
+  const handleVeoCopy = async (text: string, index: number) => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(part, null, 2));
+      await navigator.clipboard.writeText(text);
       setVeoCopiedIndex(index);
       setTimeout(() => setVeoCopiedIndex(null), 2000);
     } catch {
@@ -1455,7 +1582,7 @@ function InfluencerIAWizard() {
 
   const handleVeoCopyAll = async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(veoParts, null, 2));
+      await navigator.clipboard.writeText(veoPartsJson.join("\n\n"));
       setVeoCopiedAll(true);
       setTimeout(() => setVeoCopiedAll(false), 2000);
     } catch {
@@ -1486,6 +1613,7 @@ function InfluencerIAWizard() {
       },
     };
     setVeoParts([manualPart]);
+    setVeoPartsJson([JSON.stringify(manualPart, null, 2)]);
     setVeoManualMode(false);
   };
 
@@ -1607,30 +1735,57 @@ function InfluencerIAWizard() {
                             gap: 1.25,
                           }}
                         >
-                          <Box
-                            sx={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 1.5,
-                              overflow: "hidden",
-                              flexShrink: 0,
-                              border: "1px solid",
-                              borderColor: "primary.dark",
-                            }}
+                          <Tooltip
+                            title={
+                              <Box sx={{ p: 0.5 }}>
+                                <img
+                                  src={
+                                    selectedVariationUrl ??
+                                    selectedProduct.imageUrl
+                                  }
+                                  alt={selectedProduct.name}
+                                  style={{
+                                    maxWidth: 260,
+                                    maxHeight: 260,
+                                    objectFit: "contain",
+                                    display: "block",
+                                    borderRadius: 4,
+                                  }}
+                                />
+                              </Box>
+                            }
+                            placement="right"
+                            arrow
+                            enterDelay={400}
+                            enterNextDelay={200}
                           >
-                            <img
-                              src={
-                                selectedVariationUrl ?? selectedProduct.imageUrl
-                              }
-                              alt={selectedProduct.name}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                                display: "block",
+                            <Box
+                              sx={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 1.5,
+                                overflow: "hidden",
+                                flexShrink: 0,
+                                border: "1px solid",
+                                borderColor: "primary.dark",
+                                cursor: "default",
                               }}
-                            />
-                          </Box>
+                            >
+                              <img
+                                src={
+                                  selectedVariationUrl ??
+                                  selectedProduct.imageUrl
+                                }
+                                alt={selectedProduct.name}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                  display: "block",
+                                }}
+                              />
+                            </Box>
+                          </Tooltip>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Box
                               sx={{
@@ -1701,55 +1856,77 @@ function InfluencerIAWizard() {
                                 (selectedVariationUrl ??
                                   selectedProduct.imageUrl) === url;
                               return (
-                                <Box
+                                <Tooltip
                                   key={i}
-                                  component="button"
-                                  type="button"
-                                  onClick={() => {
-                                    const isAlreadySelected =
-                                      selectedVariationUrl === url;
-                                    setSelectedVariationUrl(
-                                      isAlreadySelected ? null : url,
-                                    );
-                                    setSelectedVariationRawUrl(
-                                      isAlreadySelected ? null : rawUrl,
-                                    );
-                                  }}
-                                  aria-pressed={active}
-                                  sx={{
-                                    background: "none",
-                                    padding: 0,
-                                    outline: "none",
-                                    cursor: "pointer",
-                                    display: "block",
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: "50%",
-                                    overflow: "hidden",
-                                    border: "2.5px solid",
-                                    borderColor: active
-                                      ? "secondary.main"
-                                      : "divider",
-                                    flexShrink: 0,
-                                    transition: "border-color 0.15s",
-                                    "&:hover": {
+                                  title={
+                                    <Box sx={{ p: 0.5 }}>
+                                      <img
+                                        src={url}
+                                        alt={`Variação ${i + 1}`}
+                                        style={{
+                                          maxWidth: 220,
+                                          maxHeight: 220,
+                                          objectFit: "cover",
+                                          display: "block",
+                                          borderRadius: "50%",
+                                        }}
+                                      />
+                                    </Box>
+                                  }
+                                  placement="top"
+                                  arrow
+                                  enterDelay={400}
+                                  enterNextDelay={200}
+                                >
+                                  <Box
+                                    component="button"
+                                    type="button"
+                                    onClick={() => {
+                                      const isAlreadySelected =
+                                        selectedVariationUrl === url;
+                                      setSelectedVariationUrl(
+                                        isAlreadySelected ? null : url,
+                                      );
+                                      setSelectedVariationRawUrl(
+                                        isAlreadySelected ? null : rawUrl,
+                                      );
+                                    }}
+                                    aria-pressed={active}
+                                    sx={{
+                                      background: "none",
+                                      padding: 0,
+                                      outline: "none",
+                                      cursor: "pointer",
+                                      display: "block",
+                                      width: 44,
+                                      height: 44,
+                                      borderRadius: "50%",
+                                      overflow: "hidden",
+                                      border: "2.5px solid",
                                       borderColor: active
                                         ? "secondary.main"
-                                        : "primary.main",
-                                    },
-                                  }}
-                                >
-                                  <img
-                                    src={url}
-                                    alt={`Variação ${i + 1}`}
-                                    style={{
-                                      width: "100%",
-                                      height: "100%",
-                                      objectFit: "cover",
-                                      display: "block",
+                                        : "divider",
+                                      flexShrink: 0,
+                                      transition: "border-color 0.15s",
+                                      "&:hover": {
+                                        borderColor: active
+                                          ? "secondary.main"
+                                          : "primary.main",
+                                      },
                                     }}
-                                  />
-                                </Box>
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`Variação ${i + 1}`}
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover",
+                                        display: "block",
+                                      }}
+                                    />
+                                  </Box>
+                                </Tooltip>
                               );
                             })}
                           </Box>
@@ -2416,6 +2593,23 @@ function InfluencerIAWizard() {
                   : "Gerar Imagem"}
             </Button>
 
+            {preparingProduct && !generating && (
+              <Typography
+                variant="caption"
+                sx={{
+                  textAlign: "center",
+                  color: "text.disabled",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 0.75,
+                }}
+              >
+                <CircularProgress size={10} thickness={6} />
+                Preparando imagem do produto…
+              </Typography>
+            )}
+
             {/* Quota info */}
             <Typography
               variant="caption"
@@ -2430,7 +2624,7 @@ function InfluencerIAWizard() {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {usedToday} / {dailyLimit} gerações hoje
+              {usedToday} / {dailyLimit >= 999999 ? "∞" : dailyLimit} gerações hoje
               {imageCount === 2 && ` · consome 2`}
             </Typography>
 
@@ -3033,20 +3227,27 @@ function InfluencerIAWizard() {
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Videocam sx={{ fontSize: 16, color: "secondary.main" }} />
                     <Typography variant="subtitle2">
-                      Prompts Otimizados ({veoParts.length})
+                      Prompts VEO 3 ({veoParts.length} partes)
                     </Typography>
                   </Box>
                   <Box sx={{ display: "flex", gap: 1 }}>
                     {originalVeoParts.length > 0 &&
-                      veoParts.some(
-                        (p, i) => p.prompt !== originalVeoParts[i]?.prompt,
+                      veoPartsJson.some(
+                        (txt, i) =>
+                          txt !== JSON.stringify(originalVeoParts[i], null, 2),
                       ) && (
                         <Button
                           size="small"
                           variant="outlined"
                           color="warning"
                           startIcon={<Undo sx={{ fontSize: 14 }} />}
-                          onClick={() => setVeoParts([...originalVeoParts])}
+                          onClick={() =>
+                            setVeoPartsJson(
+                              originalVeoParts.map((p) =>
+                                JSON.stringify(p, null, 2),
+                              ),
+                            )
+                          }
                           sx={{ fontSize: "0.75rem" }}
                         >
                           Desfazer edições
@@ -3092,11 +3293,16 @@ function InfluencerIAWizard() {
                   sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
                 >
                   {veoParts.map((part, i) => {
+                    const originalJson =
+                      originalVeoParts[i] !== undefined
+                        ? JSON.stringify(originalVeoParts[i], null, 2)
+                        : null;
+                    const currentJson = veoPartsJson[i] ?? "";
                     const isEdited =
-                      originalVeoParts[i] !== undefined &&
-                      part.prompt !== originalVeoParts[i].prompt;
+                      originalJson !== null && currentJson !== originalJson;
                     return (
                       <Box key={i}>
+                        {/* Header row */}
                         <Box
                           sx={{
                             display: "flex",
@@ -3127,14 +3333,9 @@ function InfluencerIAWizard() {
                               <IconButton
                                 size="small"
                                 onClick={() =>
-                                  setVeoParts((prev) =>
-                                    prev.map((p, j) =>
-                                      j === i
-                                        ? {
-                                            ...p,
-                                            prompt: originalVeoParts[i].prompt,
-                                          }
-                                        : p,
+                                  setVeoPartsJson((prev) =>
+                                    prev.map((t, j) =>
+                                      j === i ? (originalJson ?? t) : t,
                                     ),
                                   )
                                 }
@@ -3145,41 +3346,38 @@ function InfluencerIAWizard() {
                             </Tooltip>
                           )}
                           <Tooltip
-                            title={
-                              veoCopiedIndex === i ? "Copiado!" : "Copiar JSON"
-                            }
+                            title={veoCopiedIndex === i ? "Copiado!" : "Copiar"}
                           >
                             <IconButton
                               size="small"
-                              onClick={() => void handleVeoCopy(part, i)}
+                              onClick={() => void handleVeoCopy(currentJson, i)}
                               sx={{
-                                ml: isEdited ? 0 : "auto",
-                                color: "text.disabled",
+                                ml: "auto",
+                                color:
+                                  veoCopiedIndex === i
+                                    ? "success.main"
+                                    : "text.disabled",
                               }}
                             >
-                              <ContentCopy
-                                sx={{
-                                  fontSize: 14,
-                                  color:
-                                    veoCopiedIndex === i
-                                      ? "success.main"
-                                      : "inherit",
-                                }}
-                              />
+                              {veoCopiedIndex === i ? (
+                                <CheckCircle sx={{ fontSize: 14 }} />
+                              ) : (
+                                <ContentCopy sx={{ fontSize: 14 }} />
+                              )}
                             </IconButton>
                           </Tooltip>
                         </Box>
 
-                        {/* Editable prompt text */}
+                        {/* Editable JSON */}
                         <TextField
                           multiline
                           fullWidth
                           size="small"
-                          value={part.prompt}
+                          value={currentJson}
                           onChange={(e) =>
-                            setVeoParts((prev) =>
-                              prev.map((p, j) =>
-                                j === i ? { ...p, prompt: e.target.value } : p,
+                            setVeoPartsJson((prev) =>
+                              prev.map((t, j) =>
+                                j === i ? e.target.value : t,
                               ),
                             )
                           }
@@ -3191,7 +3389,6 @@ function InfluencerIAWizard() {
                             },
                           }}
                           sx={{
-                            mb: 0.5,
                             "& .MuiOutlinedInput-root": {
                               bgcolor: "rgba(0,0,0,0.3)",
                               borderRadius: 1.5,
@@ -3201,33 +3398,6 @@ function InfluencerIAWizard() {
                             },
                           }}
                         />
-
-                        {/* Other fields read-only */}
-                        <Box
-                          sx={{
-                            bgcolor: "rgba(0,0,0,0.2)",
-                            border: "1px solid",
-                            borderColor: "divider",
-                            borderRadius: 1.5,
-                            p: 1.5,
-                            fontFamily: "monospace",
-                            fontSize: "0.68rem",
-                            color: "text.disabled",
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          {JSON.stringify(
-                            Object.fromEntries(
-                              Object.entries(part).filter(
-                                ([k]) => k !== "prompt",
-                              ),
-                            ),
-                            null,
-                            2,
-                          )}
-                        </Box>
                       </Box>
                     );
                   })}

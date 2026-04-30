@@ -40,7 +40,10 @@ function PromptVideoCard({
 }) {
   const { copyState, copy } = useCopyToClipboard();
 
-  const handleCopy = useCallback(() => copy(item.promptText), [copy, item.promptText]);
+  const handleCopy = useCallback(
+    () => copy(item.promptText),
+    [copy, item.promptText],
+  );
 
   return (
     <Box
@@ -72,20 +75,33 @@ function PromptVideoCard({
           muted
           playsInline
           preload="auto"
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
         />
       </Box>
 
       {/* Card content */}
-      <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5, flex: 1 }}>
+      <Box
+        sx={{
+          p: { xs: 1, sm: 2 },
+          display: "flex",
+          flexDirection: "column",
+          gap: { xs: 0.75, sm: 1.5 },
+          flex: 1,
+        }}
+      >
         {/* Category chip */}
         <Chip
           label={item.category}
           size="small"
           sx={{
             alignSelf: "flex-start",
-            fontSize: "0.7rem",
-            height: 22,
+            fontSize: { xs: "0.6rem", sm: "0.7rem" },
+            height: { xs: 18, sm: 22 },
             color: "primary.main",
             background: "rgba(45,212,255,0.08)",
             border: "1px solid rgba(45,212,255,0.2)",
@@ -97,22 +113,26 @@ function PromptVideoCard({
         <Typography
           sx={{
             fontWeight: 600,
-            fontSize: "0.9rem",
+            fontSize: { xs: "0.75rem", sm: "0.9rem" },
             color: "#fff",
             lineHeight: 1.3,
+            display: "-webkit-box",
+            WebkitLineClamp: { xs: 2, sm: 3 },
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
           }}
         >
           {item.title}
         </Typography>
 
-        {/* Description */}
+        {/* Description — hidden on mobile to save space */}
         {item.description && (
           <Typography
             sx={{
               fontSize: "0.8rem",
               color: "rgba(255,255,255,0.55)",
               lineHeight: 1.5,
-              display: "-webkit-box",
+              display: { xs: "none", sm: "-webkit-box" },
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
@@ -123,14 +143,15 @@ function PromptVideoCard({
         )}
 
         {/* Actions */}
-        <Box sx={{ display: "flex", gap: 1, mt: "auto" }}>
+        <Box sx={{ display: "flex", gap: { xs: 0.5, sm: 1 }, mt: "auto" }}>
           <Button
             size="small"
             variant="outlined"
             onClick={() => onViewPrompt(item)}
             sx={{
               flex: 1,
-              fontSize: "0.75rem",
+              fontSize: { xs: "0.65rem", sm: "0.75rem" },
+              px: { xs: 0.5, sm: 1 },
               textTransform: "none",
               borderColor: "rgba(255,255,255,0.15)",
               color: "rgba(255,255,255,0.8)",
@@ -171,7 +192,8 @@ function PromptVideoCard({
                       ? "#ef4444"
                       : "rgba(255,255,255,0.6)",
                 "&:hover": {
-                  borderColor: copyState === "error" ? "#ef4444" : "primary.main",
+                  borderColor:
+                    copyState === "error" ? "#ef4444" : "primary.main",
                   color: copyState === "error" ? "#ef4444" : "primary.main",
                   background:
                     copyState === "error"
@@ -526,21 +548,16 @@ export default function PromptLibraryPage() {
     );
   }, [items, activeCategory]);
 
-  const handleCategoryClick = useCallback(
-    (cat: string) => {
-      setActiveCategory((prev) => (prev === cat ? "" : cat));
-    },
-    [],
-  );
+  const handleCategoryClick = useCallback((cat: string) => {
+    setActiveCategory((prev) => (prev === cat ? "" : cat));
+  }, []);
 
   return (
     <Container maxWidth="xl" disableGutters>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
-          <MenuBook
-            sx={{ color: "primary.main", fontSize: "1.75rem" }}
-          />
+          <MenuBook sx={{ color: "primary.main", fontSize: "1.75rem" }} />
           <Typography
             component="h1"
             sx={{
@@ -609,7 +626,10 @@ export default function PromptLibraryPage() {
                     activeCategory === ""
                       ? "rgba(45,212,255,0.15)"
                       : "rgba(255,255,255,0.05)",
-                  color: activeCategory === "" ? "primary.main" : "rgba(255,255,255,0.7)",
+                  color:
+                    activeCategory === ""
+                      ? "primary.main"
+                      : "rgba(255,255,255,0.7)",
                   border: "1px solid",
                   borderColor:
                     activeCategory === ""
@@ -656,13 +676,28 @@ export default function PromptLibraryPage() {
 
       {/* Grid */}
       {isLoading ? (
-        <Grid container spacing={2}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Grid item key={i} xs={12} sm={6} md={4} lg={3}>
-              <CardSkeleton />
-            </Grid>
-          ))}
-        </Grid>
+        <Box sx={{ position: "relative" }}>
+          <Grid container spacing={{ xs: 1, sm: 2 }}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Grid item key={i} xs={6} sm={6} md={4} lg={3}>
+                <CardSkeleton />
+              </Grid>
+            ))}
+          </Grid>
+          {/* Mobile peek gradient */}
+          <Box
+            sx={{
+              display: { xs: "block", sm: "none" },
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 80,
+              background: "linear-gradient(to bottom, transparent, #070B12)",
+              pointerEvents: "none",
+            }}
+          />
+        </Box>
       ) : filteredItems.length === 0 ? (
         /* Empty state */
         <Box
@@ -712,13 +747,31 @@ export default function PromptLibraryPage() {
           )}
         </Box>
       ) : (
-        <Grid container spacing={2}>
-          {filteredItems.map((item) => (
-            <Grid item key={item.id} xs={12} sm={6} md={4} lg={3}>
-              <PromptVideoCard item={item} onViewPrompt={setPromptItem} />
-            </Grid>
-          ))}
-        </Grid>
+        <Box sx={{ position: "relative" }}>
+          <Grid container spacing={{ xs: 1, sm: 2 }}>
+            {filteredItems.map((item) => (
+              <Grid item key={item.id} xs={6} sm={6} md={4} lg={3}>
+                <PromptVideoCard item={item} onViewPrompt={setPromptItem} />
+              </Grid>
+            ))}
+          </Grid>
+          {/* Mobile peek gradient — hints at more content below */}
+          {filteredItems.length > 4 && (
+            <Box
+              sx={{
+                display: { xs: "block", sm: "none" },
+                position: "sticky",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 80,
+                mt: -10,
+                background: "linear-gradient(to bottom, transparent, #070B12)",
+                pointerEvents: "none",
+              }}
+            />
+          )}
+        </Box>
       )}
 
       {/* Prompt dialog */}

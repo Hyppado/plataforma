@@ -23,7 +23,10 @@ export async function loadDraft<T>(): Promise<T | null> {
   }
 }
 
-export async function saveDraft(data: unknown, keepalive = false): Promise<void> {
+export async function saveDraft(
+  data: unknown,
+  keepalive = false,
+): Promise<void> {
   try {
     await fetch(DRAFT_URL, {
       method: "PUT",

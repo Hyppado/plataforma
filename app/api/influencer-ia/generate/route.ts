@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
   if (!isAuthed(auth)) return auth;
 
   let body: {
+    productId?: string;
     productImageUrl?: string;
     productName?: string;
     productCategory?: string;
@@ -63,8 +64,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Enforce daily quota before calling external services
-    await assertInfluencerDailyQuota(auth.userId);
+    // Enforce daily quota before calling external services (admins are unlimited)
+    await assertInfluencerDailyQuota(auth.userId, auth.role);
   } catch (err) {
     if (err instanceof DailyQuotaExceededError) {
       return NextResponse.json(
@@ -96,11 +97,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Resolve the product image URL to something the server can actually fetch.
+    // The URL sent from the browser may be a relative proxy URL (/api/proxy/image?...)
+    // which is not reachable server-side.
+    //
+    // PRIORITY:
+    //   1. Body URL if absolute — this is the variation the user picked, MUST WIN
+    //   2. DB blob/cover (only as fallback when body URL is relative or missing)
+    //
+    // This is critical: if the user clicks a specific variation (e.g. pink bag),
+    // we must NOT override with the product's default cover (e.g. black bag).
+    let productImageUrl: string | null = null;
+    const rawBodyUrl = body.productImageUrl ?? null;
+    const isAbsoluteBodyUrl = !!rawBodyUrl && !rawBodyUrl.startsWith("/");
+
+    if (isAbsoluteBodyUrl) {
+      // Trust the user's selected variation
+      productImageUrl = rawBodyUrl;
+    } else if (body.productId) {
+      // Body URL is missing or relative — fall back to canonical product image
+      const detail = await prisma.echotikProductDetail.findUnique({
+        where: { productExternalId: body.productId },
+        select: { blobUrl: true, coverUrl: true },
+      });
+      if (detail) {
+        productImageUrl = detail.blobUrl ?? detail.coverUrl ?? null;
+      }
+    }
     const result = await generateInfluencerImage({
       avatarImageUrl,
       avatarName,
       avatarDescription,
-      productImageUrl: body.productImageUrl ?? null,
+      productImageUrl,
       productName: body.productName ?? null,
       productCategory: body.productCategory ?? null,
       pose: body.pose ?? null,
