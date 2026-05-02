@@ -31,6 +31,7 @@ import {
   assertInfluencerDailyQuota,
   consumeInfluencerGeneration,
   DailyQuotaExceededError,
+  MonthlyQuotaExceededError,
 } from "@/lib/influencer-ia/quota";
 
 const log = createLogger("api/influencer-ia/generate");
@@ -64,9 +65,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Enforce daily quota before calling external services (admins are unlimited)
+    // Enforce daily and monthly quota before calling external services (admins are unlimited)
     await assertInfluencerDailyQuota(auth.userId, auth.role);
   } catch (err) {
+    if (err instanceof MonthlyQuotaExceededError) {
+      return NextResponse.json(
+        {
+          error: `Limite mensal de ${err.limit} gerações atingido. Aguarde o próximo mês.`,
+          used: err.used,
+          limit: err.limit,
+        },
+        { status: 429 },
+      );
+    }
     if (err instanceof DailyQuotaExceededError) {
       return NextResponse.json(
         {

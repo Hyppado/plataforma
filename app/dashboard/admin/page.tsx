@@ -3,7 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Box, Typography, Grid, LinearProgress } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Grid,
+  LinearProgress,
+  Tabs,
+  Tab,
+} from "@mui/material";
 import type { Subscriber, SubscriptionMetrics } from "@/lib/types/admin";
 import {
   getSubscribers,
@@ -11,6 +18,7 @@ import {
 } from "@/lib/admin/admin-client";
 import { MetricsCards } from "@/app/components/admin/MetricsCards";
 import { SubscribersTable } from "@/app/components/admin/SubscribersTable";
+import { CostEstimateTab } from "@/app/components/admin/CostEstimateTab";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -22,6 +30,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [subscriberTab, setSubscriberTab] = useState(0);
   const [subscriberSearch, setSubscriberSearch] = useState("");
+  const [activeTab, setActiveTab] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -87,20 +96,40 @@ export default function AdminPage() {
       </Box>
 
       {loading && <LinearProgress sx={{ mb: 3 }} />}
-      <Grid container spacing={3}>
-        <MetricsCards metrics={metrics} />
 
-        <SubscribersTable
-          subscribers={subscribers}
-          totalSubscribers={totalSubscribers}
-          metrics={metrics}
-          loading={loading}
-          subscriberTab={subscriberTab}
-          subscriberSearch={subscriberSearch}
-          onTabChange={setSubscriberTab}
-          onSearchChange={setSubscriberSearch}
-        />
-      </Grid>
+      <Tabs
+        value={activeTab}
+        onChange={(_e, v: number) => setActiveTab(v)}
+        sx={{
+          mb: 3,
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          "& .MuiTab-root": { color: "rgba(255,255,255,0.5)", fontWeight: 600 },
+          "& .Mui-selected": { color: "#2DD4FF" },
+          "& .MuiTabs-indicator": { background: "#2DD4FF" },
+        }}
+      >
+        <Tab label="Assinantes" />
+        <Tab label="Custos" />
+      </Tabs>
+
+      {activeTab === 0 && (
+        <Grid container spacing={3}>
+          <MetricsCards metrics={metrics} />
+
+          <SubscribersTable
+            subscribers={subscribers}
+            totalSubscribers={totalSubscribers}
+            metrics={metrics}
+            loading={loading}
+            subscriberTab={subscriberTab}
+            subscriberSearch={subscriberSearch}
+            onTabChange={setSubscriberTab}
+            onSearchChange={setSubscriberSearch}
+          />
+        </Grid>
+      )}
+
+      {activeTab === 1 && <CostEstimateTab />}
     </Box>
   );
 }
