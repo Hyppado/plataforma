@@ -95,7 +95,7 @@ RESEND_API_KEY
 BLOB_READ_WRITE_TOKEN
 ```
 
-> Todas as credenciais Hotmart (client_id, client_secret, basic_token, webhook_secret) são configuradas exclusivamente pelo painel admin do Hyppado e armazenadas criptografadas no banco — **não devem estar nas variáveis de ambiente do Vercel**.
+> Credenciais Hotmart (`client_id`, `client_secret`, `basic_token`) são gerenciadas pelo painel admin do Hyppado e armazenadas criptografadas no banco. As variáveis de ambiente `HOTMART_CLIENTE_ID`, `HOTMART_CLIENT_SECRET` e `HOTMART_BASIC` funcionam como **fallback** quando o banco não possui os valores — útil em ambientes efêmeros ou na inicialização. `webhook_secret` é resolvido apenas via banco.
 
 > Se `NEXTAUTH_SECRET` for rotacionado, os secrets criptografados no banco ficam ilegíveis. Executar `node scripts/reencrypt-hotmart-secrets.mjs` apontando para o banco correto antes de aplicar a nova chave.
 
@@ -132,7 +132,8 @@ npx prisma migrate dev
 
 # 5. Commitar o arquivo SQL junto com a mudança no schema
 
-# 6. No próximo deploy do Vercel, prisma migrate deploy aplica automaticamente
+# 6. Aplicar ao banco alvo (antes do deploy — não ocorre automaticamente no Vercel)
+npm run db:deploy
 ```
 
 ### Scripts npm

@@ -89,11 +89,12 @@ Quotas são definidas por plano e consumidas por período mensal. Toda lógica d
 
 ### Tipos de consumo
 
-| `UsageEventType`          | Feature             | Quota do plano     |
-| ------------------------- | ------------------- | ------------------ |
-| `TRANSCRIPT`              | Transcrição Whisper | `transcriptQuota`  |
-| `SCRIPT`                  | Insight Hyppado     | `scriptQuota`      |
-| `AVATAR_VIDEO_GENERATION` | Vídeo com avatar    | `avatarVideoQuota` |
+| `UsageEventType`          | Feature             | Quota do plano                                    |
+| ------------------------- | ------------------- | ------------------------------------------------- |
+| `TRANSCRIPT`              | Transcrição Whisper | `transcriptsPerMonth` (contagem mensal)           |
+| `SCRIPT`                  | Insight Hyppado     | `scriptsPerMonth` (contagem) + `scriptTokensMonthlyMax` (tokens) |
+| `INSIGHT`                 | Insight Hyppado     | `insightTokensMonthlyMax` (tokens apenas)         |
+| `AVATAR_VIDEO_GENERATION` | Vídeo com avatar    | `avatarVideoQuota` (contagem mensal)              |
 
 ### Regras importantes
 
