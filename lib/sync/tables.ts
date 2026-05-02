@@ -21,6 +21,13 @@ export interface TableDef {
   nullColumns?: string[];
   /** Optional SQL WHERE clause (no "WHERE" keyword) to filter rows on SELECT */
   rowFilter?: string;
+  /**
+   * When set, the sync uses INSERT … ON CONFLICT (upsertKey) DO UPDATE instead
+   * of TRUNCATE/DELETE + INSERT. Requires rowFilter to also be set.
+   * Use for tables where we must NEVER delete rows we don't intend to touch
+   * (e.g. Setting, where preview keeps its own Hotmart/API credentials).
+   */
+  upsertKey?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,11 +46,15 @@ export const TABLE_DEFS: TableDef[] = [
   { table: "EchotikRawResponse", group: "echotik", masked: false },
 
   // ── General settings — only sync exchange rate; all other settings stay in prod ─
+  // upsertKey: never DELETE from Setting — use ON CONFLICT to update in place.
+  // This guarantees that preview's Hotmart credentials, API keys, and other
+  // admin secrets are NEVER wiped by the daily sync, even in edge cases.
   {
     table: "Setting",
     group: "general",
     masked: false,
     rowFilter: "key = 'exchange.usd_brl'",
+    upsertKey: "key",
   },
 ];
 
