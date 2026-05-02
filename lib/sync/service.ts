@@ -102,6 +102,32 @@ function buildInsert(
   return { sql, values };
 }
 
+/**
+ * Build a parameterised INSERT … ON CONFLICT (upsertKey) DO UPDATE statement.
+ * Used for tables where we must never delete rows we don't intend to touch.
+ * All non-key columns are updated with EXCLUDED values.
+ */
+function buildUpsert(
+  table: string,
+  columns: string[],
+  rows: Record<string, unknown>[],
+  upsertKey: string,
+): { sql: string; values: unknown[] } {
+  const { sql: insertSql, values } = buildInsert(table, columns, rows);
+
+  // Build SET clause for all columns except the conflict key
+  const updateCols = columns
+    .filter((c) => c !== upsertKey)
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(", ");
+
+  const sql = updateCols
+    ? `${insertSql} ON CONFLICT ("${upsertKey}") DO UPDATE SET ${updateCols}`
+    : `${insertSql} ON CONFLICT ("${upsertKey}") DO NOTHING`;
+
+  return { sql, values };
+}
+
 // ---------------------------------------------------------------------------
 // Single-table sync
 // ---------------------------------------------------------------------------
@@ -166,24 +192,34 @@ async function syncTable(
 
   // Write to preview inside a transaction per table.
   //
-  // - Without rowFilter: TRUNCATE CASCADE + batched INSERTs (full replace).
-  // - With rowFilter:    DELETE WHERE <rowFilter> + INSERT — preserves all
-  //   other rows in preview. Critical for the Setting table, where preview
-  //   has its own Hotmart credentials, Google AI keys, and admin secrets
-  //   that must NOT be wiped by the prod sync (we only copy the exchange
-  //   rate row).
+  // - upsertKey set:     INSERT … ON CONFLICT DO UPDATE — never DELETEs.
+  //   Use for tables like Setting where preview owns its own rows
+  //   (Hotmart creds, API keys) that must survive the sync intact.
+  // - rowFilter only:    DELETE WHERE <rowFilter> + INSERT — scoped replace.
+  // - No rowFilter:      TRUNCATE CASCADE + batched INSERTs (full replace).
   await preview.query("BEGIN");
   try {
-    if (def.rowFilter) {
+    if (def.upsertKey) {
+      // Safe upsert: never deletes — only inserts or updates the filtered rows.
+      for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
+        const batch = rows.slice(offset, offset + BATCH_SIZE);
+        const { sql, values } = buildUpsert(table, columns, batch, def.upsertKey);
+        await preview.query(sql, values);
+      }
+    } else if (def.rowFilter) {
       await preview.query(`DELETE FROM "${table}" WHERE ${def.rowFilter}`);
+      for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
+        const batch = rows.slice(offset, offset + BATCH_SIZE);
+        const { sql, values } = buildInsert(table, columns, batch);
+        await preview.query(sql, values);
+      }
     } else {
       await preview.query(`TRUNCATE "${table}" CASCADE`);
-    }
-
-    for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
-      const batch = rows.slice(offset, offset + BATCH_SIZE);
-      const { sql, values } = buildInsert(table, columns, batch);
-      await preview.query(sql, values);
+      for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
+        const batch = rows.slice(offset, offset + BATCH_SIZE);
+        const { sql, values } = buildInsert(table, columns, batch);
+        await preview.query(sql, values);
+      }
     }
 
     await preview.query("COMMIT");
