@@ -10,12 +10,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { getSecretSettingMock, getSettingMock, uploadBufferToBlobMock } =
-  vi.hoisted(() => ({
-    getSecretSettingMock: vi.fn(),
-    getSettingMock: vi.fn(),
-    uploadBufferToBlobMock: vi.fn(),
-  }));
+const {
+  getSecretSettingMock,
+  getSettingMock,
+  uploadBufferToBlobMock,
+  getPromptConfigFromDBMock,
+} = vi.hoisted(() => ({
+  getSecretSettingMock: vi.fn(),
+  getSettingMock: vi.fn(),
+  uploadBufferToBlobMock: vi.fn(),
+  getPromptConfigFromDBMock: vi.fn(),
+}));
 
 vi.mock("@/lib/settings", () => ({
   getSecretSetting: getSecretSettingMock,
@@ -39,6 +44,10 @@ vi.mock("@/lib/logger", () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+}));
+
+vi.mock("@/lib/admin/config", () => ({
+  getPromptConfigFromDB: getPromptConfigFromDBMock,
 }));
 
 import { generateInfluencerImage } from "@/lib/influencer-ia/generate";
@@ -466,5 +475,140 @@ describe("lib/influencer-ia/generate", () => {
     const promptText = body.contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("ultra-realistic skin texture");
     expect(promptText).toContain("perfect anatomically correct hands");
+  });
+
+  // -------------------------------------------------------------------------
+  // Admin-editable template integration
+  // -------------------------------------------------------------------------
+
+  describe("admin-editable image template (buildPromptFromTemplate)", () => {
+    function makeConfigWithTemplate(imageTemplate: string) {
+      return {
+        avatarVideo: {
+          image: imageTemplate,
+          veoSystem: "sys",
+          veoUser: "usr",
+        },
+        insight: { template: "", settings: {} },
+        script: { template: "", settings: {} },
+      };
+    }
+
+    it("uses admin-edited template from DB when available", async () => {
+      // Custom template that puts product name first in a distinctive way
+      const customTemplate =
+        "CUSTOM_MARKER {{product_block}} THEN {{subject_block}} {{placement_block}} POSE: {{pose}} ENV: {{environment}}";
+      getPromptConfigFromDBMock.mockResolvedValue(
+        makeConfigWithTemplate(customTemplate),
+      );
+      mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
+
+      await generateInfluencerImage(BASE_INPUT);
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        contents: Array<{ parts: Array<{ text?: string }> }>;
+      };
+      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      expect(promptText).toContain("CUSTOM_MARKER");
+      // product_block should appear before subject_block in output
+      expect(promptText.indexOf("CUSTOM_MARKER")).toBeLessThan(
+        promptText.indexOf("Ana Silva"),
+      );
+    });
+
+    it("falls back to default prompt structure when getPromptConfigFromDB throws", async () => {
+      getPromptConfigFromDBMock.mockRejectedValue(new Error("DB unavailable"));
+      mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
+
+      // Should not throw — falls back gracefully
+      const result = await generateInfluencerImage(BASE_INPUT);
+      expect(result.imageUrl).toBeTruthy();
+    });
+
+    it("substitutes {{subject_block}} with avatar name in template", async () => {
+      const tpl =
+        "START {{subject_block}} MID {{product_block}} {{placement_block}} POSE: {{pose}} ENV: {{environment}}";
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfigWithTemplate(tpl));
+      mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
+
+      await generateInfluencerImage({
+        ...BASE_INPUT,
+        avatarName: "Larissa Costa",
+      });
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        contents: Array<{ parts: Array<{ text?: string }> }>;
+      };
+      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      expect(promptText).toContain("Larissa Costa");
+    });
+
+    it("substitutes {{pose}} with the resolved pose description", async () => {
+      const tpl =
+        "{{subject_block}} {{product_block}} {{placement_block}} POSE_HERE: {{pose}} ENV: {{environment}}";
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfigWithTemplate(tpl));
+      mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
+
+      await generateInfluencerImage({ ...BASE_INPUT, pose: "Selfie" });
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        contents: Array<{ parts: Array<{ text?: string }> }>;
+      };
+      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      expect(promptText).toContain("POSE_HERE:");
+      expect(promptText).toContain("selfie style");
+    });
+
+    it("collapses blank lines when optional variables are absent from template", async () => {
+      // Template with optional vars (style_block, enhancements_block) that
+      // will be empty because input has no style/enhancements
+      const tpl = [
+        "{{subject_block}}",
+        "{{product_block}}",
+        "{{placement_block}}",
+        "POSE: {{pose}}",
+        "ENV: {{environment}}",
+        "{{style_block}}",
+        "{{enhancements_block}}",
+      ].join("\n");
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfigWithTemplate(tpl));
+      mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
+
+      await generateInfluencerImage({
+        ...BASE_INPUT,
+        style: null,
+        enhancements: [],
+      });
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        contents: Array<{ parts: Array<{ text?: string }> }>;
+      };
+      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      // Should not have consecutive blank lines (collapsed)
+      expect(promptText).not.toContain("\n\n\n");
+    });
+
+    it("product name from input is reflected in the Gemini request with custom template", async () => {
+      const tpl =
+        "{{subject_block}} {{product_block}} {{placement_block}} POSE: {{pose}} ENV: {{environment}}";
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfigWithTemplate(tpl));
+      mockGeminiSuccess(makeFakeImageBuffer().toString("base64"));
+
+      await generateInfluencerImage({
+        ...BASE_INPUT,
+        productName: "Produto Especial Único",
+      });
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        contents: Array<{ parts: Array<{ text?: string }> }>;
+      };
+      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      expect(promptText).toContain("Produto Especial Único");
+    });
   });
 });

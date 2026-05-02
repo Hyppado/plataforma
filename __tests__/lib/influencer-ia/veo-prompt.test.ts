@@ -10,8 +10,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { getSecretSettingMock } = vi.hoisted(() => ({
+const { getSecretSettingMock, getPromptConfigFromDBMock } = vi.hoisted(() => ({
   getSecretSettingMock: vi.fn(),
+  getPromptConfigFromDBMock: vi.fn(),
 }));
 
 vi.mock("@/lib/settings", () => ({
@@ -26,6 +27,10 @@ vi.mock("@/lib/logger", () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+}));
+
+vi.mock("@/lib/admin/config", () => ({
+  getPromptConfigFromDB: getPromptConfigFromDBMock,
 }));
 
 import {
@@ -61,6 +66,8 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSecretSettingMock.mockResolvedValue("sk-test-key");
+    // Default: no DB config (fall through to defaults)
+    getPromptConfigFromDBMock.mockRejectedValue(new Error("not configured"));
   });
 
   it("throws when OpenAI key is not configured", async () => {
@@ -254,5 +261,169 @@ describe("lib/influencer-ia/veo-prompt — generateVeoPrompts()", () => {
     };
     const userMessage = body.messages[body.messages.length - 1]?.content ?? "";
     expect(userMessage).toContain("unboxing");
+  });
+
+  // -------------------------------------------------------------------------
+  // Admin-editable template integration
+  // -------------------------------------------------------------------------
+
+  describe("admin-editable VEO templates (template loading + substitution)", () => {
+    function makeConfig(
+      overrides: Partial<{ veoSystem: string; veoUser: string }> = {},
+    ) {
+      const base = {
+        veoSystem: "CUSTOM_SYS You are expert. Return JSON.",
+        veoUser:
+          "Product: {{product_name}}{{product_category}} " +
+          "Style: {{style_description}} {{style_label}} " +
+          "Total: {{total}}\n{{part_descriptions}}",
+      };
+      return {
+        avatarVideo: { image: "img", ...base, ...overrides },
+        insight: { template: "", settings: {} },
+        script: { template: "", settings: {} },
+      };
+    }
+
+    it("uses custom veoSystem template from DB as the system message", async () => {
+      getPromptConfigFromDBMock.mockResolvedValue(
+        makeConfig({ veoSystem: "UNIQUE_SYS_MSG Return JSON." }),
+      );
+      const fakePrompts = ["p1", "p2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      await generateVeoPrompts("Prod", null, "ugc", "short");
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const systemMsg = body.messages.find((m) => m.role === "system");
+      expect(systemMsg?.content).toContain("UNIQUE_SYS_MSG");
+    });
+
+    it("substitutes {{product_name}} in the user template", async () => {
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfig());
+      const fakePrompts = ["p1", "p2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      await generateVeoPrompts("Hidratante Ultra X", null, "ugc", "short");
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages[body.messages.length - 1]?.content ?? "";
+      expect(userMsg).toContain("Hidratante Ultra X");
+    });
+
+    it("substitutes {{product_category}} with category wrapped in parentheses", async () => {
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfig());
+      const fakePrompts = ["p1", "p2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      await generateVeoPrompts("Creme X", "beleza", "ugc", "short");
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages[body.messages.length - 1]?.content ?? "";
+      expect(userMsg).toContain("(beleza)");
+    });
+
+    it("substitutes {{style_label}} in UPPERCASE", async () => {
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfig());
+      const fakePrompts = ["p1", "p2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      await generateVeoPrompts("Prod", null, "unboxing", "short");
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages[body.messages.length - 1]?.content ?? "";
+      expect(userMsg).toContain("UNBOXING");
+    });
+
+    it("substitutes {{total}} with the correct part count for 'medium'", async () => {
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfig());
+      const fakePrompts = ["p1", "p2", "p3", "p4"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      await generateVeoPrompts("Prod", null, "ugc", "medium");
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages[body.messages.length - 1]?.content ?? "";
+      // medium has 4 parts
+      expect(userMsg).toContain("4");
+    });
+
+    it("substitutes {{part_descriptions}} with labeled part list", async () => {
+      getPromptConfigFromDBMock.mockResolvedValue(makeConfig());
+      const fakePrompts = ["p1", "p2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      await generateVeoPrompts("Prod", null, "ugc", "short");
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages[body.messages.length - 1]?.content ?? "";
+      // PART_LABELS.short = ["Gancho", "CTA"]
+      expect(userMsg).toContain("Gancho");
+      expect(userMsg).toContain("CTA");
+    });
+
+    it("falls back to default templates when getPromptConfigFromDB throws", async () => {
+      // Already mocked to throw in beforeEach — verify we still get results
+      const fakePrompts = ["fallback1", "fallback2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      const result = await generateVeoPrompts("Prod", null, "ugc", "short");
+      expect(result).toHaveLength(PART_LABELS.short.length);
+    });
+
+    it("still generates results when DB returns a config with empty veoSystem", async () => {
+      // Edge case: admin saved blank veoSystem (shouldn't happen since UI
+      // prevents it, but be resilient)
+      getPromptConfigFromDBMock.mockResolvedValue(
+        makeConfig({ veoSystem: "" }),
+      );
+      const fakePrompts = ["p1", "p2"];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(makeOpenAIResponse(fakePrompts)),
+      );
+
+      const result = await generateVeoPrompts("Prod", null, "ugc", "short");
+      expect(result).toHaveLength(PART_LABELS.short.length);
+    });
   });
 });
