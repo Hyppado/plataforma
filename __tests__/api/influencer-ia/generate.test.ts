@@ -47,6 +47,15 @@ vi.mock("@/lib/influencer-ia/quota", () => ({
       this.limit = limit;
     }
   },
+  MonthlyQuotaExceededError: class MonthlyQuotaExceededError extends Error {
+    used: number;
+    limit: number;
+    constructor(used: number, limit: number) {
+      super(`Monthly limit reached: ${used}/${limit}`);
+      this.used = used;
+      this.limit = limit;
+    }
+  },
   INFLUENCER_IA_DAILY_LIMIT: 5,
 }));
 

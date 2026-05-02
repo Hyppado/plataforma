@@ -1165,8 +1165,12 @@ export function PlansCard() {
                   <TableCell sx={headerCellSx}>Período</TableCell>
                   <TableCell sx={headerCellSx}>Transcrições</TableCell>
                   <TableCell sx={headerCellSx}>Scripts</TableCell>
-                  <TableCell sx={headerCellSx}>Vídeos Avatar</TableCell>
-                  <TableCell sx={headerCellSx}>Influencer IA / dia</TableCell>
+                  <TableCell sx={headerCellSx}>
+                    Vídeos Avatar / Influencer IA (mês)
+                  </TableCell>
+                  <TableCell sx={headerCellSx}>
+                    Influencer IA (ritmo/dia)
+                  </TableCell>
                   <TableCell sx={headerCellSx}>Status</TableCell>
                   <TableCell sx={headerCellSx} width={50}>
                     Visível
