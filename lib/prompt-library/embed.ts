@@ -76,7 +76,9 @@ function isDirectVideoUrl(value: string): boolean {
 // Resolver
 // ---------------------------------------------------------------------------
 
-export function resolveEmbed(value: string | null | undefined): ResolvedEmbed | null {
+export function resolveEmbed(
+  value: string | null | undefined,
+): ResolvedEmbed | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;

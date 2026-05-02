@@ -33,6 +33,8 @@ import {
   DialogActions,
 } from "@mui/material";
 import {
+  ArrowDownward,
+  ArrowUpward,
   Check as CheckIcon,
   ContentCopy,
   Edit as EditIcon,
@@ -453,7 +455,23 @@ interface DetailsEditState {
   checkoutUrl: string;
 }
 
-function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
+function PlanRow({
+  plan,
+  onSaved,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  reordering,
+}: {
+  plan: LocalPlan;
+  onSaved: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  reordering: boolean;
+}) {
   // --- quota inline editing ---
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -798,6 +816,32 @@ function PlanRow({ plan, onSaved }: { plan: LocalPlan; onSaved: () => void }) {
         {/* Ações */}
         <TableCell sx={cellSx}>
           <Stack direction="row" spacing={0.25} alignItems="center">
+            {/* Reorder up */}
+            <Tooltip title="Mover para cima">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={onMoveUp}
+                  disabled={!canMoveUp || reordering}
+                  sx={{ color: "rgba(255,255,255,0.4)" }}
+                >
+                  <ArrowUpward sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+            {/* Reorder down */}
+            <Tooltip title="Mover para baixo">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={onMoveDown}
+                  disabled={!canMoveDown || reordering}
+                  sx={{ color: "rgba(255,255,255,0.4)" }}
+                >
+                  <ArrowDownward sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
             {/* Collapse toggle */}
             <Tooltip title={expanded ? "Fechar detalhes" : "Editar detalhes"}>
               <IconButton
@@ -1000,10 +1044,54 @@ export function PlansCard() {
   const plansSWR = useSWR<PlansResponse>("/api/admin/plans", fetcher);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
 
   const hotmartPlans = (plansSWR.data?.plans ?? []).filter(
     (p) => p.hotmartPlanCode,
   );
+
+  // Reorder: swap two plans by index and persist new sortOrder values.
+  // Re-numbers the entire visible list 0..n-1 so the order stays canonical
+  // even if some sortOrder values previously collided.
+  const moveRow = async (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    if (target < 0 || target >= hotmartPlans.length) return;
+    if (reordering) return;
+    setReordering(true);
+
+    const next = [...hotmartPlans];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+
+    // Optimistic update
+    const allPlans = plansSWR.data?.plans ?? [];
+    const reorderedIds = new Map(next.map((p, i) => [p.id, i]));
+    const optimistic = allPlans
+      .map((p) =>
+        reorderedIds.has(p.id)
+          ? { ...p, sortOrder: reorderedIds.get(p.id)! }
+          : p,
+      )
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    plansSWR.mutate({ plans: optimistic }, { revalidate: false });
+
+    try {
+      await Promise.all(
+        next.map((p, i) =>
+          fetch("/api/admin/plans", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: p.id, sortOrder: i }),
+          }),
+        ),
+      );
+      await plansSWR.mutate();
+    } catch {
+      await plansSWR.mutate(); // revert from server
+    } finally {
+      setReordering(false);
+    }
+  };
 
   // Auto-sync plans from Hotmart on mount
   useEffect(() => {
@@ -1086,17 +1174,22 @@ export function PlansCard() {
                   <TableCell sx={headerCellSx} width={50}>
                     Destaque
                   </TableCell>
-                  <TableCell sx={headerCellSx} width={90}>
+                  <TableCell sx={headerCellSx} width={150}>
                     Ações
                   </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {hotmartPlans.map((plan) => (
+                {hotmartPlans.map((plan, idx) => (
                   <PlanRow
                     key={plan.id}
                     plan={plan}
                     onSaved={() => plansSWR.mutate()}
+                    onMoveUp={() => moveRow(idx, -1)}
+                    onMoveDown={() => moveRow(idx, 1)}
+                    canMoveUp={idx > 0}
+                    canMoveDown={idx < hotmartPlans.length - 1}
+                    reordering={reordering}
                   />
                 ))}
               </TableBody>
