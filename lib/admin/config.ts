@@ -81,6 +81,12 @@ export async function getPromptConfigFromDB(): Promise<PromptConfig> {
         template: parsed.script?.template ?? defaults.script.template,
         settings: { ...defaults.script.settings, ...parsed.script?.settings },
       },
+      avatarVideo: {
+        image: parsed.avatarVideo?.image ?? defaults.avatarVideo.image,
+        veoSystem:
+          parsed.avatarVideo?.veoSystem ?? defaults.avatarVideo.veoSystem,
+        veoUser: parsed.avatarVideo?.veoUser ?? defaults.avatarVideo.veoUser,
+      },
     };
   } catch {
     return getDefaultPromptConfig();

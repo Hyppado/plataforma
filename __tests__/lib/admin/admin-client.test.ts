@@ -73,6 +73,11 @@ describe("admin-client API helpers", () => {
         template: "b",
         settings: { model: "gpt", temperature: 0.8, max_output_tokens: 1500 },
       },
+      avatarVideo: {
+        image: "img",
+        veoSystem: "sys",
+        veoUser: "usr",
+      },
     });
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/admin/prompt-config",
