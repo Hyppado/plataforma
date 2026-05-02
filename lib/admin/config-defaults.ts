@@ -209,8 +209,169 @@ const DEFAULT_MODEL_SETTINGS: Record<"insight" | "script", ModelSettings> = {
 };
 
 // ---------------------------------------------------------------------------
+// Avatar Video / Influencer IA — default prompt templates
+// ---------------------------------------------------------------------------
+
+/**
+ * Default Influencer IA image prompt (Gemini).
+ * Variables filled at runtime by lib/influencer-ia/generate.ts:
+ *   {{subject_block}}      — full SUBJECT line (or "Só Produto" variant)
+ *   {{product_block}}      — full PRODUCT line with name + reference rules
+ *   {{placement_block}}    — full PLACEMENT line (category-aware), or empty
+ *   {{pose}}               — pose description (preset or custom)
+ *   {{environment}}        — environment description (preset or custom)
+ *   {{style_block}}        — full INFLUENCER STYLE line, or empty
+ *   {{enhancements_block}} — bullet list of enhancements, or empty
+ */
+const DEFAULT_AVATAR_IMAGE_PROMPT = `Photorealistic UGC-style product placement photo for TikTok Shop.
+
+{{subject_block}}
+{{product_block}}
+READING THE REFERENCE IMAGE — CRITICAL RULES:
+- IGNORE everything that is NOT part of the physical product: price stickers, promotional stamps, watermarks, e-commerce badges, review stars, shipping labels, certification seals, website URLs, or any text/graphic overlaid on the photo background. These are photo artifacts, NOT product features. Reproduce only what is physically ON the product.
+- Infer the REAL-WORLD SIZE of the product from its shape and category. A supplement bottle should look like a hand-sized bottle (~15–20 cm tall). A serum should look small in the palm. A clothing item should drape over a full body. Scale the product PROPORTIONALLY and REALISTICALLY relative to the person or hand — never make it unnaturally large or tiny compared to a real human hand or body.
+{{placement_block}}
+POSE: {{pose}}.
+SETTING: {{environment}}.
+{{style_block}}
+
+TECHNICAL REQUIREMENTS:
+- Vertical 9:16 portrait format
+- Photorealistic editorial quality — must look like a real professional photo, NOT AI-generated
+- No text overlays, watermarks, or UI elements in the final image
+- Product must be the clear hero of the image and perfectly sharp
+- The product color must EXACTLY match the reference — do not change or approximate the shade
+- If the product is clothing, the influencer MUST be wearing it — not holding it
+- Product scale must match real-world proportions relative to the person's hands and body
+{{enhancements_block}}`;
+
+/**
+ * Default VEO 3.1 system message (OpenAI gpt-4o).
+ * No variables — admin can edit text freely.
+ */
+const DEFAULT_VEO_SYSTEM_PROMPT = `You are a VEO 3.1 video prompt expert for TikTok Shop UGC content. You write vivid, cinematic English prompts for vertical (9:16) short-form video generation. Each prompt must describe exactly 8 seconds of content: camera direction + visual action + spoken dialogue in PT-BR. Respond ONLY with a JSON object: { "parts": ["prompt1", "prompt2", ...] }`;
+
+/**
+ * Default VEO 3.1 user message (OpenAI gpt-4o).
+ * Variables filled at runtime by lib/influencer-ia/veo-prompt.ts:
+ *   {{product_name}}        — product name
+ *   {{product_category}}    — formatted as " (category)" or empty
+ *   {{style_description}}   — long style description
+ *   {{style_label}}         — UPPERCASE style label
+ *   {{total}}               — number of parts (2/4/8)
+ *   {{part_descriptions}}   — multi-line list "  Part X/Y — label: goal"
+ */
+const DEFAULT_VEO_USER_PROMPT = `Product: {{product_name}}{{product_category}}
+Style: {{style_description}}
+
+Generate exactly {{total}} VEO 3.1 prompts for the following parts:
+{{part_descriptions}}
+
+Rules:
+- Each prompt string must start with "Realistic {{style_label}} TikTok video PART X/{{total}}."
+- Describe camera framing (e.g. "Medium shot, stable camera, slight push in")
+- Describe what the creator does visually and how they interact with the product
+- Include: "Keep the same person, product and environment as the reference image."
+- Include: "No on-screen text, logos, subtitles, watermarks, distorted hands, faces or product."
+- End each prompt with: Audio: "[spoken lines in PT-BR]"
+- Max 8 seconds per part — keep it focused and punchy
+
+Return JSON: { "parts": ["part1 prompt...", "part2 prompt...", ...] }`;
+
+// ---------------------------------------------------------------------------
+// Avatar Video — variable metadata for the admin editor
+// ---------------------------------------------------------------------------
+
+export interface AvatarPromptVariable {
+  variable: string;
+  description: string;
+  required: boolean;
+}
+
+export const AVATAR_IMAGE_VARIABLES: readonly AvatarPromptVariable[] = [
+  {
+    variable: "{{subject_block}}",
+    description: "Linha SUBJECT — descreve o creator (ou modo Só Produto)",
+    required: true,
+  },
+  {
+    variable: "{{product_block}}",
+    description: "Linha PRODUCT — nome do produto + regras da imagem de referência",
+    required: true,
+  },
+  {
+    variable: "{{placement_block}}",
+    description: "Linha PLACEMENT — onde/como o produto aparece (varia por categoria)",
+    required: true,
+  },
+  {
+    variable: "{{pose}}",
+    description: "Descrição da pose (preset ou customizada)",
+    required: true,
+  },
+  {
+    variable: "{{environment}}",
+    description: "Descrição do cenário (preset ou customizado)",
+    required: true,
+  },
+  {
+    variable: "{{style_block}}",
+    description: "Linha INFLUENCER STYLE — vazio se não houver estilo",
+    required: false,
+  },
+  {
+    variable: "{{enhancements_block}}",
+    description: "Lista de bullets com aprimoramentos selecionados — vazio se nenhum",
+    required: false,
+  },
+] as const;
+
+export const VEO_SYSTEM_VARIABLES: readonly AvatarPromptVariable[] = [];
+
+export const VEO_USER_VARIABLES: readonly AvatarPromptVariable[] = [
+  {
+    variable: "{{product_name}}",
+    description: "Nome do produto",
+    required: true,
+  },
+  {
+    variable: "{{product_category}}",
+    description: 'Categoria entre parênteses, ex: " (Beleza)" — vazio se não houver',
+    required: false,
+  },
+  {
+    variable: "{{style_description}}",
+    description: "Descrição longa do estilo escolhido (UGC, Unboxing, etc)",
+    required: true,
+  },
+  {
+    variable: "{{style_label}}",
+    description: "Rótulo do estilo em MAIÚSCULAS (UGC, UNBOXING, etc)",
+    required: true,
+  },
+  {
+    variable: "{{total}}",
+    description: "Número total de partes do vídeo (2, 4 ou 8)",
+    required: true,
+  },
+  {
+    variable: "{{part_descriptions}}",
+    description: 'Lista das partes (Gancho, Apresentação, CTA, etc) com seus objetivos',
+    required: true,
+  },
+] as const;
+
+// ---------------------------------------------------------------------------
 // getDefaultPromptConfig
 // ---------------------------------------------------------------------------
+
+export function getDefaultAvatarVideoPrompts() {
+  return {
+    image: DEFAULT_AVATAR_IMAGE_PROMPT,
+    veoSystem: DEFAULT_VEO_SYSTEM_PROMPT,
+    veoUser: DEFAULT_VEO_USER_PROMPT,
+  };
+}
 
 export function getDefaultPromptConfig(): PromptConfig {
   return {
@@ -222,5 +383,6 @@ export function getDefaultPromptConfig(): PromptConfig {
       template: DEFAULT_SCRIPT_PROMPT,
       settings: { ...DEFAULT_MODEL_SETTINGS.script },
     },
+    avatarVideo: getDefaultAvatarVideoPrompts(),
   };
 }

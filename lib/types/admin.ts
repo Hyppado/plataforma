@@ -190,6 +190,16 @@ export interface ModelSettings {
   max_output_tokens: number;
 }
 
+/** Avatar Video / Influencer IA editable prompt templates */
+export interface AvatarVideoPromptConfig {
+  /** Influencer IA image prompt (Gemini) */
+  image: string;
+  /** VEO 3.1 system message (OpenAI gpt-4o) */
+  veoSystem: string;
+  /** VEO 3.1 user message (OpenAI gpt-4o) */
+  veoUser: string;
+}
+
 /** Prompt configuration */
 export interface PromptConfig {
   insight: {
@@ -200,6 +210,7 @@ export interface PromptConfig {
     template: string;
     settings: ModelSettings;
   };
+  avatarVideo: AvatarVideoPromptConfig;
 }
 
 /** Hotmart webhook event types we handle */

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Box, Typography, CircularProgress, Tabs, Tab } from "@mui/material";
 import { AvatarsSection } from "./AvatarsSection";
 import { ScenariosSection, type ScenarioRow } from "./ScenariosSection";
+import { AvatarPromptsSection } from "./AvatarPromptsSection";
 
 export interface AvatarRow {
   id: string;
@@ -79,12 +80,14 @@ export function AvatarVideoTab() {
       >
         <Tab label={`Avatares (${avatars.length})`} />
         <Tab label={`Cenários (${scenarios.length})`} />
+        <Tab label="Prompts IA" />
       </Tabs>
 
       {subTab === 0 && <AvatarsSection avatars={avatars} onChanged={loadAll} />}
       {subTab === 1 && (
         <ScenariosSection scenarios={scenarios} onChanged={loadAll} />
       )}
+      {subTab === 2 && <AvatarPromptsSection />}
     </Box>
   );
 }

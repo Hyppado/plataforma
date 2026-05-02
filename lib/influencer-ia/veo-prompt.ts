@@ -9,6 +9,9 @@
  */
 
 import { getSecretSetting, SETTING_KEYS } from "@/lib/settings";
+import { getPromptConfigFromDB } from "@/lib/admin/config";
+import { getDefaultAvatarVideoPrompts } from "@/lib/admin/config-defaults";
+import { renderTemplate } from "@/lib/admin/template";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("influencer-ia/veo-prompt");
@@ -114,27 +117,36 @@ export async function generateVeoPrompts(
     })
     .join("\n");
 
-  const systemMessage =
-    `You are a VEO 3.1 video prompt expert for TikTok Shop UGC content. ` +
-    `You write vivid, cinematic English prompts for vertical (9:16) short-form video generation. ` +
-    `Each prompt must describe exactly 8 seconds of content: camera direction + visual action + spoken dialogue in PT-BR. ` +
-    `Respond ONLY with a JSON object: { "parts": ["prompt1", "prompt2", ...] }`;
-
   const styleLabel = style.toUpperCase();
-  const userMessage =
-    `Product: ${productName}${productCategory ? ` (${productCategory})` : ""}\n` +
-    `Style: ${styleDesc}\n\n` +
-    `Generate exactly ${total} VEO 3.1 prompts for the following parts:\n` +
-    `${partDescriptions}\n\n` +
-    `Rules:\n` +
-    `- Each prompt string must start with "Realistic ${styleLabel} TikTok video PART X/${total}."\n` +
-    `- Describe camera framing (e.g. "Medium shot, stable camera, slight push in")\n` +
-    `- Describe what the creator does visually and how they interact with the product\n` +
-    `- Include: "Keep the same person, product and environment as the reference image."\n` +
-    `- Include: "No on-screen text, logos, subtitles, watermarks, distorted hands, faces or product."\n` +
-    `- End each prompt with: Audio: "[spoken lines in PT-BR]"\n` +
-    `- Max 8 seconds per part — keep it focused and punchy\n\n` +
-    `Return JSON: { "parts": ["part1 prompt...", "part2 prompt...", ...] }`;
+
+  // Load admin-edited templates with default fallback (so a malformed DB
+  // value never blocks generation).
+  let systemTemplate: string;
+  let userTemplate: string;
+  try {
+    const cfg = await getPromptConfigFromDB();
+    systemTemplate = cfg.avatarVideo.veoSystem;
+    userTemplate = cfg.avatarVideo.veoUser;
+  } catch (err) {
+    log.warn("Falling back to default VEO templates", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    const defaults = getDefaultAvatarVideoPrompts();
+    systemTemplate = defaults.veoSystem;
+    userTemplate = defaults.veoUser;
+  }
+
+  const vars = {
+    product_name: productName,
+    product_category: productCategory ? ` (${productCategory})` : "",
+    style_description: styleDesc,
+    style_label: styleLabel,
+    total: String(total),
+    part_descriptions: partDescriptions,
+  };
+
+  const systemMessage = renderTemplate(systemTemplate, vars);
+  const userMessage = renderTemplate(userTemplate, vars);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);

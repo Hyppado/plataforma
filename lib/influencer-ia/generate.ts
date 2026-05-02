@@ -12,6 +12,8 @@
 
 import { createLogger } from "@/lib/logger";
 import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
+import { getPromptConfigFromDB } from "@/lib/admin/config";
+import { renderTemplate } from "@/lib/admin/template";
 import {
   isEchotikCdnUrl,
   signEchotikCoverUrl,
@@ -99,15 +101,39 @@ const ENHANCEMENT_DESCRIPTIONS: Record<string, string> = {
 };
 
 function buildPrompt(input: InfluencerImageInput): string {
+  // Sync entry point — used by tests. Production code uses buildPromptAsync.
+  return buildPromptFromTemplate(null, input);
+}
+
+async function buildPromptAsync(input: InfluencerImageInput): Promise<string> {
+  try {
+    const config = await getPromptConfigFromDB();
+    return buildPromptFromTemplate(config.avatarVideo.image, input);
+  } catch (err) {
+    log.warn("buildPromptAsync: falling back to default template", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return buildPromptFromTemplate(null, input);
+  }
+}
+
+/**
+ * Renders the influencer image prompt by computing dynamic blocks from the
+ * input and substituting them into the (admin-editable) template. When
+ * `template` is null we fall back to the default structure to keep behaviour
+ * stable in unit tests and during config-loading failures.
+ */
+function buildPromptFromTemplate(
+  template: string | null,
+  input: InfluencerImageInput,
+): string {
   const subject = input.avatarName
     ? `${input.avatarName}${input.avatarDescription ? `, ${input.avatarDescription}` : ""}`
     : "a young Brazilian content creator";
 
   const product = input.productName ?? "the product";
-  // Check both category and product name for type detection
   const searchText = `${input.productCategory ?? ""} ${product}`.toLowerCase();
 
-  // Category-aware placement
   const isClothing =
     /roupa|moda|fashion|vestuário|clothing|apparel|shirt|dress|pants|jeans|jacket|blouse|top|skirt|coat|calça|legging|shorts|vestido|saia|moletom|blusa|camiseta|camiseta|regata|casaco|jaqueta|agasalho|pijama|lingerie|sutiã|cueca|bermuda|jardineira|macacão|kimono|maiô|biquíni|meias|tricô|suéter/.test(
       searchText,
@@ -164,16 +190,56 @@ function buildPrompt(input: InfluencerImageInput): string {
     .filter(Boolean)
     .map((d) => `- ${d}`);
 
+  // ---- block variables ---------------------------------------------------
+  const subjectBlock = poseIsSoProduct
+    ? "SUBJECT: Product-only shot — no person in the image."
+    : `SUBJECT: ${subject}.`;
+
+  const productBlock =
+    `PRODUCT: "${product}" — the reference image is the SOLE source of truth for the product's physical appearance. ` +
+    `Reproduce EVERY intrinsic detail exactly: color (especially the specific shade/hue of the selected variation), ` +
+    `shape, fabric, labels, text printed ON the product itself, logos, and finish. ` +
+    `Do NOT substitute, invent, or alter ANY aspect of the product.`;
+
+  const placementBlock = poseIsSoProduct ? "" : `PLACEMENT: ${placement}`;
+
+  const styleBlock = styleDescription
+    ? `INFLUENCER STYLE: ${styleDescription}.`
+    : "";
+
+  const enhancementsBlock = enhancementLines.join("\n");
+
+  // ---- render either the admin-edited template or the default ----------
+  if (template) {
+    const rendered = renderTemplate(template, {
+      subject_block: subjectBlock,
+      product_block: productBlock,
+      placement_block: placementBlock,
+      pose: poseDescription,
+      environment: envDescription,
+      style_block: styleBlock,
+      enhancements_block: enhancementsBlock,
+    });
+    // Strip lines left empty by missing optional variables to keep the
+    // prompt clean (collapsing 3+ blank lines into a single blank line).
+    return rendered
+      .split("\n")
+      .filter((line, idx, arr) => {
+        if (line.trim() !== "") return true;
+        // keep at most one consecutive blank line
+        const prev = arr[idx - 1];
+        return prev === undefined || prev.trim() !== "";
+      })
+      .join("\n")
+      .trim();
+  }
+
+  // Default (no template available — preserves original behaviour).
   const lines = [
     "Photorealistic UGC-style product placement photo for TikTok Shop.",
     "",
-    poseIsSoProduct
-      ? "SUBJECT: Product-only shot — no person in the image."
-      : `SUBJECT: ${subject}.`,
-    `PRODUCT: "${product}" — the reference image is the SOLE source of truth for the product's physical appearance. ` +
-      `Reproduce EVERY intrinsic detail exactly: color (especially the specific shade/hue of the selected variation), ` +
-      `shape, fabric, labels, text printed ON the product itself, logos, and finish. ` +
-      `Do NOT substitute, invent, or alter ANY aspect of the product.`,
+    subjectBlock,
+    productBlock,
     "READING THE REFERENCE IMAGE — CRITICAL RULES:",
     `- IGNORE everything that is NOT part of the physical product: price stickers, promotional stamps, ` +
       `watermarks, e-commerce badges, review stars, shipping labels, certification seals, ` +
@@ -184,10 +250,10 @@ function buildPrompt(input: InfluencerImageInput): string {
       `A serum should look small in the palm. A clothing item should drape over a full body. ` +
       `Scale the product PROPORTIONALLY and REALISTICALLY relative to the person or hand — ` +
       `never make it unnaturally large or tiny compared to a real human hand or body.`,
-    poseIsSoProduct ? "" : `PLACEMENT: ${placement}`,
+    placementBlock,
     `POSE: ${poseDescription}.`,
     `SETTING: ${envDescription}.`,
-    styleDescription ? `INFLUENCER STYLE: ${styleDescription}.` : "",
+    styleBlock,
     "",
     "TECHNICAL REQUIREMENTS:",
     "- Vertical 9:16 portrait format",
@@ -349,7 +415,7 @@ export async function generateInfluencerImage(
   }
 
   const modelId = geminiModel?.trim() || DEFAULT_GEMINI_MODEL;
-  const promptText = buildPrompt(input);
+  const promptText = await buildPromptAsync(input);
 
   log.info("Generating influencer image", {
     avatarName: input.avatarName,
