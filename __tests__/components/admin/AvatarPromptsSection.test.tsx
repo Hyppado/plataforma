@@ -21,6 +21,8 @@ import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AvatarPromptsSection } from "@/app/components/admin/avatar-video/AvatarPromptsSection";
+import { getPromptConfig, updatePromptConfig } from "@/lib/admin/admin-client";
+import type { PromptConfig } from "@/lib/types/admin";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -49,9 +51,6 @@ vi.mock("@/lib/admin/config-defaults", async (importOriginal) => {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const { getPromptConfig, updatePromptConfig } =
-  await import("@/lib/admin/admin-client");
 
 const FAKE_CONFIG = {
   avatarVideo: {
@@ -84,11 +83,7 @@ function setup() {
 describe("AvatarPromptsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPromptConfig).mockResolvedValue(
-      FAKE_CONFIG as Parameters<typeof getPromptConfig>[0] extends never
-        ? never
-        : Awaited<ReturnType<typeof getPromptConfig>>,
-    );
+    vi.mocked(getPromptConfig).mockResolvedValue(FAKE_CONFIG as PromptConfig);
     vi.mocked(updatePromptConfig).mockResolvedValue(undefined);
   });
 
@@ -266,7 +261,7 @@ describe("AvatarPromptsSection", () => {
       },
     };
     vi.mocked(getPromptConfig).mockResolvedValue(
-      configMissingRequired as Awaited<ReturnType<typeof getPromptConfig>>,
+      configMissingRequired as PromptConfig,
     );
 
     const { user } = setup();
@@ -382,7 +377,7 @@ describe("AvatarPromptsSection", () => {
     vi.mocked(getPromptConfig).mockResolvedValue({
       ...FAKE_CONFIG,
       avatarVideo: { ...FAKE_CONFIG.avatarVideo, image: customImage },
-    } as Awaited<ReturnType<typeof getPromptConfig>>);
+    } as PromptConfig);
 
     const { user } = setup();
     await waitFor(() =>
