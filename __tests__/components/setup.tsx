@@ -40,25 +40,30 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // ---------------------------------------------------------------------------
-// ResizeObserver — used by several MUI components
+// ResizeObserver — used by several MUI components (TextareaAutosize, etc.)
+// Must be a class-compatible mock since MUI calls `new ResizeObserver(...)`.
 // ---------------------------------------------------------------------------
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+global.ResizeObserver = vi.fn().mockImplementation(function () {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  };
+});
 
 // ---------------------------------------------------------------------------
 // IntersectionObserver — used by MUI Popover / transitions
 // ---------------------------------------------------------------------------
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-  root: null,
-  rootMargin: "",
-  thresholds: [],
-}));
+global.IntersectionObserver = vi.fn().mockImplementation(function () {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+    root: null,
+    rootMargin: "",
+    thresholds: [],
+  };
+});
 
 // ---------------------------------------------------------------------------
 // next/navigation — useRouter, usePathname, useSearchParams
