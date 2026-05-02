@@ -127,10 +127,28 @@ jobs:
             echo "✅ PR #${PR_NUMBER} created."
           fi
 
+          # Enable auto-merge with retries — the PR may not be immediately
+          # eligible (e.g. branch-protection checks are still queuing).
           echo "🤖 Enabling auto-merge (squash) on PR #${PR_NUMBER}..."
-          gh pr merge "$PR_NUMBER" \
-            --repo "$GITHUB_REPOSITORY" \
-            --auto \
-            --squash \
-            --delete-branch=false
-          echo "✅ Auto-merge enabled on PR #${PR_NUMBER}."
+          MAX_ATTEMPTS=5
+          ATTEMPT=0
+          RETRY_DELAY=15
+          while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            if gh pr merge "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --auto \
+              --squash \
+              --delete-branch=false; then
+              echo "✅ Auto-merge enabled on PR #${PR_NUMBER} (attempt ${ATTEMPT})."
+              break
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "⏳ Auto-merge not ready yet (attempt ${ATTEMPT}/${MAX_ATTEMPTS}). Retrying in ${RETRY_DELAY}s..."
+              sleep "$RETRY_DELAY"
+              RETRY_DELAY=$((RETRY_DELAY * 2))
+            else
+              echo "❌ Failed to enable auto-merge after ${MAX_ATTEMPTS} attempts."
+              exit 1
+            fi
+          done

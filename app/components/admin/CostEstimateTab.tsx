@@ -93,6 +93,19 @@ interface DetailRowProps {
 }
 
 function DetailRow({ plan, breakdown, usdToBrl }: DetailRowProps) {
+  const bm = breakdown.billingMonths; // 1 = monthly, 12 = annual
+  const annual = bm > 1;
+
+  // For annual plans, multiply each monthly cost by 12 so the detail rows
+  // sum to the same value shown in the main table column (totalAiCostBrl).
+  const c = (monthlyUsd: number) => monthlyUsd * usdToBrl * bm;
+
+  // Helper: show "N/mês × 12 meses (= N×12/ano)" for annual, or just "N" for monthly.
+  const qty = (n: number, unit: string) =>
+    annual
+      ? `${n} ${unit}/mês × 12 meses = ${n * 12} ${unit}/ano`
+      : `${n} ${unit}`;
+
   const aiRows: Array<{
     label: string;
     what: string;
@@ -102,44 +115,48 @@ function DetailRow({ plan, breakdown, usdToBrl }: DetailRowProps) {
     {
       label: "Transcrições · OpenAI Whisper",
       what: "Converte o áudio dos vídeos em texto para análise. Cobrado por minuto de áudio.",
-      detail: `${plan.transcriptsPerMonth} transcrições × US$${UNIT_COSTS_USD.whisperPerTranscript.toFixed(3)} (≈ 3 min × US$0,006/min)`,
-      costBrl: breakdown.transcriptCostUsd * usdToBrl,
+      detail: `${qty(plan.transcriptsPerMonth, "transcrições")} × US$${UNIT_COSTS_USD.whisperPerTranscript.toFixed(3)} (≈ 3 min × US$0,006/min)`,
+      costBrl: c(breakdown.transcriptCostUsd),
     },
     {
       label: "Insights · GPT-4o-mini",
       what: "Analisa a transcrição do vídeo e gera um resumo inteligente (insight) para o usuário.",
-      detail: `${breakdown.insightCallsPerMonth} chamadas/mês — limite de ${plan.insightTokensMonthlyMax.toLocaleString("pt-BR")} tokens de saída ÷ ${plan.insightMaxOutputTokens} por chamada`,
-      costBrl: breakdown.insightCostUsd * usdToBrl,
+      detail: annual
+        ? `${breakdown.insightCallsPerMonth} chamadas/mês × 12 meses = ${breakdown.insightCallsPerMonth * 12} chamadas/ano — limite mensal de ${plan.insightTokensMonthlyMax.toLocaleString("pt-BR")} tokens ÷ ${plan.insightMaxOutputTokens} por chamada`
+        : `${breakdown.insightCallsPerMonth} chamadas/mês — limite de ${plan.insightTokensMonthlyMax.toLocaleString("pt-BR")} tokens de saída ÷ ${plan.insightMaxOutputTokens} por chamada`,
+      costBrl: c(breakdown.insightCostUsd),
     },
     {
       label: "Scripts · GPT-4o-mini",
       what: "Gera roteiros de vídeo baseados nas tendências. Cobrado por tokens processados.",
-      detail: `${breakdown.scriptCallsPerMonth} chamadas/mês — limite de ${plan.scriptTokensMonthlyMax.toLocaleString("pt-BR")} tokens de saída ÷ ${plan.scriptMaxOutputTokens} por chamada`,
-      costBrl: breakdown.scriptCostUsd * usdToBrl,
+      detail: annual
+        ? `${breakdown.scriptCallsPerMonth} chamadas/mês × 12 meses = ${breakdown.scriptCallsPerMonth * 12} chamadas/ano — limite mensal de ${plan.scriptTokensMonthlyMax.toLocaleString("pt-BR")} tokens ÷ ${plan.scriptMaxOutputTokens} por chamada`
+        : `${breakdown.scriptCallsPerMonth} chamadas/mês — limite de ${plan.scriptTokensMonthlyMax.toLocaleString("pt-BR")} tokens de saída ÷ ${plan.scriptMaxOutputTokens} por chamada`,
+      costBrl: c(breakdown.scriptCostUsd),
     },
     {
       label: "Avatar com IA — Imagens · Google Gemini",
       what: "O Google Gemini gera 2 imagens do avatar com o produto por criação de vídeo.",
-      detail: `${plan.avatarVideoQuota} criações × 2 imagens × US$${UNIT_COSTS_USD.geminiImagePerImage.toFixed(2)}/imagem`,
-      costBrl: breakdown.avatarImagesCostUsd * usdToBrl,
+      detail: `${qty(plan.avatarVideoQuota, "criações")} × 2 imagens × US$${UNIT_COSTS_USD.geminiImagePerImage.toFixed(2)}/imagem`,
+      costBrl: c(breakdown.avatarImagesCostUsd),
     },
     {
       label: "Avatar com IA — Prompt de vídeo · GPT-4o",
       what: "O GPT-4o escreve o roteiro detalhado (prompt VEO) que descreve cada cena do vídeo gerado.",
-      detail: `${plan.avatarVideoQuota} criações × ~600 tokens entrada + ~800 tokens saída`,
-      costBrl: breakdown.avatarVeoCostUsd * usdToBrl,
+      detail: `${qty(plan.avatarVideoQuota, "criações")} × ~600 tokens entrada + ~800 tokens saída`,
+      costBrl: c(breakdown.avatarVeoCostUsd),
     },
     {
       label: "Influencer IA — Imagens · Google Gemini",
       what: "O Google Gemini gera a foto do influencer segurando o produto. Quota mensal = Vídeos Avatar do plano; o limite diário é o ritmo máximo de consumo.",
-      detail: `${breakdown.influencerMonthlyGenMax} imagens/mês (cota mensal do plano) × US$${UNIT_COSTS_USD.geminiImagePerImage.toFixed(2)}/imagem`,
-      costBrl: breakdown.influencerImagesCostUsd * usdToBrl,
+      detail: `${qty(breakdown.influencerMonthlyGenMax, "imagens")} (cota mensal = avatarVideoQuota) × US$${UNIT_COSTS_USD.geminiImagePerImage.toFixed(2)}/imagem`,
+      costBrl: c(breakdown.influencerImagesCostUsd),
     },
     {
       label: "Influencer IA — Prompt de vídeo · GPT-4o",
       what: "O GPT-4o cria os prompts de cada cena do vídeo do influencer após gerar a imagem.",
-      detail: `${breakdown.influencerMonthlyGenMax} usos/mês (cota mensal do plano) × ~600 tokens entrada + ~600 tokens saída`,
-      costBrl: breakdown.influencerVeoCostUsd * usdToBrl,
+      detail: `${qty(breakdown.influencerMonthlyGenMax, "usos")} (cota mensal = avatarVideoQuota) × ~600 tokens entrada + ~600 tokens saída`,
+      costBrl: c(breakdown.influencerVeoCostUsd),
     },
   ];
 
@@ -192,10 +209,10 @@ function DetailRow({ plan, breakdown, usdToBrl }: DetailRowProps) {
           letterSpacing: 0.5,
         }}
       >
-        Custos de IA por mês (por assinante)
+        Custos de IA por período de cobrança (por assinante)
         {breakdown.billingMonths > 1
-          ? " — multiplicado por 12 na coluna principal"
-          : " (convertidos para BRL)"}
+          ? " — cotas mensais × 12 meses"
+          : " — convertidos para BRL"}
       </Typography>
       <Table size="small">
         <TableHead>
