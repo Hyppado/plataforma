@@ -284,6 +284,8 @@ Return JSON: { "parts": ["part1 prompt...", "part2 prompt...", ...] }`;
 
 export interface AvatarPromptVariable {
   variable: string;
+  /** Rótulo curto em português para exibição na UI */
+  label: string;
   description: string;
   required: boolean;
 }
@@ -291,37 +293,49 @@ export interface AvatarPromptVariable {
 export const AVATAR_IMAGE_VARIABLES: readonly AvatarPromptVariable[] = [
   {
     variable: "{{subject_block}}",
-    description: "Linha SUBJECT — descreve o creator (ou modo Só Produto)",
+    label: "Sujeito",
+    description:
+      "Descreve o creator (ou indica modo \"Só Produto\"). Linha SUBJECT do prompt.",
     required: true,
   },
   {
     variable: "{{product_block}}",
-    description: "Linha PRODUCT — nome do produto + regras da imagem de referência",
+    label: "Produto",
+    description:
+      "Nome do produto + regras da imagem de referência. Linha PRODUCT do prompt.",
     required: true,
   },
   {
     variable: "{{placement_block}}",
-    description: "Linha PLACEMENT — onde/como o produto aparece (varia por categoria)",
+    label: "Posicionamento",
+    description:
+      "Onde e como o produto aparece na cena (varia por categoria). Linha PLACEMENT.",
     required: true,
   },
   {
     variable: "{{pose}}",
-    description: "Descrição da pose (preset ou customizada)",
+    label: "Pose",
+    description: "Descrição da pose (preset ou customizada).",
     required: true,
   },
   {
     variable: "{{environment}}",
-    description: "Descrição do cenário (preset ou customizado)",
+    label: "Cenário",
+    description: "Descrição do ambiente / cenário (preset ou customizado).",
     required: true,
   },
   {
     variable: "{{style_block}}",
-    description: "Linha INFLUENCER STYLE — vazio se não houver estilo",
+    label: "Estilo do influencer",
+    description:
+      "Linha INFLUENCER STYLE — fica vazia quando o usuário não escolhe um estilo.",
     required: false,
   },
   {
     variable: "{{enhancements_block}}",
-    description: "Lista de bullets com aprimoramentos selecionados — vazio se nenhum",
+    label: "Aprimoramentos",
+    description:
+      "Lista de bullets com os aprimoramentos selecionados — vazio se nenhum.",
     required: false,
   },
 ] as const;
@@ -331,32 +345,40 @@ export const VEO_SYSTEM_VARIABLES: readonly AvatarPromptVariable[] = [];
 export const VEO_USER_VARIABLES: readonly AvatarPromptVariable[] = [
   {
     variable: "{{product_name}}",
-    description: "Nome do produto",
+    label: "Nome do produto",
+    description: "Nome do produto sendo divulgado.",
     required: true,
   },
   {
     variable: "{{product_category}}",
-    description: 'Categoria entre parênteses, ex: " (Beleza)" — vazio se não houver',
+    label: "Categoria",
+    description:
+      'Categoria entre parênteses, ex: " (Beleza)". Fica vazio quando não houver.',
     required: false,
   },
   {
     variable: "{{style_description}}",
-    description: "Descrição longa do estilo escolhido (UGC, Unboxing, etc)",
+    label: "Descrição do estilo",
+    description: "Descrição longa do estilo escolhido (UGC, Unboxing, etc).",
     required: true,
   },
   {
     variable: "{{style_label}}",
-    description: "Rótulo do estilo em MAIÚSCULAS (UGC, UNBOXING, etc)",
+    label: "Estilo (sigla)",
+    description: "Rótulo do estilo em MAIÚSCULAS (UGC, UNBOXING, etc).",
     required: true,
   },
   {
     variable: "{{total}}",
-    description: "Número total de partes do vídeo (2, 4 ou 8)",
+    label: "Total de partes",
+    description: "Número total de partes do vídeo (2, 4 ou 8).",
     required: true,
   },
   {
     variable: "{{part_descriptions}}",
-    description: 'Lista das partes (Gancho, Apresentação, CTA, etc) com seus objetivos',
+    label: "Partes do vídeo",
+    description:
+      "Lista das partes (Gancho, Apresentação, CTA, etc) com seus objetivos.",
     required: true,
   },
 ] as const;
