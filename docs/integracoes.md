@@ -80,7 +80,11 @@ O Hotmart é a plataforma de pagamentos. O Hyppado recebe eventos via webhook e 
 
 Credenciais são armazenadas **exclusivamente no banco** (tabela `Setting`) com valores sensíveis criptografados (AES-256-GCM). São gerenciadas pelo painel admin em `CredentialsCard`.
 
-Resolução via `getHotmartConfig()` em `lib/hotmart/config.ts` — sem fallback para variáveis de ambiente. Se qualquer credencial estiver ausente no banco, a operação falha com erro explícito.
+Resolução via `getHotmartConfig()` em `lib/hotmart/config.ts` com a seguinte cadeia de prioridade:
+
+1. **Banco de dados** (painel admin) — prioridade máxima
+2. **Variáveis de ambiente** — fallback: `HOTMART_CLIENTE_ID`, `HOTMART_CLIENT_SECRET`, `HOTMART_BASIC`
+3. Se a credencial estiver ausente em ambas as fontes, a operação falha com erro explícito.
 
 **Chave de criptografia:** derivada do `NEXTAUTH_SECRET` via SHA-256 (32 bytes). Se `NEXTAUTH_SECRET` for trocado, os secrets no banco ficam ilegíveis — executar `node scripts/reencrypt-hotmart-secrets.mjs` para re-criptografar com a nova chave.
 

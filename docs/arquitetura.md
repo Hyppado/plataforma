@@ -117,6 +117,7 @@ app/
     ui/                → Logo, primitivos
     videos/            → TranscriptDialog, InsightDialog
   dashboard/
+    home/              → página inicial do dashboard (resumo/boas-vindas)
     influencer-ia/     → wizard Influencer IA (produto → avatar → configuração → geração);
                          deep-link via ?productId= pré-seleciona o produto no tab "Produtos Hype"
                          com picker de variações; fallback via GET /api/trending/products/[id]
@@ -188,6 +189,10 @@ lib/
   storage/
     blob.ts            → Vercel Blob helpers
     saved.ts           → itens salvos
+  sync/
+    service.ts         → syncTable() — TRUNCATE+INSERT (echotik), UPSERT por chave (Setting) ou DELETE+INSERT (filtrado)
+    tables.ts          → TABLE_DEFS — definições de tabelas, grupos, mascaramento e modo de sync
+    masking.ts         → aplica nullificação de colunas PII
   swr/
     fetcher.ts          → SWR fetcher padrão
     useAvatarProfiles.ts         → avatares disponíveis (GET /api/avatar-video/avatars)
