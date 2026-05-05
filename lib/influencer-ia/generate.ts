@@ -522,10 +522,6 @@ async function generateWithGemini(
     generationConfig: {
       // Image-only response — no text output needed, skips text generation overhead.
       responseModalities: ["IMAGE"],
-      // Low media resolution for input images (64 tokens each vs 256 default).
-      // Reduces processing time for reference images at the cost of fine detail.
-      // Acceptable here since reference images are already resized to ≤640px.
-      mediaResolution: "MEDIA_RESOLUTION_LOW",
     },
   };
 
