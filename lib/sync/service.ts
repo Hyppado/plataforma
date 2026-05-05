@@ -203,7 +203,12 @@ async function syncTable(
       // Safe upsert: never deletes — only inserts or updates the filtered rows.
       for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
         const batch = rows.slice(offset, offset + BATCH_SIZE);
-        const { sql, values } = buildUpsert(table, columns, batch, def.upsertKey);
+        const { sql, values } = buildUpsert(
+          table,
+          columns,
+          batch,
+          def.upsertKey,
+        );
         await preview.query(sql, values);
       }
     } else if (def.rowFilter) {

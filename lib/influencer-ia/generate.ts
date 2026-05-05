@@ -527,8 +527,8 @@ async function generateWithGemini(
   };
 
   const controller = new AbortController();
-  // 55s timeout so the route-level retry can fire within Vercel's 60s function limit.
-  const timeout = setTimeout(() => controller.abort(), 55_000);
+  // 110s timeout — route has maxDuration 120s in vercel.json.
+  const timeout = setTimeout(() => controller.abort(), 110_000);
 
   let response: Response;
   try {
@@ -541,7 +541,7 @@ async function generateWithGemini(
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Tempo limite do Google AI excedido (55s)");
+      throw new Error("Tempo limite do Google AI excedido (110s)");
     }
     throw err;
   }
