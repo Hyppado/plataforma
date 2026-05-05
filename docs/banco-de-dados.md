@@ -201,20 +201,20 @@ Agregação mensal de uso por usuário.
 
 Evento atômico de consumo com chave de idempotência.
 
-| Tipo (`UsageEventType`)   | `refTable`                 | Descrição                                          |
-| ------------------------- | -------------------------- | -------------------------------------------------- |
-| `TRANSCRIPT`              | —                          | Transcrição de vídeo                               |
-| `SCRIPT`                  | —                          | Geração de insight (verifica contagem + tokens)    |
-| `INSIGHT`                 | —                          | Geração de insight (verifica tokens; sem contagem) |
-| `AVATAR_VIDEO_GENERATION` | `"AvatarVideoCreation"`    | Geração de material para vídeo com avatar          |
+| Tipo (`UsageEventType`)   | `refTable`                 | Descrição                                           |
+| ------------------------- | -------------------------- | --------------------------------------------------- |
+| `TRANSCRIPT`              | —                          | Transcrição de vídeo                                |
+| `SCRIPT`                  | —                          | Geração de insight (verifica contagem + tokens)     |
+| `INSIGHT`                 | —                          | Geração de insight (verifica tokens; sem contagem)  |
+| `AVATAR_VIDEO_GENERATION` | `"AvatarVideoCreation"`    | Geração de material para vídeo com avatar           |
 | `AVATAR_VIDEO_GENERATION` | `"InfluencerIAGeneration"` | Geração de imagem via Influencer IA (limite diário) |
 
 `SCRIPT` e `INSIGHT` são tipos distintos — não são aliases:
 
-| Tipo      | Quota verificada                                     | Contador de período |
-| --------- | ---------------------------------------------------- | ------------------- |
-| `SCRIPT`  | `scriptsPerMonth` (contagem) + `scriptTokensMonthlyMax` (tokens) | `scriptsUsed`  |
-| `INSIGHT` | `insightTokensMonthlyMax` (tokens apenas)            | `insightsUsed`      |
+| Tipo      | Quota verificada                                                 | Contador de período |
+| --------- | ---------------------------------------------------------------- | ------------------- |
+| `SCRIPT`  | `scriptsPerMonth` (contagem) + `scriptTokensMonthlyMax` (tokens) | `scriptsUsed`       |
+| `INSIGHT` | `insightTokensMonthlyMax` (tokens apenas)                        | `insightsUsed`      |
 
 O campo `refTable` discrimina os dois usos de `AVATAR_VIDEO_GENERATION`: Avatar Video debita quota mensal do plano via `UsagePeriod`; Influencer IA usa apenas contagem diária sobre `UsageEvent` (sem `UsagePeriod`).
 

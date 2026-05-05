@@ -5,6 +5,9 @@
   "functions": {
     "app/api/avatar-video/creations/[id]/generate-image/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/influencer-ia/generate/route.ts": {
+      "maxDuration": 120
     }
   },
   "git": {
