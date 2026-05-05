@@ -273,10 +273,10 @@ function buildPromptFromTemplate(
 // Image fetch helper
 // ---------------------------------------------------------------------------
 
-/** Max bytes to send per image to Google AI. Images above this threshold
- *  are resized in-process with sharp to keep the Gemini payload small
- *  and avoid timeouts. */
-const MAX_IMAGE_BYTES = 600_000; // 600 KB
+/** Maximum dimension (px) sent to Google AI per image.
+ *  Gemini processes reference images at ≤768px internally; sending larger
+ *  images only increases payload size and API latency. Always normalise. */
+const GEMINI_IMAGE_MAX_PX = 640;
 
 async function fetchImageBuffer(
   url: string,
@@ -284,32 +284,30 @@ async function fetchImageBuffer(
   const result = await _fetchImageBuffer(url);
   if (!result) return null;
 
-  // If image is too large, re-fetch via Next.js image optimizer (lossy resize).
-  // This keeps the Gemini request payload small and avoids 110s timeouts.
-  // If image is too large, resize in-process with sharp.
-  if (result.buffer.byteLength > MAX_IMAGE_BYTES) {
-    try {
-      const resized = await sharp(result.buffer)
-        .rotate() // honour EXIF orientation
-        .resize({
-          width: 1024,
-          height: 1024,
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 82, mozjpeg: true })
-        .toBuffer();
-      log.info("Image resized via sharp", {
-        before: result.buffer.byteLength,
-        after: resized.byteLength,
-      });
-      return { buffer: resized, contentType: "image/jpeg" };
-    } catch (err) {
-      log.warn("Sharp resize failed, sending original", {
-        bytes: result.buffer.byteLength,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+  // Always normalise to a fixed max dimension and JPEG quality so the Gemini
+  // payload is consistently small regardless of the source image size.
+  // This is the primary mitigation for API timeout errors under concurrent load.
+  try {
+    const resized = await sharp(result.buffer)
+      .rotate() // honour EXIF orientation
+      .resize({
+        width: GEMINI_IMAGE_MAX_PX,
+        height: GEMINI_IMAGE_MAX_PX,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 75, mozjpeg: true })
+      .toBuffer();
+    log.info("Image normalised for Gemini", {
+      before: result.buffer.byteLength,
+      after: resized.byteLength,
+    });
+    return { buffer: resized, contentType: "image/jpeg" };
+  } catch (err) {
+    log.warn("Sharp resize failed, sending original", {
+      bytes: result.buffer.byteLength,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return result;
@@ -522,7 +520,12 @@ async function generateWithGemini(
   const body = {
     contents: [{ role: "user", parts }],
     generationConfig: {
-      responseModalities: ["IMAGE", "TEXT"],
+      // Image-only response — no text output needed, skips text generation overhead.
+      responseModalities: ["IMAGE"],
+      // Low media resolution for input images (64 tokens each vs 256 default).
+      // Reduces processing time for reference images at the cost of fine detail.
+      // Acceptable here since reference images are already resized to ≤640px.
+      mediaResolution: "MEDIA_RESOLUTION_LOW",
     },
   };
 
