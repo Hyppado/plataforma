@@ -10,7 +10,8 @@
  * Throws if the key is absent — no fallback provider.
  */
 
-import { createLogger } from "@/lib/logger";
+import { randomUUID } from "crypto";
+import { createLogger, type Logger } from "@/lib/logger";
 import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
 import { getPromptConfigFromDB } from "@/lib/admin/config";
 import { renderTemplate } from "@/lib/admin/template";
@@ -20,8 +21,6 @@ import {
   uploadBufferToBlob,
 } from "@/lib/storage/blob";
 import sharp from "sharp";
-
-const log = createLogger("influencer-ia/generate");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,6 +45,8 @@ export interface InfluencerImageInput {
   style: string | null;
   /** Selected image-enhancement labels */
   enhancements: string[];
+  /** Correlation ID from the caller — used to correlate logs across the call stack */
+  correlationId?: string;
 }
 
 export interface InfluencerImageResult {
@@ -105,7 +106,10 @@ function buildPrompt(input: InfluencerImageInput): string {
   return buildPromptFromTemplate(null, input);
 }
 
-async function buildPromptAsync(input: InfluencerImageInput): Promise<string> {
+async function buildPromptAsync(
+  input: InfluencerImageInput,
+  log: Logger,
+): Promise<string> {
   try {
     const config = await getPromptConfigFromDB();
     return buildPromptFromTemplate(config.avatarVideo.image, input);
@@ -280,8 +284,9 @@ const GEMINI_IMAGE_MAX_PX = 640;
 
 async function fetchImageBuffer(
   url: string,
+  log: Logger,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
-  const result = await _fetchImageBuffer(url);
+  const result = await _fetchImageBuffer(url, log);
   if (!result) return null;
 
   // Always normalise to a fixed max dimension and JPEG quality so the Gemini
@@ -325,6 +330,7 @@ async function fetchImageBuffer(
 
 async function _fetchImageBuffer(
   url: string,
+  log: Logger,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
     // Echotik CDN URLs require a freshly signed URL — a plain GET returns 403.
@@ -411,6 +417,11 @@ const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
 export async function generateInfluencerImage(
   input: InfluencerImageInput,
 ): Promise<InfluencerImageResult> {
+  const log = createLogger(
+    "influencer-ia/generate",
+    input.correlationId ?? randomUUID(),
+  );
+
   const [googleApiKey, geminiModel] = await Promise.all([
     getSecretSetting(SETTING_KEYS.GOOGLE_AI_API_KEY),
     getSetting(SETTING_KEYS.GOOGLE_AI_MODEL),
@@ -423,7 +434,7 @@ export async function generateInfluencerImage(
   }
 
   const modelId = geminiModel?.trim() || DEFAULT_GEMINI_MODEL;
-  const promptText = await buildPromptAsync(input);
+  const promptText = await buildPromptAsync(input, log);
 
   log.info("Generating influencer image", {
     avatarName: input.avatarName,
@@ -438,8 +449,8 @@ export async function generateInfluencerImage(
   });
 
   const [avatarFetch, productFetch] = await Promise.all([
-    input.avatarImageUrl ? fetchImageBuffer(input.avatarImageUrl) : null,
-    input.productImageUrl ? fetchImageBuffer(input.productImageUrl) : null,
+    input.avatarImageUrl ? fetchImageBuffer(input.avatarImageUrl, log) : null,
+    input.productImageUrl ? fetchImageBuffer(input.productImageUrl, log) : null,
   ]);
 
   log.info("Image buffers fetched", {
@@ -470,6 +481,7 @@ export async function generateInfluencerImage(
     promptText,
     avatarFetch,
     productFetch,
+    log,
   );
 
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -494,6 +506,7 @@ async function generateWithGemini(
   promptText: string,
   avatarFetch: { buffer: Buffer; contentType: string } | null,
   productFetch: { buffer: Buffer; contentType: string } | null,
+  log: Logger,
 ): Promise<Buffer> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
