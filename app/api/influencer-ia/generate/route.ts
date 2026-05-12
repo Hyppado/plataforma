@@ -23,6 +23,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -34,9 +35,9 @@ import {
   MonthlyQuotaExceededError,
 } from "@/lib/influencer-ia/quota";
 
-const log = createLogger("api/influencer-ia/generate");
-
 export async function POST(req: NextRequest) {
+  const correlationId = randomUUID();
+  const log = createLogger("api/influencer-ia/generate", correlationId);
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest) {
       customEnvironment: body.customEnvironment ?? null,
       style: body.style ?? null,
       enhancements: Array.isArray(body.enhancements) ? body.enhancements : [],
+      correlationId,
     });
 
     // Consume quota after successful generation
