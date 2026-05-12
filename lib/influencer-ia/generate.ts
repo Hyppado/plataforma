@@ -301,7 +301,7 @@ async function fetchImageBuffer(
         fit: "inside",
         withoutEnlargement: true,
       })
-      .jpeg({ quality: 75, mozjpeg: true })
+      .jpeg({ quality: 60, mozjpeg: true })
       .toBuffer();
     // If the converted JPEG is larger than the original (e.g. a small PNG that
     // compresses more efficiently in its native format), keep the original to
@@ -448,8 +448,15 @@ export async function generateInfluencerImage(
     hasProductUrl: !!input.productImageUrl,
   });
 
+  // For product-only shots no person is rendered — skip the avatar image to
+  // reduce payload size and inference cost.
+  const isProductOnly =
+    input.pose === "Só Produto" && !input.customPose?.trim();
+
   const [avatarFetch, productFetch] = await Promise.all([
-    input.avatarImageUrl ? fetchImageBuffer(input.avatarImageUrl, log) : null,
+    input.avatarImageUrl && !isProductOnly
+      ? fetchImageBuffer(input.avatarImageUrl, log)
+      : null,
     input.productImageUrl ? fetchImageBuffer(input.productImageUrl, log) : null,
   ]);
 
@@ -545,6 +552,8 @@ async function generateWithGemini(
     generationConfig: {
       // Image-only response — no text output needed, skips text generation overhead.
       responseModalities: ["IMAGE"],
+      // Explicit aspect ratio — avoids the model guessing from prompt text.
+      aspectRatio: "9:16",
     },
   };
 
