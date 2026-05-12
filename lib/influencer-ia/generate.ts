@@ -552,6 +552,14 @@ async function generateWithGemini(
     generationConfig: {
       // Image-only response — no text output needed, skips text generation overhead.
       responseModalities: ["IMAGE"],
+      // Portrait 9:16 at 512px (384×688) — smallest size = fastest inference.
+      // Only supported by gemini-3.1-flash-image-preview; ignored by 2.5-flash-image.
+      responseFormat: {
+        image: {
+          aspectRatio: "9:16",
+          imageSize: "512",
+        },
+      },
     },
   };
 
