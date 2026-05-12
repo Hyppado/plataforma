@@ -552,8 +552,6 @@ async function generateWithGemini(
     generationConfig: {
       // Image-only response — no text output needed, skips text generation overhead.
       responseModalities: ["IMAGE"],
-      // Explicit aspect ratio — avoids the model guessing from prompt text.
-      aspectRatio: "9:16",
     },
   };
 
