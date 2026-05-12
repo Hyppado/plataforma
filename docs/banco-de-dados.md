@@ -136,7 +136,7 @@ Configurações dinâmicas chave-valor (painel admin). Suporta valores em texto 
 | `avatar_video.concept_template` | Texto     | Template de sistema para geração de conceito de vídeo                                            |
 | `avatar_video.image_template`   | Texto     | Template para geração de imagem (vazio = prompt automático por categoria)                        |
 | `google_ai.api_key`             | Criptogr. | Chave da API Google AI Studio (Gemini)                                                           |
-| `google_ai.model`               | Texto     | Modelo Gemini (padrão: `gemini-2.5-flash-image`)                                                 |
+| `google_ai.model`               | Texto     | Modelo Gemini (padrão: `gemini-3.1-flash-image-preview`)                                         |
 | `influencer_ia_daily_limit`     | Texto     | Limite diário global de gerações Influencer IA (fallback quando plano não tem quota configurada) |
 
 ---

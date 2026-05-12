@@ -247,7 +247,7 @@ Gera o conceito inicial do vídeo UGC a partir de dados do produto + imagens de 
 
 ### Geração de imagem de referência (Google AI Studio / Gemini)
 
-`lib/avatar-video/image-prompt.ts` → Google AI Studio (Gemini, `gemini-2.5-flash-image` por padrão).
+`lib/avatar-video/image-prompt.ts` → Google AI Studio (Gemini, `gemini-3.1-flash-image-preview` por padrão).
 
 Gera **2 variações de imagem** de referência por criação, em paralelo. Cada variação passa por:
 
@@ -416,18 +416,18 @@ COMPLETED
 
 ### Diferença: Vídeo com Avatar × Influencer IA
 
-| Dimensão                      | Vídeo com Avatar                                   | Influencer IA                                                 |
-| ----------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
-| Objetivo                      | Wizard guiado → imagens + conceito + prompt VEO 3  | Geração direta de imagem UGC de alta qualidade                |
-| Modelo de imagem              | Google AI Studio (`gemini-2.5-flash-image`)        | Google Gemini (`gemini-2.5-flash-image`)                      |
-| Conceito de vídeo             | Sim — `gpt-4o` gera hook, copy, CTA, cenas         | Não                                                           |
-| Prompt VEO                    | VEO 3 (takes estruturados, editáveis pelo usuário) | VEO 3.1 (partes de 8s, via `lib/influencer-ia/veo-prompt.ts`) |
-| Quota                         | Sim — `AVATAR_VIDEO_GENERATION` (por imagem)       | Não — acesso universal para assinantes                        |
-| Entrada de produto            | Produto de trending selecionado (snapshot no DB)   | Produto de trending ou upload direto                          |
-| Entrada de avatar             | `AvatarProfile` do banco ou upload do usuário      | `AvatarProfile` do banco ou upload do usuário                 |
-| Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`             | `AvatarProfile`, `lib/storage/blob.ts`                        |
-| Fluxo                         | Wizard multi-passo (página dedicada)               | Painel lateral wizard (página dedicada)                       |
-| Rota frontend                 | `/dashboard/avatar-video/[id]`                     | `/dashboard/influencer-ia`                                    |
+| Dimensão                      | Vídeo com Avatar                                    | Influencer IA                                                 |
+| ----------------------------- | --------------------------------------------------- | ------------------------------------------------------------- |
+| Objetivo                      | Wizard guiado → imagens + conceito + prompt VEO 3   | Geração direta de imagem UGC de alta qualidade                |
+| Modelo de imagem              | Google AI Studio (`gemini-3.1-flash-image-preview`) | Google Gemini (`gemini-3.1-flash-image-preview`)              |
+| Conceito de vídeo             | Sim — `gpt-4o` gera hook, copy, CTA, cenas          | Não                                                           |
+| Prompt VEO                    | VEO 3 (takes estruturados, editáveis pelo usuário)  | VEO 3.1 (partes de 8s, via `lib/influencer-ia/veo-prompt.ts`) |
+| Quota                         | Sim — `AVATAR_VIDEO_GENERATION` (por imagem)        | Não — acesso universal para assinantes                        |
+| Entrada de produto            | Produto de trending selecionado (snapshot no DB)    | Produto de trending ou upload direto                          |
+| Entrada de avatar             | `AvatarProfile` do banco ou upload do usuário       | `AvatarProfile` do banco ou upload do usuário                 |
+| Modelos/lógica compartilhados | `AvatarProfile`, `lib/storage/blob.ts`              | `AvatarProfile`, `lib/storage/blob.ts`                        |
+| Fluxo                         | Wizard multi-passo (página dedicada)                | Painel lateral wizard (página dedicada)                       |
+| Rota frontend                 | `/dashboard/avatar-video/[id]`                      | `/dashboard/influencer-ia`                                    |
 
 ### Lacunas conhecidas / próximas implementações
 
@@ -487,7 +487,7 @@ O `buildPrompt()` detecta a categoria do produto e ajusta a instrução de place
 
 ### Modelo configurável
 
-O modelo padrão é `gemini-2.5-flash-image`. Pode ser sobrescrito via `GOOGLE_AI_MODEL` na tabela `Setting` (painel admin). A resolução é feita em runtime em cada chamada.
+O modelo padrão é `gemini-3.1-flash-image-preview`. Pode ser sobrescrito via `GOOGLE_AI_MODEL` na tabela `Setting` (painel admin). A resolução é feita em runtime em cada chamada.
 
 ### Chave da API
 

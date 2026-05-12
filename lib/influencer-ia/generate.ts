@@ -4,7 +4,7 @@
  * Generates UGC-style influencer images via Google AI Studio (Gemini).
  *
  * Model: configurable via admin settings (SETTING_KEYS.GOOGLE_AI_MODEL),
- * defaulting to "gemini-2.5-flash-image".
+ * defaulting to "gemini-3.1-flash-image-preview".
  *
  * Requires GOOGLE_AI_API_KEY secret to be configured in admin settings.
  * Throws if the key is absent — no fallback provider.
@@ -406,7 +406,7 @@ async function _fetchImageBuffer(
 // Main generation function
 // ---------------------------------------------------------------------------
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-image";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
 
 export async function generateInfluencerImage(
   input: InfluencerImageInput,
@@ -550,6 +550,10 @@ async function generateWithGemini(
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === "AbortError") {
+      log.error("Google AI request aborted (timeout)", {
+        errorName: err.name,
+        errorMessage: err.message,
+      });
       throw new Error("Tempo limite do Google AI excedido (110s)");
     }
     throw err;
