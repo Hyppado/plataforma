@@ -15,11 +15,13 @@ const {
   getSettingMock,
   uploadBufferToBlobMock,
   getPromptConfigFromDBMock,
+  generateContentMock,
 } = vi.hoisted(() => ({
   getSecretSettingMock: vi.fn(),
   getSettingMock: vi.fn(),
   uploadBufferToBlobMock: vi.fn(),
   getPromptConfigFromDBMock: vi.fn(),
+  generateContentMock: vi.fn(),
 }));
 
 vi.mock("@/lib/settings", () => ({
@@ -50,6 +52,12 @@ vi.mock("@/lib/admin/config", () => ({
   getPromptConfigFromDB: getPromptConfigFromDBMock,
 }));
 
+vi.mock("@google/genai", () => ({
+  GoogleGenAI: class {
+    models = { generateContent: generateContentMock };
+  },
+}));
+
 import { generateInfluencerImage } from "@/lib/influencer-ia/generate";
 import type { InfluencerImageInput } from "@/lib/influencer-ia/generate";
 
@@ -77,7 +85,7 @@ function makeFakeImageBuffer(): Buffer {
 }
 
 function mockGeminiSuccess(imageB64 = "AAAA") {
-  const responsePayload = {
+  generateContentMock.mockResolvedValue({
     candidates: [
       {
         content: {
@@ -85,15 +93,22 @@ function mockGeminiSuccess(imageB64 = "AAAA") {
         },
       },
     ],
-  };
+  });
+}
 
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => responsePayload,
-    }),
-  );
+type GeminiArgs = {
+  model?: string;
+  contents: Array<{
+    parts: Array<{
+      text?: string;
+      inlineData?: { mimeType?: string; data?: string };
+    }>;
+  }>;
+};
+
+function getGeminiArgs(): GeminiArgs {
+  const call = generateContentMock.mock.calls[0] as [GeminiArgs];
+  return call[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -143,8 +158,7 @@ describe("lib/influencer-ia/generate", () => {
 
     await generateInfluencerImage(BASE_INPUT);
 
-    const [fetchUrl] = (vi.mocked(fetch).mock.calls[0] ?? []) as [string];
-    expect(fetchUrl).toContain("gemini-custom-model");
+    expect(getGeminiArgs().model).toBe("gemini-custom-model");
   });
 
   it("includes product name in the Gemini request body", async () => {
@@ -155,11 +169,7 @@ describe("lib/influencer-ia/generate", () => {
       productName: "Produto Especial XYZ",
     });
 
-    const call = vi.mocked(fetch).mock.calls[0];
-    const requestBody = JSON.parse(
-      (call?.[1] as RequestInit)?.body as string,
-    ) as unknown;
-    const bodyStr = JSON.stringify(requestBody);
+    const bodyStr = JSON.stringify(getGeminiArgs());
     expect(bodyStr).toContain("Produto Especial XYZ");
   });
 
@@ -175,27 +185,14 @@ describe("lib/influencer-ia/generate", () => {
       arrayBuffer: async () => Buffer.from(fakeB64, "base64").buffer,
     };
 
-    const geminiResponse = {
-      ok: true,
-      json: async () => ({
-        candidates: [
-          {
-            content: {
-              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
-            },
-          },
-        ],
-      }),
-    };
-
     vi.stubGlobal(
       "fetch",
       vi
         .fn()
         .mockResolvedValueOnce(fakeImageResponse) // avatar fetch
-        .mockResolvedValueOnce(fakeImageResponse) // product fetch
-        .mockResolvedValueOnce(geminiResponse), // Gemini call
+        .mockResolvedValueOnce(fakeImageResponse), // product fetch
     );
+    mockGeminiSuccess(fakeB64);
 
     const result = await generateInfluencerImage({
       ...BASE_INPUT,
@@ -204,8 +201,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     expect(result.imageUrl).toContain("blob.vercel-storage.com");
-    // 3 fetches: avatar, product, gemini
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
+    // 2 fetches: avatar + product — Gemini goes through SDK
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(generateContentMock).toHaveBeenCalledOnce();
   });
 
   // -------------------------------------------------------------------------
@@ -213,30 +211,15 @@ describe("lib/influencer-ia/generate", () => {
   // -------------------------------------------------------------------------
 
   it("throws when Gemini returns a non-OK status", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 429,
-        text: async () => "Rate limit exceeded",
-      }),
-    );
+    generateContentMock.mockRejectedValue(new Error("Rate limit exceeded"));
 
-    await expect(generateInfluencerImage(BASE_INPUT)).rejects.toThrow(
-      "Google AI falhou (429)",
-    );
+    await expect(generateInfluencerImage(BASE_INPUT)).rejects.toThrow();
   });
 
   it("throws when Gemini response has no image part", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          candidates: [{ content: { parts: [{ text: "no image here" }] } }],
-        }),
-      }),
-    );
+    generateContentMock.mockResolvedValue({
+      candidates: [{ content: { parts: [{ text: "no image here" }] } }],
+    });
 
     await expect(generateInfluencerImage(BASE_INPUT)).rejects.toThrow(
       "Google AI não retornou imagem",
@@ -265,11 +248,7 @@ describe("lib/influencer-ia/generate", () => {
       productCategory: "roupa",
     });
 
-    const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-      contents: Array<{ parts: Array<{ text?: string }> }>;
-    };
-    const promptText = body.contents[0]?.parts[0]?.text ?? "";
+    const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("IS WEARING");
   });
 
@@ -282,11 +261,7 @@ describe("lib/influencer-ia/generate", () => {
       customPose: null,
     });
 
-    const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-      contents: Array<{ parts: Array<{ text?: string }> }>;
-    };
-    const promptText = body.contents[0]?.parts[0]?.text ?? "";
+    const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("Product-only shot");
     expect(promptText).not.toContain("PLACEMENT");
   });
@@ -309,26 +284,11 @@ describe("lib/influencer-ia/generate", () => {
           jpegMagic.byteOffset + jpegMagic.byteLength,
         ),
     };
-    const geminiResponse = {
-      ok: true,
-      json: async () => ({
-        candidates: [
-          {
-            content: {
-              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
-            },
-          },
-        ],
-      }),
-    };
-
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(imageResponse) // product fetch
-        .mockResolvedValueOnce(geminiResponse), // Gemini call
+      vi.fn().mockResolvedValueOnce(imageResponse), // product fetch
     );
+    mockGeminiSuccess(fakeB64);
 
     await generateInfluencerImage({
       ...BASE_INPUT,
@@ -336,13 +296,9 @@ describe("lib/influencer-ia/generate", () => {
     });
 
     // Verify the inlineData sent to Gemini uses image/jpeg, NOT binary/octet-stream
-    const geminiCall = vi.mocked(fetch).mock.calls[1];
-    const body = JSON.parse(
-      (geminiCall?.[1] as RequestInit)?.body as string,
-    ) as {
-      contents: Array<{ parts: Array<{ inlineData?: { mimeType?: string } }> }>;
-    };
-    const inlinePart = body.contents[0]?.parts.find((p) => p.inlineData);
+    const inlinePart = getGeminiArgs().contents[0]?.parts.find(
+      (p) => p.inlineData,
+    );
     expect(inlinePart?.inlineData?.mimeType).toBe("image/jpeg");
   });
 
@@ -362,39 +318,20 @@ describe("lib/influencer-ia/generate", () => {
           pngMagic.byteOffset + pngMagic.byteLength,
         ),
     };
-    const geminiResponse = {
-      ok: true,
-      json: async () => ({
-        candidates: [
-          {
-            content: {
-              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
-            },
-          },
-        ],
-      }),
-    };
-
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(imageResponse) // product fetch
-        .mockResolvedValueOnce(geminiResponse), // Gemini call
+      vi.fn().mockResolvedValueOnce(imageResponse), // product fetch
     );
+    mockGeminiSuccess(fakeB64);
 
     await generateInfluencerImage({
       ...BASE_INPUT,
       productImageUrl: "https://example.com/product.png",
     });
 
-    const geminiCall = vi.mocked(fetch).mock.calls[1];
-    const body = JSON.parse(
-      (geminiCall?.[1] as RequestInit)?.body as string,
-    ) as {
-      contents: Array<{ parts: Array<{ inlineData?: { mimeType?: string } }> }>;
-    };
-    const inlinePart = body.contents[0]?.parts.find((p) => p.inlineData);
+    const inlinePart = getGeminiArgs().contents[0]?.parts.find(
+      (p) => p.inlineData,
+    );
     expect(inlinePart?.inlineData?.mimeType).toBe("image/png");
   });
 
@@ -406,39 +343,20 @@ describe("lib/influencer-ia/generate", () => {
       headers: { get: () => "image/webp; charset=binary" },
       arrayBuffer: async () => Buffer.from([0x52, 0x49, 0x46, 0x46]).buffer,
     };
-    const geminiResponse = {
-      ok: true,
-      json: async () => ({
-        candidates: [
-          {
-            content: {
-              parts: [{ inlineData: { mimeType: "image/png", data: fakeB64 } }],
-            },
-          },
-        ],
-      }),
-    };
-
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(imageResponse) // product fetch
-        .mockResolvedValueOnce(geminiResponse), // Gemini call
+      vi.fn().mockResolvedValueOnce(imageResponse), // product fetch
     );
+    mockGeminiSuccess(fakeB64);
 
     await generateInfluencerImage({
       ...BASE_INPUT,
       productImageUrl: "https://example.com/product.webp",
     });
 
-    const geminiCall = vi.mocked(fetch).mock.calls[1];
-    const body = JSON.parse(
-      (geminiCall?.[1] as RequestInit)?.body as string,
-    ) as {
-      contents: Array<{ parts: Array<{ inlineData?: { mimeType?: string } }> }>;
-    };
-    const inlinePart = body.contents[0]?.parts.find((p) => p.inlineData);
+    const inlinePart = getGeminiArgs().contents[0]?.parts.find(
+      (p) => p.inlineData,
+    );
     // Content-Type header was a valid image type — strips params and passes through
     expect(inlinePart?.inlineData?.mimeType).toBe("image/webp");
   });
@@ -452,11 +370,7 @@ describe("lib/influencer-ia/generate", () => {
       customPose: "Deitada na praia segurando o produto",
     });
 
-    const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-      contents: Array<{ parts: Array<{ text?: string }> }>;
-    };
-    const promptText = body.contents[0]?.parts[0]?.text ?? "";
+    const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("Deitada na praia");
   });
 
@@ -468,11 +382,7 @@ describe("lib/influencer-ia/generate", () => {
       enhancements: ["Pele Ultra Realista", "Mãos Perfeitas"],
     });
 
-    const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-      contents: Array<{ parts: Array<{ text?: string }> }>;
-    };
-    const promptText = body.contents[0]?.parts[0]?.text ?? "";
+    const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
     expect(promptText).toContain("ultra-realistic skin texture");
     expect(promptText).toContain("perfect anatomically correct hands");
   });
@@ -505,11 +415,7 @@ describe("lib/influencer-ia/generate", () => {
 
       await generateInfluencerImage(BASE_INPUT);
 
-      const call = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-        contents: Array<{ parts: Array<{ text?: string }> }>;
-      };
-      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
       expect(promptText).toContain("CUSTOM_MARKER");
       // product_block should appear before subject_block in output
       expect(promptText.indexOf("CUSTOM_MARKER")).toBeLessThan(
@@ -537,11 +443,7 @@ describe("lib/influencer-ia/generate", () => {
         avatarName: "Larissa Costa",
       });
 
-      const call = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-        contents: Array<{ parts: Array<{ text?: string }> }>;
-      };
-      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
       expect(promptText).toContain("Larissa Costa");
     });
 
@@ -553,11 +455,7 @@ describe("lib/influencer-ia/generate", () => {
 
       await generateInfluencerImage({ ...BASE_INPUT, pose: "Selfie" });
 
-      const call = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-        contents: Array<{ parts: Array<{ text?: string }> }>;
-      };
-      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
       expect(promptText).toContain("POSE_HERE:");
       expect(promptText).toContain("selfie style");
     });
@@ -583,11 +481,7 @@ describe("lib/influencer-ia/generate", () => {
         enhancements: [],
       });
 
-      const call = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-        contents: Array<{ parts: Array<{ text?: string }> }>;
-      };
-      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
       // Should not have consecutive blank lines (collapsed)
       expect(promptText).not.toContain("\n\n\n");
     });
@@ -603,11 +497,7 @@ describe("lib/influencer-ia/generate", () => {
         productName: "Produto Especial Único",
       });
 
-      const call = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse((call?.[1] as RequestInit)?.body as string) as {
-        contents: Array<{ parts: Array<{ text?: string }> }>;
-      };
-      const promptText = body.contents[0]?.parts[0]?.text ?? "";
+      const promptText = getGeminiArgs().contents[0]?.parts[0]?.text ?? "";
       expect(promptText).toContain("Produto Especial Único");
     });
   });

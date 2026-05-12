@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from "crypto";
+import { GoogleGenAI } from "@google/genai";
 import { createLogger, type Logger } from "@/lib/logger";
 import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
 import { getPromptConfigFromDB } from "@/lib/admin/config";
@@ -515,13 +516,16 @@ async function generateWithGemini(
   productFetch: { buffer: Buffer; contentType: string } | null,
   log: Logger,
 ): Promise<Buffer> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+  const ai = new GoogleGenAI({ apiKey });
 
   // Build parts — text prompt first, then labeled image references.
   // We label each image explicitly so Gemini knows which is the product
   // reference and which is the influencer/avatar appearance reference.
   // Product image comes before avatar so it has highest weight as reference.
-  const parts: unknown[] = [{ text: promptText }];
+  type Part =
+    | { text: string }
+    | { inlineData: { mimeType: string; data: string } };
+  const parts: Part[] = [{ text: promptText }];
 
   if (productFetch) {
     parts.push({
@@ -547,28 +551,28 @@ async function generateWithGemini(
     });
   }
 
-  const body = {
-    contents: [{ role: "user", parts }],
-    generationConfig: {
-      // Image-only response — no text output needed, skips text generation overhead.
-      responseModalities: ["IMAGE"],
-    },
-  };
-
   const controller = new AbortController();
   // 110s timeout — route has maxDuration 120s in vercel.json.
-  const timeout = setTimeout(() => controller.abort(), 110_000);
+  const timeoutHandle = setTimeout(() => controller.abort(), 110_000);
 
-  let response: Response;
+  let response;
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
+    response = await ai.models.generateContent({
+      model: modelId,
+      contents: [{ role: "user", parts }],
+      config: {
+        // Image-only response — no text output needed.
+        responseModalities: ["IMAGE"],
+        // Portrait 9:16 at 512px (384×688) — smallest size = fastest inference.
+        imageConfig: {
+          aspectRatio: "9:16",
+          imageSize: "512",
+        },
+        abortSignal: controller.signal,
+      },
     });
   } catch (err) {
-    clearTimeout(timeout);
+    clearTimeout(timeoutHandle);
     if (err instanceof Error && err.name === "AbortError") {
       log.error("Google AI request aborted (timeout)", {
         errorName: err.name,
@@ -578,27 +582,9 @@ async function generateWithGemini(
     }
     throw err;
   }
-  clearTimeout(timeout);
+  clearTimeout(timeoutHandle);
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
-    throw new Error(
-      `Google AI falhou (${response.status}): ${errorText.slice(0, 300)}`,
-    );
-  }
-
-  const data = (await response.json()) as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{
-          text?: string;
-          inlineData?: { mimeType?: string; data?: string };
-        }>;
-      };
-    }>;
-  };
-
-  const imagePart = data.candidates
+  const imagePart = response.candidates
     ?.flatMap((c) => c.content?.parts ?? [])
     .find((p) => p.inlineData?.data);
 
