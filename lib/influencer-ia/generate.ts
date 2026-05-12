@@ -4,7 +4,7 @@
  * Generates UGC-style influencer images via Google AI Studio (Gemini).
  *
  * Model: configurable via admin settings (SETTING_KEYS.GOOGLE_AI_MODEL),
- * defaulting to "gemini-3.1-flash-image-preview".
+ * defaulting to "gemini-2.5-flash-image".
  *
  * Requires GOOGLE_AI_API_KEY secret to be configured in admin settings.
  * Throws if the key is absent — no fallback provider.
@@ -298,6 +298,16 @@ async function fetchImageBuffer(
       })
       .jpeg({ quality: 75, mozjpeg: true })
       .toBuffer();
+    // If the converted JPEG is larger than the original (e.g. a small PNG that
+    // compresses more efficiently in its native format), keep the original to
+    // avoid inflating the Gemini request payload.
+    if (resized.byteLength >= result.buffer.byteLength) {
+      log.info("Image normalisation skipped (original smaller)", {
+        original: result.buffer.byteLength,
+        jpeg: resized.byteLength,
+      });
+      return result;
+    }
     log.info("Image normalised for Gemini", {
       before: result.buffer.byteLength,
       after: resized.byteLength,
@@ -396,7 +406,7 @@ async function _fetchImageBuffer(
 // Main generation function
 // ---------------------------------------------------------------------------
 
-const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-image";
 
 export async function generateInfluencerImage(
   input: InfluencerImageInput,
