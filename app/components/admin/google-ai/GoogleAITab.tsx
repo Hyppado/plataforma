@@ -24,7 +24,7 @@ export function GoogleAITab() {
   const [error, setError] = useState<string | null>(null);
 
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("gemini-2.5-flash-image");
+  const [model, setModel] = useState("gemini-3.1-flash-image-preview");
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -90,7 +90,7 @@ export function GoogleAITab() {
       </Typography>
       <Typography sx={{ color: "text.secondary", mb: 3, fontSize: "0.875rem" }}>
         Chave de API do Google AI Studio usada pelo Vídeo com Avatar para gerar
-        imagens. O modelo padrão é <code>gemini-2.5-flash-image</code>.
+        imagens. O modelo padrão é <code>gemini-3.1-flash-image-preview</code>.
       </Typography>
 
       {/* Status */}
@@ -143,7 +143,7 @@ export function GoogleAITab() {
           label="Model ID"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="gemini-2.5-flash-image"
+          placeholder="gemini-3.1-flash-image-preview"
           size="small"
           fullWidth
           helperText="ID exato do modelo. Deixe o padrão se não souber."

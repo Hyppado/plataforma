@@ -158,6 +158,11 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Erro interno";
     log.error("Influencer IA generation failed", {
       error: message,
+      errorName: err instanceof Error ? err.name : undefined,
+      stack:
+        err instanceof Error
+          ? err.stack?.split("\n").slice(0, 5).join(" | ")
+          : undefined,
       userId: auth.userId,
     });
     return NextResponse.json({ error: message }, { status: 500 });
