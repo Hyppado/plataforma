@@ -127,7 +127,8 @@ async function getProvisioningPlan(fields: HotmartWebhookFields) {
 // Se o email já existe no sistema, vincula. Caso contrário, cria User novo.
 
 async function resolveOrCreateIdentity(fields: HotmartWebhookFields) {
-  const email = fields.buyerEmail ?? fields.subscriberEmail;
+  const rawEmail = fields.buyerEmail ?? fields.subscriberEmail;
+  const email = rawEmail ? rawEmail.toLowerCase().trim() : rawEmail;
   const { subscriberCode } = fields;
   if (!email && !subscriberCode) return null;
 
