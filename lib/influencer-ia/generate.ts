@@ -563,10 +563,10 @@ async function generateWithGemini(
       config: {
         // Image-only response — no text output needed.
         responseModalities: ["IMAGE"],
-        // Portrait 9:16 at 1024px (768×1365) — full quality output.
+        // Portrait 9:16 at 1K (768×1376). Valid values: "512", "1K", "2K", "4K".
         imageConfig: {
           aspectRatio: "9:16",
-          imageSize: "1024",
+          imageSize: "1K",
         },
         abortSignal: controller.signal,
       },
