@@ -41,6 +41,7 @@ export interface HotmartPlanPrice {
 }
 
 export interface HotmartPlan {
+  id?: number; // numeric plan ID (same as webhook plan.id, e.g. 1293922)
   code: string; // plan code (matches webhook planCode)
   name: string;
   description?: string;
@@ -194,6 +195,7 @@ export async function syncPlansFromHotmart(productUcode: string): Promise<{
           ),
           description: hp.description ?? existing.description,
           isActive: true, // reactivate if it was previously deactivated
+          ...(hp.id != null ? { hotmartNumericPlanId: hp.id } : {}),
         },
       });
       updated++;
@@ -223,6 +225,7 @@ export async function syncPlansFromHotmart(productUcode: string): Promise<{
           currency: hp.price.currency_code,
           periodicity: mapPeriodicity(hp.periodicity),
           hotmartPlanCode: hp.code,
+          ...(hp.id != null ? { hotmartNumericPlanId: hp.id } : {}),
           isActive: true,
           sortOrder: 0,
           features: [],
@@ -271,29 +274,51 @@ export async function syncPlansFromHotmart(productUcode: string): Promise<{
 export async function resolveOrSyncPlan(
   planCode: string,
   productId?: string,
+  numericPlanId?: number,
 ): Promise<{ id: string } | null> {
   try {
-    // 1. Busca plano existente
-    const existing = await prisma.plan.findUnique({
-      where: { hotmartPlanCode: planCode },
-      select: { id: true },
-    });
-    if (existing) return existing;
+    // 1. Busca por ID numérico Hotmart (mais confiável — enviado em todo webhook como plan.id)
+    if (numericPlanId != null && !isNaN(numericPlanId)) {
+      const byNumericId = await prisma.plan.findUnique({
+        where: { hotmartNumericPlanId: numericPlanId },
+        select: { id: true },
+      });
+      if (byNumericId) return byNumericId;
+    }
 
-    // 2. Tenta sincronizar da Hotmart API
+    // 2. Busca por hotmartPlanCode (código curto, ex: "n96ktncm")
+    if (planCode) {
+      const existing = await prisma.plan.findUnique({
+        where: { hotmartPlanCode: planCode },
+        select: { id: true },
+      });
+      if (existing) return existing;
+    }
+
+    // 3. Tenta sincronizar da Hotmart API e busca de novo
     if (productId) {
-      const numericId = parseInt(productId, 10);
-      if (!isNaN(numericId)) {
-        const product = await getProductByNumericId(numericId);
+      const numericProductId = parseInt(productId, 10);
+      if (!isNaN(numericProductId)) {
+        const product = await getProductByNumericId(numericProductId);
         if (product) {
           await syncPlansFromHotmart(product.ucode);
 
-          // Busca de novo após sync
-          const synced = await prisma.plan.findUnique({
-            where: { hotmartPlanCode: planCode },
-            select: { id: true },
-          });
-          if (synced) return synced;
+          // Busca de novo após sync por ID numérico e por código
+          if (numericPlanId != null && !isNaN(numericPlanId)) {
+            const syncedById = await prisma.plan.findUnique({
+              where: { hotmartNumericPlanId: numericPlanId },
+              select: { id: true },
+            });
+            if (syncedById) return syncedById;
+          }
+
+          if (planCode) {
+            const syncedByCode = await prisma.plan.findUnique({
+              where: { hotmartPlanCode: planCode },
+              select: { id: true },
+            });
+            if (syncedByCode) return syncedByCode;
+          }
         }
       }
     }
@@ -301,6 +326,7 @@ export async function resolveOrSyncPlan(
     log.warn("Failed to resolve or sync Hotmart plan for provisioning", {
       planCode,
       productId,
+      numericPlanId,
       error: err instanceof Error ? err.message : String(err),
     });
   }
