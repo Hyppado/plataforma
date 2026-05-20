@@ -107,9 +107,17 @@ const CHARGE_STATUS_MAP: Record<string, string> = {
 // Nunca bloqueia provisionamento — se nada funcionar, retorna null.
 
 async function getProvisioningPlan(fields: HotmartWebhookFields) {
-  // 1. Tenta match direto por planCode + auto-sync da Hotmart API
-  if (fields.planCode) {
-    const matched = await resolveOrSyncPlan(fields.planCode, fields.productId);
+  // 1. Tenta match por ID numérico Hotmart (plan.id do webhook) e/ou planCode
+  const numericPlanId = fields.planId
+    ? parseInt(fields.planId, 10)
+    : undefined;
+
+  if (fields.planCode || numericPlanId != null) {
+    const matched = await resolveOrSyncPlan(
+      fields.planCode ?? "",
+      fields.productId,
+      Number.isNaN(numericPlanId) ? undefined : numericPlanId,
+    );
     if (matched) return matched;
   }
 

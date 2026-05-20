@@ -78,7 +78,12 @@ export async function GET(req: NextRequest) {
                 take: 1,
               },
             },
-            orderBy: { createdAt: "desc" as const },
+            // Order by status ASC so ACTIVE sorts before CANCELLED/EXPIRED,
+            // then by createdAt DESC to get the newest within each status.
+            orderBy: [
+              { status: "asc" as const },
+              { createdAt: "desc" as const },
+            ],
             take: 1,
           },
         },

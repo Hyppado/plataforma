@@ -116,6 +116,7 @@ model Plan {
 
   // Vínculo com plano Hotmart (nullable — planos manuais não têm)
   hotmartPlanCode     String?  @unique   // código do plano na Hotmart (ex: "tz12qeev")
+  hotmartNumericPlanId Int?    @unique   // ID numérico do plano na Hotmart (ex: 1293922) — enviado no webhook como plan.id
 
   // Quotas de uso por plano
   transcriptsPerMonth       Int  @default(40)
