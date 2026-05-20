@@ -23,7 +23,9 @@ export async function requireAuth(): Promise<AuthResult> {
   }
   const userId = session.user.id;
   if (!userId) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+    // Covers deactivated tokens: the session callback clears the id when the
+    // user's status is no longer ACTIVE (checked periodically in the jwt callback).
+    return NextResponse.json({ error: "Sessão expirada" }, { status: 401 });
   }
   return { session, userId, role: session.user.role };
 }
@@ -53,8 +55,14 @@ export function isAuthed(
 // NextAuth config
 // ---------------------------------------------------------------------------
 
+// 8 hours — sessions expire daily; short enough to detect account deactivation
+// without forcing re-login too often.
+const SESSION_MAX_AGE = 8 * 60 * 60; // seconds
+// How often the jwt callback re-checks the user's status in the DB.
+const STATUS_CHECK_INTERVAL = 15 * 60; // seconds
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
@@ -103,22 +111,58 @@ export const authOptions: NextAuthOptions = {
         token.mustChangePassword =
           (user as { mustChangePassword?: boolean }).mustChangePassword ??
           false;
+        token.statusCheckedAt = Math.floor(Date.now() / 1000);
       }
-      // Re-read mustChangePassword from DB when the token still carries true.
-      // This clears the flag mid-session after the user changes their password
-      // without requiring a full sign-out/sign-in cycle.
-      if (token.mustChangePassword && token.userId) {
-        const fresh = await prisma.user.findUnique({
-          where: { id: token.userId as string },
-          select: { mustChangePassword: true },
-        });
-        if (fresh) token.mustChangePassword = fresh.mustChangePassword;
+
+      // Periodically re-check the user's account status so that deactivated /
+      // suspended / deleted accounts lose access within STATUS_CHECK_INTERVAL
+      // seconds without waiting for the full session to expire.
+      if (token.userId) {
+        const now = Math.floor(Date.now() / 1000);
+        const lastCheck = token.statusCheckedAt ?? 0;
+        if (now - lastCheck >= STATUS_CHECK_INTERVAL) {
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.userId as string },
+            select: { status: true, deletedAt: true, mustChangePassword: true },
+          });
+          token.statusCheckedAt = now;
+          if (
+            !fresh ||
+            fresh.status !== "ACTIVE" ||
+            fresh.deletedAt !== null
+          ) {
+            token.deactivated = true;
+          } else {
+            token.deactivated = false;
+            token.mustChangePassword = fresh.mustChangePassword;
+          }
+        }
       }
+
+      // Re-read mustChangePassword from DB when the token still carries true
+      // (outside the periodic check window) so the flag clears mid-session.
+      if (token.mustChangePassword && token.userId && !token.deactivated) {
+        const now = Math.floor(Date.now() / 1000);
+        // Skip if we just refreshed from the periodic check above.
+        if (now - (token.statusCheckedAt ?? 0) > 5) {
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.userId as string },
+            select: { mustChangePassword: true },
+          });
+          if (fresh) token.mustChangePassword = fresh.mustChangePassword;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.userId as string;
+        // Deactivated tokens: clear the user id so requireAuth returns 401.
+        if (token.deactivated) {
+          session.user.id = "";
+        } else {
+          session.user.id = token.userId as string;
+        }
         session.user.role = token.role as "ADMIN" | "USER";
         session.user.mustChangePassword = token.mustChangePassword as
           | boolean

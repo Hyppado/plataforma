@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { assertQuota, QuotaExceededError } from "@/lib/usage/enforce";
 import { consumeUsage } from "@/lib/usage/consume";
 import { requestTranscript } from "@/lib/transcription/service";
@@ -22,6 +23,16 @@ import { requestTranscript } from "@/lib/transcription/service";
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária para usar esta funcionalidade" },
+        { status: 403 },
+      );
+    }
+  }
 
   let body: { videoExternalId?: string };
   try {

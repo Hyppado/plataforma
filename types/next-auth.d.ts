@@ -20,5 +20,7 @@ declare module "next-auth/jwt" {
     userId: string;
     role: "ADMIN" | "USER";
     mustChangePassword?: boolean;
+    deactivated?: boolean;
+    statusCheckedAt?: number;
   }
 }
