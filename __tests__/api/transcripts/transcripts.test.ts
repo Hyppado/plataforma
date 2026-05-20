@@ -15,10 +15,12 @@ const {
   requestTranscriptMock,
   assertQuotaMock,
   consumeUsageMock,
+  resolveUserAccessMock,
 } = vi.hoisted(() => ({
   requestTranscriptMock: vi.fn(),
   assertQuotaMock: vi.fn(),
   consumeUsageMock: vi.fn().mockResolvedValue({ event: {}, duplicate: false }),
+  resolveUserAccessMock: vi.fn(),
 }));
 
 vi.mock("@/lib/transcription/service", () => ({
@@ -44,6 +46,10 @@ vi.mock("@/lib/usage/consume", () => ({
   consumeUsage: consumeUsageMock,
 }));
 
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
+}));
+
 import { POST } from "@/app/api/transcripts/route";
 import { QuotaExceededError } from "@/lib/usage/enforce";
 
@@ -51,6 +57,7 @@ describe("POST /api/transcripts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assertQuotaMock.mockResolvedValue(undefined);
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
   });
 
   it("returns 401 when unauthenticated", async () => {

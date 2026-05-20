@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { generateInfluencerImage } from "@/lib/influencer-ia/generate";
@@ -40,6 +41,16 @@ export async function POST(req: NextRequest) {
   const log = createLogger("api/influencer-ia/generate", correlationId);
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária para usar esta funcionalidade" },
+        { status: 403 },
+      );
+    }
+  }
 
   let body: {
     productId?: string;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertQuota, consumeUsage, QuotaExceededError } from "@/lib/usage";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import type { UsageEventType } from "@prisma/client";
 import { createLogger } from "@/lib/logger";
 
@@ -32,6 +33,16 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária para usar esta funcionalidade" },
+        { status: 403 },
+      );
+    }
+  }
 
   let body: unknown;
   try {

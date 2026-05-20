@@ -20,6 +20,7 @@ const {
   prismaMock,
   assertQuotaMock,
   consumeMock,
+  resolveUserAccessMock,
 } = vi.hoisted(() => ({
   generateInfluencerImageMock: vi.fn(),
   prismaMock: {
@@ -29,6 +30,7 @@ const {
   },
   assertQuotaMock: vi.fn(),
   consumeMock: vi.fn(),
+  resolveUserAccessMock: vi.fn(),
 }));
 
 vi.mock("@/lib/influencer-ia/generate", () => ({
@@ -63,6 +65,10 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
+}));
+
 vi.mock("@/lib/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
@@ -87,6 +93,7 @@ describe("POST /api/influencer-ia/generate", () => {
     prismaMock.avatarProfile.findUnique.mockResolvedValue(null);
     assertQuotaMock.mockResolvedValue(undefined);
     consumeMock.mockResolvedValue(undefined);
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
   });
 
   it("returns 401 when unauthenticated", async () => {
