@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { createLogger } from "@/lib/logger";
 import { put } from "@vercel/blob";
 import prisma from "@/lib/prisma";
@@ -34,6 +35,16 @@ function mimeToExt(mime: AllowedMime): string {
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária para usar esta funcionalidade" },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const formData = await req.formData();

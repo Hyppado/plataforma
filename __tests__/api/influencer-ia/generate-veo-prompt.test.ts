@@ -15,12 +15,17 @@ import {
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { generateVeoPromptsMock } = vi.hoisted(() => ({
+const { generateVeoPromptsMock, resolveUserAccessMock } = vi.hoisted(() => ({
   generateVeoPromptsMock: vi.fn(),
+  resolveUserAccessMock: vi.fn(),
 }));
 
 vi.mock("@/lib/influencer-ia/veo-prompt", () => ({
   generateVeoPrompts: generateVeoPromptsMock,
+}));
+
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -67,6 +72,7 @@ describe("POST /api/influencer-ia/generate-veo-prompt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     generateVeoPromptsMock.mockResolvedValue(FAKE_PARTS);
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
   });
 
   it("returns 401 when unauthenticated", async () => {

@@ -8,6 +8,19 @@ const log = createLogger("api/proxy/image");
 /** Host do CDN EchoTik que requer URLs assinadas */
 const ECHOTIK_CDN_HOST = "echosell-images.tos-ap-southeast-1.volces.com";
 
+/**
+ * Hostnames permitidos para proxy direto (sem assinatura Echotik).
+ * SSRF mitigation: rejeita qualquer host que não esteja nesta lista.
+ */
+const ALLOWED_PROXY_HOSTNAMES = new Set([
+  // TikTok CDN variants
+  "p16-sign-sg.tiktokcdn.com",
+  "p16-sign-va.tiktokcdn.com",
+  "p77-sign-sg.tiktokcdn.com",
+  "p19-sign.tiktokcdn-us.com",
+]);
+const ALLOWED_PROXY_SUFFIXES = [".tiktokcdn.com", ".tiktokcdn-us.com"];
+
 /** Cache em memória: coverUrl original → URL assinada + expiração */
 const signedUrlCache = new Map<
   string,
@@ -64,6 +77,16 @@ async function proxyEchotikImage(coverUrl: string) {
   if (parsed.hostname !== ECHOTIK_CDN_HOST) {
     if (parsed.protocol !== "https:") {
       return new NextResponse("Only HTTPS URLs allowed", { status: 400 });
+    }
+    // SSRF mitigation: only proxy known image CDN hosts
+    const isAllowed =
+      ALLOWED_PROXY_HOSTNAMES.has(parsed.hostname) ||
+      ALLOWED_PROXY_SUFFIXES.some((s) => parsed.hostname.endsWith(s));
+    if (!isAllowed) {
+      log.warn("Proxy rejected — hostname not in allowlist", {
+        hostname: parsed.hostname,
+      });
+      return new NextResponse("Host not allowed", { status: 403 });
     }
     try {
       const upstream = await fetch(coverUrl);
