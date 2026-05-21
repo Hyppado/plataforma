@@ -32,20 +32,44 @@ Nunca confiar apenas no middleware — toda rota tem sua própria guarda.
 
 ### Exceções válidas (sem sessão NextAuth)
 
-| Tipo           | Rota                       | Mecanismo de autenticação           |
-| -------------- | -------------------------- | ----------------------------------- |
-| Webhooks       | `/api/webhooks/hotmart`    | Validação HMAC / token estático     |
-| Cron           | `/api/cron/*`              | `Authorization: Bearer CRON_SECRET` |
-| NextAuth       | `/api/auth/[...nextauth]`  | Gerido internamente pelo NextAuth   |
-| Reset de senha | `/api/auth/reset-password` | Público — retorna 200 sempre        |
+| Tipo           | Rota                       | Mecanismo de autenticação                   |
+| -------------- | -------------------------- | ------------------------------------------- |
+| Webhooks       | `/api/webhooks/hotmart`    | Validação HMAC / token estático             |
+| Cron           | `/api/cron/*`              | `Authorization: Bearer CRON_SECRET`         |
+| NextAuth       | `/api/auth/[...nextauth]`  | Gerido internamente pelo NextAuth           |
+| Reset de senha | `/api/auth/reset-password` | Público — retorna 200 sempre                |
+| Setup de senha | `/api/auth/setup-password` | Público — GET valida token, POST cria senha |
 
 **Regra de cron:** Rotas de cron verificam a variável de ambiente `VERCEL` (definida automaticamente pelo Vercel). Se ausente, retornam 403. Cron jobs nunca executam localmente.
 
 ### Sessão e JWT
 
-O JWT do NextAuth carrega `userId`, `role` e `mustChangePassword`. O callback de sessão propaga esses campos para o cliente.
+O JWT usa estratégia `jwt` com `maxAge = 8 horas`. Campos carregados:
+
+| Campo                | Tipo     | Descrição                                                          |
+| -------------------- | -------- | ------------------------------------------------------------------ |
+| `userId`             | string   | ID interno do usuário                                              |
+| `role`               | string   | `ADMIN` \| `USER`                                                  |
+| `mustChangePassword` | boolean  | Força troca de senha no próximo login                              |
+| `statusCheckedAt`    | number   | Timestamp (segundos) da última verificação de status no banco      |
+| `deactivated`        | boolean? | `true` quando usuário foi desativado/suspenso/deletado mid-session |
+
+**Verificação periódica de status:** a cada 15 minutos (`STATUS_CHECK_INTERVAL`), o callback `jwt` consulta o banco para verificar se o usuário ainda está `ACTIVE` e não foi deletado. Se o status mudou, `deactivated = true` é gravado no token.
+
+**Tokens desativados:** quando `deactivated = true`, o callback de sessão zera `session.user.id`. `requireAuth()` detecta o `userId` vazio e retorna `{ error: "Sessão expirada" }` com status 401.
 
 `mustChangePassword = true` ativa o `PasswordChangeGuard` no dashboard, exibindo o modal `ForcePasswordChange` até o usuário trocar a senha via `PUT /api/me/password`.
+
+### Rate limiting no login
+
+Login é protegido contra força bruta via janela deslizante armazenada na tabela `AuditLog` — sem dependências extras.
+
+| Parâmetro | Valor      |
+| --------- | ---------- |
+| Limite    | 10 falhas  |
+| Janela    | 15 minutos |
+
+Tentativas falhas são registradas com `action = "LOGIN_FAILED"` e `entityId = email` (normalizado). Emails inexistentes também geram registro para evitar enumeração de usuários por timing. Ao atingir o limite, `authorize()` lança exceção e o NextAuth redireciona para `/login?error=Muitas+tentativas.+Tente+novamente+em+15+minutos.`
 
 ---
 

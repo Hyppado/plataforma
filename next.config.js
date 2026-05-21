@@ -8,8 +8,10 @@ const nextConfig = {
   },
   // ---------------------------------------------------------------------------
   // Security headers
-  // Applied to all routes. CSP is in report-only mode to avoid breaking
-  // existing functionality — tighten to enforce mode progressively.
+  // Applied to all routes. Routes matched by middleware.ts (/, /dashboard/*,
+  // /api/admin/*) receive a nonce-based CSP from middleware that overrides
+  // the static one below. The static CSP here is a fallback for unmatched
+  // routes (/login, /recuperar, /api/*, etc.).
   // ---------------------------------------------------------------------------
   async headers() {
     return [
@@ -29,13 +31,17 @@ const nextConfig = {
             value: "max-age=63072000; includeSubDomains; preload",
           },
           {
+            // Fallback CSP for routes not covered by middleware.
+            // Middleware-matched routes override this with a nonce-based policy
+            // (no unsafe-inline for scripts).
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https://*.tiktokcdn.com https://*.tiktokcdn-us.com",
+              "img-src 'self' data: blob: https://*.tiktokcdn.com https://*.tiktokcdn-us.com https://blob.vercel-storage.com",
+              "media-src 'self' https://blob.vercel-storage.com",
               "connect-src 'self' https://fonts.googleapis.com",
               "frame-ancestors 'none'",
             ].join("; "),

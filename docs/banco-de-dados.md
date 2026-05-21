@@ -23,6 +23,7 @@ Identidade central do sistema.
 | `setupToken`          | String?       | Hash SHA-256 do token de setup/reset de senha |
 | `setupTokenExpiresAt` | DateTime?     |                                               |
 | `mustChangePassword`  | Boolean       | Força troca de senha no próximo login         |
+| `lastLoginAt`         | DateTime?     | Atualizado no authorize() do NextAuth         |
 | `deletedAt`           | DateTime?     | Soft delete                                   |
 | `lgpdConsentAt`       | DateTime?     | Data do último consentimento LGPD             |
 
@@ -113,7 +114,12 @@ Inbox de notificações admin com severidade, dedup e relações a User/Subscrip
 
 #### `AuditLog`
 
-Trilha de auditoria de ações administrativas.
+Trilha de auditoria de ações administrativas e de sistema. Inclui eventos de segurança:
+
+- `LOGIN_FAILED` — tentativas de login falhadas por email (usado para rate limiting — 10 falhas em 15 min bloqueia o IP/email)
+- `AUTO_SUSPENSION_CHARGEBACK` — suspensão automática por chargeback
+- `USER_REACTIVATED_BY_PURCHASE` — reativação automática por compra
+- `WEBHOOK_*` — todos os eventos processados do webhook Hotmart
 
 #### `Setting`
 
