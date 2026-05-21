@@ -90,7 +90,10 @@ async function isLoginRateLimited(email: string): Promise<boolean> {
  * Record a failed login attempt so future calls to isLoginRateLimited can
  * detect brute-force. userId is null because we may not have a valid user.
  */
-async function recordFailedLogin(email: string, userId?: string): Promise<void> {
+async function recordFailedLogin(
+  email: string,
+  userId?: string,
+): Promise<void> {
   await prisma.auditLog.create({
     data: {
       userId: userId ?? null,
@@ -128,8 +131,12 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user || !user.passwordHash) {
-          // Record attempt against this email regardless — prevents user enumeration
-          // via timing difference (bcrypt compare would normally run here).
+          // Dummy bcrypt compare to equalise timing with the "wrong password"
+          // path, preventing account enumeration via response-time measurement.
+          await bcrypt.compare(
+            credentials.password,
+            "$2b$12$aaaaaaaaaaaaaaaaaaaaaalNiT/dFrXwJx9WsHQFzqJDEO06QVCK",
+          );
           await recordFailedLogin(email);
           return null;
         }
@@ -183,11 +190,7 @@ export const authOptions: NextAuthOptions = {
             select: { status: true, deletedAt: true, mustChangePassword: true },
           });
           token.statusCheckedAt = now;
-          if (
-            !fresh ||
-            fresh.status !== "ACTIVE" ||
-            fresh.deletedAt !== null
-          ) {
+          if (!fresh || fresh.status !== "ACTIVE" || fresh.deletedAt !== null) {
             token.deactivated = true;
           } else {
             token.deactivated = false;
