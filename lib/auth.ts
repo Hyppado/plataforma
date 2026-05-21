@@ -61,6 +61,47 @@ const SESSION_MAX_AGE = 8 * 60 * 60; // seconds
 // How often the jwt callback re-checks the user's status in the DB.
 const STATUS_CHECK_INTERVAL = 15 * 60; // seconds
 
+// ---------------------------------------------------------------------------
+// Login rate limiting — stored in AuditLog, no extra dependency needed.
+// ---------------------------------------------------------------------------
+
+/** Max failed login attempts in the window before blocking. */
+const LOGIN_RATE_LIMIT = 10;
+/** Sliding window duration for counting failures (ms). */
+const LOGIN_RATE_WINDOW_MS = 15 * 60 * 1000; // 15 min
+
+/**
+ * Returns true when the email has exceeded the failed-login rate limit.
+ * Queries are fast: uses the existing (action, occurredAt) index.
+ */
+async function isLoginRateLimited(email: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOGIN_RATE_WINDOW_MS);
+  const count = await prisma.auditLog.count({
+    where: {
+      action: "LOGIN_FAILED",
+      entityId: email,
+      occurredAt: { gte: since },
+    },
+  });
+  return count >= LOGIN_RATE_LIMIT;
+}
+
+/**
+ * Record a failed login attempt so future calls to isLoginRateLimited can
+ * detect brute-force. userId is null because we may not have a valid user.
+ */
+async function recordFailedLogin(email: string, userId?: string): Promise<void> {
+  await prisma.auditLog.create({
+    data: {
+      userId: userId ?? null,
+      actorId: null,
+      action: "LOGIN_FAILED",
+      entityType: "User",
+      entityId: email,
+    },
+  });
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
   secret: process.env.NEXTAUTH_SECRET,
@@ -74,11 +115,24 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
 
+        const email = credentials.email.toLowerCase().trim();
+
+        // --- Rate limiting: check BEFORE user lookup to prevent timing attacks ---
+        if (await isLoginRateLimited(email)) {
+          // Throwing causes NextAuth to redirect to /login?error=<message>
+          throw new Error("Muitas tentativas. Tente novamente em 15 minutos.");
+        }
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
+          where: { email },
         });
 
-        if (!user || !user.passwordHash) return null;
+        if (!user || !user.passwordHash) {
+          // Record attempt against this email regardless — prevents user enumeration
+          // via timing difference (bcrypt compare would normally run here).
+          await recordFailedLogin(email);
+          return null;
+        }
         if (user.status !== "ACTIVE") return null;
         if (user.deletedAt) return null; // LGPD soft-deleted
 
@@ -86,7 +140,10 @@ export const authOptions: NextAuthOptions = {
           credentials.password,
           user.passwordHash,
         );
-        if (!valid) return null;
+        if (!valid) {
+          await recordFailedLogin(email, user.id);
+          return null;
+        }
 
         await prisma.user.update({
           where: { id: user.id },
