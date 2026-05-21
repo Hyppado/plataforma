@@ -13,6 +13,10 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    auditLog: {
+      count: vi.fn(),
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -22,7 +26,7 @@ vi.mock("next-auth", () => ({
 }));
 
 vi.mock("next-auth/providers/credentials", () => ({
-  default: vi.fn().mockReturnValue({ id: "credentials" }),
+  default: vi.fn((options) => ({ id: "credentials", ...options })),
 }));
 
 import { requireAuth, requireAdmin, isAuthed, authOptions } from "@/lib/auth";
@@ -162,21 +166,95 @@ describe("authOptions.callbacks", () => {
 });
 
 describe("authOptions.authorize()", () => {
-  const authorize =
-    (authOptions.providers[0] as any).authorize ??
-    (authOptions.providers[0] as any).options?.authorize;
+  const getAuthorize = () => {
+    const provider = authOptions.providers[0] as any;
+    return (provider.options?.authorize ?? provider.authorize) as (
+      credentials: Record<string, string>,
+    ) => Promise<unknown>;
+  };
 
-  // We test the authorize logic via the provider
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: not rate limited, user not found
+    vi.mocked(prisma.auditLog.count).mockResolvedValue(0);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+    vi.mocked(prisma.user.update).mockResolvedValue({} as any);
   });
 
   it("returns null for missing credentials", async () => {
-    // The authorize function is embedded in the provider config.
-    // We test the underlying logic patterns instead.
-    // Missing email/password should not authenticate.
-    const providers = authOptions.providers;
-    expect(providers).toHaveLength(1);
+    const authorize = getAuthorize();
+    expect(await authorize({ email: "", password: "" })).toBeNull();
+  });
+
+  it("throws when rate limit is exceeded", async () => {
+    vi.mocked(prisma.auditLog.count).mockResolvedValue(10);
+    const authorize = getAuthorize();
+    await expect(
+      authorize({ email: "target@example.com", password: "any" }),
+    ).rejects.toThrow("Muitas tentativas");
+  });
+
+  it("records a failed attempt and returns null for unknown email", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    const authorize = getAuthorize();
+    const result = await authorize({
+      email: "ghost@example.com",
+      password: "pw",
+    });
+    expect(result).toBeNull();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "LOGIN_FAILED" }),
+      }),
+    );
+  });
+
+  it("records a failed attempt and returns null for wrong password", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      passwordHash: await bcrypt.hash("correct", 10),
+      status: "ACTIVE",
+      deletedAt: null,
+      name: null,
+      role: "USER",
+      mustChangePassword: false,
+    } as any);
+    const authorize = getAuthorize();
+    const result = await authorize({
+      email: "user@example.com",
+      password: "wrong",
+    });
+    expect(result).toBeNull();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "LOGIN_FAILED",
+          userId: "user-1",
+        }),
+      }),
+    );
+  });
+
+  it("returns user and does not log failure on correct credentials", async () => {
+    const hash = await bcrypt.hash("correct", 10);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      passwordHash: hash,
+      status: "ACTIVE",
+      deletedAt: null,
+      name: "Test User",
+      role: "USER",
+      mustChangePassword: false,
+    } as any);
+    const authorize = getAuthorize();
+    const result = await authorize({
+      email: "user@example.com",
+      password: "correct",
+    });
+    expect(result).toMatchObject({ id: "user-1", email: "user@example.com" });
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 });
 
