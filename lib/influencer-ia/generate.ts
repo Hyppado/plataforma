@@ -107,7 +107,7 @@ function buildPrompt(input: InfluencerImageInput): string {
   return buildPromptFromTemplate(null, input);
 }
 
-async function buildPromptAsync(
+export async function buildPromptAsync(
   input: InfluencerImageInput,
   log: Logger,
 ): Promise<string> {
@@ -283,7 +283,7 @@ function buildPromptFromTemplate(
  *  images only increases payload size and API latency. Always normalise. */
 const GEMINI_IMAGE_MAX_PX = 640;
 
-async function fetchImageBuffer(
+export async function fetchImageBuffer(
   url: string,
   log: Logger,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
