@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { prisma } from "@/lib/prisma";
 import { proxyIfEchotikCdn } from "@/lib/echotik/trending";
 import { createLogger } from "@/lib/logger";
@@ -84,6 +85,16 @@ export async function GET(
 ) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária" },
+        { status: 403 },
+      );
+    }
+  }
 
   const productId = params.id;
 
