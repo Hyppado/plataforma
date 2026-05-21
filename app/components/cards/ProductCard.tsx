@@ -418,6 +418,7 @@ export function ProductCard({
               borderRadius: 2,
               py: 0.75,
               lineHeight: 1.3,
+              whiteSpace: "nowrap",
               boxShadow: "none",
               "&:hover": {
                 background: "linear-gradient(90deg, #E0256A 0%, #c01d58 100%)",
