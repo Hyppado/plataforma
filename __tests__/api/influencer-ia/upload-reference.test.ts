@@ -15,13 +15,14 @@ import { NextRequest } from "next/server";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { putMock, prismaMock } = vi.hoisted(() => ({
+const { putMock, prismaMock, resolveUserAccessMock } = vi.hoisted(() => ({
   putMock: vi.fn(),
   prismaMock: {
     userAvatarUpload: {
       create: vi.fn(),
     },
   },
+  resolveUserAccessMock: vi.fn(),
 }));
 
 vi.mock("@vercel/blob", () => ({
@@ -39,6 +40,10 @@ vi.mock("@/lib/logger", () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+}));
+
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
 }));
 
 import { POST } from "@/app/api/influencer-ia/upload-reference/route";
@@ -82,6 +87,7 @@ describe("POST /api/influencer-ia/upload-reference", () => {
       url: "https://blob.vercel-storage.com/refs/test.jpg",
     });
     prismaMock.userAvatarUpload.create.mockResolvedValue({});
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
   });
 
   it("returns 401 when unauthenticated", async () => {

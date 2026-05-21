@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { generateVeoPrompts } from "@/lib/influencer-ia/veo-prompt";
 import type { VeoDuration, VeoStyle } from "@/lib/influencer-ia/veo-prompt";
 import { createLogger } from "@/lib/logger";
@@ -25,6 +26,16 @@ const VALID_DURATIONS: VeoDuration[] = ["short", "medium", "full"];
 export async function POST(req: Request) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária para usar esta funcionalidade" },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const body = (await req.json()) as {
