@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import Providers from "./providers";
 
@@ -13,6 +14,14 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Read the per-request nonce injected by middleware into the forwarded
+  // request headers. Next.js App Router (13.4+) picks this up automatically
+  // and adds it to its own inline hydration <script> tags, making the
+  // nonce-based CSP work without unsafe-inline for scripts.
+  // Calling headers() here also forces dynamic rendering of the root layout,
+  // which is required so every request gets its own unique nonce.
+  const nonce = headers().get("x-nonce") ?? undefined;
+  void nonce; // available to pass as nonce prop to <Script> components if needed
   return (
     <html lang="pt-BR">
       <head>

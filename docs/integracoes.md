@@ -103,14 +103,14 @@ Endpoint: `POST /api/webhooks/hotmart`
 Fluxo de provisionamento ao receber `PURCHASE_APPROVED`:
 
 1. Resolve ou cria usuário + `ExternalAccountLink`
-2. Reactiva usuário INACTIVE (SUSPENDED permanece para revisão admin)
-3. Resolve plano via `getProvisioningPlan(fields)` — match por `planCode` → fallback para primeiro plano ativo
+2. Reactiva usuário INACTIVE (SUSPENDED permanece para revisão admin); envia notificação `SUSPENDED_USER_PURCHASE` ao admin quando o comprador está suspenso
+3. Resolve plano via `getProvisioningPlan(fields)` — match por `planCode`/`planId` usando `resolveOrSyncPlan()` → auto-sync da API Hotmart se não encontrado → fallback para primeiro plano ativo
 4. Upsert `Subscription` + `HotmartSubscription` com status ACTIVE
 5. Upsert `SubscriptionCharge` com status PAID
 6. Acesso é runtime-driven (`resolveAccess()`) — nenhum estado derivado persistido
 7. Audit log: `WEBHOOK_PURCHASE_APPROVED` (primeira compra) ou `WEBHOOK_PURCHASE_RENEWED`
 8. Notificação admin: `SUBSCRIPTION_ACTIVATED` (apenas primeira compra)
-9. Email de onboarding: apenas nova conta, não renovação (`.catch()` protegido)
+9. Email de onboarding: apenas primeira compra (`!isRenewal`), idempotente — pula se usuário já tem senha (`.catch()` protegido)
 
 **Renovação:** `recurrenceNumber > 1` = renovação.
 
@@ -121,7 +121,7 @@ Fluxo ao receber `SUBSCRIPTION_CANCELLATION`:
 1. Resolve identidade via subscriber email/code (sem bloco `buyer`)
 2. Resolve plano
 3. Upsert subscription com status CANCELLED
-4. Define `cancelledAt` e `endedAt` = data de cancelamento do evento
+4. Define `cancelledAt` e `endedAt` = `accessExpiresAt` do evento (período já pago honrado) ou fallback para `occurredAt`
 5. Usuário **não** é deletado nem suspenso — apenas o status da assinatura muda
 6. Audit log: `WEBHOOK_SUBSCRIPTION_CANCELLATION`
 7. Notificação admin: `SUBSCRIPTION_CANCELLATION` (severity: WARNING)
@@ -132,9 +132,27 @@ Alguns eventos revogam o acesso imediatamente (sem período de graça), definind
 
 - `PURCHASE_REFUNDED`
 - `PURCHASE_CHARGEBACK`
-- `SUBSCRIPTION_CANCELLATION` com motivo de cancelamento administrativo (`CANCELLED_BY_ADMIN`)
 
-Os demais cancelamentos preservam `endedAt` original (fim do período pago).
+`SUBSCRIPTION_CANCELLATION` **não** é revogação imediata — sempre honra o período pago via `accessExpiresAt`.
+
+### PURCHASE_CHARGEBACK — Proteção contra fraude
+
+Além de definir `endedAt = occurredAt` (acesso imediato bloqueado), o `PURCHASE_CHARGEBACK` **auto-suspende o usuário**:
+
+- Status do usuário → `SUSPENDED`
+- Audit log: `AUTO_SUSPENSION_CHARGEBACK`
+- Admin deve revisar e reativar manualmente se necessário
+
+### PURCHASE_COMPLETE e compras gratuitas
+
+`PURCHASE_COMPLETE` é um evento de ativação (subscription → ACTIVE). Também envia email de onboarding para primeira compra. Isso cobre compras gratuitas (R$ 0,00) onde `PURCHASE_APPROVED` pode não ser gerado pelo Hotmart.
+
+### Retry e resiliência
+
+O processador executa cada evento com até **3 tentativas** com backoff exponencial (500ms, 2000ms, 5000ms). Em falha permanente:
+
+- `processingStatus` → `FAILED` com `errorMessage` e `retryCount` incrementado
+- Notificação admin `PROCESSING_FAILED` gerada
 
 ### Planos e sincronização
 
