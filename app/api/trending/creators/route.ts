@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { prisma } from "@/lib/prisma";
 import {
   CREATOR_RANK_FIELDS,
@@ -27,6 +28,16 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { error: "Assinatura necessária" },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const { searchParams } = new URL(request.url);
