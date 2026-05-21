@@ -18,9 +18,9 @@ function buildCsp(nonce: string): string {
       "img-src 'self' data: blob:",
       "https://*.tiktokcdn.com",
       "https://*.tiktokcdn-us.com",
-      "https://blob.vercel-storage.com",
+      "https://*.public.blob.vercel-storage.com",
     ].join(" "),
-    "media-src 'self' https://blob.vercel-storage.com",
+    "media-src 'self' https://*.public.blob.vercel-storage.com",
     "connect-src 'self' https://fonts.googleapis.com",
     "frame-ancestors 'none'",
   ].join("; ");
