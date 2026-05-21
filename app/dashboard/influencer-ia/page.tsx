@@ -2956,11 +2956,20 @@ function InfluencerIAWizard() {
                                 const a = document.createElement("a");
                                 a.href = blobUrl;
                                 a.download = `influencer-ia-${idx + 1}.png`;
+                                a.style.display = "none";
+                                document.body.appendChild(a);
                                 a.click();
+                                document.body.removeChild(a);
                                 URL.revokeObjectURL(blobUrl);
                               })
                               .catch(() => {
-                                window.location.href = url;
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `influencer-ia-${idx + 1}.png`;
+                                a.style.display = "none";
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
                               });
                           }}
                           sx={{

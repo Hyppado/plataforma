@@ -21,7 +21,8 @@ function buildCsp(nonce: string): string {
       "https://*.public.blob.vercel-storage.com",
     ].join(" "),
     "media-src 'self' https://*.public.blob.vercel-storage.com",
-    "connect-src 'self' https://fonts.googleapis.com",
+    "connect-src 'self' https://fonts.googleapis.com https://*.public.blob.vercel-storage.com",
+    "frame-src https://www.tiktok.com https://www.youtube.com https://player.vimeo.com https://www.instagram.com",
     "frame-ancestors 'none'",
   ].join("; ");
 }
