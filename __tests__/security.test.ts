@@ -379,4 +379,3 @@ describe("Subscription access control", () => {
     expect(resolveUserAccessMock).not.toHaveBeenCalled();
   });
 });
-
