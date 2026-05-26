@@ -43,24 +43,31 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  const [items, total] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      orderBy: { occurredAt: "desc" },
-      skip,
-      take: limit,
-      include: {
-        user: { select: { id: true, email: true, name: true } },
-      },
-    }),
-    prisma.auditLog.count({ where }),
-  ]);
+  try {
+    const [items, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { occurredAt: "desc" },
+        skip,
+        take: limit,
+        include: {
+          user: { select: { id: true, email: true, name: true } },
+        },
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
 
-  return NextResponse.json({
-    items,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  });
+    return NextResponse.json({
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }

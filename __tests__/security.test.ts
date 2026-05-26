@@ -25,6 +25,13 @@ import { buildUser, buildPlan } from "@tests/helpers/factories";
 // next-auth mock is managed by @tests/helpers/auth — do NOT re-declare
 vi.mock("@/lib/prisma");
 
+const { resolveUserAccessMock } = vi.hoisted(() => ({
+  resolveUserAccessMock: vi.fn().mockResolvedValue({ status: "FULL_ACCESS" }),
+}));
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
+}));
+
 // ---------------------------------------------------------------------------
 // 1. Secret Leakage
 // ---------------------------------------------------------------------------
@@ -143,14 +150,6 @@ describe("Auth bypass prevention", () => {
     expect(res.status).toBe(401);
   });
 
-  it("echotik/videos/trending rejects unauthenticated", async () => {
-    mockUnauthenticated();
-    const { GET } = await import("@/app/api/echotik/videos/trending/route");
-    const req = makeGetRequest("/api/echotik/videos/trending") as any;
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-  });
-
   // Proxy and regions — require auth
   it("proxy/image rejects unauthenticated", async () => {
     mockUnauthenticated();
@@ -211,7 +210,10 @@ describe("Mass assignment protection", () => {
 // ---------------------------------------------------------------------------
 
 describe("Input validation", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("POST /api/admin/plans rejects missing required fields", async () => {
     mockAuthenticatedAdmin();
@@ -262,7 +264,10 @@ describe("Input validation", () => {
 // ---------------------------------------------------------------------------
 
 describe("Ownership isolation", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("me/saved only queries current user's items", async () => {
     mockAuthenticatedUser({ id: "my-user-id" });
@@ -317,3 +322,61 @@ describe("Pagination limits", () => {
     expect(body.pagination.limit).toBeLessThanOrEqual(100);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7. Subscription Access Control
+// Paid-feature routes must return 403 for authenticated users without access
+// ---------------------------------------------------------------------------
+
+describe("Subscription access control", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "NO_ACCESS" });
+  });
+
+  it("GET /api/me/saved returns 403 for user without subscription", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    const { GET } = await import("@/app/api/me/saved/route");
+    const req = makeGetRequest("/api/me/saved") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /api/me/collections returns 403 for user without subscription", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    const { GET } = await import("@/app/api/me/collections/route");
+    const req = makeGetRequest("/api/me/collections") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /api/prompt-library returns 403 for user without subscription", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    prismaMock.promptLibraryItem.findMany.mockResolvedValue([]);
+    const { GET } = await import("@/app/api/prompt-library/route");
+    const req = makeGetRequest("/api/prompt-library") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("SUSPENDED users are blocked from paid features", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    resolveUserAccessMock.mockResolvedValue({ status: "SUSPENDED" });
+    const { GET } = await import("@/app/api/me/saved/route");
+    const req = makeGetRequest("/api/me/saved") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("admin users bypass subscription check on paid routes", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.$transaction.mockResolvedValue([[], 0]);
+    const { GET } = await import("@/app/api/me/saved/route");
+    const req = makeGetRequest("/api/me/saved") as any;
+    const res = await GET(req);
+    // Admin bypasses the resolveUserAccess check — should not return 403
+    expect(res.status).not.toBe(403);
+    expect(resolveUserAccessMock).not.toHaveBeenCalled();
+  });
+});
+

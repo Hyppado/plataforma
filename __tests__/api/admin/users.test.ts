@@ -193,6 +193,16 @@ describe("POST /api/admin/users", () => {
     vi.clearAllMocks();
     prismaMock.user.findUnique.mockResolvedValue(null); // no duplicate
     prismaMock.auditLog.create.mockResolvedValue({} as never);
+    
+    // Mock $transaction to execute callback with prismaMock as transaction client
+    prismaMock.$transaction.mockImplementation(async (callback: any) => {
+      return callback(prismaMock);
+    });
+    
+    // Mock accessGrant.create (route now creates grants automatically)
+    prismaMock.accessGrant.create.mockResolvedValue({
+      id: "grant-123",
+    } as never);
   });
 
   it("returns 401 for unauthenticated", async () => {
@@ -350,5 +360,73 @@ describe("POST /api/admin/users", () => {
         }),
       }),
     );
+  });
+
+  it("creates AccessGrant automatically when user is created", async () => {
+    mockAuthenticatedAdmin({ id: "admin-123" });
+    prismaMock.user.create.mockResolvedValue({
+      id: "new-user",
+      email: "newuser@test.com",
+      role: "USER",
+      status: "ACTIVE",
+      createdAt: new Date(),
+    } as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "newuser@test.com",
+      name: "New User",
+    }) as any;
+    const res = await POST(req);
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.$transaction).toHaveBeenCalled();
+    expect(prismaMock.accessGrant.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "new-user",
+          grantedBy: "admin-123",
+          reason: "Acesso concedido pelo admin ao criar conta",
+          expiresAt: null,
+          isActive: true,
+        }),
+      }),
+    );
+  });
+
+  it("includes accessGrantId in 201 response", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.user.create.mockResolvedValue({
+      id: "u6",
+      email: "grantid@test.com",
+      role: "USER",
+      status: "ACTIVE",
+      createdAt: new Date(),
+    } as never);
+    prismaMock.accessGrant.create.mockResolvedValue({
+      id: "grant-456",
+    } as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "grantid@test.com",
+    }) as any;
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.accessGrantId).toBe("grant-456");
+  });
+
+  it("does not create AccessGrant when email already exists (409 case)", async () => {
+    mockAuthenticatedAdmin();
+    prismaMock.user.findUnique.mockResolvedValue(buildUser() as never);
+
+    const req = makePostRequest("/api/admin/users", {
+      email: "dup@test.com",
+    }) as any;
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.accessGrant.create).not.toHaveBeenCalled();
   });
 });

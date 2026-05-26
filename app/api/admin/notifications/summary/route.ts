@@ -13,15 +13,22 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
-  const [unread, critical, total] = await Promise.all([
-    prisma.adminNotification.count({
-      where: { status: "UNREAD" },
-    }),
-    prisma.adminNotification.count({
-      where: { severity: "CRITICAL", status: { not: "ARCHIVED" } },
-    }),
-    prisma.adminNotification.count(),
-  ]);
+  try {
+    const [unread, critical, total] = await Promise.all([
+      prisma.adminNotification.count({
+        where: { status: "UNREAD" },
+      }),
+      prisma.adminNotification.count({
+        where: { severity: "CRITICAL", status: { not: "ARCHIVED" } },
+      }),
+      prisma.adminNotification.count(),
+    ]);
 
-  return NextResponse.json({ unread, critical, total });
+    return NextResponse.json({ unread, critical, total });
+  } catch {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }

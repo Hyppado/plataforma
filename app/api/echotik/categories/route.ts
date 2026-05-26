@@ -1,3 +1,10 @@
+/**
+ * GET /api/echotik/categories
+ *
+ * Returns TikTok Shop categories from the database for the filter UI.
+ * Requires authentication but no subscription guard — category data is
+ * reference data needed to render filter options for all authenticated users.
+ */
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";

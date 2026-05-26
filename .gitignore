@@ -33,3 +33,10 @@ prisma/*.db-journal
 .env*.local
 clean-plans.js
 *.tsbuildinfo
+
+# AI agent local config
+.claude/
+.github/skills/
+.github/prompts/
+
+openspec

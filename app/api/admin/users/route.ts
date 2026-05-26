@@ -192,10 +192,12 @@ export async function POST(req: NextRequest) {
     email,
     name,
     role: userRole,
+    planId,
   } = body as {
     email?: string;
     name?: string;
     role?: string;
+    planId?: string;
   };
 
   if (!email || !email.includes("@")) {
@@ -226,23 +228,42 @@ export async function POST(req: NextRequest) {
     const plainPassword = generatePassword();
     const passwordHash = await bcrypt.hash(plainPassword, 10);
 
-    const user = await prisma.user.create({
-      data: {
-        email: normalizedEmail,
-        name: name?.trim() || null,
-        role: assignedRole,
-        status: "ACTIVE",
-        passwordHash,
-        mustChangePassword: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        status: true,
-        createdAt: true,
-      },
+    // Create user + AccessGrant atomically
+    const [user, accessGrant] = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          name: name?.trim() || null,
+          role: assignedRole,
+          status: "ACTIVE",
+          passwordHash,
+          mustChangePassword: true,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+
+      const newGrant = await tx.accessGrant.create({
+        data: {
+          userId: newUser.id,
+          grantedBy: auth.userId,
+          reason: "Acesso concedido pelo admin ao criar conta",
+          planId: planId || null,
+          expiresAt: null,
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return [newUser, newGrant];
     });
 
     // Send welcome email with temporary password
@@ -288,6 +309,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         user,
+        accessGrantId: accessGrant.id,
         emailSent: emailResult.success,
       },
       { status: 201 },
