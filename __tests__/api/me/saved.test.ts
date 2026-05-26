@@ -2,7 +2,7 @@
  * Tests: app/api/me/saved/route.ts — Saved items (user-scoped)
  *
  * Priority: #4 (Business rules — user content with ownership enforcement)
- * Coverage: auth, listing, upsert, delete, ownership enforcement
+ * Coverage: auth, access guard, listing, upsert, delete, ownership enforcement
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prismaMock } from "@tests/helpers/prisma-mock";
@@ -17,10 +17,20 @@ import { buildSavedItem } from "@tests/helpers/factories";
 
 vi.mock("@/lib/prisma");
 
+const { resolveUserAccessMock } = vi.hoisted(() => ({
+  resolveUserAccessMock: vi.fn(),
+}));
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
+}));
+
 import { GET, POST, DELETE } from "@/app/api/me/saved/route";
 
 describe("GET /api/me/saved", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("returns 401 for unauthenticated", async () => {
     mockUnauthenticated();
@@ -29,7 +39,23 @@ describe("GET /api/me/saved", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns saved items for authenticated user", async () => {
+  it("returns 403 when user has no active subscription", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    resolveUserAccessMock.mockResolvedValue({ status: "NO_ACCESS" });
+    const req = makeGetRequest("/api/me/saved") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when user is suspended", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    resolveUserAccessMock.mockResolvedValue({ status: "SUSPENDED" });
+    const req = makeGetRequest("/api/me/saved") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns saved items for authenticated user with active subscription", async () => {
     mockAuthenticatedUser({ id: "user-1" });
     const items = [buildSavedItem(), buildSavedItem()];
     prismaMock.$transaction.mockResolvedValue([items, 2]);
@@ -44,7 +70,10 @@ describe("GET /api/me/saved", () => {
 });
 
 describe("POST /api/me/saved", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("requires type, externalId, title", async () => {
     mockAuthenticatedUser();
@@ -81,7 +110,10 @@ describe("POST /api/me/saved", () => {
 });
 
 describe("DELETE /api/me/saved", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("requires item id", async () => {
     mockAuthenticatedUser();

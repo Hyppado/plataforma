@@ -1,10 +1,11 @@
 /**
- * Tests: app/api/prompt-library/route.ts — Access control (Task 9.2)
+ * Tests: app/api/prompt-library/route.ts
  *
- * Access model (mirrors existing browse routes — no subscription gating):
- *   - Unauthenticated       → 401
- *   - Authenticated (USER)  → 200 (consistent with all other browse routes)
- *   - Admin                 → 200
+ * Access model:
+ *   - Unauthenticated              → 401
+ *   - Authenticated, no subscription → 403 (subscription required)
+ *   - Authenticated subscriber      → 200
+ *   - Admin                         → 200 (bypasses subscription check)
  *   - Only isActive=true items are returned
  *   - ?category= filter works correctly
  */
@@ -19,6 +20,13 @@ import {
 import { buildPromptLibraryItem } from "@tests/helpers/factories";
 
 vi.mock("@/lib/prisma");
+
+const { resolveUserAccessMock } = vi.hoisted(() => ({
+  resolveUserAccessMock: vi.fn(),
+}));
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
+}));
 
 import { GET } from "@/app/api/prompt-library/route";
 
@@ -65,11 +73,47 @@ describe("GET /api/prompt-library — unauthenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Authenticated USER (no subscription — same access as subscriber for browse)
+// No subscription — 403
+// ---------------------------------------------------------------------------
+
+describe("GET /api/prompt-library — no subscription", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "NO_ACCESS" });
+  });
+
+  it("returns 403 when user has no active subscription", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    const req = makeGetRequest("/api/prompt-library");
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when user is suspended", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    resolveUserAccessMock.mockResolvedValue({ status: "SUSPENDED" });
+    const req = makeGetRequest("/api/prompt-library");
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("does not call Prisma when access is denied", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    const req = makeGetRequest("/api/prompt-library");
+    await GET(req);
+    expect(prismaMock.promptLibraryItem.findMany).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Authenticated subscriber — 200
 // ---------------------------------------------------------------------------
 
 describe("GET /api/prompt-library — authenticated user", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("returns 200 with active items", async () => {
     mockAuthenticatedUser({ id: "user-1" });
@@ -161,7 +205,7 @@ describe("GET /api/prompt-library — authenticated user", () => {
 describe("GET /api/prompt-library — admin", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns 200 for admin users", async () => {
+  it("returns 200 for admin users (bypasses subscription check)", async () => {
     mockAuthenticatedAdmin();
     prismaMock.promptLibraryItem.findMany.mockResolvedValue(activeItems as any);
 
@@ -177,7 +221,10 @@ describe("GET /api/prompt-library — admin", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/prompt-library — error handling", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("returns 500 when Prisma throws", async () => {
     mockAuthenticatedUser({ id: "user-1" });

@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
+import { resolveUserAccess } from "@/lib/access/resolver";
 import { createLogger } from "@/lib/logger";
+import type { CollectionDTO } from "@/lib/types/dto";
 
 const log = createLogger("api/me/collections");
-import type { CollectionDTO } from "@/lib/types/dto";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { success: false, error: "Assinatura necessária" },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const { searchParams } = new URL(request.url);
@@ -50,6 +61,16 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { success: false, error: "Assinatura necessária" },
+        { status: 403 },
+      );
+    }
+  }
+
   try {
     const body = await request.json();
     const { name } = body;
@@ -88,6 +109,16 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  if (auth.role !== "ADMIN") {
+    const access = await resolveUserAccess(auth.userId);
+    if (access.status === "NO_ACCESS" || access.status === "SUSPENDED") {
+      return NextResponse.json(
+        { success: false, error: "Assinatura necessária" },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const { searchParams } = new URL(request.url);

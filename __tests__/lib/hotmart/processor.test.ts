@@ -402,7 +402,11 @@ describe("processHotmartEvent()", () => {
 
     // resolveOrSyncPlan was called with the webhook planCode
     const { resolveOrSyncPlan } = await import("@/lib/hotmart/plans");
-    expect(resolveOrSyncPlan).toHaveBeenCalledWith("pro_mensal", "7420891", undefined);
+    expect(resolveOrSyncPlan).toHaveBeenCalledWith(
+      "pro_mensal",
+      "7420891",
+      undefined,
+    );
 
     // Falls back to findFirst since resolveOrSyncPlan returns null
     expect(prismaMock.plan.findFirst).toHaveBeenCalledWith(
@@ -424,7 +428,11 @@ describe("processHotmartEvent()", () => {
     await vi.runAllTimersAsync();
     await promise;
 
-    expect(resolveOrSyncPlan).toHaveBeenCalledWith("tz12qeev", "7420891", undefined);
+    expect(resolveOrSyncPlan).toHaveBeenCalledWith(
+      "tz12qeev",
+      "7420891",
+      undefined,
+    );
 
     // findFirst should NOT be called since resolveOrSyncPlan returned a plan
     expect(prismaMock.plan.findFirst).not.toHaveBeenCalled();
@@ -449,7 +457,11 @@ describe("processHotmartEvent()", () => {
     await vi.runAllTimersAsync();
     await promise;
 
-    expect(resolveOrSyncPlan).toHaveBeenCalledWith("tz12qeev", "7420891", undefined);
+    expect(resolveOrSyncPlan).toHaveBeenCalledWith(
+      "tz12qeev",
+      "7420891",
+      undefined,
+    );
 
     // Should fall back to findFirst since resolveOrSyncPlan returned null
     expect(prismaMock.plan.findFirst).toHaveBeenCalledWith(

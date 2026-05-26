@@ -108,9 +108,7 @@ const CHARGE_STATUS_MAP: Record<string, string> = {
 
 async function getProvisioningPlan(fields: HotmartWebhookFields) {
   // 1. Tenta match por ID numérico Hotmart (plan.id do webhook) e/ou planCode
-  const numericPlanId = fields.planId
-    ? parseInt(fields.planId, 10)
-    : undefined;
+  const numericPlanId = fields.planId ? parseInt(fields.planId, 10) : undefined;
 
   if (fields.planCode || numericPlanId != null) {
     const matched = await resolveOrSyncPlan(
@@ -273,6 +271,8 @@ async function upsertSubscription(
       planId,
       status: newStatus as never,
       startedAt: isActivation ? occurredAt : undefined,
+      ...(isCancellation && { cancelledAt: effectiveCancelledAt }),
+      ...((isExpiry || isCancellation) && { endedAt: effectiveEndedAt }),
     },
   });
 

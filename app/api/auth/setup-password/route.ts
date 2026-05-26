@@ -47,7 +47,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate token
-  const validation = await validateSetupToken(token);
+  let validation: Awaited<ReturnType<typeof validateSetupToken>>;
+  try {
+    validation = await validateSetupToken(token);
+  } catch {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 
   if (!validation.valid || !validation.userId) {
     // Generic error — do not reveal reason to prevent enumeration
@@ -58,19 +66,26 @@ export async function POST(req: NextRequest) {
   }
 
   // Hash password and consume token atomically
-  const passwordHash = await bcrypt.hash(password, 10);
-  await consumeSetupToken(validation.userId, passwordHash);
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await consumeSetupToken(validation.userId, passwordHash);
 
-  // Audit trail
-  await prisma.auditLog.create({
-    data: {
-      userId: validation.userId,
-      actorId: validation.userId,
-      action: "USER_PASSWORD_SETUP",
-      entityType: "User",
-      entityId: validation.userId,
-    },
-  });
+    // Audit trail
+    await prisma.auditLog.create({
+      data: {
+        userId: validation.userId,
+        actorId: validation.userId,
+        action: "USER_PASSWORD_SETUP",
+        entityType: "User",
+        entityId: validation.userId,
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ success: true });
 }
@@ -91,7 +106,15 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const validation = await validateSetupToken(token);
+  let validation: Awaited<ReturnType<typeof validateSetupToken>>;
+  try {
+    validation = await validateSetupToken(token);
+  } catch {
+    return NextResponse.json(
+      { valid: false, reason: "internal_error" },
+      { status: 500 },
+    );
+  }
 
   if (!validation.valid) {
     return NextResponse.json(

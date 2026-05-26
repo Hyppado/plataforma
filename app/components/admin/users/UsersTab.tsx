@@ -103,7 +103,18 @@ async function fetcher<T>(url: string): Promise<T> {
 
 function getUserCategory(u: UserRow): "admin" | "subscriber" | "user" {
   if (u.role === "ADMIN") return "admin";
-  if ((u._count?.subscriptions ?? 0) > 0) return "subscriber";
+  const sub = u.subscriptions?.[0];
+  if (
+    sub &&
+    (sub.status === "ACTIVE" ||
+      sub.status === "PAST_DUE" ||
+      (sub.status === "CANCELLED" &&
+        sub.endedAt != null &&
+        new Date(sub.endedAt) > new Date()))
+  ) {
+    return "subscriber";
+  }
+  if ((u._count?.accessGrants ?? 0) > 0) return "subscriber";
   return "user";
 }
 

@@ -1,3 +1,11 @@
+/**
+ * GET    /api/me/notes  — List the authenticated user's notes
+ * POST   /api/me/notes  — Create or update a note
+ * DELETE /api/me/notes  — Delete a note
+ *
+ * Personal notes are an account-level feature (not plan-gated); no subscription
+ * guard is needed — any authenticated user can manage their own notes.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";

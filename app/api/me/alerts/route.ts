@@ -1,3 +1,10 @@
+/**
+ * GET  /api/me/alerts          — List the authenticated user's alerts
+ * PATCH /api/me/alerts          — Mark one or all alerts as read
+ *
+ * Alerts are an account-level feature (not plan-gated); no subscription guard
+ * is needed here — any authenticated user can read and dismiss their alerts.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";

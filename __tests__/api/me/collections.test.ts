@@ -2,7 +2,7 @@
  * Tests: app/api/me/collections/route.ts — Collections (user-scoped)
  *
  * Priority: #4 (Business rules — user content)
- * Coverage: auth, CRUD, ownership enforcement, validation
+ * Coverage: auth, access guard, CRUD, ownership enforcement, validation
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prismaMock } from "@tests/helpers/prisma-mock";
@@ -16,10 +16,20 @@ import { buildCollection } from "@tests/helpers/factories";
 
 vi.mock("@/lib/prisma");
 
+const { resolveUserAccessMock } = vi.hoisted(() => ({
+  resolveUserAccessMock: vi.fn(),
+}));
+vi.mock("@/lib/access/resolver", () => ({
+  resolveUserAccess: resolveUserAccessMock,
+}));
+
 import { GET, POST, DELETE } from "@/app/api/me/collections/route";
 
 describe("GET /api/me/collections", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("returns 401 for unauthenticated", async () => {
     mockUnauthenticated();
@@ -28,7 +38,23 @@ describe("GET /api/me/collections", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns collections for authenticated user", async () => {
+  it("returns 403 when user has no active subscription", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    resolveUserAccessMock.mockResolvedValue({ status: "NO_ACCESS" });
+    const req = makeGetRequest("/api/me/collections") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when user is suspended", async () => {
+    mockAuthenticatedUser({ id: "user-1" });
+    resolveUserAccessMock.mockResolvedValue({ status: "SUSPENDED" });
+    const req = makeGetRequest("/api/me/collections") as any;
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns collections for authenticated user with active subscription", async () => {
     mockAuthenticatedUser({ id: "user-1" });
     const items = [
       { ...buildCollection(), _count: { items: 3 } },
@@ -45,7 +71,10 @@ describe("GET /api/me/collections", () => {
 });
 
 describe("POST /api/me/collections", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("requires collection name", async () => {
     mockAuthenticatedUser();
@@ -85,7 +114,10 @@ describe("POST /api/me/collections", () => {
 });
 
 describe("DELETE /api/me/collections", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveUserAccessMock.mockResolvedValue({ status: "FULL_ACCESS" });
+  });
 
   it("requires collection id", async () => {
     mockAuthenticatedUser();
