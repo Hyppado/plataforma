@@ -187,7 +187,7 @@ export const authOptions: NextAuthOptions = {
         if (now - lastCheck >= STATUS_CHECK_INTERVAL) {
           const fresh = await prisma.user.findUnique({
             where: { id: token.userId as string },
-            select: { status: true, deletedAt: true, mustChangePassword: true },
+            select: { status: true, deletedAt: true, mustChangePassword: true, role: true },
           });
           token.statusCheckedAt = now;
           if (!fresh || fresh.status !== "ACTIVE" || fresh.deletedAt !== null) {
@@ -195,6 +195,9 @@ export const authOptions: NextAuthOptions = {
           } else {
             token.deactivated = false;
             token.mustChangePassword = fresh.mustChangePassword;
+            // Refresh role so that role changes (e.g. USER → ADMIN) take effect
+            // within STATUS_CHECK_INTERVAL without requiring re-login.
+            token.role = fresh.role;
           }
         }
       }
