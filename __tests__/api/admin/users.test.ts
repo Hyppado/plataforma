@@ -193,12 +193,12 @@ describe("POST /api/admin/users", () => {
     vi.clearAllMocks();
     prismaMock.user.findUnique.mockResolvedValue(null); // no duplicate
     prismaMock.auditLog.create.mockResolvedValue({} as never);
-    
+
     // Mock $transaction to execute callback with prismaMock as transaction client
     prismaMock.$transaction.mockImplementation(async (callback: any) => {
       return callback(prismaMock);
     });
-    
+
     // Mock accessGrant.create (route now creates grants automatically)
     prismaMock.accessGrant.create.mockResolvedValue({
       id: "grant-123",

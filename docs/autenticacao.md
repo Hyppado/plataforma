@@ -54,7 +54,7 @@ O JWT usa estratégia `jwt` com `maxAge = 8 horas`. Campos carregados:
 | `statusCheckedAt`    | number   | Timestamp (segundos) da última verificação de status no banco      |
 | `deactivated`        | boolean? | `true` quando usuário foi desativado/suspenso/deletado mid-session |
 
-**Verificação periódica de status:** a cada 15 minutos (`STATUS_CHECK_INTERVAL`), o callback `jwt` consulta o banco para verificar se o usuário ainda está `ACTIVE` e não foi deletado. Se o status mudou, `deactivated = true` é gravado no token.
+**Verificação periódica de status:** a cada 15 minutos (`STATUS_CHECK_INTERVAL`), o callback `jwt` consulta o banco para verificar `status`, `deletedAt`, `mustChangePassword` e `role`. Se o status mudou para inativo/deletado, `deactivated = true` é gravado no token. O `role` também é atualizado, então mudanças de papel (ex: USER → ADMIN) entram em vigor dentro do intervalo sem exigir novo login.
 
 **Tokens desativados:** quando `deactivated = true`, o callback de sessão zera `session.user.id`. `requireAuth()` detecta o `userId` vazio e retorna `{ error: "Sessão expirada" }` com status 401.
 
@@ -90,7 +90,12 @@ O acesso é **sempre resolvido em runtime**. Nenhum estado derivado é persistid
 
 ### AccessGrant
 
-Concedido manualmente por admin via painel. Permite acesso sem assinatura ativa (ex: usuários de teste, parceiros, suporte).
+Permite acesso sem assinatura ativa. É criado em dois cenários:
+
+1. **Criação pelo admin** (`POST /api/admin/users`): sempre criado automaticamente junto com o usuário, em transação atômica. O grant é permanente (`expiresAt = null`), atribuído ao admin que criou (`grantedBy = auth.userId`), e retornado como `accessGrantId` no 201.
+2. **Concessão manual** via painel admin: admin concede acesso a um usuário existente com motivo e expiração opcional.
+
+Usuários com AccessGrant ativo têm acesso mesmo sem assinatura. O grant é verificado antes da assinatura na cadeia de resolução.
 
 ### Middleware
 
@@ -169,14 +174,16 @@ Email com link: /criar-senha?token=<raw>
 - Mensagens sempre genéricas — sem enumeração de usuário/email
 - Senha mínima: 8 caracteres (validado no servidor)
 
-### Senha temporária (admin)
+### Criação de usuário pelo admin (`POST /api/admin/users`)
 
-Admin pode resetar a senha de um usuário via `POST /api/admin/users/[id]`:
+1. Gera senha temporária aleatória e seta `mustChangePassword = true`
+2. Cria `User` e `AccessGrant` em transação atômica (`prisma.$transaction`)
+3. Envia email de boas-vindas com a senha temporária
+4. Retorna `{ user, accessGrantId, emailSent }` com status 201
+5. Na próxima sessão do usuário criado, `PasswordChangeGuard` exibe modal de troca obrigatória
+6. Após trocar, `mustChangePassword` é limpo e a sessão é recarregada
 
-1. Gera senha temporária e seta `mustChangePassword = true`
-2. Envia email com a senha temporária
-3. Na próxima sessão, `PasswordChangeGuard` exibe modal de troca obrigatória
-4. Após trocar, `mustChangePassword` é limpo e a sessão é recarregada
+Se a transação falhar (ex: email duplicado), nenhum usuário nem grant é criado.
 
 ---
 
