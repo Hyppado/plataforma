@@ -103,6 +103,9 @@ function setupFullMocks() {
   // Charge
   prismaMock.subscriptionCharge.upsert.mockResolvedValue({});
 
+  // Courtesy grant revocation (cortesia → assinante). Default: nothing to revoke.
+  prismaMock.accessGrant.updateMany.mockResolvedValue({ count: 0 });
+
   // Audit
   prismaMock.auditLog.create.mockResolvedValue({});
 }
@@ -607,6 +610,61 @@ describe("handleApproved() — PURCHASE_APPROVED provisioning", () => {
     );
     // Subscription still created
     expect(prismaMock.subscription.create).toHaveBeenCalled();
+  });
+
+  it("revokes active courtesy grants when subscription is activated", async () => {
+    // Simulate a cortesia user (had an active admin grant) that now subscribes.
+    prismaMock.accessGrant.updateMany.mockResolvedValue({ count: 1 });
+
+    const fields = makeFields({
+      eventType: "PURCHASE_APPROVED",
+      recurrenceNumber: 1,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    // Active grants for the user are deactivated.
+    expect(prismaMock.accessGrant.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isActive: true }),
+        data: expect.objectContaining({
+          isActive: false,
+          revokedBy: "system",
+        }),
+      }),
+    );
+
+    // Audit log records the conversion.
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "ACCESS_GRANT_REVOKED_BY_SUBSCRIPTION",
+        }),
+      }),
+    );
+  });
+
+  it("does not log grant revocation when no active grant exists", async () => {
+    prismaMock.accessGrant.updateMany.mockResolvedValue({ count: 0 });
+
+    const fields = makeFields({
+      eventType: "PURCHASE_APPROVED",
+      recurrenceNumber: 1,
+    });
+
+    const promise = processHotmartEvent("event-1", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "ACCESS_GRANT_REVOKED_BY_SUBSCRIPTION",
+        }),
+      }),
+    );
   });
 
   // ── B. User status handling ────────────────────────────────────────────

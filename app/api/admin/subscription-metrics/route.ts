@@ -18,6 +18,16 @@ interface HotmartPageInfo {
   results_per_page: number;
 }
 
+interface HotmartSalesSummaryItem {
+  total_items: number;
+  total_value: { value: number; currency_code: string };
+}
+
+interface HotmartSalesSummaryResponse {
+  items: HotmartSalesSummaryItem[];
+  page_info: HotmartPageInfo;
+}
+
 interface HotmartSubscriptionsResponse {
   items: Array<{
     subscription_id: number;
@@ -46,23 +56,36 @@ async function countByStatus(
       { params },
     );
     return data.page_info?.total_results ?? 0;
-  } catch {
+  } catch (err) {
+    log.error("countByStatus failed", {
+      status,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return 0;
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireAdmin();
   if (!isAuthed(auth)) return auth;
 
   try {
     const productId = await getSetting(SETTING_KEYS.HOTMART_PRODUCT_ID);
 
+    const url = new URL(req.url);
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfMonthMs = startOfMonth.getTime();
+    const year = parseInt(url.searchParams.get("year") ?? String(now.getFullYear()), 10);
+    const month = parseInt(url.searchParams.get("month") ?? String(now.getMonth() + 1), 10); // 1-based
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
-    // Parallel calls to get counts by status + recent active subscriptions
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = isCurrentMonth ? now : new Date(year, month, 1); // exclusive end for faturado/liquidado
+    const fullMonthEnd = new Date(year, month, 1); // always full month end — used for previsto window
+    const startOfMonthMs = startOfMonth.getTime();
+    const endOfMonthMs = endOfMonth.getTime();
+    const fullMonthEndMs = fullMonthEnd.getTime();
+
+    // Parallel calls to get counts by status
     const [
       active,
       cancelledByCustomer,
@@ -99,17 +122,14 @@ export async function GET() {
 
     let newThisMonth = 0;
     let cancelledThisMonth = 0;
+    let revenueApprovedThisMonthCents = 0; // APPROVED comprados no mês (para somar no faturado)
+    let revenueApprovedCents = 0;          // APPROVED onde data+7d cai no mês (previsto)
+    let revenueCompletedCents = 0;         // COMPLETE liquidados no mês
 
     try {
-      // Get subscriptions created this month (any status, accession_date >= start of month)
       const recentData = await hotmartRequest<HotmartSubscriptionsResponse>(
         "/payments/api/v1/subscriptions",
-        {
-          params: {
-            ...recentParams,
-            accession_date: startOfMonthMs,
-          },
-        },
+        { params: { ...recentParams, accession_date: startOfMonthMs } },
       );
       newThisMonth =
         recentData.page_info?.total_results ?? recentData.items?.length ?? 0;
@@ -118,7 +138,6 @@ export async function GET() {
     }
 
     try {
-      // Get cancelled subscriptions this month
       const cancelledData = await hotmartRequest<HotmartSubscriptionsResponse>(
         "/payments/api/v1/subscriptions",
         {
@@ -136,6 +155,54 @@ export async function GET() {
     } catch {
       // Silent fallback
     }
+
+    // Fetch all 3 revenue views in parallel
+    const SETTLE_DAYS_MS = 7 * 24 * 60 * 60 * 1000; // janela de estorno Hotmart = 7 dias
+
+    const salesBase: Record<string, string | number> = {
+      start_date: startOfMonthMs,
+      end_date: endOfMonthMs,
+    };
+    if (productId) salesBase.product_id = productId;
+
+    await Promise.all([
+      // Faturado (compras do mês) — APPROVED no período selecionado
+      hotmartRequest<HotmartSalesSummaryResponse>(
+        "/payments/api/v1/sales/summary",
+        { params: { ...salesBase, transaction_status: "APPROVED" } },
+      ).then((s) => {
+        const brl = s.items?.find((i) => i.total_value?.currency_code === "BRL");
+        revenueApprovedThisMonthCents = brl ? Math.round(brl.total_value.value * 100) : 0;
+      }).catch(() => {}),
+
+      // Liquidado — COMPLETE que liquidou no período (Hotmart filtra pela data de liquidação)
+      hotmartRequest<HotmartSalesSummaryResponse>(
+        "/payments/api/v1/sales/summary",
+        { params: { ...salesBase, transaction_status: "COMPLETE" } },
+      ).then((s) => {
+        const brl = s.items?.find((i) => i.total_value?.currency_code === "BRL");
+        revenueCompletedCents = brl ? Math.round(brl.total_value.value * 100) : 0;
+      }).catch(() => {}),
+
+      // Previsto — APPROVED onde data_compra + 7 dias cai dentro do mês
+      // Usa fullMonthEnd (sempre o fim real do mês, não "now") para capturar
+      // todas as compras cujo prazo de liquidação cai dentro do mês selecionado.
+      // O filtro APPROVED exclui automaticamente o que já liquidou.
+      hotmartRequest<HotmartSalesSummaryResponse>(
+        "/payments/api/v1/sales/summary",
+        {
+          params: {
+            ...(productId ? { product_id: productId } : {}),
+            transaction_status: "APPROVED",
+            start_date: startOfMonthMs - SETTLE_DAYS_MS,
+            end_date: fullMonthEndMs - SETTLE_DAYS_MS,
+          },
+        },
+      ).then((s) => {
+        const brl = s.items?.find((i) => i.total_value?.currency_code === "BRL");
+        revenueApprovedCents = brl ? Math.round(brl.total_value.value * 100) : 0;
+      }).catch(() => {}),
+    ]);
 
     const monthNames = [
       "Janeiro",
@@ -161,8 +228,10 @@ export async function GET() {
       totalSubscribers: total,
       newThisMonth,
       cancelledThisMonth,
-      revenueThisMonthCents: 0,
-      periodLabel: `${monthNames[now.getMonth()]} ${now.getFullYear()}`,
+      revenueThisMonthCents: revenueApprovedThisMonthCents + revenueCompletedCents,
+      revenueApprovedCents,
+      revenueCompletedCents,
+      periodLabel: `${monthNames[month - 1]} ${year}`,
       lastSyncAt: null,
     });
   } catch (error) {

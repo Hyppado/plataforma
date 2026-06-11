@@ -31,6 +31,12 @@ export default function AdminPage() {
   const [subscriberTab, setSubscriberTab] = useState(0);
   const [subscriberSearch, setSubscriberSearch] = useState("");
   const [activeTab, setActiveTab] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => new Date().getMonth() + 1,
+  );
+  const [selectedYear, setSelectedYear] = useState(() =>
+    new Date().getFullYear(),
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -47,7 +53,7 @@ export default function AdminPage() {
                 : "nao_finalizadas";
       const [subsData, metricsData] = await Promise.all([
         getSubscribers(statusFilter, 1, 100, subscriberSearch || undefined),
-        getSubscriptionMetrics(),
+        getSubscriptionMetrics(selectedMonth, selectedYear),
       ]);
       setSubscribers(subsData.subscribers);
       setTotalSubscribers(subsData.pagination.total);
@@ -57,7 +63,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [subscriberTab, subscriberSearch]);
+  }, [subscriberTab, subscriberSearch, selectedMonth, selectedYear]);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -114,7 +120,15 @@ export default function AdminPage() {
 
       {activeTab === 0 && (
         <Grid container spacing={3}>
-          <MetricsCards metrics={metrics} />
+          <MetricsCards
+            metrics={metrics}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            onMonthChange={(m, y) => {
+              setSelectedMonth(m);
+              setSelectedYear(y);
+            }}
+          />
 
           <SubscribersTable
             subscribers={subscribers}

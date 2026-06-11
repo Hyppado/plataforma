@@ -12,6 +12,7 @@ node_modules/
 .env.cleanup
 .env.preview
 .env.production
+.env.bak-*
 
 # Local-only scripts
 Makefile

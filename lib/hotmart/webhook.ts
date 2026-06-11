@@ -183,6 +183,8 @@ export function extractWebhookFields(
   const purchaseStatus = str(purchase?.status);
   const isSubscription = bool(purchase?.is_subscription);
   const recurrenceNumber = num(purchase?.recurrence_number);
+  // Hotmart webhook sends price.value already in cents (e.g. 9990 = R$99,90).
+  // Note: the Plans REST API uses the main currency unit and requires * 100 — these are different APIs.
   const amountCents = num(purchase?.price?.value);
   const currency = str(purchase?.price?.currency_value ?? purchase?.currency);
   const paymentType = str(purchase?.payment?.type);

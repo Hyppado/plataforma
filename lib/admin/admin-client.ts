@@ -101,7 +101,10 @@ export async function getSubscribers(
 /**
  * Get subscription metrics (real aggregated counts from DB).
  */
-export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
+export async function getSubscriptionMetrics(
+  month?: number,
+  year?: number,
+): Promise<SubscriptionMetrics> {
   const empty: SubscriptionMetrics = {
     activeSubscribers: 0,
     canceledSubscribers: 0,
@@ -112,11 +115,17 @@ export async function getSubscriptionMetrics(): Promise<SubscriptionMetrics> {
     newThisMonth: 0,
     cancelledThisMonth: 0,
     revenueThisMonthCents: 0,
+    revenueApprovedCents: 0,
+    revenueCompletedCents: 0,
     periodLabel: "",
     lastSyncAt: null,
   };
   try {
-    const res = await fetch("/api/admin/subscription-metrics");
+    const params = new URLSearchParams();
+    if (month != null) params.set("month", String(month));
+    if (year != null) params.set("year", String(year));
+    const qs = params.toString();
+    const res = await fetch(`/api/admin/subscription-metrics${qs ? `?${qs}` : ""}`);
     if (!res.ok) return empty;
     return await res.json();
   } catch {
