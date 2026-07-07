@@ -76,7 +76,12 @@ export interface SubscriptionMetrics {
   totalSubscribers: number;
   newThisMonth: number;
   cancelledThisMonth: number;
+  /** Faturado no período: APPROVED + COMPLETE (total gerado no mês) */
   revenueThisMonthCents: number;
+  /** Aprovado no período (pendente de liquidar — previsto) */
+  revenueApprovedCents: number;
+  /** Liquidado no período (COMPLETE — janela de estorno encerrada) */
+  revenueCompletedCents: number;
   periodLabel: string;
   lastSyncAt?: string | null;
 }

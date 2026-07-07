@@ -454,10 +454,35 @@ export async function handleApproved(
     });
   }
 
-  // F. Access — runtime-driven via resolveUserAccess() in lib/access/resolver.ts
+  // F. Courtesy grant cleanup — a paying subscription supersedes any admin
+  //    courtesy grant. Revoke active grants so the account becomes a real
+  //    subscriber (type derivation stops treating it as courtesy). Idempotent:
+  //    on renewals the grant is already revoked, so count is 0 and we skip the log.
+  const revokedGrants = await prisma.accessGrant.updateMany({
+    where: { userId: identity.userId, isActive: true },
+    data: { isActive: false, revokedAt: new Date(), revokedBy: "system" },
+  });
+  if (revokedGrants.count > 0) {
+    await prisma.auditLog.create({
+      data: {
+        userId: identity.userId,
+        actorId: "system",
+        action: "ACCESS_GRANT_REVOKED_BY_SUBSCRIPTION",
+        entityType: "User",
+        entityId: identity.userId,
+        after: {
+          revokedGrants: revokedGrants.count,
+          trigger: "PURCHASE_APPROVED",
+          transactionId: fields.transactionId,
+        },
+      },
+    });
+  }
+
+  // G. Access — runtime-driven via resolveUserAccess() in lib/access/resolver.ts
   //    Active subscription → FULL_ACCESS. No derived state to persist.
 
-  // G. Audit trail
+  // H. Audit trail
   await prisma.auditLog.create({
     data: {
       userId: identity.userId,
@@ -843,6 +868,14 @@ async function _processEvent(
               : undefined,
           chargeAt: fields.occurredAt,
         },
+      });
+    }
+
+    // 3b. Revoke AccessGrant on refund/chargeback — money returned means access ends immediately.
+    if (IMMEDIATE_REVOCATION_EVENTS.has(eventType)) {
+      await prisma.accessGrant.updateMany({
+        where: { userId: identity.userId, isActive: true },
+        data: { isActive: false },
       });
     }
 

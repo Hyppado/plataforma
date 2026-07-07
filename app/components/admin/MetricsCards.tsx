@@ -7,11 +7,15 @@ import {
   Divider,
   Stack,
   Box,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import {
   PersonOutlined,
   TrendingUpOutlined,
   AttachMoneyOutlined,
+  ChevronLeftOutlined,
+  ChevronRightOutlined,
 } from "@mui/icons-material";
 import type { SubscriptionMetrics } from "@/lib/types/admin";
 
@@ -36,9 +40,54 @@ const cardStyle = {
 
 interface MetricsCardsProps {
   metrics: SubscriptionMetrics | null;
+  /** 1-based month currently selected */
+  selectedMonth?: number;
+  /** Full year currently selected */
+  selectedYear?: number;
+  /** Navigate to previous/next month */
+  onMonthChange?: (month: number, year: number) => void;
 }
 
-export function MetricsCards({ metrics }: MetricsCardsProps) {
+const MONTH_LABELS = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
+export function MetricsCards({
+  metrics,
+  selectedMonth,
+  selectedYear,
+  onMonthChange,
+}: MetricsCardsProps) {
+  const now = new Date();
+  const month = selectedMonth ?? now.getMonth() + 1;
+  const year = selectedYear ?? now.getFullYear();
+  const isCurrentMonth =
+    month === now.getMonth() + 1 && year === now.getFullYear();
+
+  const goPrev = () => {
+    if (!onMonthChange) return;
+    const m = month === 1 ? 12 : month - 1;
+    const y = month === 1 ? year - 1 : year;
+    onMonthChange(m, y);
+  };
+  const goNext = () => {
+    if (!onMonthChange || isCurrentMonth) return;
+    const m = month === 12 ? 1 : month + 1;
+    const y = month === 12 ? year + 1 : year;
+    onMonthChange(m, y);
+  };
+
   return (
     <>
       {/* Subscription Metrics */}
@@ -179,9 +228,41 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
           <CardHeader
             avatar={<AttachMoneyOutlined sx={{ color: "#81C784" }} />}
             title="Receita do Mês"
-            subheader={metrics?.periodLabel ?? ""}
+            subheader={
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <Tooltip title="Mês anterior">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={goPrev}
+                      disabled={!onMonthChange}
+                      sx={{ color: "rgba(255,255,255,0.6)", p: 0.25 }}
+                    >
+                      <ChevronLeftOutlined fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Typography
+                  variant="body2"
+                  sx={{ minWidth: 110, textAlign: "center" }}
+                >
+                  {`${MONTH_LABELS[month - 1]} ${year}`}
+                </Typography>
+                <Tooltip title="Próximo mês">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={goNext}
+                      disabled={!onMonthChange || isCurrentMonth}
+                      sx={{ color: "rgba(255,255,255,0.6)", p: 0.25 }}
+                    >
+                      <ChevronRightOutlined fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
             titleTypographyProps={{ fontWeight: 600, fontSize: "1rem" }}
-            subheaderTypographyProps={{ fontSize: "0.8rem" }}
           />
           <CardContent>
             <Stack spacing={2}>
@@ -190,7 +271,7 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
                   variant="body2"
                   sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
                 >
-                  Total Recebido
+                  Faturado (total do período)
                 </Typography>
                 <Typography
                   variant="h3"
@@ -199,6 +280,58 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
                   {metrics
                     ? formatCurrency(metrics.revenueThisMonthCents)
                     : "—"}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "rgba(255,255,255,0.4)" }}
+                >
+                  Aprovado + liquidado no período
+                </Typography>
+              </Box>
+              <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
+              <Box>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
+                >
+                  Liquidado (concluído)
+                </Typography>
+                <Typography
+                  variant="h4"
+                  sx={{ color: "primary.main", fontWeight: 700 }}
+                >
+                  {metrics
+                    ? formatCurrency(metrics.revenueCompletedCents)
+                    : "—"}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "rgba(255,255,255,0.4)" }}
+                >
+                  Após janela de estorno (pode incluir compras anteriores)
+                </Typography>
+              </Box>
+              <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
+              <Box>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.5)", mb: 0.5 }}
+                >
+                  Previsto (pendente)
+                </Typography>
+                <Typography
+                  variant="h4"
+                  sx={{ color: "#FFB74D", fontWeight: 700 }}
+                >
+                  {metrics
+                    ? formatCurrency(metrics.revenueApprovedCents)
+                    : "—"}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "rgba(255,255,255,0.4)" }}
+                >
+                  Aprovado, ainda dentro da janela de estorno
                 </Typography>
               </Box>
             </Stack>

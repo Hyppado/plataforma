@@ -9,9 +9,17 @@ import { NextResponse } from "next/server";
 // ---------------------------------------------------------------------------
 
 function buildCsp(nonce: string): string {
+  // In development, Next.js Fast Refresh / HMR evaluates code via eval(), which
+  // a strict CSP blocks — breaking hydration (data never loads, click handlers
+  // like logout never attach). Allow 'unsafe-eval' in dev only; production stays
+  // strict (no eval is emitted in a production build).
+  const scriptSrc =
+    process.env.NODE_ENV === "production"
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`;
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    scriptSrc,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     [
@@ -65,6 +73,20 @@ export default withAuth(
       }
       const res = NextResponse.redirect(
         new URL("/login?error=account_deleted", req.url),
+      );
+      res.headers.set("Content-Security-Policy", csp);
+      return res;
+    }
+
+    // Block deactivated sessions (status no longer ACTIVE / access revoked).
+    // The jwt callback flags the token as deactivated; bounce the user to the
+    // login page instead of leaving them stuck on a session that loads no data.
+    if (token?.deactivated) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Sessão expirada" }, { status: 401 });
+      }
+      const res = NextResponse.redirect(
+        new URL("/login?error=session_expired", req.url),
       );
       res.headers.set("Content-Security-Policy", csp);
       return res;

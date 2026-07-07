@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { resolveUserAccess } from "@/lib/access/resolver";
+import { createLogger } from "@/lib/logger";
+
+const authLog = createLogger("auth");
 
 // ---------------------------------------------------------------------------
 // Auth helpers — eliminate boilerplate across API routes
@@ -181,23 +185,60 @@ export const authOptions: NextAuthOptions = {
       // Periodically re-check the user's account status so that deactivated /
       // suspended / deleted accounts lose access within STATUS_CHECK_INTERVAL
       // seconds without waiting for the full session to expire.
+      //
+      // IMPORTANT: this block must NEVER throw — an exception in the jwt
+      // callback breaks every /api/auth/* endpoint (session, signout, csrf),
+      // which would both block data loading and silently break logout. Any
+      // transient DB/resolver failure is swallowed and the existing token is
+      // kept (fail-safe: do not lock the user out on a transient error).
       if (token.userId) {
         const now = Math.floor(Date.now() / 1000);
         const lastCheck = token.statusCheckedAt ?? 0;
         if (now - lastCheck >= STATUS_CHECK_INTERVAL) {
-          const fresh = await prisma.user.findUnique({
-            where: { id: token.userId as string },
-            select: { status: true, deletedAt: true, mustChangePassword: true, role: true },
-          });
-          token.statusCheckedAt = now;
-          if (!fresh || fresh.status !== "ACTIVE" || fresh.deletedAt !== null) {
-            token.deactivated = true;
-          } else {
-            token.deactivated = false;
-            token.mustChangePassword = fresh.mustChangePassword;
-            // Refresh role so that role changes (e.g. USER → ADMIN) take effect
-            // within STATUS_CHECK_INTERVAL without requiring re-login.
-            token.role = fresh.role;
+          try {
+            const fresh = await prisma.user.findUnique({
+              where: { id: token.userId as string },
+              select: {
+                status: true,
+                deletedAt: true,
+                mustChangePassword: true,
+                role: true,
+              },
+            });
+            token.statusCheckedAt = now;
+            if (
+              !fresh ||
+              fresh.status !== "ACTIVE" ||
+              fresh.deletedAt !== null
+            ) {
+              token.deactivated = true;
+            } else {
+              token.deactivated = false;
+              token.mustChangePassword = fresh.mustChangePassword;
+              // Refresh role so that role changes (e.g. USER → ADMIN) take effect
+              // within STATUS_CHECK_INTERVAL without requiring re-login.
+              token.role = fresh.role;
+
+              // For non-admin users: verify subscription/grant access is still
+              // valid. Deactivates the session immediately if access was revoked
+              // (e.g. refund).
+              if (fresh.role !== "ADMIN") {
+                const access = await resolveUserAccess(token.userId as string);
+                if (
+                  access.status === "NO_ACCESS" ||
+                  access.status === "SUSPENDED"
+                ) {
+                  token.deactivated = true;
+                }
+              }
+            }
+          } catch (err) {
+            // Swallow: keep the current token untouched and retry on the next
+            // request after STATUS_CHECK_INTERVAL (statusCheckedAt unchanged).
+            authLog.error("Periodic status check failed", {
+              userId: token.userId,
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
         }
       }
@@ -208,11 +249,18 @@ export const authOptions: NextAuthOptions = {
         const now = Math.floor(Date.now() / 1000);
         // Skip if we just refreshed from the periodic check above.
         if (now - (token.statusCheckedAt ?? 0) > 5) {
-          const fresh = await prisma.user.findUnique({
-            where: { id: token.userId as string },
-            select: { mustChangePassword: true },
-          });
-          if (fresh) token.mustChangePassword = fresh.mustChangePassword;
+          try {
+            const fresh = await prisma.user.findUnique({
+              where: { id: token.userId as string },
+              select: { mustChangePassword: true },
+            });
+            if (fresh) token.mustChangePassword = fresh.mustChangePassword;
+          } catch (err) {
+            authLog.error("mustChangePassword refresh failed", {
+              userId: token.userId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
       }
 

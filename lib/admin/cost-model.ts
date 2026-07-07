@@ -286,3 +286,83 @@ export function calcPlanCost(
     marginPercent,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Real usage cost (based on recorded UsageEvents, not plan quotas)
+// ---------------------------------------------------------------------------
+
+/**
+ * Blended cost (USD) per AVATAR_VIDEO_GENERATION event.
+ * Avatar Video = 2 Gemini images + GPT-4o VEO prompt.
+ * Influencer IA = 1 Gemini image + GPT-4o VEO prompt.
+ * These events are not always distinguishable when aggregating, so we use the
+ * Avatar Video assumption (2 images) as a slightly conservative upper estimate.
+ */
+export const AVATAR_GENERATION_COST_USD =
+  AVATAR_IMAGES_PER_CREATION * UNIT_COSTS_USD.geminiImagePerImage +
+  (AVATAR_VEO_INPUT_TOKENS / 1000) * UNIT_COSTS_USD.gpt4oInputPer1kTokens +
+  (AVATAR_VEO_OUTPUT_TOKENS / 1000) * UNIT_COSTS_USD.gpt4oOutputPer1kTokens;
+
+/**
+ * Default output tokens assumed for an insight/script call when the recorded
+ * `tokensUsed` is 0 (some events were stored without a token count).
+ */
+const DEFAULT_LLM_OUTPUT_TOKENS = 1200;
+
+export interface UsageCostBreakdown {
+  transcriptCostUsd: number;
+  insightCostUsd: number;
+  scriptCostUsd: number;
+  avatarVideoCostUsd: number;
+  totalUsd: number;
+}
+
+/**
+ * Computes the real AI cost (USD) of recorded usage, based on event counts and
+ * recorded output tokens. Pure — no DB access. Mirrors `calcPlanCost` unit
+ * assumptions but is driven by actual consumption instead of plan quotas.
+ */
+export function calcUsageCostUsd(input: {
+  transcripts: number;
+  insights: number;
+  insightTokens: number;
+  scripts: number;
+  scriptTokens: number;
+  avatarVideos: number;
+}): UsageCostBreakdown {
+  const transcriptCostUsd =
+    input.transcripts * UNIT_COSTS_USD.whisperPerTranscript;
+
+  const insightOutputTokens =
+    input.insightTokens > 0
+      ? input.insightTokens
+      : input.insights * DEFAULT_LLM_OUTPUT_TOKENS;
+  const insightCostUsd =
+    input.insights *
+      (AVG_OPENAI_MINI_INPUT_TOKENS / 1000) *
+      UNIT_COSTS_USD.gpt4oMiniInputPer1kTokens +
+    (insightOutputTokens / 1000) * UNIT_COSTS_USD.gpt4oMiniOutputPer1kTokens;
+
+  const scriptOutputTokens =
+    input.scriptTokens > 0
+      ? input.scriptTokens
+      : input.scripts * DEFAULT_LLM_OUTPUT_TOKENS;
+  const scriptCostUsd =
+    input.scripts *
+      (AVG_OPENAI_MINI_INPUT_TOKENS / 1000) *
+      UNIT_COSTS_USD.gpt4oMiniInputPer1kTokens +
+    (scriptOutputTokens / 1000) * UNIT_COSTS_USD.gpt4oMiniOutputPer1kTokens;
+
+  const avatarVideoCostUsd = input.avatarVideos * AVATAR_GENERATION_COST_USD;
+
+  const totalUsd =
+    transcriptCostUsd + insightCostUsd + scriptCostUsd + avatarVideoCostUsd;
+
+  return {
+    transcriptCostUsd,
+    insightCostUsd,
+    scriptCostUsd,
+    avatarVideoCostUsd,
+    totalUsd,
+  };
+}
