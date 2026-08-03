@@ -204,7 +204,7 @@ Veja mais em [docs/autenticacao.md](docs/autenticacao.md).
 - `develop` → ambiente **Preview** no Vercel
 - `main` → ambiente **Production** no Vercel
 
-O GitHub Action `auto-deploy.yml` avança `main` até `develop` automaticamente após CI passar. Migrações de banco são aplicadas automaticamente no deploy via `prisma migrate deploy`.
+O GitHub Action `auto-deploy.yml` avança `main` até `develop` automaticamente após CI passar. Migrações de banco são aplicadas automaticamente no build do Vercel — `prisma migrate deploy` faz parte do `buildCommand` em `vercel.json`, e cada ambiente (Preview / Production) migra o seu próprio banco.
 
 Veja mais em [docs/deploy.md](docs/deploy.md).
 
