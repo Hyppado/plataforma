@@ -68,6 +68,23 @@ const NAV_SECTIONS: Array<{
     ],
   },
   {
+    label: "SHOPEE",
+    items: [
+      {
+        label: "Ranking Shopee",
+        icon: Whatshot,
+        href: "/dashboard/shopee/ranking",
+        badge: "novo",
+      },
+      {
+        label: "Achadinhos Shopee - Videos",
+        icon: AutoAwesome,
+        href: "/dashboard/shopee/achadinhos",
+        badge: "novo",
+      },
+    ],
+  },
+  {
     label: "FERRAMENTAS",
     items: [
       {

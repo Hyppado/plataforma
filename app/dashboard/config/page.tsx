@@ -28,6 +28,7 @@ import { GoogleAITab } from "@/app/components/admin/google-ai/GoogleAITab";
 import { UsersTab } from "@/app/components/admin/users/UsersTab";
 import { AvatarVideoTab } from "@/app/components/admin/avatar-video/AvatarVideoTab";
 import { PromptLibraryTab } from "@/app/components/admin/prompt-library/PromptLibraryTab";
+import { ShopeeConfigTab } from "@/app/components/admin/shopee/ShopeeConfigTab";
 import CircularProgress from "@mui/material/CircularProgress";
 
 export default function ConfigPage() {
@@ -134,6 +135,7 @@ export default function ConfigPage() {
         <Tab label="Google AI" />
         <Tab label="Vídeo com Avatar" />
         <Tab label="Biblioteca de Prompts" />
+        <Tab label="Shopee" />
       </Tabs>
 
       {/* Tab 0 — Geral (Prompts) */}
@@ -178,6 +180,9 @@ export default function ConfigPage() {
 
       {/* Tab 7 — Biblioteca de Prompts */}
       {activeTab === 7 && <PromptLibraryTab />}
+
+      {/* Tab 8 — Shopee */}
+      {activeTab === 8 && <ShopeeConfigTab />}
     </Box>
   );
 }

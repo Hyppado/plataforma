@@ -843,21 +843,26 @@ function InfluencerIAWizard() {
   const initProductName = searchParams.get("productName");
   const initProductCategory = searchParams.get("productCategory");
   const initProductId = searchParams.get("productId");
+  const initShopeeProductId = searchParams.get("shopeeProductId");
+  const initShopeeProductImageUrl = searchParams.get("productImageUrl");
+  const initShopeeProductName = searchParams.get("productName");
+  const initShopeeProductPrice = searchParams.get("productPrice");
+  const initShopeeProductCategory = searchParams.get("productCategory");
 
   // ── Section collapse state ─────────────────────────────────────
   // All sections start collapsed by default.
   // Exception: if the user enters with a product already chosen via query
-  // params (?productId / ?productImageUrl), sec1 starts expanded so they
-  // can confirm the pre-selected product.
+  // params (?productId / ?productImageUrl / ?shopeeProductId), sec1 starts
+  // expanded so they can confirm the pre-selected product.
   const [sec1Open, setSec1Open] = useState(
-    !!(initProductId || initProductImageUrl),
+    !!(initProductId || initProductImageUrl || initShopeeProductId),
   );
   const [sec2Open, setSec2Open] = useState(false);
   const [sec3Open, setSec3Open] = useState(false);
 
   // ── Product state ──────────────────────────────────────────────
   const [productTab, setProductTab] = useState<number>(
-    initProductImageUrl ? 1 : 0,
+    initShopeeProductId ? 2 : initProductImageUrl ? 1 : 0,
   );
   const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(
     null,
@@ -1365,6 +1370,58 @@ function InfluencerIAWizard() {
       .catch(() => {});
   }, [initProductId, allProducts, loadingProducts, doReset]);
 
+  // Auto-select product from Shopee deep-link query params
+  const hasAutoSelectedShopee = useRef(false);
+  useEffect(() => {
+    if (!initShopeeProductId || hasAutoSelectedShopee.current) return;
+
+    hasAutoSelectedShopee.current = true;
+
+    // Constrói um ProductDTO artificial com os dados vindos da Shopee
+    const shopeeProduct: ProductDTO = {
+      id: initShopeeProductId,
+      name: initShopeeProductName ?? "Produto Shopee",
+      imageUrl: initShopeeProductImageUrl ?? "",
+      category: initShopeeProductCategory ?? "",
+      priceBRL: initShopeeProductPrice ? parseFloat(initShopeeProductPrice) : 0,
+      launchDate: "",
+      rating: 0,
+      sales: 0,
+      avgPriceBRL: initShopeeProductPrice ? parseFloat(initShopeeProductPrice) : 0,
+      commissionRate: 0,
+      revenueBRL: 0,
+      liveRevenueBRL: 0,
+      videoRevenueBRL: 0,
+      mallRevenueBRL: 0,
+      currency: "BRL",
+      creatorCount: 0,
+      creatorConversionRate: 0,
+      sourceUrl: "",
+      tiktokUrl: "",
+      dateRange: "",
+    };
+
+    if (sessionHasContent.current) {
+      setConfirmDialog({
+        title: "Trocar de produto?",
+        body: `Você tem uma sessão em andamento. Carregar "${shopeeProduct.name}" vai reiniciar o fluxo. Deseja continuar?`,
+        onConfirm: () => {
+          doReset();
+          setSelectedProduct(shopeeProduct);
+        },
+      });
+    } else {
+      setSelectedProduct(shopeeProduct);
+    }
+  }, [
+    initShopeeProductId,
+    initShopeeProductName,
+    initShopeeProductImageUrl,
+    initShopeeProductPrice,
+    initShopeeProductCategory,
+    doReset,
+  ]);
+
   // ── Avatars ────────────────────────────────────────────────────
   const { avatars, isLoading: loadingAvatars } = useAvatarProfiles();
 
@@ -1752,6 +1809,10 @@ function InfluencerIAWizard() {
                     label="Upload"
                     sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
                   />
+                  <Tab
+                    label="Top Produtos Shopee"
+                    sx={{ minHeight: 36, py: 0.5, fontSize: "0.8rem" }}
+                  />
                 </Tabs>
 
                 {productTab === 0 ? (
@@ -2085,6 +2146,78 @@ function InfluencerIAWizard() {
                           Próxima →
                         </Button>
                       </Box>
+                    )}
+                  </Box>
+                ) : productTab === 2 ? (
+                  /* ── Tab: Top Produtos Shopee ── */
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      p: 2,
+                      maxHeight: 320,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {selectedProduct ? (
+                      /* Já selecionado automaticamente via query params */
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                        <Box
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 1.5,
+                            overflow: "hidden",
+                            flexShrink: 0,
+                            border: "1px solid",
+                            borderColor: "primary.dark",
+                          }}
+                        >
+                          <img
+                            src={selectedProduct.imageUrl}
+                            alt={selectedProduct.name}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block",
+                            }}
+                          />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.15 }}>
+                            <CheckCircle sx={{ fontSize: 12, color: "primary.main" }} />
+                            <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, fontSize: "0.68rem" }}>
+                              Produto Shopee Selecionado
+                            </Typography>
+                          </Box>
+                          <Typography
+                            sx={{
+                              fontSize: "0.78rem",
+                              fontWeight: 600,
+                              color: "text.primary",
+                              lineHeight: 1.3,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {selectedProduct.name}
+                          </Typography>
+                          {selectedProduct.priceBRL > 0 && (
+                            <Typography sx={{ fontSize: "0.72rem", color: "secondary.main", fontWeight: 700 }}>
+                              {formatCurrency(selectedProduct.priceBRL, selectedProduct.currency, usdToBrl)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.disabled" sx={{ textAlign: "center", py: 3 }}>
+                        Selecione um produto Shopee em alta para começar
+                      </Typography>
                     )}
                   </Box>
                 ) : (

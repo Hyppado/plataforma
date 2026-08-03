@@ -19,6 +19,7 @@ import {
 import { MetricsCards } from "@/app/components/admin/MetricsCards";
 import { SubscribersTable } from "@/app/components/admin/SubscribersTable";
 import { CostEstimateTab } from "@/app/components/admin/CostEstimateTab";
+import { ShopeeAdminTab } from "@/app/components/admin/ShopeeAdminTab";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -116,6 +117,7 @@ export default function AdminPage() {
       >
         <Tab label="Assinantes" />
         <Tab label="Custos" />
+        <Tab label="Shopee" />
       </Tabs>
 
       {activeTab === 0 && (
@@ -144,6 +146,7 @@ export default function AdminPage() {
       )}
 
       {activeTab === 1 && <CostEstimateTab />}
+      {activeTab === 2 && <ShopeeAdminTab />}
     </Box>
   );
 }
