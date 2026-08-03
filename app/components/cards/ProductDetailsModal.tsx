@@ -233,7 +233,7 @@ interface ProductDetailsModalProps {
   onClose: () => void;
   /** Base product data (shown immediately) */
   product: ProductDTO;
-  avatarVideoSource?: "products-hype" | "new-products";
+  avatarVideoSource?: "products-hype" | "new-products" | "shopee-ranking";
 }
 
 export function ProductDetailsModal({
@@ -711,7 +711,21 @@ export function ProductDetailsModal({
           variant="contained"
           startIcon={<FaceRetouchingNatural />}
           onClick={() => {
-            router.push(`/dashboard/influencer-ia?productId=${product.id}`);
+            // Verifica se o produto veio da Shopee (via avatarVideoSource)
+            // ou se é um produto do TikTok padrão.
+            // Se for shopee-ranking, usamos o itemId + imageUrl diretamente.
+            if (avatarVideoSource === "shopee-ranking") {
+              // Navega com query params específicos para produto Shopee
+              const params = new URLSearchParams();
+              params.set("shopeeProductId", product.id);
+              params.set("productName", product.name);
+              params.set("productImageUrl", product.imageUrl);
+              params.set("productPrice", String(product.priceBRL || 0));
+              params.set("productCategory", product.category || "");
+              router.push(`/dashboard/influencer-ia?${params.toString()}`);
+            } else {
+              router.push(`/dashboard/influencer-ia?productId=${product.id}`);
+            }
           }}
           sx={{
             background: "linear-gradient(90deg, #FF2D78 0%, #e0256a 100%)",

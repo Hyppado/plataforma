@@ -28,6 +28,14 @@
     {
       "path": "/api/cron/exchange-rate",
       "schedule": "30 16 * * 1-5"
+    },
+    {
+      "path": "/api/cron/shopee?task=ranking",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/shopee?task=achadinhos",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

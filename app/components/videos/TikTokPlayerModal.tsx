@@ -67,6 +67,11 @@ export function TikTokPlayerModal({
           py: 1.5,
           px: 2,
           borderBottom: "1px solid rgba(255,255,255,0.06)",
+          // Garante que o título (com os botões "Abrir"/"X") fique ACIMA
+          // do iframe do TikTok. O iframe tem stacking context próprio e
+          // pode interceptar o clique se o título não tiver z-index.
+          position: "relative",
+          zIndex: 10,
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -109,10 +114,20 @@ export function TikTokPlayerModal({
         <Tooltip title="Fechar">
           <IconButton
             size="small"
-            onClick={onClose}
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            aria-label="Fechar modal de vídeo"
             sx={{
               color: "rgba(255,255,255,0.45)",
               "&:hover": { color: "text.primary" },
+              // z-index reforçado para garantir que o clique chegue ao botão
+              // mesmo sobre o iframe do TikTok.
+              position: "relative",
+              zIndex: 20,
             }}
           >
             <Close sx={{ fontSize: 16 }} />

@@ -20,11 +20,70 @@ export interface EchotikRequestOptions {
   timeout?: number;
   /** Número máx de tentativas (default 3) */
   retries?: number;
+  /**
+   * Se true, NÃO re-tenta quando a EchoTik retorna risk control (code=500).
+   * Usado em chamadas de alta frequência (ex: download-url) para Fast-Fail.
+   */
+  fastFailRiskControl?: boolean;
 }
 
 export interface EchotikError extends Error {
   status?: number;
   body?: string;
+}
+
+/** Envelope padrão de respostas da API EchoTik (code/msg/data) */
+export interface EchotikApiEnvelope {
+  code: number;
+  msg?: string;
+  message?: string;
+  data?: unknown;
+}
+
+// ─── Tipos — Hashtag Video List (Passo 1) ────────────────────────────
+
+export interface EchotikHashtagVideoItem {
+  aweme_id: string;
+  desc?: string;
+  author?: {
+    nickname?: string;
+    unique_id?: string;
+  };
+  video?: {
+    cover?: { url_list?: string[] };
+    play_addr?: { url_list?: string[] };
+  };
+  /** Métricas de engajamento do vídeo (play_count = visualizações) */
+  statistics?: {
+    play_count?: number;
+    digg_count?: number;
+    comment_count?: number;
+    share_count?: number;
+  };
+}
+
+export interface EchotikHashtagVideoResponse extends EchotikApiEnvelope {
+  data?: {
+    aweme_list?: EchotikHashtagVideoItem[];
+    cursor?: number;
+    has_more?: number;
+  };
+}
+
+// ─── Tipos — Video Captions (Passo 2) ────────────────────────────────
+
+export interface EchotikCaptionItem {
+  lang: string;
+  /** Texto inline da legenda (WebVTT) */
+  data?: string;
+  /** URL alternativa para download do arquivo de legenda */
+  url?: string;
+  format?: string;
+  expire?: number;
+}
+
+export interface EchotikCaptionResponse extends EchotikApiEnvelope {
+  data?: EchotikCaptionItem[];
 }
 
 import { createLogger } from "../logger";
@@ -61,6 +120,35 @@ function getBasicAuth(): string {
 /** Espera `ms` milissegundos (para back-off entre retries) */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Backoff exponencial com jitter (fator aleatório) para evitar bater na API
+ * em intervalos exatos e previsíveis (risk control da EchoTik).
+ *
+ * Base: 3s, 6s, 12s, 24s... com fator aleatório 0.6x–1.5x.
+ * Exemplo real: ~3s, ~7s, ~15s, ~30s...
+ */
+function getBackoffDelay(attempt: number): number {
+  const base = Math.min(3000 * 2 ** (attempt - 1), 30000);
+  const jitterFactor = 0.6 + Math.random() * 0.9; // 0.6x–1.5x aleatório
+  return Math.round(base * jitterFactor);
+}
+
+// ---------------------------------------------------------------------------
+// Risk control (code=500 no corpo)
+// ---------------------------------------------------------------------------
+
+/**
+ * Detecta se a resposta parseada é um envelope EchoTik com `code=500`
+ * (risk control). Nesses casos a documentação instrui a re-tentar.
+ * HTTP status costuma ser 200, mas o `code` no corpo é 500.
+ */
+function isRetryableRiskControlCode(data: unknown): boolean {
+  if (typeof data !== "object" || data === null) return false;
+
+  const envelope = data as Partial<EchotikApiEnvelope>;
+  return typeof envelope.code === "number" && envelope.code === 500;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,16 +216,30 @@ export async function echotikRequest<T = unknown>(
           throw err;
         }
 
-        // Quota exceeded → não vale retry (API retorna 500 com esta mensagem)
-        if (body.includes("Usage Limit Exceeded")) {
-          err.message = `[echotik-client] Quota excedida — ${url.pathname}`;
-          throw err;
-        }
-
+        // Status 5xx (incluindo "Usage Limit Exceeded") → vale retry.
+        // A documentação da EchoTik diz que erros 500 NÃO consomem cota
+        // e devem ser re-tentados (risk control).
+        err.message = `[echotik-client] ${res.status} ${res.statusText} — ${url.pathname}`;
         lastError = err;
       } else {
         const data: T = await res.json();
-        return data;
+
+        // Risk control: a documentação da EchoTik diz que endpoints realtime
+        // podem retornar HTTP 200 com `code=500` no corpo (risk control).
+        // Esses erros NÃO consomem cota e devem ser re-tentados.
+        // Porém, se fastFailRiskControl estiver ativo, lança imediatamente.
+        if (isRetryableRiskControlCode(data)) {
+          if (opts.fastFailRiskControl) {
+            throw new Error(
+              `[echotik-client] Risk control code=500 — ${url.pathname} (fast-fail)`,
+            );
+          }
+          lastError = new Error(
+            `[echotik-client] Risk control code=500 — ${url.pathname}`,
+          );
+        } else {
+          return data;
+        }
       }
     } catch (error) {
       clearTimeout(timer);
@@ -154,13 +256,89 @@ export async function echotikRequest<T = unknown>(
       }
     }
 
-    // Back-off exponencial antes de retry
+    // Back-off exponencial com jitter antes de retry
     if (attempt < retries) {
-      const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
+      const delay = getBackoffDelay(attempt);
       log.warn("Retry failed, retrying", { attempt, retries, delayMs: delay });
       await sleep(delay);
     }
   }
 
   throw lastError ?? new Error("[echotik-client] Falha após retries");
+}
+
+// ---------------------------------------------------------------------------
+// Funções de alto nível (Passo 1 e Passo 2 do pipeline Achadinhos)
+// ---------------------------------------------------------------------------
+
+/**
+ * Passo 1 — Busca a lista de vídeos de uma hashtag.
+ *
+ * Endpoint: GET /api/v3/realtime/hashtag/video/list
+ *
+ * ATENÇÃO (Echotik Risk Control):
+ * - O count máximo seguro por chamada é 20. Para pedir mais, use `offset`
+ *   para paginar com um pequeno delay entre as chamadas (ex: ~2s).
+ * - O parâmetro de ordenação (`sortType`) fica PREPARADO para uso futuro,
+ *   mas NÃO é enviado na URL por enquanto — evita erro 400 (Bad Request)
+ *   já que não temos a documentação exata do formato (string vs integer).
+ *   Por padrão, o endpoint já retorna vídeos populares/relevantes.
+ *
+ * @param params.hashtagId — ID numérico da hashtag (ex: "37644733")
+ * @param params.region    — região (ex: "BR" para evitar vídeos EN/ES)
+ * @param params.count     — quantidade de vídeos por chamada (default 20, máx recomendado 20)
+ * @param params.offset    — paginação (default 0)
+ * @param params.sortType  — RESERVADO para uso futuro. Não enviado na URL.
+ * @returns Resposta tipada com `data.aweme_list`
+ */
+export async function fetchVideosByHashtag(params: {
+  hashtagId: string;
+  region?: string;
+  count?: number;
+  offset?: number;
+  /** RESERVADO para uso futuro — não é enviado na URL atualmente */
+  sortType?: string | number;
+}): Promise<EchotikHashtagVideoResponse> {
+  const { hashtagId, region = "BR", count = 20, offset = 0 } = params;
+
+  // NOTA: `sortType` está preparado na assinatura para uso futuro,
+  // mas deliberadamente NÃO é incluído na query-string para evitar
+  // erro 400 (Bad Request) enquanto não confirmamos o formato exato
+  // aceito pela API da EchoTik. Quando documentado, basta adicionar:
+  //   ...(sortType !== undefined && { sort_type: String(sortType) }),
+
+  return echotikRequest<EchotikHashtagVideoResponse>(
+    "/api/v3/realtime/hashtag/video/list",
+    {
+      params: { hashtag_id: hashtagId, region, count, offset },
+      retries: 5,
+      timeout: 20_000,
+    },
+  );
+}
+
+/**
+ * Passo 2 — Extrai as legendas/captions de um vídeo.
+ *
+ * Endpoint: GET /api/v3/realtime/video/captions
+ *
+ * O texto da legenda (WebVTT) fica em `data[0].data`.
+ *
+ * @param videoId — ID do vídeo (aweme_id) obtido no Passo 1
+ * @returns Resposta tipada com `data[]` de legendas
+ */
+export async function fetchVideoCaptions(
+  videoId: string,
+  opts: { retries?: number; timeout?: number } = {},
+): Promise<EchotikCaptionResponse> {
+  const { retries = 5, timeout = 20_000 } = opts;
+
+  return echotikRequest<EchotikCaptionResponse>(
+    "/api/v3/realtime/video/captions",
+    {
+      params: { video_id: videoId },
+      retries,
+      timeout,
+    },
+  );
 }

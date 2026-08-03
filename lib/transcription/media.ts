@@ -155,9 +155,13 @@ export async function getVideoCaptions(
 /**
  * Gets the video download URLs — first checks the DB cache (pre-populated by
  * the cron), then falls back to the Echotik API as a last resort.
+ *
+ * @param videoExternalId - ID do vídeo no TikTok
+ * @param tiktokUrl - URL canônica do vídeo no TikTok (opcional, melhora a resolução)
  */
 export async function getVideoDownloadUrl(
   videoExternalId: string,
+  tiktokUrl?: string | null,
 ): Promise<VideoDownloadUrls | null> {
   // 1. Check cached download URL from cron
   const cached = await getCachedDownloadUrl(videoExternalId);
@@ -170,7 +174,7 @@ export async function getVideoDownloadUrl(
   log.info("No cached download URL, falling back to Echotik API", {
     videoExternalId,
   });
-  return getVideoDownloadUrlFromEchotik(videoExternalId);
+  return getVideoDownloadUrlFromEchotik(videoExternalId, tiktokUrl);
 }
 
 /**
@@ -216,13 +220,22 @@ async function getCachedDownloadUrl(
  */
 async function getVideoDownloadUrlFromEchotik(
   videoExternalId: string,
+  tiktokUrl?: string | null,
 ): Promise<VideoDownloadUrls | null> {
   try {
-    const tiktokUrl = `https://www.tiktok.com/@user/video/${videoExternalId}`;
+    const resolvedUrl = tiktokUrl || `https://www.tiktok.com/@user/video/${videoExternalId}`;
 
+    // Fast-Fail: retries mínimos + lança imediatamente em risk control.
+    // Evita que o cron fique travado minutos esperando backoff exponencial
+    // quando a EchoTik bloqueia o endpoint de download.
     const response = await echotikRequest<EchotikDownloadUrlResponse>(
       "/api/v3/realtime/video/download-url",
-      { params: { url: tiktokUrl }, timeout: 20_000 },
+      {
+        params: { url: resolvedUrl },
+        timeout: 10_000,
+        retries: 1,
+        fastFailRiskControl: true,
+      },
     );
 
     if (response.code !== 0 || !response.data) {

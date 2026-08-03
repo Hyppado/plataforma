@@ -40,7 +40,7 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https://*.tiktokcdn.com https://*.tiktokcdn-us.com https://*.public.blob.vercel-storage.com",
+              "img-src 'self' data: blob: https://*.tiktokcdn.com https://*.tiktokcdn-us.com https://*.public.blob.vercel-storage.com https://*.img.susercontent.com https://*.shopee.com https://*.shopee.com.br https://*.shopeesz.com",
               "media-src 'self' https://*.public.blob.vercel-storage.com",
               "connect-src 'self' https://fonts.googleapis.com https://*.public.blob.vercel-storage.com",
               "frame-src https://www.tiktok.com https://www.youtube.com https://player.vimeo.com https://www.instagram.com",
@@ -60,6 +60,14 @@ const nextConfig = {
       { protocol: "https", hostname: "p19-sign.tiktokcdn-us.com" },
       { protocol: "https", hostname: "*.tiktokcdn.com" },
       { protocol: "https", hostname: "*.tiktokcdn-us.com" },
+      { protocol: "https", hostname: "*.img.susercontent.com" },
+      { protocol: "https", hostname: "down-br.img.susercontent.com" },
+      // Shopee CDNs — wildcards amplos (vários subdomínios de imagem)
+      { protocol: "https", hostname: "*.shopee.com" },
+      { protocol: "https", hostname: "*.shopee.com.br" },
+      { protocol: "https", hostname: "*.shopeesz.com" },
+      { protocol: "https", hostname: "cf.shopee.com.br" },
+      { protocol: "https", hostname: "s-cf-tw.shopeesz.com" },
     ],
   },
   // ---------------------------------------------------------------------------

@@ -48,7 +48,7 @@ interface ProductCardProps {
   product?: ProductDTO;
   onViewDetails?: (product: ProductDTO) => void;
   isLoading?: boolean;
-  avatarVideoSource?: "products-hype" | "new-products";
+  avatarVideoSource?: "products-hype" | "new-products" | "shopee-ranking";
 }
 
 export function ProductCard({
@@ -56,6 +56,8 @@ export function ProductCard({
   onViewDetails,
   isLoading = false,
 }: ProductCardProps) {
+  const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const savedProducts = useSavedProducts();
   const [isPressed, setIsPressed] = useState(false);
   const usdToBrl = useExchangeRate();
@@ -166,19 +168,82 @@ export function ProductCard({
           background: "linear-gradient(135deg, #0d1420 0%, #151c2a 100%)",
         }}
       >
-        <Box
-          component="img"
-          src={product.imageUrl}
-          alt={product.name}
-          loading="lazy"
-          sx={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
+        {!imgLoaded && !imgError && (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(135deg, #0d1420 0%, #151c2a 100%)",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(45,212,255,0.06) 50%, transparent 100%)",
+                animation: "shimmer 2.5s infinite ease-in-out",
+                transform: "translateX(-100%)",
+              },
+              "@keyframes shimmer": {
+                "0%": { transform: "translateX(-100%)" },
+                "100%": { transform: "translateX(100%)" },
+              },
+            }}
+          />
+        )}
+        {imgError ? (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "linear-gradient(135deg, #0d1420 0%, #151c2a 100%)",
+            }}
+          >
+            <Box
+              component="div"
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 1,
+                background: "rgba(255,255,255,0.06)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "rgba(255,255,255,0.2)",
+                fontSize: "0.65rem",
+                fontWeight: 600,
+                textAlign: "center",
+                lineHeight: 1.2,
+                p: 1,
+              }}
+            >
+              Sem imagem
+            </Box>
+          </Box>
+        ) : (
+          <Box
+            component="img"
+            src={product.imageUrl}
+            alt={product.name}
+            loading="lazy"
+            onLoad={() => setImgLoaded(true)}
+            onError={() => {
+              setImgLoaded(false);
+              setImgError(true);
+            }}
+            sx={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              opacity: imgLoaded ? 1 : 0,
+              transition: "opacity 0.3s ease",
+            }}
+          />
+        )}
 
         {/* New badge */}
         {product.isNew && (

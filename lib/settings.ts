@@ -91,6 +91,14 @@ export const SETTING_KEYS = {
   AVATAR_VIDEO_IMAGE_TEMPLATE: "avatar_video.image_template",
   GOOGLE_AI_API_KEY: "google_ai.api_key",
   GOOGLE_AI_MODEL: "google_ai.model",
+  SHOPEE_RANKING_LIMIT: "shopee.ranking_limit",
+  SHOPEE_RANKING_FREQUENCY: "shopee.ranking_frequency",
+  SHOPEE_ACHADINHOS_FREQUENCY: "shopee.achadinhos_frequency",
+  SHOPEE_ACHADINHOS_COUNT: "shopee.achadinhos_count",
+  SHOPEE_ACHADINHOS_HASHTAG_ID: "shopee.achadinhos_hashtag_id",
+  SHOPEE_ACHADINHOS_KEYWORD: "shopee.achadinhos_keyword",
+  SHOPEE_AFFILIATE_APP_ID: "shopee.affiliate_app_id",
+  SHOPEE_AFFILIATE_API_SECRET: "shopee.affiliate_api_secret",
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -1176,3 +1176,62 @@ model InfluencerIADraft {
 
   @@map("influencer_ia_draft")
 }
+
+// ---------------------------------------------------------------------------
+// SHOPEE DOMAIN MODELS
+// ---------------------------------------------------------------------------
+
+model ShopeeProductTrend {
+  id                String    @id @default(uuid())
+  date              DateTime  @db.Date
+  rankPosition      Int       @default(0)
+  productExternalId String    @unique
+  productName       String
+  coverUrl          String?
+  price             Float     @default(0)
+  commissionRate    Float     @default(0)
+  saleCount         Int       @default(0)
+  gmv               Float     @default(0)
+  rating            Float     @default(0)
+  shopName          String?
+  affiliateLink     String?
+  categoryName      String?                         // Categoria pai textual (ex: "Eletrônicos")
+  subCategoryName   String?                         // Subcategoria textual (ex: "Fones de ouvido")
+  categoryId        String?                         // ID numérico da categoria L1 (productCatIds[0])
+  subCategoryId     String?                         // ID numérico da categoria L2 (productCatIds[1])
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([categoryId])
+  @@index([subCategoryId])
+  @@index([categoryName])
+}
+
+model ShopeeAchadinhoProduct {
+  id                String    @id @default(uuid())
+  videoExternalId   String    @unique
+  videoUrl          String?                         // tiktokVideoUrl — URL canônica do TikTok (https://www.tiktok.com/@autor/video/{id})
+  videoTitle        String?
+  coverUrl          String?
+  transcriptText    String?
+  productName       String?
+  category          String?                         // Categoria do produto (vinda da Shopee API)
+  affiliateLink     String?                         // shopeeAffiliateUrl — link de venda/afiliado da Shopee
+  originalAffLink   String?
+  price             Float?                          // Preço do produto (vindo da Shopee)
+  saleCount         Int       @default(0)            // Quantidade de vendas (vinda da Shopee API)
+  commission        Float?                          // Comissão do produto (vinda da Shopee API — commissionRate)
+  views             BigInt    @default(0)            // Visualizações do vídeo (play_count da EchoTik)
+  authorName        String?                         // @handle do autor do vídeo (para URL canônica do TikTok)
+  status            String    @default("PENDING")    // PENDING, PROCESSING, READY, FAILED
+  errorMessage      String?
+  productImageUrl   String?                         // Imagem do produto (vinda do nó Shopee)
+  productPriceMin   Float?                          // Preço mínimo do produto (vindo do nó Shopee)
+  productPriceMax   Float?                          // Preço máximo do produto (vindo do nó Shopee)
+  productLink       String?                         // Link original do produto na Shopee
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([category])
+}
