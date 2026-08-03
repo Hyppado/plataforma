@@ -59,10 +59,16 @@ O CI usa `concurrency: ci-${{ github.ref }}` com `cancel-in-progress: true` — 
 Configurado em `vercel.json`:
 
 ```
-npx prisma generate && next build
+npx prisma migrate deploy && npx prisma generate && next build
 ```
 
-`prisma migrate deploy` **não está no buildCommand** — deve ser executado manualmente antes do deploy quando há novas migrações pendentes (via `npm run db:deploy` apontando para o banco de produção).
+`prisma migrate deploy` roda **antes** do build, então migrações pendentes são aplicadas automaticamente a cada deploy. Como `develop` e `main` usam bancos separados, cada ambiente migra apenas o seu próprio banco (o Vercel injeta o `DATABASE_URL` / `DATABASE_URL_UNPOOLED` do ambiente correspondente).
+
+Detalhes importantes:
+
+- A migração usa `directUrl` (`DATABASE_URL_UNPOOLED`) — o endpoint direto do Neon. Migrações não funcionam de forma confiável pelo pooler, então **`DATABASE_URL_UNPOOLED` deve estar configurada em Preview e Production**.
+- Se `migrate deploy` falhar, o build falha e o deploy é abortado. Isso é intencional: evita publicar código que depende de colunas inexistentes.
+- Como o build só é promovido após a migração, migrações devem ser **aditivas e retrocompatíveis** (ver seção abaixo) — durante a janela entre migrar e trocar o tráfego, a versão antiga do código ainda está no ar.
 
 ### Limites
 
@@ -132,8 +138,9 @@ npx prisma migrate dev
 
 # 5. Commitar o arquivo SQL junto com a mudança no schema
 
-# 6. Aplicar ao banco alvo (antes do deploy — não ocorre automaticamente no Vercel)
-npm run db:deploy
+# 6. Push — o Vercel aplica a migration automaticamente no build do ambiente alvo.
+#    `npm run db:deploy` continua útil para aplicar manualmente (ex: backlog de
+#    migrações pendentes, ou aplicar antes do deploy para validar).
 ```
 
 ### Scripts npm
