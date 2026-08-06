@@ -143,6 +143,39 @@ describe("visibilidade dos botões de revisão", () => {
   });
 });
 
+describe("player de revisão", () => {
+  it("oferece assistir ao vídeo em cada linha", async () => {
+    // O admin precisa ver o vídeo antes de publicar — aprovar às cegas um
+    // par vídeo/produto montado por IA é exatamente o que o gate evita.
+    await renderTab([buildAchadinho()]);
+
+    expect(queryByTooltip(/assistir ao vídeo/i)).toBeTruthy();
+  });
+
+  it("desabilita quando o registro não tem vídeo", async () => {
+    await renderTab([
+      buildAchadinho({ videoUrl: null } as Partial<ShopeeAchadinhoDTO>),
+    ]);
+
+    const btn = queryByTooltip(/sem vídeo/i);
+    expect(btn).toBeTruthy();
+    expect(btn).toBeDisabled();
+  });
+
+  it("abre o player com a URL do TikTok ao clicar", async () => {
+    const user = userEvent.setup();
+    await renderTab([buildAchadinho()]);
+
+    await user.click(queryByTooltip(/assistir ao vídeo/i)!);
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('iframe[src*="tiktok.com/embed"]'),
+      ).toBeTruthy();
+    });
+  });
+});
+
 describe("ação de aprovar", () => {
   it("faz PATCH com action=approve e atualiza a linha", async () => {
     const user = userEvent.setup();

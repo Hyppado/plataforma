@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
+  ButtonBase,
   Table,
   TableBody,
   TableCell,
@@ -42,9 +43,11 @@ import {
   OpenInNew,
   Link as LinkIcon,
   Cancel,
+  PlayArrowRounded,
 } from "@mui/icons-material";
 import { alpha } from "@mui/material/styles";
 import { EditAffiliateModal } from "@/app/components/shopee/EditAffiliateModal";
+import { TikTokPlayerModal } from "@/app/components/videos/TikTokPlayerModal";
 import type {
   ShopeeAchadinhoDTO,
   AchadinhoReviewAction,
@@ -67,6 +70,8 @@ export function ShopeeAdminTab() {
   const [selectedProduct, setSelectedProduct] = useState<ShopeeAchadinhoDTO | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // Player de revisão: o admin precisa assistir ao vídeo antes de publicar
+  const [playing, setPlaying] = useState<ShopeeAchadinhoDTO | null>(null);
 
   const fetchAchadinhos = useCallback(async () => {
     setLoading(true);
@@ -248,6 +253,9 @@ export function ShopeeAdminTab() {
                 STATUS
               </TableCell>
               <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                VÍDEO
+              </TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 PRODUTO
               </TableCell>
               <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
@@ -273,6 +281,56 @@ export function ShopeeAdminTab() {
                 {/* Status */}
                 <TableCell sx={{ color: "#fff", fontSize: "0.75rem" }}>
                   {statusChip(achadinho.status)}
+                </TableCell>
+
+                {/* Vídeo — miniatura clicável para revisar antes de publicar */}
+                <TableCell sx={{ width: 72 }}>
+                  <Tooltip
+                    title={achadinho.videoUrl ? "Assistir ao vídeo" : "Sem vídeo"}
+                    arrow
+                  >
+                    <span>
+                      <ButtonBase
+                        disabled={!achadinho.videoUrl}
+                        onClick={() => setPlaying(achadinho)}
+                        sx={{
+                          position: "relative",
+                          width: 44,
+                          height: 60,
+                          borderRadius: 1,
+                          overflow: "hidden",
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          "&:hover .play-overlay": { opacity: 1 },
+                          "&.Mui-disabled": { opacity: 0.4 },
+                        }}
+                      >
+                        {achadinho.coverUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={achadinho.coverUrl}
+                            alt={achadinho.productName || "capa"}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : null}
+                        <Box
+                          className="play-overlay"
+                          sx={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(0,0,0,0.45)",
+                            opacity: achadinho.coverUrl ? 0 : 1,
+                            transition: "opacity 160ms ease",
+                          }}
+                        >
+                          <PlayArrowRounded sx={{ fontSize: 22, color: "#fff" }} />
+                        </Box>
+                      </ButtonBase>
+                    </span>
+                  </Tooltip>
                 </TableCell>
 
                 {/* Nome do produto */}
@@ -428,7 +486,7 @@ export function ShopeeAdminTab() {
             {/* Estado vazio */}
             {!loading && paginated.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} sx={{ textAlign: "center", py: 4 }}>
+                <TableCell colSpan={6} sx={{ textAlign: "center", py: 4 }}>
                   <Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.8rem" }}>
                     Nenhum achadinho encontrado.
                   </Typography>
@@ -465,6 +523,16 @@ export function ShopeeAdminTab() {
           onClose={handleCloseEdit}
           product={selectedProduct}
           onSuccess={handleEditSuccess}
+        />
+      )}
+
+      {/* Player de revisão — assistir antes de aprovar */}
+      {playing?.videoUrl && (
+        <TikTokPlayerModal
+          open={!!playing}
+          onClose={() => setPlaying(null)}
+          tiktokUrl={playing.videoUrl}
+          videoTitle={playing.productName || playing.videoTitle}
         />
       )}
     </Box>
