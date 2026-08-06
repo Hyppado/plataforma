@@ -58,11 +58,27 @@ function mockList(achadinhos: ShopeeAchadinhoDTO[]) {
   return fetchMock;
 }
 
-/** Espera a tabela terminar de carregar. */
+/**
+ * Renderiza a aba e espera as LINHAS aparecerem.
+ *
+ * Esperar apenas por `fetch` ter sido chamado não basta: o fetch resolve
+ * antes do setState re-renderizar a tabela. Localmente a corrida quase sempre
+ * ganha; no CI (mais lento) falhava de forma intermitente.
+ */
 async function renderTab(achadinhos: ShopeeAchadinhoDTO[]) {
   const fetchMock = mockList(achadinhos);
   render(<ShopeeAdminTab />);
+
   await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+  if (achadinhos.length > 0) {
+    // Espera a primeira linha estar de fato no DOM
+    const first = achadinhos[0];
+    await screen.findByText(
+      (first.productName || first.videoTitle || "—") as string,
+    );
+  }
+
   return fetchMock;
 }
 
