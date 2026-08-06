@@ -48,6 +48,49 @@ export const SHOPEE_DEFAULTS = {
   ACHADINHOS_REGION: "BR",
 } as const;
 
+// ─── Orçamento de tempo (limite de execução da Vercel) ────────────
+//
+// A rota /api/cron/shopee declara maxDuration = 300s. O pipeline é sequencial
+// e um único vídeo no pior caso custa ~230s (captions + download + Whisper
+// 120s + GPT 30s + Shopee 15s + short link 15s). Sem orçamento explícito a
+// função é morta pela plataforma no meio do lote.
+//
+// Estratégia: o lote para sozinho antes do limite e o próximo cron continua
+// de onde parou (os vídeos já processados são pulados).
+
+export const SHOPEE_BUDGET = {
+  /** maxDuration declarado na rota do cron, em ms */
+  FUNCTION_LIMIT_MS: 300_000,
+  /**
+   * Margem de segurança: tempo reservado para encerrar o IngestionRun e
+   * devolver a resposta depois que o laço para.
+   */
+  SAFETY_MARGIN_MS: 30_000,
+  /**
+   * Custo estimado do pior caso de um vídeo. O laço só inicia mais um vídeo
+   * se ainda houver esse tanto de orçamento — evita começar um Whisper de
+   * 120s faltando 20s para o limite.
+   */
+  VIDEO_WORST_CASE_MS: 90_000,
+  /**
+   * Fatia máxima do orçamento gasta buscando a lista da hashtag. A paginação
+   * (blocos de 20 + delay de 2s) pode sozinha levar ~40s para 400 vídeos.
+   */
+  DISCOVERY_BUDGET_MS: 60_000,
+  /**
+   * Cooldown antes de reprocessar um vídeo que falhou. Evita que os mesmos
+   * vídeos ruins consumam todo o orçamento de todas as execuções.
+   */
+  FAILED_RETRY_COOLDOWN_MS: 24 * 60 * 60 * 1000,
+} as const;
+
+/**
+ * Orçamento útil do laço: limite da função menos a margem de segurança.
+ */
+export function achadinhosLoopBudgetMs(): number {
+  return SHOPEE_BUDGET.FUNCTION_LIMIT_MS - SHOPEE_BUDGET.SAFETY_MARGIN_MS;
+}
+
 /**
  * Keywords usadas para popular o ranking de produtos da Shopee.
  * O ranking busca os mais vendidos (sortType: 2) de cada keyword

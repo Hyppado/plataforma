@@ -1,0 +1,57 @@
+# AI-DLC State Tracking
+
+## Project Information
+- **Project Name**: Hyppado
+- **Project Type**: Brownfield
+- **Start Date**: 2026-07-10T00:00:00Z
+- **Current Stage**: CONSTRUCTION — Build and Test complete, ready to deploy
+
+## Workspace State
+- **Existing Code**: Yes
+- **Reverse Engineering Needed**: Re-run completed 2026-08-06 (explicit user request; prior artifacts from 2026-07-10 were stale)
+- **Workspace Root**: /Users/eve/Projetos/hyppado
+- **Branch analyzed**: `develop` @ `87e524b`
+
+## Code Location Rules
+- **Application Code**: Workspace root (NEVER in aidlc-docs/)
+- **Documentation**: aidlc-docs/ only
+- **Structure patterns**: See code-generation.md Critical Rules
+
+## Stage Progress
+
+### INCEPTION PHASE
+- [x] Workspace Detection — Completed 2026-07-10
+- [x] Reverse Engineering — Completed 2026-07-10; **refreshed 2026-08-06** (awaiting user approval)
+  - **Artifacts Location**: aidlc-docs/inception/reverse-engineering/
+  - **Refresh scope**: Shopee vertical (PR #101), build-time Prisma migrations (`c097772`); corrected model count (27 → 42) and cron HTTP methods (POST → GET)
+- [x] Requirements Analysis — Completed 2026-07-10
+- [ ] Workflow Planning — Pending
+
+> **Note**: the Requirements Analysis artifacts predate the Shopee vertical and have not been revisited in this refresh.
+
+### CONSTRUCTION PHASE
+- [x] Code Generation — Shopee defect remediation — Completed 2026-08-06
+  - 7 prioritised defects from `code-quality-assessment.md` closed (item 7 partially by design)
+  - Vercel function-timeout hardening (budget + resumability)
+  - Approval gate (`PENDING → READY`) implemented per user decision
+  - `ShopeeAchadinhoStatus` enum + migration `20260806120000` (includes backlog backfill)
+  - Shopee test coverage: 0 → 165 tests
+- [x] Build and Test — Completed 2026-08-06
+  - **Artifacts**: `aidlc-docs/construction/build-and-test/build-and-test-summary.md`
+  - Typecheck clean; 1179 node + 113 component tests passing; production build succeeds
+
+### Deferred Decisions
+- **Achadinhos cron split** (producer + staged worker, views-desc priority queue) — analysed,
+  deferred pending real `IngestionRun` statistics. Rationale in `audit.md` (2026-08-06T02:30Z).
+- **Shopee GraphQL variables** — needs verification against the live vendor API before switching
+  away from inline queries.
+
+### OPERATIONS PHASE
+- [ ] Not started (placeholder)
+
+## Extension Configuration
+| Extension | Enabled | Decided At |
+|---|---|---|
+| Security Baseline | Yes | Requirements Analysis |
+| Resiliency Baseline | Yes | Requirements Analysis |
+| Property-Based Testing | Yes (Full) | Requirements Analysis |

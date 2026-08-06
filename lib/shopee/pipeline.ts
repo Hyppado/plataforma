@@ -26,6 +26,13 @@
  *    - Echotik: views (play_count) e tiktokVideoUrl (URL canônica)
  *    - Shopee: price, sales, commission, shopeeAffiliateUrl
  * 7. Salva em ShopeeAchadinhoProduct com status PENDING (admin aprova)
+ *
+ * ORÇAMENTO DE TEMPO (limite de execução da Vercel):
+ * O lote roda em série dentro de um orçamento (`processAchadinhosBatch`) e
+ * persiste CADA vídeo antes de passar ao próximo. Se o orçamento acabar, ele
+ * encerra limpo com `partial: true` e a próxima execução do cron continua de
+ * onde parou — vídeos já processados são pulados. Nunca há trabalho pago
+ * (Whisper/GPT) perdido por a função ter sido morta pela plataforma.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -42,6 +49,8 @@ import {
   buildProductExtractionPrompt,
   buildShopeeSearchFallbackLink,
   SHOPEE_DEFAULTS,
+  SHOPEE_BUDGET,
+  achadinhosLoopBudgetMs,
 } from "@/lib/shopee/types";
 import {
   fetchVideosByHashtag,
@@ -52,6 +61,7 @@ import {
   getAchadinhosHashtagId,
   parseViewsFromEchoTikItem,
 } from "@/lib/shopee/client";
+import { mapShopeeCategories } from "@/lib/shopee/shopee-categories";
 
 const log = createLogger("shopee/pipeline");
 
@@ -196,6 +206,7 @@ async function fetchVideosByHashtagPaginated(
   hashtagId: string,
   region: string,
   count: number,
+  discoveryDeadline?: number,
 ): Promise<EchoTikVideoDTO[]> {
   const clampedCount = Math.min(ACHADINHOS_MAX_COUNT, Math.max(ACHADINHOS_MIN_COUNT, count));
   const seenIds = new Set<string>();
@@ -210,6 +221,16 @@ async function fetchVideosByHashtagPaginated(
   let hasMore = true;
 
   while (hasMore && allVideos.length < clampedCount) {
+    // Orçamento de descoberta: parar de paginar se o tempo acabou. Melhor
+    // processar 40 vídeos do que gastar o lote inteiro montando a lista.
+    if (discoveryDeadline && Date.now() >= discoveryDeadline) {
+      log.warn(
+        `Orçamento de descoberta esgotado — seguindo com ${allVideos.length} vídeos`,
+        { hashtagId },
+      );
+      break;
+    }
+
     // Quantidade a pedir neste bloco: no máximo 20, respeitando o total
     const remaining = clampedCount - allVideos.length;
     const pageCount = Math.min(ECHOTIK_PAGE_SIZE, remaining);
@@ -428,7 +449,11 @@ async function findValidShopeeProduct(productName: string) {
  * Merge de dados:
  * - Dados da Echotik: views (play_count), tiktokVideoUrl (videoUrl)
  * - Dados da Shopee: price (preço), sales (vendas), commission (comissão),
- *   shopeeAffiliateUrl (link de venda)
+ *   shopeeAffiliateUrl (link de venda), category (categoria)
+ *
+ * A categoria é resolvida por `mapShopeeCategories`: primeiro pelos
+ * productCatIds retornados pela Shopee, com fallback para o nome do produto
+ * extraído pela IA. Alimenta o filtro de categoria do feed de achadinhos.
  *
  * @param recordId - ID do registro ShopeeAchadinhoProduct
  * @param productName - Nome do produto extraído pela IA
@@ -450,6 +475,14 @@ async function saveProductResult(
   let productLink: string | null = null;
 
   const offer = await findValidShopeeProduct(productName);
+
+  // Categoria: productCatIds da Shopee quando houver oferta, com fallback
+  // para o nome do produto extraído pela IA. Fica null se nada for resolvido.
+  const { categoryName } = mapShopeeCategories(
+    offer?.productCatIds ?? [],
+    productName,
+  );
+
   if (offer) {
     // Tenta gerar link encurtado de afiliado (shopeeAffiliateUrl).
     // Se falhar (ex: link já encurtado s.shopee.com.br), usa o originUrl como fallback.
@@ -489,6 +522,9 @@ async function saveProductResult(
       status: "PENDING",
       transcriptText,
       productName,
+      // Categoria — só grava quando resolvida, para não apagar um valor
+      // bom de uma execução anterior num reprocessamento.
+      ...(categoryName ? { category: categoryName } : {}),
       // Dados da Shopee
       price,
       saleCount,
@@ -538,44 +574,48 @@ async function upsertProcessingRecord(video: EchoTikVideoDTO) {
   });
 }
 
+// ─── Processamento de um vídeo (unidade canônica) ──────────────────────────
+
 /**
- * Processa um vídeo individual de forma eficiente.
+ * Processa UM vídeo de ponta a ponta e persiste o resultado.
  *
- * Fluxo (com fallback Whisper fast-fail):
- * 1. Obtém transcrição: Captions → se falhar, Whisper (fast-fail)
- *    - Se a transcrição falhar de tudo → continue
- * 2. Extrai nome do produto via GPT — se falhar, continue
- * 3. Busca na Shopee com filtro rigoroso (vendas > 0 e preço > 0)
- * 4. Salva com status PENDING com merge rigoroso de dados
+ * Esta é a única implementação do fluxo por vídeo — o lote apenas a chama em
+ * série. Persistir aqui (e não numa segunda fase) é o que torna o job
+ * resistente ao limite de execução da Vercel: se a função for morta, tudo que
+ * já rodou está salvo e a próxima execução pula estes vídeos.
+ *
+ * Fluxo:
+ * 1. Marca PROCESSING (grava views, authorName e a URL canônica do TikTok)
+ * 2. Transcrição: Captions → fallback Whisper (fast-fail)
+ *    - Salva o texto imediatamente: nunca perder um Whisper já pago
+ * 3. Extrai o nome do produto via GPT — "NULL"/inválido → FAILED
+ * 4. Busca na Shopee (vendas > 0 e preço > 0) e salva como PENDING
+ *
+ * PENDING é o estado terminal de sucesso: o achadinho fica aguardando
+ * aprovação de um admin antes de aparecer para o usuário final.
  *
  * @param video - Dados do vídeo vindos do EchoTik
- * @returns true se processado com sucesso, false caso contrário
+ * @param transcriptOverride - Transcrição já obtida (evita refazer o trabalho)
+ * @returns true se chegou a PENDING, false se foi descartado
  */
-export async function processAchadinhoVideoFast(video: EchoTikVideoDTO): Promise<boolean> {
+export async function processAchadinhoVideo(
+  video: EchoTikVideoDTO,
+  transcriptOverride?: TranscriptWithSource,
+): Promise<boolean> {
   const { video_id: videoExternalId } = video;
 
   try {
-    log.info(`Processando vídeo (fast-path): ${videoExternalId}`);
-
-    // Verifica se já foi processado como READY (evita reprocessamento desnecessário)
-    const existing = await prisma.shopeeAchadinhoProduct.findUnique({
-      where: { videoExternalId },
-      select: { status: true },
-    });
-
-    if (existing?.status === "READY") {
-      log.info(`Vídeo ${videoExternalId} já processado como READY. Pulando.`);
-      return true;
-    }
+    log.info(`Processando vídeo: ${videoExternalId}`);
 
     // Cria ou atualiza o registro com status PROCESSING + tiktokVideoUrl + views
     const record = await upsertProcessingRecord(video);
 
     // 1. Transcrição com fallback (Captions → Whisper fast-fail)
-    //    Se falhar de tudo → marca FAILED e aplica continue
-    const transcript = await getTranscriptWithFallback(video);
+    const transcript =
+      transcriptOverride ?? (await getTranscriptWithFallback(video));
+
     if (!transcript) {
-      log.info(`Sem transcrição (captions + Whisper) para ${videoExternalId} — pulando (continue)`);
+      log.info(`Sem transcrição para ${videoExternalId} — pulando`);
       await prisma.shopeeAchadinhoProduct.update({
         where: { id: record.id },
         data: {
@@ -589,16 +629,15 @@ export async function processAchadinhoVideoFast(video: EchoTikVideoDTO): Promise
 
     const transcriptText = transcript.text;
 
-    // Salva a transcrição imediatamente — nunca perder o texto mesmo se a
-    // extração do produto falhar.
+    // Salva a transcrição imediatamente — nunca perder o texto (nem o custo
+    // do Whisper) caso a extração do produto falhe ou a função seja morta.
     await prisma.shopeeAchadinhoProduct.update({
       where: { id: record.id },
       data: { transcriptText },
     });
 
     // 2. Extrai o nome do produto via OpenAI GPT (descrição + transcrição)
-    //    Se a IA não conseguir identificar um nome válido → PULA O VÍDEO (continue)
-    log.info(`Extraindo nome do produto com GPT (descrição + transcrição): ${videoExternalId}`);
+    log.info(`Extraindo nome do produto com GPT: ${videoExternalId}`);
     const productName = await extractProductName(video.video_desc, transcriptText);
     if (!productName) {
       log.error(`Falha na extração do nome do produto — pulando: ${videoExternalId}`);
@@ -617,7 +656,9 @@ export async function processAchadinhoVideoFast(video: EchoTikVideoDTO): Promise
     // 3. Busca na Shopee com filtro rigoroso + 4. Salva com status PENDING
     await saveProductResult(record.id, productName, transcriptText);
 
-    log.info(`Pipeline concluído para ${videoExternalId}. Status: PENDING (aguardando aprovação).`);
+    log.info(
+      `Pipeline concluído para ${videoExternalId}. Status: PENDING (aguardando aprovação).`,
+    );
     return true;
   } catch (error) {
     log.error(`Erro no pipeline para ${videoExternalId}`, { error });
@@ -626,7 +667,8 @@ export async function processAchadinhoVideoFast(video: EchoTikVideoDTO): Promise
         where: { videoExternalId },
         data: {
           status: "FAILED",
-          errorMessage: error instanceof Error ? error.message : "Erro desconhecido no pipeline",
+          errorMessage:
+            error instanceof Error ? error.message : "Erro desconhecido no pipeline",
         },
       });
     } catch (dbError) {
@@ -636,44 +678,119 @@ export async function processAchadinhoVideoFast(video: EchoTikVideoDTO): Promise
   }
 }
 
-// ─── Orquestrador do pipeline ──────────────────────────────────────────────
+// ─── Orquestrador do lote (com orçamento de tempo) ─────────────────────────
 
-export interface AchadinhosPipelineItem {
-  video: EchoTikVideoDTO;
-  /** Texto limpo da transcrição (plain text) */
-  transcriptText: string;
-  /** Fonte da transcrição: captions nativos ou Whisper */
-  source: "echotik_captions" | "openai_whisper";
-}
-
-export interface ProcessAchadinhosPipelineOptions {
-  /** hashtag_id da EchoTik — se omitido, usa setting configurada ou discovery dinâmico */
+export interface ProcessAchadinhosBatchOptions {
+  /** hashtag_id da EchoTik — se omitido, usa setting configurada ou padrão */
   hashtagId?: string;
   /** Região — default "BR" (evita vídeos EN/ES) */
   region?: string;
-  /** Quantidade de vídeos (20-400) — configurada pelo admin */
+  /** Quantidade de vídeos a considerar (20-400) */
   count?: number;
+  /**
+   * Orçamento de tempo do laço em ms. O lote para sozinho antes de estourar
+   * o maxDuration da função. Default: `achadinhosLoopBudgetMs()`.
+   */
+  budgetMs?: number;
+}
+
+export interface AchadinhosBatchResult {
+  /** Vídeos retornados pela hashtag (após filtro de relevância) */
+  found: number;
+  /** Vídeos pulados por já terem sido processados antes */
+  alreadyProcessed: number;
+  /** Vídeos que passaram pelo pipeline nesta execução */
+  processed: number;
+  /** Destes, quantos chegaram a PENDING */
+  succeeded: number;
+  /** Vídeos elegíveis que ficaram para a próxima execução */
+  remaining: number;
+  /** true se o laço parou por orçamento (lote parcial) */
+  partial: boolean;
+  /** Duração total do lote em ms */
+  elapsedMs: number;
 }
 
 /**
- * Orquestra o pipeline de ingestão de "Achadinhos Shopee":
+ * Decide quais vídeos ainda precisam ser processados.
  *
- * 1. Busca a lista de vídeos da hashtag com PAGINAÇÃO SEGURA
- *    (`fetchVideosByHashtagPaginated`) — blocos de 20 com delay ~2s
- * 2. Para cada vídeo, busca transcrição via Captions + fallback Whisper:
- *    - Se falhar de tudo → continue (pula imediatamente)
+ * Uma única consulta ao banco para todo o lote. Pula:
+ * - READY / PENDING / REJECTED — já passaram pelo pipeline (PENDING é o
+ *   estado terminal de sucesso, aguardando revisão do admin)
+ * - FAILED recente — cooldown, para que os mesmos vídeos ruins não consumam
+ *   o orçamento de todas as execuções
  *
- * Tratamento de erros:
- * - Se a busca de vídeos falhar, retorna [] (não derruba o caller).
- * - No loop, cada vídeo é isolado com try/catch — falha em um vídeo
- *   apenas faz `continue` para o próximo.
- *
- * @returns Array com vídeo + transcrição pronta, ou [] se nada encontrado.
+ * Reprocessa PROCESSING: esse status só sobra quando uma execução anterior
+ * foi morta no meio do vídeo.
  */
-export async function processAchadinhosPipeline(
-  options: ProcessAchadinhosPipelineOptions = {},
-): Promise<AchadinhosPipelineItem[]> {
+async function filterUnprocessedVideos(
+  videos: EchoTikVideoDTO[],
+): Promise<{ pending: EchoTikVideoDTO[]; alreadyProcessed: number }> {
+  if (videos.length === 0) return { pending: [], alreadyProcessed: 0 };
+
+  const existing = await prisma.shopeeAchadinhoProduct.findMany({
+    where: { videoExternalId: { in: videos.map((v) => v.video_id) } },
+    select: { videoExternalId: true, status: true, updatedAt: true },
+  });
+
+  const byId = new Map(existing.map((e) => [e.videoExternalId, e]));
+  const failedRetryThreshold = new Date(
+    Date.now() - SHOPEE_BUDGET.FAILED_RETRY_COOLDOWN_MS,
+  );
+
+  const pending = videos.filter((video) => {
+    const row = byId.get(video.video_id);
+    if (!row) return true;
+
+    if (row.status === "FAILED") {
+      // Só tenta de novo depois do cooldown
+      return row.updatedAt < failedRetryThreshold;
+    }
+
+    // PROCESSING = execução anterior interrompida → reprocessar
+    return row.status === "PROCESSING";
+  });
+
+  return { pending, alreadyProcessed: videos.length - pending.length };
+}
+
+/**
+ * Executa o lote de ingestão de "Achadinhos Shopee" dentro de um orçamento
+ * de tempo.
+ *
+ * POR QUE ORÇAMENTO
+ * A rota do cron declara maxDuration = 300s e o pipeline é sequencial. Um
+ * único vídeo no pior caso custa ~230s. Sem orçamento, a função é morta pela
+ * plataforma — e, na estrutura antiga (transcrever tudo em memória e só
+ * depois salvar), todo o trabalho já pago era perdido.
+ *
+ * COMO FUNCIONA
+ * 1. Descobre os vídeos da hashtag (com orçamento próprio de descoberta)
+ * 2. Pula os que já foram processados — é isso que torna as execuções
+ *    consecutivas cumulativas em vez de repetitivas
+ * 3. Processa em série, persistindo CADA vídeo antes de passar ao próximo
+ * 4. Antes de cada vídeo, verifica se ainda cabe o pior caso no orçamento;
+ *    se não couber, encerra e devolve `partial: true`
+ *
+ * Um lote parcial NÃO é um erro: o próximo cron continua de onde parou.
+ */
+export async function processAchadinhosBatch(
+  options: ProcessAchadinhosBatchOptions = {},
+): Promise<AchadinhosBatchResult> {
+  const startedAt = Date.now();
+  const budgetMs = options.budgetMs ?? achadinhosLoopBudgetMs();
+  const deadline = startedAt + budgetMs;
   const region = options.region ?? SHOPEE_DEFAULTS.ACHADINHOS_REGION;
+
+  const empty: AchadinhosBatchResult = {
+    found: 0,
+    alreadyProcessed: 0,
+    processed: 0,
+    succeeded: 0,
+    remaining: 0,
+    partial: false,
+    elapsedMs: 0,
+  };
 
   let hashtagId = options.hashtagId;
 
@@ -681,146 +798,84 @@ export async function processAchadinhosPipeline(
   if (!hashtagId) {
     try {
       hashtagId = await getAchadinhosHashtagId();
-
       if (!hashtagId) {
         log.warn("Nenhum hashtag_id disponível para o pipeline de achadinhos");
-        return [];
+        return { ...empty, elapsedMs: Date.now() - startedAt };
       }
     } catch (error) {
       log.error("Falha ao resolver hashtag_id para o pipeline de achadinhos", {
         error: error instanceof Error ? error.message : String(error),
       });
-      return [];
+      return { ...empty, elapsedMs: Date.now() - startedAt };
     }
   }
 
-  // Passo 1: Buscar vídeos da hashtag com paginação segura (20/bloco + delay)
+  // Passo 1: descoberta, limitada ao seu próprio orçamento
+  const discoveryDeadline = Math.min(
+    startedAt + SHOPEE_BUDGET.DISCOVERY_BUDGET_MS,
+    deadline,
+  );
   const videos = await fetchVideosByHashtagPaginated(
     hashtagId,
     region,
     options.count ?? SHOPEE_DEFAULTS.ACHADINHOS_COUNT,
+    discoveryDeadline,
   );
 
   if (videos.length === 0) {
     log.info("Nenhum vídeo retornado pela hashtag", { hashtagId, region });
-    return [];
+    return { ...empty, elapsedMs: Date.now() - startedAt };
   }
 
-  log.info(`Pipeline de achadinhos: ${videos.length} vídeos encontrados`);
-
-  const results: AchadinhosPipelineItem[] = [];
-
-  // Passo 2: Para cada vídeo, buscar transcrição (Captions → Whisper fallback)
-  for (const video of videos) {
-    try {
-      const transcript = await getTranscriptWithFallback(video);
-      if (!transcript) {
-        log.info(`Transcrição indisponível para ${video.video_id} — pulando`);
-        continue;
-      }
-
-      results.push({
-        video,
-        transcriptText: transcript.text,
-        source: transcript.source,
-      });
-
-      log.info(
-        `Transcrição obtida para ${video.video_id} (${transcript.text.length} caracteres, fonte: ${transcript.source})`,
-      );
-    } catch (error) {
-      // Isolamento por vídeo: falha em um não derruba o pipeline inteiro
-      log.warn(`Falha ao obter transcrição do vídeo ${video.video_id} — pulando`, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      continue;
-    }
-  }
+  // Passo 2: descartar o que já foi processado (torna o lote resumível)
+  const { pending, alreadyProcessed } = await filterUnprocessedVideos(videos);
 
   log.info(
-    `Pipeline de achadinhos concluído: ${results.length}/${videos.length} vídeos com transcrição`,
+    `Lote de achadinhos: ${videos.length} vídeos encontrados, ` +
+      `${alreadyProcessed} já processados, ${pending.length} a processar ` +
+      `(orçamento ${Math.round(budgetMs / 1000)}s)`,
   );
-  return results;
-}
 
-/**
- * Salva um item do pipeline de achadinhos (vídeo + transcrição já pronta).
- *
- * Fluxo (captions → Whisper fast-fail já resolvido no pipeline):
- * 1. Verifica duplicidade (READY) e faz upsert com status PROCESSING
- * 2. Extrai o nome do produto via OpenAI GPT (`extractProductName`)
- * 3. Busca o produto real na Shopee Affiliate API (com filtro rigoroso)
- * 4. Salva com status PENDING — admin precisa revisar e aprovar
- *
- * @param item - Item unificado do `processAchadinhosPipeline` (vídeo + transcrição)
- * @returns true se salvo com sucesso, false caso contrário
- */
-export async function saveAchadinhoFromPipelineItem(
-  item: AchadinhosPipelineItem,
-): Promise<boolean> {
-  const { video, transcriptText, source } = item;
-  const { video_id: videoExternalId } = video;
+  // Passo 3: processar em série, persistindo a cada vídeo
+  let processed = 0;
+  let succeeded = 0;
+  let partial = false;
 
-  try {
-    log.info(`Salvando resultado do pipeline para ${videoExternalId}`, { source });
-
-    // Verifica se já foi processado como READY (evita reprocessamento desnecessário)
-    const existing = await prisma.shopeeAchadinhoProduct.findUnique({
-      where: { videoExternalId },
-      select: { status: true },
-    });
-
-    if (existing?.status === "READY") {
-      log.info(`Vídeo ${videoExternalId} já processado como READY. Pulando.`);
-      return true;
+  for (const video of pending) {
+    // Só inicia mais um vídeo se o pior caso ainda couber no orçamento.
+    // Sem esta guarda, um Whisper de 120s iniciado faltando 20s seria morto
+    // pela plataforma no meio da escrita.
+    const remainingMs = deadline - Date.now();
+    if (remainingMs < SHOPEE_BUDGET.VIDEO_WORST_CASE_MS) {
+      partial = true;
+      log.warn(
+        `Orçamento esgotado após ${processed} vídeos ` +
+          `(${Math.round(remainingMs / 1000)}s restantes). ` +
+          `${pending.length - processed} ficam para a próxima execução.`,
+      );
+      break;
     }
 
-    // Cria ou atualiza o registro com status PROCESSING + tiktokVideoUrl + views
-    const record = await upsertProcessingRecord(video);
-
-    // Salva a transcrição imediatamente — nunca perder o texto mesmo se a
-    // extração do produto falhar.
-    await prisma.shopeeAchadinhoProduct.update({
-      where: { id: record.id },
-      data: { transcriptText },
-    });
-
-    // 2. Extrai o nome do produto via OpenAI GPT (descrição + transcrição)
-    //    Se a IA não conseguir identificar um nome válido → PULA O VÍDEO (continue)
-    log.info(`Extraindo nome do produto com GPT (descrição + transcrição): ${videoExternalId}`);
-    const productName = await extractProductName(video.video_desc, transcriptText);
-    if (!productName) {
-      log.error(`Falha na extração do nome do produto — pulando: ${videoExternalId}`);
-      await prisma.shopeeAchadinhoProduct.update({
-        where: { id: record.id },
-        data: {
-          status: "FAILED",
-          transcriptText,
-          errorMessage: "Extração do nome do produto falhou — vídeo pulado",
-        },
-      });
-      return false;
-    }
-    log.info(`Nome do produto extraído: "${productName}"`);
-
-    // 3. Busca produto na Shopee + 4. Salva com status PENDING
-    await saveProductResult(record.id, productName, transcriptText);
-
-    log.info(`Achadinho salvo para ${videoExternalId}. Status: PENDING (aguardando aprovação).`);
-    return true;
-  } catch (error) {
-    log.error(`Erro ao salvar achadinho para ${videoExternalId}`, { error });
-    try {
-      await prisma.shopeeAchadinhoProduct.update({
-        where: { videoExternalId },
-        data: {
-          status: "FAILED",
-          errorMessage: error instanceof Error ? error.message : "Erro desconhecido ao salvar achadinho",
-        },
-      });
-    } catch (dbError) {
-      log.error("Não foi possível registrar falha no banco", { dbError });
-    }
-    return false;
+    const ok = await processAchadinhoVideo(video);
+    processed++;
+    if (ok) succeeded++;
   }
+
+  const result: AchadinhosBatchResult = {
+    found: videos.length,
+    alreadyProcessed,
+    processed,
+    succeeded,
+    remaining: pending.length - processed,
+    partial,
+    elapsedMs: Date.now() - startedAt,
+  };
+
+  log.info(
+    `Lote de achadinhos concluído em ${Math.round(result.elapsedMs / 1000)}s: ` +
+      `${succeeded}/${processed} com sucesso, ${result.remaining} restantes` +
+      (partial ? " (LOTE PARCIAL — próximo cron continua)" : ""),
+  );
+
+  return result;
 }

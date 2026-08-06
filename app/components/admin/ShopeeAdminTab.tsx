@@ -41,10 +41,22 @@ import {
   Error as ErrorIcon,
   OpenInNew,
   Link as LinkIcon,
+  Cancel,
 } from "@mui/icons-material";
 import { alpha } from "@mui/material/styles";
 import { EditAffiliateModal } from "@/app/components/shopee/EditAffiliateModal";
-import type { ShopeeAchadinhoDTO } from "@/lib/swr/useShopee";
+import type {
+  ShopeeAchadinhoDTO,
+  AchadinhoReviewAction,
+  AchadinhoStatus,
+} from "@/lib/swr/useShopee";
+
+/**
+ * Status revisáveis pelo admin. Deve espelhar REVIEWABLE_STATUSES em
+ * app/api/shopee/achadinhos/[id]/route.ts — PROCESSING e FAILED pertencem ao
+ * pipeline e o cron pode sobrescrevê-los a qualquer momento.
+ */
+const REVIEWABLE_STATUSES: AchadinhoStatus[] = ["PENDING", "READY", "REJECTED"];
 
 export function ShopeeAdminTab() {
   const [achadinhos, setAchadinhos] = useState<ShopeeAchadinhoDTO[]>([]);
@@ -54,11 +66,15 @@ export function ShopeeAdminTab() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<ShopeeAchadinhoDTO | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const fetchAchadinhos = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/shopee/achadinhos");
+      // status=all — o admin revisa a fila inteira (PENDING/REJECTED inclusive),
+      // não apenas os publicados. pageSize alto: sem ele a API devolve 24 e a
+      // paginação client-side abaixo só enxergaria a primeira página.
+      const res = await fetch("/api/shopee/achadinhos?status=all&pageSize=1000");
       const data = await res.json();
       if (data.ok) {
         setAchadinhos(data.achadinhos);
@@ -69,6 +85,33 @@ export function ShopeeAdminTab() {
       setLoading(false);
     }
   }, []);
+
+  const handleReview = useCallback(
+    async (id: string, action: AchadinhoReviewAction) => {
+      setReviewingId(id);
+      try {
+        const res = await fetch(`/api/shopee/achadinhos/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          console.error("Erro ao revisar achadinho:", data.error);
+          return;
+        }
+        // Atualiza só a linha afetada — evita recarregar a lista inteira
+        setAchadinhos((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, status: data.achadinho.status } : a)),
+        );
+      } catch (err) {
+        console.error("Erro ao revisar achadinho:", err);
+      } finally {
+        setReviewingId(null);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     fetchAchadinhos();
@@ -107,10 +150,11 @@ export function ShopeeAdminTab() {
 
   const statusChip = (status: string) => {
     const configs: Record<string, { label: string; color: string; bg: string }> = {
-      READY: { label: "Pronto", color: "#22C55E", bg: "rgba(34, 197, 94, 0.1)" },
+      READY: { label: "Publicado", color: "#22C55E", bg: "rgba(34, 197, 94, 0.1)" },
       PROCESSING: { label: "Processando", color: "#F59E0B", bg: "rgba(245, 158, 11, 0.1)" },
       FAILED: { label: "Falha", color: "#EF4444", bg: "rgba(239, 68, 68, 0.1)" },
-      PENDING: { label: "Pendente", color: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.05)" },
+      REJECTED: { label: "Rejeitado", color: "#A855F7", bg: "rgba(168, 85, 247, 0.1)" },
+      PENDING: { label: "Aguardando revisão", color: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.05)" },
     };
     const cfg = configs[status] || configs.PENDING;
     return (
@@ -171,9 +215,10 @@ export function ShopeeAdminTab() {
             }}
           >
             <MenuItem value="all">Todos</MenuItem>
-            <MenuItem value="READY">Pronto</MenuItem>
+            <MenuItem value="PENDING">Aguardando revisão</MenuItem>
+            <MenuItem value="READY">Publicado</MenuItem>
+            <MenuItem value="REJECTED">Rejeitado</MenuItem>
             <MenuItem value="PROCESSING">Processando</MenuItem>
-            <MenuItem value="PENDING">Pendente</MenuItem>
             <MenuItem value="FAILED">Falha</MenuItem>
           </Select>
         </FormControl>
@@ -317,7 +362,53 @@ export function ShopeeAdminTab() {
                 </TableCell>
 
                 {/* Ações */}
-                <TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  {/* Gate de aprovação — PROCESSING/FAILED pertencem ao pipeline */}
+                  {achadinho.status !== "READY" &&
+                    REVIEWABLE_STATUSES.includes(achadinho.status) && (
+                      <Tooltip title="Aprovar e publicar" arrow>
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={reviewingId === achadinho.id}
+                            onClick={() => handleReview(achadinho.id, "approve")}
+                            sx={{
+                              color: "#22C55E",
+                              "&:hover": { background: alpha("#22C55E", 0.1) },
+                            }}
+                          >
+                            <CheckCircle sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    )}
+
+                  {achadinho.status !== "REJECTED" &&
+                    REVIEWABLE_STATUSES.includes(achadinho.status) && (
+                      <Tooltip
+                        title={
+                          achadinho.status === "READY"
+                            ? "Despublicar e rejeitar"
+                            : "Rejeitar"
+                        }
+                        arrow
+                      >
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={reviewingId === achadinho.id}
+                            onClick={() => handleReview(achadinho.id, "reject")}
+                            sx={{
+                              color: "#A855F7",
+                              "&:hover": { background: alpha("#A855F7", 0.1) },
+                            }}
+                          >
+                            <Cancel sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    )}
+
                   <Tooltip title="Editar link de afiliado" arrow>
                     <IconButton
                       size="small"

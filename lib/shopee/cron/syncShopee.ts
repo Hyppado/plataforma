@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { syncShopeeRankings } from "../client";
-import { processAchadinhosPipeline, saveAchadinhoFromPipelineItem } from "../pipeline";
+import { processAchadinhosBatch } from "../pipeline";
 import { SHOPEE_DEFAULTS } from "@/lib/shopee/types";
 
 const log = createLogger("shopee/cron");
@@ -20,9 +20,16 @@ const log = createLogger("shopee/cron");
 /**
  * Verifica se uma tarefa deve ser pulada baseado na frequência configurada.
  *
+ * IMPORTANTE — lotes parciais não iniciam o cooldown.
+ * O lote de achadinhos pode encerrar antes do fim por orçamento de tempo
+ * (limite de execução da Vercel) e registra `statsJson.partial = true`.
+ * Se um lote parcial contasse como execução completa, o cooldown de 12h
+ * congelaria a fila e o backlog nunca seria drenado. Só uma execução que
+ * processou tudo que havia inicia o intervalo.
+ *
  * @param skipKey - Identificador único da tarefa (ex: "shopee:ranking")
  * @param intervalHours - Número de horas entre execuções
- * @returns true se deve pular (já executou dentro do intervalo)
+ * @returns true se deve pular (já executou por completo dentro do intervalo)
  */
 async function shouldSkipShopeeTask(skipKey: string, intervalHours: number): Promise<boolean> {
   const threshold = new Date(Date.now() - intervalHours * 60 * 60 * 1000);
@@ -32,8 +39,21 @@ async function shouldSkipShopeeTask(skipKey: string, intervalHours: number): Pro
       status: "SUCCESS",
       startedAt: { gte: threshold },
     },
+    orderBy: { startedAt: "desc" },
   });
-  return !!lastRun;
+
+  if (!lastRun) return false;
+
+  // Lote parcial → não pula, há backlog esperando
+  const stats = lastRun.statsJson as { partial?: boolean } | null;
+  if (stats?.partial === true) {
+    log.info(
+      `${skipKey}: última execução foi parcial — seguindo para drenar o backlog`,
+    );
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -51,7 +71,7 @@ async function createIngestionRun(skipKey: string) {
 async function finishIngestionRun(
   runId: string,
   status: "SUCCESS" | "FAILED",
-  stats?: Record<string, number | string>,
+  stats?: Record<string, number | string | boolean>,
   errorMessage?: string,
 ) {
   const data: Record<string, unknown> = {
@@ -140,28 +160,31 @@ export async function runShopeeAchadinhosCron(
   try {
     log.info("Cron de achadinhos Shopee iniciado...", { count: achadinhosCount });
 
-    // 1. Pipeline (Passo 1 + Passo 2): busca vídeos da hashtag com paginação
-    //    segura (blocos de 20 + delay ~2s) e transcrição via Captions,
-    //    com fallback Whisper fast-fail.
-    const items = await processAchadinhosPipeline({ region: "BR", count: achadinhosCount });
-    log.info(`${items.length} vídeos com transcrição encontrados para processar.`);
-
-    let successCount = 0;
-
-    // Processa sequencialmente para evitar estouro de rate limit
-    for (const item of items) {
-      const success = await saveAchadinhoFromPipelineItem(item);
-      if (success) successCount++;
-    }
+    // O lote descobre, filtra o que já foi processado e roda em série dentro
+    // de um orçamento de tempo, persistindo cada vídeo. Se o orçamento acabar,
+    // devolve `partial: true` e o próximo cron continua de onde parou.
+    const result = await processAchadinhosBatch({
+      region: "BR",
+      count: achadinhosCount,
+    });
 
     await finishIngestionRun(run.id, "SUCCESS", {
-      found: items.length,
-      success: successCount,
+      found: result.found,
+      alreadyProcessed: result.alreadyProcessed,
+      processed: result.processed,
+      success: result.succeeded,
+      remaining: result.remaining,
+      // Lido por shouldSkipShopeeTask — um lote parcial não inicia o cooldown
+      partial: result.partial,
+      elapsedMs: result.elapsedMs,
       requestedCount: achadinhosCount,
     });
 
-    log.info(`Cron de achadinhos finalizado. Sucesso: ${successCount}/${items.length}`);
-    return successCount;
+    log.info(
+      `Cron de achadinhos finalizado. Sucesso: ${result.succeeded}/${result.processed}` +
+        (result.partial ? ` — ${result.remaining} restantes para a próxima execução` : ""),
+    );
+    return result.succeeded;
   } catch (error) {
     log.error("Cron de achadinhos Shopee falhou", { error });
     await finishIngestionRun(
