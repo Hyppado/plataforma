@@ -5,16 +5,29 @@
  * Atualmente suporta:
  *
  * PATCH /api/shopee/achadinhos/[id]
- *   - Atualiza o link de afiliado de um produto achadinho.
+ *   - Atualiza o link de afiliado e/ou o status de revisão de um achadinho.
  *   - Apenas administradores podem usar este endpoint.
  *   - Salva o link original em originalAffLink na primeira alteração.
- *   - Body: { affiliateLink: string }
+ *   - Body: { affiliateLink?: string, action?: "approve" | "reject" | "reset" }
+ *
+ * GATE DE APROVAÇÃO:
+ *   O pipeline grava achadinhos como PENDING e eles NÃO aparecem para o
+ *   usuário final. Um admin precisa aprovar (PENDING -> READY) para publicar.
+ *   - approve -> READY     (publicado)
+ *   - reject  -> REJECTED  (arquivado, nunca publicado)
+ *   - reset   -> PENDING   (volta para a fila de revisão)
+ *
+ *   Registros FAILED/PROCESSING não são revisáveis: o pipeline ainda é dono
+ *   deles e pode sobrescrever o status a qualquer momento.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
-import type { ShopeeAchadinhoProduct } from "@prisma/client";
+import type {
+  ShopeeAchadinhoProduct,
+  ShopeeAchadinhoStatus,
+} from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -52,11 +65,29 @@ function serializeAchadinho(achadinho: ShopeeAchadinhoProduct) {
   return serialized as ShopeeAchadinhoProduct & { [K in keyof ShopeeAchadinhoProduct]: ShopeeAchadinhoProduct[K] extends bigint ? number : ShopeeAchadinhoProduct[K] };
 }
 
+/** Ação de revisão -> status resultante */
+const REVIEW_ACTIONS: Record<string, ShopeeAchadinhoStatus> = {
+  approve: "READY",
+  reject: "REJECTED",
+  reset: "PENDING",
+};
+
+/**
+ * Status que um admin pode revisar. PROCESSING e FAILED pertencem ao pipeline:
+ * revisá-los criaria uma corrida em que o cron sobrescreve a decisão do admin.
+ */
+const REVIEWABLE_STATUSES: ShopeeAchadinhoStatus[] = [
+  "PENDING",
+  "READY",
+  "REJECTED",
+];
+
 /**
  * PATCH /api/shopee/achadinhos/[id]
  *
- * Permite que um administrador sobrescreva o link de afiliado de um produto
- * achadinho. O link original é preservado em originalAffLink para referência.
+ * Permite que um administrador sobrescreva o link de afiliado e/ou avance o
+ * achadinho no gate de aprovação. O link original é preservado em
+ * originalAffLink para referência.
  */
 export async function PATCH(
   req: NextRequest,
@@ -65,10 +96,10 @@ export async function PATCH(
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
-  // Apenas administradores podem editar links de afiliado
+  // Apenas administradores podem editar links de afiliado ou revisar
   if (auth.role !== "ADMIN") {
     return NextResponse.json(
-      { ok: false, error: "Apenas administradores podem editar links de afiliado" },
+      { ok: false, error: "Apenas administradores podem editar ou revisar achadinhos" },
       { status: 403 },
     );
   }
@@ -76,19 +107,38 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await req.json();
-    const { affiliateLink } = body;
+    const { affiliateLink, action } = body;
 
-    if (!affiliateLink || typeof affiliateLink !== "string") {
+    const hasLink = affiliateLink !== undefined;
+    const hasAction = action !== undefined;
+
+    if (!hasLink && !hasAction) {
       return NextResponse.json(
-        { ok: false, error: "Link de afiliado é obrigatório" },
+        { ok: false, error: "Informe affiliateLink e/ou action" },
         { status: 400 },
       );
     }
 
-    // Valida se é uma URL HTTP/HTTPS válida
-    if (!isValidUrl(affiliateLink)) {
+    if (hasLink) {
+      if (!affiliateLink || typeof affiliateLink !== "string") {
+        return NextResponse.json(
+          { ok: false, error: "Link de afiliado é obrigatório" },
+          { status: 400 },
+        );
+      }
+
+      // Valida se é uma URL HTTP/HTTPS válida
+      if (!isValidUrl(affiliateLink)) {
+        return NextResponse.json(
+          { ok: false, error: "Link de afiliado inválido. Deve ser uma URL HTTP/HTTPS válida." },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (hasAction && !REVIEW_ACTIONS[action as string]) {
       return NextResponse.json(
-        { ok: false, error: "Link de afiliado inválido. Deve ser uma URL HTTP/HTTPS válida." },
+        { ok: false, error: `Ação inválida: ${action}. Use approve, reject ou reset.` },
         { status: 400 },
       );
     }
@@ -105,16 +155,36 @@ export async function PATCH(
       );
     }
 
-    // Se ainda não temos um link original salvo, guarda o atual antes de sobrescrever
-    const originalAffLink = current.originalAffLink || current.affiliateLink || null;
+    const data: {
+      affiliateLink?: string;
+      originalAffLink?: string | null;
+      status?: ShopeeAchadinhoStatus;
+    } = {};
 
-    // Atualiza o link de afiliado
+    if (hasLink) {
+      // Se ainda não temos um link original salvo, guarda o atual antes de sobrescrever
+      data.affiliateLink = affiliateLink;
+      data.originalAffLink = current.originalAffLink || current.affiliateLink || null;
+    }
+
+    if (hasAction) {
+      // Só revisa registros que o pipeline já soltou. PROCESSING/FAILED
+      // continuam sob controle do cron.
+      if (!REVIEWABLE_STATUSES.includes(current.status)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Achadinho com status ${current.status} não pode ser revisado`,
+          },
+          { status: 409 },
+        );
+      }
+      data.status = REVIEW_ACTIONS[action as string];
+    }
+
     const updated = await prisma.shopeeAchadinhoProduct.update({
       where: { id },
-      data: {
-        affiliateLink,
-        originalAffLink,
-      },
+      data,
     });
 
     return NextResponse.json({

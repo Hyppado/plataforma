@@ -1,0 +1,147 @@
+# AI-DLC Audit Log
+
+> CRITICAL: This file is append-only. Never overwrite — only append new entries.
+
+---
+
+## Workspace Detection
+**Timestamp**: 2026-07-10T00:00:00Z
+**User Input**: "Conversa com o Gemini [...] The Global Inception Prompt — Initiate the Inception Phase (Reverse Engineering) for this entire brownfield repository."
+**AI Response**: Initiated AI-DLC workflow. Detected brownfield project. Proceeding with Workspace Detection + Reverse Engineering.
+**Context**: INCEPTION PHASE — Workspace Detection stage initiated. Rule files loaded from `.aidlc-rule-details/`.
+
+---
+
+## Reverse Engineering — Start
+**Timestamp**: 2026-07-10T00:01:00Z
+**User Input**: (Automatic continuation from Workspace Detection — brownfield detected, no prior aidlc-docs found)
+**AI Response**: Scanning entire repository. Generating all reverse engineering artifacts.
+**Context**: INCEPTION PHASE — Reverse Engineering stage initiated.
+
+---
+
+## Workflow Planning + Code Generation Planning — Complete
+**Timestamp**: 2026-07-10T00:10:00Z
+**User Input**: "aproove and continue"
+**AI Response**: Requirements approved. Execution plan created. Code generation plan created for unit notification-reset-on-open. Proceeding to execute.
+**Context**: INCEPTION PHASE complete. CONSTRUCTION PHASE — Code Generation starting.
+
+---
+
+## Requirements Analysis — Complete
+**Timestamp**: 2026-07-10T00:08:00Z
+**User Input**: "done" (all 5 questions answered: Q1=A, Q2=A, Q3=A, Q4=A, Q5=A)
+**AI Response**: Requirements document generated. Extensions enabled: Security Baseline, Resiliency Baseline, Property-Based Testing (full). Awaiting user approval.
+**Context**: INCEPTION PHASE — Requirements Analysis complete.
+
+---
+
+## Requirements Analysis — Start
+**Timestamp**: 2026-07-10T00:06:00Z
+**User Input**: "using ai dlc review the notification module. when the icon is clicked the number of notifications should reset and then start again from new ones"
+**AI Response**: Initiated Requirements Analysis. Created requirement-verification-questions.md. Awaiting user answers before generating requirements document.
+**Context**: INCEPTION PHASE — Requirements Analysis stage initiated.
+
+---
+
+## Reverse Engineering — Complete
+**Timestamp**: 2026-07-10T00:05:00Z
+**User Input**: (Awaiting user review)
+**AI Response**: Generated 8 reverse engineering artifacts in aidlc-docs/inception/reverse-engineering/. Awaiting user approval before proceeding to Requirements Analysis.
+**Context**: INCEPTION PHASE — Reverse Engineering stage complete. Waiting for explicit user approval.
+
+---
+
+## Reverse Engineering — Rerun Requested (Update)
+**Timestamp**: 2026-08-06T00:00:00Z
+**User Input**: "using ai dlc updaye the reverse-engineering"
+**AI Response**: User explicitly requested a rerun of Reverse Engineering. Per workspace-detection.md Step 3, explicit user request triggers rerun regardless of staleness. Loading existing artifacts (2026-07-10) and re-scanning the codebase to refresh all reverse engineering documents.
+**Context**: INCEPTION PHASE — Reverse Engineering stage re-initiated (update/refresh of existing artifacts).
+
+---
+
+## Reverse Engineering — Refresh Complete
+**Timestamp**: 2026-08-06T00:30:00Z
+**User Input**: (Awaiting user review)
+**AI Response**: Re-analyzed the codebase on branch `develop` @ `87e524b` (419 source files, 42 Prisma models, 93 API route handlers) and regenerated all 9 reverse engineering artifacts in aidlc-docs/inception/reverse-engineering/. Documented the new Shopee vertical (2 models, 7 lib modules, 9 components, 2 pages, 5 API routes, 2 cron entries, 8 runtime settings) and the build-time `prisma migrate deploy` change. Corrected three errors carried from the 2026-07-10 run: Prisma model count (27 -> 42), cron HTTP method (POST -> GET), and migration timing. Recorded four verified defects in code-quality-assessment.md: `ShopeeAchadinhoProduct.category` never written, missing PENDING->READY approval transition, two dead exported functions, and a non-transactional ranking rebuild. Awaiting user approval.
+**Context**: INCEPTION PHASE — Reverse Engineering refresh complete. Waiting for explicit user approval.
+
+---
+
+## Defect Remediation #1 — ShopeeAchadinhoProduct.category never populated
+**Timestamp**: 2026-08-06T01:00:00Z
+**User Input**: "let fix each defects one by one"
+**AI Response**: Fixed defect #1. Root cause was twofold: (a) `saveProductResult()` in lib/shopee/pipeline.ts never wrote the `category` field, and (b) `mapShopeeCategories()` only did an exact-match keyword lookup, which can never match a GPT-extracted product name. Added `resolveCategoryFromText()` to lib/shopee/shopee-categories.ts (exact match, then longest-first substring match), routed the existing fallback through it, and made the pipeline resolve and persist `category` from `offer.productCatIds` with the product name as fallback. Guarded the write so a reprocess cannot null out a previously resolved value. Added __tests__/lib/shopee/shopee-categories.test.ts (16 tests) — the first test file for the Shopee module. Typecheck clean; full suite 1052 tests passing.
+**Context**: CONSTRUCTION PHASE — defect remediation, item 1 of 7.
+
+---
+
+## Defect Remediation #2 + #3 + Vercel timeout hardening
+**Timestamp**: 2026-08-06T02:00:00Z
+**User Input**: "go ahead to the next" / [AskUserQuestion answer: "Full approval gate (as commented)"] / "btw make sure the job can run without timout from vercel. there are set of vercel skills in this project you can consult"
+**AI Response**: Consulted .agents/skills/vercel-react-best-practices (the only Vercel skill present); its server-after-nonblocking rule does not apply because after() work still counts toward function maxDuration.
+DEFECT #2 (approval gate) — implemented per user's choice: public feed now requires status READY; the ?status param is honored only for ADMIN so users cannot escape the gate; category list respects the same visibility; PATCH /api/shopee/achadinhos/[id] accepts action approve|reject|reset with PROCESSING/FAILED refused as 409; added REJECTED status; admin tab gained Approve/Reject buttons and a corrected fetch (?status=all&pageSize=1000 — it previously read only the first 24 records); added prisma/approveAchadinhos.ts for the pre-gate backlog.
+DEFECT #3 (dead code) — resolved as part of the restructure: processAchadinhoVideoFast merged into a single canonical processAchadinhoVideo; buscarVideosAchadinhosShopee removed with its orphaned interface and import.
+TIMEOUT — root cause: two-phase design transcribed all videos in memory and persisted nothing until phase 2, so a kill discarded all paid Whisper work; worst-case single video ~230s against a 300s ceiling. Replaced with processAchadinhosBatch: per-video persistence, explicit time budget with worst-case reservation, discovery sub-budget, resumability by skipping already-processed videos (FAILED honors a 24h cooldown), and partial-run reporting. shouldSkipShopeeTask now ignores partial runs so the cooldown cannot freeze a backlog.
+Verification: typecheck clean; 1086 tests / 83 files passing, including 23 new gate tests and 11 new budget/resumability tests.
+**Context**: CONSTRUCTION PHASE — defect remediation, items 2 and 3 of 7, plus platform-timeout hardening.
+
+---
+
+## Design Decision — Shopee cron job split (deferred)
+**Timestamp**: 2026-08-06T02:30:00Z
+**User Input**: "think about maybe turnng the job into two. one saves the videos and triger oder to fill missing information or something better." / [AskUserQuestion answer: "Keep single job for now"]
+**AI Response**: Analysed splitting the achadinhos cron into a producer (discovery) + worker (enrichment) pair, noting the codebase already uses this pattern for VideoTranscript via /api/cron/transcribe. Recommended going further: stage-aware worker (DISCOVERED/TRANSCRIBED/EXTRACTED), views-desc priority ordering instead of FIFO, a lease on PROCESSING, and folding in the status enum. Estimated >10x useful compute/day. User elected to DEFER: the budget + resumability fix already removes the timeout, and real IngestionRun stats should inform the decision before restructuring. Proceeding to defects #4-#7 on the single-job design.
+**Context**: CONSTRUCTION PHASE — architecture decision recorded, not implemented. Revisit when run statistics are available.
+
+---
+
+## Defect Remediation #4 — non-transactional ranking rebuild
+**Timestamp**: 2026-08-06T02:45:00Z
+**User Input**: (continuation of "let fix each defects one by one")
+**AI Response**: Fixed defect #4 in lib/shopee/client.ts syncShopeeRankings(). Found three problems, not one: (a) an empty API response called deleteMany({}) and wiped the ranking; (b) deleteMany + N upserts ran outside a transaction, so readers could observe an empty/partial ranking and a mid-loop failure left it broken; (c) the outer catch returned 0, which made the cron record SUCCESS and start the 24h cooldown — so a supplier outage both wiped the data and blocked retry for a day. Fixes: never delete without a replacement (throws, preserving current data); atomic deleteMany+createMany in a single $transaction (createMany replaces the N-upsert loop, which could never match a row after the delete anyway); errors now propagate so the IngestionRun is marked FAILED and the next cron retries; added a shrink guard that aborts replacement when keyword failures occurred and the new set is under 50% of the current row count. Added __tests__/lib/shopee/ranking-sync.test.ts (10 tests). Typecheck clean; 1096 tests / 84 files passing.
+**Context**: CONSTRUCTION PHASE — defect remediation, item 4 of 7.
+
+---
+
+## Defect Remediation #5, #6, #7 — enum, GraphQL hardening, test coverage
+**Timestamp**: 2026-08-06T03:15:00Z
+**User Input**: "continue to the next fixes"
+**AI Response**:
+#5 STATUS ENUM — added ShopeeAchadinhoStatus (PENDING/PROCESSING/READY/FAILED/REJECTED) to schema.prisma with migration 20260806120000_shopee_achadinho_status_enum. Cast is defensive (ELSE 'PENDING') because migrations run inside the Vercel buildCommand and a failed cast aborts the deploy. Typed the API routes, added an isInspectableStatus type guard, and mirrored the union as AchadinhoStatus in lib/swr/useShopee.ts (declared locally to keep @prisma/client out of the browser bundle). The compiler immediately flagged two untyped call sites the String column had allowed silently.
+#6 GRAPHQL — added ShopeeApiError; graphqlRequest now throws on transport failure, non-OK HTTP, invalid JSON, and GraphQL envelope errors instead of returning {}. Replaced manual quote-escaping with JSON.stringify-based gqlString (GraphQL string literals follow JSON syntax), covering backslashes, newlines and unicode; sortType/limit coerced and clamped. Did NOT switch to GraphQL variables: the vendor signs the exact payload string and documents inline queries, so that change needs live-credential verification — recorded as a follow-up.
+COUPLING FOUND: item #4's shrink guard was inert until #6 landed. graphqlRequest swallowed errors, so searchShopeeProductsGraphQL never threw, so syncShopeeRankings' per-keyword catch never fired and keywordFailures stayed 0.
+#7 TESTS — added shopee-api-client.test.ts (22), adapters.test.ts (14), cron-syncShopee.test.ts (12), joining the earlier shopee-categories (16), achadinhos gate (23) and pipeline-budget (11). Shopee module went from 0 tests to 96. Coverage: lib/shopee 80.04% stmts / 92.59% funcs; lib/shopee/cron 96.07% stmts / 100% funcs.
+Two test-authoring bugs found and fixed by the tests themselves (a naive injection assertion, and a factory that ignored its overrides) — source code was correct in both cases.
+Updated aidlc-docs/inception/reverse-engineering/code-quality-assessment.md with a remediation log and remaining follow-ups.
+Verification: typecheck clean; 1144 tests / 87 files passing.
+**Context**: CONSTRUCTION PHASE — defect remediation items 5-7 of 7 complete. All seven prioritised items closed (item 7 partially, by design).
+
+---
+
+## Achadinhos backlog approval — blocked on migration, deferred to deploy
+**Timestamp**: 2026-08-06T03:40:00Z
+**User Input**: "maxDuration = 300 is ok" / "The backlog is still hidden... Run it with --dry-run first do it" / [AskUserQuestion answer: "Deploy first, then approve"]
+**AI Response**: maxDuration=300 confirmed correct for this plan; no change to SHOPEE_BUDGET constants. Attempted the read-only dry-run of prisma/approveAchadinhos.ts; it failed with 'type "public.ShopeeAchadinhoStatus" does not exist'. prisma migrate status confirmed 33/34 migrations applied, with only 20260806120000_shopee_achadinho_status_enum pending. This surfaced a required ordering: migrate BEFORE approve. Noted that .env points at a single Neon endpoint (ep-nameless-paper-anvlh1rs) whose environment (preview vs production) is not determinable from the URL, while docs/deploy.md states develop and main use separate databases. User elected to deploy first and approve afterwards against the correct environment. NO database writes were performed — only a failed count() and a read-only migrate status.
+OPERATIONAL RISK RAISED: between the migration applying at deploy time and the approval script being run, the public achadinhos feed will be empty, because the gate now requires status READY and all pre-gate records are PENDING.
+**Context**: CONSTRUCTION PHASE — data migration deferred to the deploy window. Runbook provided to the user.
+
+---
+
+## Follow-through — migration backfill + tests for remaining untested surfaces
+**Timestamp**: 2026-08-06T04:15:00Z
+**User Input**: "do the recomendeded"
+**AI Response**: Executed both standing recommendations.
+MIGRATION BACKFILL — folded the pre-gate backlog publish into migration 20260806120000 (UPDATE ... SET status='READY' WHERE status='PENDING' AND productName IS NOT NULL AND affiliateLink IS NOT NULL), in the same transaction as the enum cast. This removes the empty-feed window between deploy and running the approval script, and removes the per-environment manual step. Safe to edit because the migration is still unapplied everywhere (verified via prisma migrate status). Rationale recorded in the SQL: these records were already publicly visible before the gate, so publishing them preserves the status quo rather than granting new exposure; everything the pipeline produces from here on still requires admin review. prisma/approveAchadinhos.ts was retained and re-documented as an operational tool rather than a required deploy step.
+TESTS (recommended order) —
+1. __tests__/api/cron/shopee.test.ts (20): CRON_SECRET guards incl. fail-closed on missing/empty secret and unequal-length token, non-Vercel 403 block, task routing, force passthrough, count clamping (20..400, non-numeric), error propagation.
+2. __tests__/api/admin/shopee-settings.test.ts (15): admin guard on GET and POST, assertion that GET never returns credential values (only the `configured` boolean), credentials routed through upsertSecretSetting not upsertSetting, blank/non-string rejection, achadinhosCount clamping.
+3. __tests__/components/shopee/ShopeeAchadinhoCard.test.tsx (11): the "correção crítica" link separation — buy anchor points at the Shopee affiliate URL, no anchor points at tiktok.com, target/rel hardening, edited affiliateLink wins over originalAffLink, admin edit button hidden for USER/anonymous.
+4. __tests__/components/shopee/ShopeeAdminTab.test.tsx (9): status=all and high pageSize on load, Approve/Reject visibility per status, PROCESSING/FAILED not reviewable (mirrors the API 409), PATCH body on approve.
+5. __tests__/components/shopee/useShopee.test.tsx (14): URL construction incl. empty filters omitted, admin hook requests status=all, mutation bodies and error propagation for both admin mutations.
+One test-authoring bug fixed: MUI wraps disabled-capable IconButtons in a span that carries the tooltip aria-label, so the click had to descend to the real button.
+Verification: typecheck clean; node suite 1179 tests / 89 files; component suite 113 tests / 11 files. Coverage: app/api/cron/shopee 100% stmts, app/api/admin/settings/shopee 84.84%, lib/shopee 80.04%, lib/shopee/cron 96.07%.
+NOTE: lib/swr/useShopee.ts reports 0% in both coverage runs despite having 14 tests — its tests live in the jsdom config, whose coverage include glob is app/components/**, while the node config's glob does not run those tests. A reporting gap, not a coverage gap.
+**Context**: CONSTRUCTION PHASE — remediation follow-through complete.
+
+---

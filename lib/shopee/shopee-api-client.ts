@@ -171,14 +171,62 @@ export interface ShortLinkResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Erro tipado
+// ---------------------------------------------------------------------------
+
+/**
+ * Falha ao falar com a Shopee Affiliate API.
+ *
+ * Existe para que os callers distingam "a busca não achou nada" (lista vazia)
+ * de "a API está fora do ar" (exceção). Antes, ambos os casos viravam uma
+ * lista vazia — o que fazia o ranking parecer legitimamente vazio durante uma
+ * indisponibilidade do fornecedor e desarmava as proteções de
+ * `syncShopeeRankings`.
+ */
+export class ShopeeApiError extends Error {
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "ShopeeApiError";
+    this.status = status;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Escape de literais GraphQL
+// ---------------------------------------------------------------------------
+
+/**
+ * Serializa um valor como literal de string GraphQL.
+ *
+ * Literais de string em GraphQL seguem a sintaxe de string do JSON, então
+ * JSON.stringify produz um literal válido e trata aspas, barras invertidas,
+ * quebras de linha e unicode.
+ *
+ * Substitui o escape manual anterior (`replace(/"/g, '\\"')`), que só cuidava
+ * de aspas — uma barra invertida ou quebra de linha no nome do produto
+ * quebrava a query. Isso importa porque o nome vem do GPT, que por sua vez
+ * lê a legenda de um vídeo escrita por terceiros.
+ */
+function gqlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+// ---------------------------------------------------------------------------
 // Função genérica para chamadas GraphQL
 // ---------------------------------------------------------------------------
 
 /**
- * Executa uma query GraphQL na Shopee Affiliate API com autenticação HMAC.
+ * Executa uma query GraphQL na Shopee Affiliate API com assinatura SHA-256.
+ *
+ * Falhas de transporte, HTTP e erros GraphQL LANÇAM `ShopeeApiError` — nunca
+ * devolvem resposta vazia. Cabe ao caller decidir o que fazer:
+ * - o pipeline de achadinhos cai no link de busca de fallback
+ * - o sync do ranking conta a falha e preserva os dados atuais
  *
  * @param query - A query GraphQL completa (string) em linha única
- * @returns Resposta da API tipada
+ * @throws ShopeeApiError
  */
 async function graphqlRequest<T>(query: string): Promise<T> {
   const { appId, appSecret } = await getCredentials();
@@ -187,7 +235,7 @@ async function graphqlRequest<T>(query: string): Promise<T> {
   // Monta o payload JSON sem espaços extras (exigido pela Shopee)
   const payload = JSON.stringify({ query });
 
-  // Gera a assinatura HMAC
+  // Gera a assinatura SHA-256
   const sign = generateSignature(appId, timestamp, payload, appSecret);
 
   // Header de autenticação
@@ -198,8 +246,9 @@ async function graphqlRequest<T>(query: string): Promise<T> {
     timestamp,
   });
 
+  let response: Response;
   try {
-    const response = await fetch(GRAPHQL_URL, {
+    response = await fetch(GRAPHQL_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -208,24 +257,45 @@ async function graphqlRequest<T>(query: string): Promise<T> {
       body: payload,
       signal: AbortSignal.timeout(15_000),
     });
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => "");
-      log.error("Erro na resposta da Shopee Affiliate GraphQL API", {
-        status: response.status,
-        body: errorBody.slice(0, 500),
-      });
-      return {} as T;
-    }
-
-    const data: T = await response.json();
-    return data;
   } catch (error) {
-    log.error("Falha na chamada à Shopee Affiliate GraphQL API", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {} as T;
+    const message = error instanceof Error ? error.message : String(error);
+    log.error("Falha de transporte na Shopee Affiliate GraphQL API", { message });
+    throw new ShopeeApiError(`Falha de rede ao chamar a Shopee: ${message}`);
   }
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    log.error("Erro HTTP da Shopee Affiliate GraphQL API", {
+      status: response.status,
+      body: errorBody.slice(0, 500),
+    });
+    throw new ShopeeApiError(
+      `Shopee respondeu HTTP ${response.status}`,
+      response.status,
+    );
+  }
+
+  let data: T;
+  try {
+    data = (await response.json()) as T;
+  } catch (error) {
+    throw new ShopeeApiError(
+      `Resposta da Shopee não é JSON válido: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      response.status,
+    );
+  }
+
+  // Erros no envelope GraphQL (HTTP 200 com "errors") também são falhas
+  const errors = (data as { errors?: Array<{ message?: string }> })?.errors;
+  if (errors?.length) {
+    const detail = errors.map((e) => e.message ?? "erro desconhecido").join("; ");
+    log.error("Shopee Affiliate GraphQL retornou erros", { detail });
+    throw new ShopeeApiError(`Shopee GraphQL: ${detail}`, response.status);
+  }
+
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,17 +315,19 @@ export async function searchShopeeProductsGraphQL(
   sortType: number = 1,
   limit: number = 10,
 ): Promise<ProductOfferNode[]> {
-  const escapedKeyword = keyword.replace(/"/g, '\\"');
+  // Literal GraphQL seguro (aspas, barras, quebras de linha, unicode).
+  // O keyword pode vir do GPT, que leu a legenda de um vídeo de terceiros.
+  const safeKeyword = gqlString(keyword);
+  // Numéricos: coeridos e limitados, nunca interpolados crus
+  const safeSortType = Math.trunc(Number(sortType)) || 1;
+  const safeLimit = Math.min(50, Math.max(1, Math.trunc(Number(limit)) || 10));
 
   // Query em linha única conforme documentação oficial
   // Inclui o campo imageUrl para garantir que a URL da imagem seja retornada
-  const query = `query { productOfferV2(keyword: "${escapedKeyword}", sortType: ${sortType}, limit: ${limit}) { nodes { itemId productName priceMin priceMax sales commissionRate imageUrl offerLink productLink shopName productCatIds ratingStar } pageInfo { page limit hasNextPage } } }`;
+  const query = `query { productOfferV2(keyword: ${safeKeyword}, sortType: ${safeSortType}, limit: ${safeLimit}) { nodes { itemId productName priceMin priceMax sales commissionRate imageUrl offerLink productLink shopName productCatIds ratingStar } pageInfo { page limit hasNextPage } } }`;
 
+  // Erros de transporte/GraphQL lançam ShopeeApiError — não são silenciados
   const response = await graphqlRequest<ProductOfferV2Response>(query);
-
-  if (response?.errors) {
-    log.error("GraphQL retornou erros", { errors: JSON.stringify(response.errors) });
-  }
 
   const rawNodes = response?.data?.productOfferV2?.nodes ?? [];
 
@@ -281,10 +353,10 @@ export async function generateShortLink(
   subIds?: string[],
 ): Promise<string | null> {
   const subIdsFormatted = subIds && subIds.length > 0
-    ? `, subIds: [${subIds.map(s => `"${s}"`).join(", ")}]`
+    ? `, subIds: [${subIds.map(gqlString).join(", ")}]`
     : "";
 
-  const query = `query { generateShortLink(originUrl: "${originUrl.replace(/"/g, '\\"')}"${subIdsFormatted}) { shortLink originalUrl } }`;
+  const query = `query { generateShortLink(originUrl: ${gqlString(originUrl)}${subIdsFormatted}) { shortLink originalUrl } }`;
 
   const response = await graphqlRequest<ShortLinkResponse>(query);
 

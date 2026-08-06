@@ -12,6 +12,13 @@
  *   - order: "asc" | "desc" (default: "desc")
  *   - category: filtro por categoria (opcional)
  *   - search: termo de busca no nome do produto (opcional)
+ *   - status: SOMENTE ADMIN — "all" ou um status específico
+ *
+ * VISIBILIDADE (gate de aprovação):
+ * Usuários finais veem apenas achadinhos APROVADOS (status READY). O pipeline
+ * grava tudo como PENDING; um admin precisa aprovar antes de publicar.
+ * O parâmetro `status` é ignorado para não-admins — não é possível escapar do
+ * filtro de visibilidade pela query string.
  *
  * Protegido por NextAuth.
  */
@@ -19,7 +26,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthed } from "@/lib/auth";
-import type { Prisma, ShopeeAchadinhoProduct } from "@prisma/client";
+import type {
+  Prisma,
+  ShopeeAchadinhoProduct,
+  ShopeeAchadinhoStatus,
+} from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +65,25 @@ function serializeAchadinho(achadinho: ShopeeAchadinhoProduct) {
   return serialized as ShopeeAchadinhoProduct & { [K in keyof ShopeeAchadinhoProduct]: ShopeeAchadinhoProduct[K] extends bigint ? number : ShopeeAchadinhoProduct[K] };
 }
 
+/** Status que um admin pode inspecionar via ?status= */
+const INSPECTABLE_STATUSES: ShopeeAchadinhoStatus[] = [
+  "PENDING",
+  "PROCESSING",
+  "READY",
+  "FAILED",
+  "REJECTED",
+];
+
+/** Type guard — valida a query string contra o enum do banco. */
+function isInspectableStatus(value: string): value is ShopeeAchadinhoStatus {
+  return (INSPECTABLE_STATUSES as string[]).includes(value);
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
+
+  const isAdmin = auth.role === "ADMIN";
 
   try {
     const url = new URL(req.url);
@@ -74,17 +101,32 @@ export async function GET(req: NextRequest) {
     const sortField = SORT_FIELDS[sortRaw] || "saleCount";
     const order: "asc" | "desc" = orderRaw === "asc" ? "asc" : "desc";
 
+    // ── Gate de aprovação ────────────────────────────────────────────
+    // Usuário final: apenas READY (aprovado por um admin).
+    // Admin: pode inspecionar qualquer status via ?status=all|PENDING|...
+    // Sem o parâmetro, o admin também vê apenas READY — o mesmo que o usuário.
+    const statusParam = url.searchParams.get("status");
+    const statusWhere: Prisma.ShopeeAchadinhoProductWhereInput = {};
+
+    if (isAdmin && statusParam) {
+      if (statusParam !== "all") {
+        if (!isInspectableStatus(statusParam)) {
+          return NextResponse.json(
+            { ok: false, error: `Status inválido: ${statusParam}` },
+            { status: 400 },
+          );
+        }
+        statusWhere.status = statusParam;
+      }
+      // "all" — sem filtro de status
+    } else {
+      statusWhere.status = "READY";
+    }
+
     // Monta o where dinâmico
-    const where: Prisma.ShopeeAchadinhoProductWhereInput = {};
+    const where: Prisma.ShopeeAchadinhoProductWhereInput = { ...statusWhere };
     if (category) where.category = category;
     if (search) where.productName = { contains: search, mode: "insensitive" };
-
-    // Por padrão, filtra registros com FALHA para o usuário final.
-    // Para debug completo, use `?status=all`.
-    const statusFilter = url.searchParams.get("status");
-    if (statusFilter !== "all") {
-      where.status = { not: "FAILED" };
-    }
 
     // Executa a query com paginação
     const [achadinhos, total] = await Promise.all([
@@ -97,9 +139,10 @@ export async function GET(req: NextRequest) {
       prisma.shopeeAchadinhoProduct.count({ where }),
     ]);
 
-    // Retorna categorias disponíveis para o filtro
+    // Categorias disponíveis para o filtro — respeitam a mesma visibilidade,
+    // senão o usuário veria categorias de achadinhos que não pode abrir.
     const categorias = await prisma.shopeeAchadinhoProduct.findMany({
-      where: { category: { not: null } },
+      where: { ...statusWhere, category: { not: null } },
       select: { category: true },
       distinct: ["category"],
     });

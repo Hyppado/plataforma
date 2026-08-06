@@ -1207,6 +1207,19 @@ model ShopeeProductTrend {
   @@index([categoryName])
 }
 
+/// Ciclo de vida de um achadinho, do pipeline até a publicação.
+///
+/// Gate de aprovação: o pipeline nunca publica sozinho. PENDING é o estado
+/// terminal de sucesso da ingestão — um admin precisa aprovar (READY) antes
+/// do achadinho aparecer para o usuário final.
+enum ShopeeAchadinhoStatus {
+  PENDING     // ingestão concluída, aguardando revisão do admin
+  PROCESSING  // pipeline trabalhando neste vídeo
+  READY       // aprovado pelo admin, visível no feed
+  FAILED      // pipeline não conseguiu extrair um produto utilizável
+  REJECTED    // admin recusou — arquivado, nunca publicado
+}
+
 model ShopeeAchadinhoProduct {
   id                String    @id @default(uuid())
   videoExternalId   String    @unique
@@ -1223,7 +1236,7 @@ model ShopeeAchadinhoProduct {
   commission        Float?                          // Comissão do produto (vinda da Shopee API — commissionRate)
   views             BigInt    @default(0)            // Visualizações do vídeo (play_count da EchoTik)
   authorName        String?                         // @handle do autor do vídeo (para URL canônica do TikTok)
-  status            String    @default("PENDING")    // PENDING, PROCESSING, READY, FAILED
+  status            ShopeeAchadinhoStatus @default(PENDING)
   errorMessage      String?
   productImageUrl   String?                         // Imagem do produto (vinda do nó Shopee)
   productPriceMin   Float?                          // Preço mínimo do produto (vindo do nó Shopee)

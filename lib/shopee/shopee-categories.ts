@@ -100,6 +100,42 @@ function normalizeKey(keyword: string): string {
 }
 
 /**
+ * Resolve a categoria a partir de um texto livre.
+ *
+ * O ranking passa uma das RANKING_KEYWORDS (casa exato). Os achadinhos passam
+ * o nome do produto extraído pelo GPT (ex: "fone de ouvido bluetooth gamer"),
+ * que nunca casa exatamente com as chaves do mapa — por isso a segunda passada
+ * por substring.
+ *
+ * As chaves são testadas da mais longa para a mais curta para que a
+ * correspondência mais específica vença (ex: "fone de ouvido" antes de "fone
+ * bluetooth" quando o texto contém ambas).
+ *
+ * @param text - Keyword de busca ou nome do produto
+ * @returns Categoria pai + subcategoria, ou null se nada casar
+ */
+export function resolveCategoryFromText(
+  text: string,
+): { parent: string; child: string } | null {
+  const normalized = normalizeKey(text ?? "");
+  if (!normalized) return null;
+
+  // 1. Correspondência exata (comportamento original do ranking)
+  const exact = KEYWORD_CATEGORY_FALLBACK[normalized];
+  if (exact) return exact;
+
+  // 2. Correspondência por substring, da chave mais longa para a mais curta
+  const keys = Object.keys(KEYWORD_CATEGORY_FALLBACK).sort(
+    (a, b) => b.length - a.length,
+  );
+  for (const key of keys) {
+    if (normalized.includes(key)) return KEYWORD_CATEGORY_FALLBACK[key];
+  }
+
+  return null;
+}
+
+/**
  * Mapeia os IDs de categoria da Shopee (productCatIds[]) para nomes legíveis.
  * Usa o mapa de IDs conhecidos ou fallback da keyword de busca.
  *
@@ -124,8 +160,8 @@ export function mapShopeeCategories(
     };
   }
 
-  // 2. Fallback: usa a keyword de busca para inferir a categoria
-  const fallback = KEYWORD_CATEGORY_FALLBACK[normalizeKey(keyword)];
+  // 2. Fallback: usa a keyword de busca (ou o nome do produto) para inferir
+  const fallback = resolveCategoryFromText(keyword);
   if (fallback) {
     return {
       categoryId: catIdStr,

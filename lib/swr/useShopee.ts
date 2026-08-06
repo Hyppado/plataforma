@@ -39,6 +39,18 @@ export interface ShopeeProductTrendDTO {
   syncedAt: string;
 }
 
+/**
+ * Ciclo de vida de um achadinho — espelha o enum ShopeeAchadinhoStatus do
+ * Prisma. Declarado aqui (e não importado de @prisma/client) para não puxar
+ * o client do Prisma para o bundle do browser.
+ */
+export type AchadinhoStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "READY"
+  | "FAILED"
+  | "REJECTED";
+
 export interface ShopeeAchadinhoDTO {
   id: string;
   videoExternalId: string;
@@ -61,7 +73,8 @@ export interface ShopeeAchadinhoDTO {
   /** Comissão do produto (vinda da Shopee — commissionRate) */
   commission: number | null;
   authorName: string | null;
-  status: string;
+  /** Espelha o enum ShopeeAchadinhoStatus do Prisma (serializado como string) */
+  status: AchadinhoStatus;
   errorMessage: string | null;
   productImageUrl: string | null;
   productPriceMin: number | null;
@@ -170,7 +183,9 @@ export function useShopeeAchadinhosFeed(params: {
  */
 export function useShopeeAchadinhos() {
   const { data, error, isLoading, isValidating, mutate } = useSWR<AchadinhosAllResponse>(
-    "/api/shopee/achadinhos?pageSize=1000",
+    // status=all — o admin precisa ver a fila de revisão (PENDING/REJECTED),
+    // não apenas os já publicados. O parâmetro só tem efeito para ADMIN.
+    "/api/shopee/achadinhos?pageSize=1000&status=all",
     fetcher,
     {
       revalidateOnFocus: false,
@@ -214,6 +229,44 @@ export function useUpdateAffiliateLink() {
   return {
     updateLink: trigger,
     isUpdating: isMutating,
+    error: error?.message ?? null,
+  };
+}
+
+/** Ações do gate de aprovação de achadinhos. */
+export type AchadinhoReviewAction = "approve" | "reject" | "reset";
+
+/**
+ * Mutation hook para revisar um achadinho (gate de aprovação).
+ *
+ * O pipeline grava tudo como PENDING e nada disso aparece para o usuário
+ * final. Um admin precisa aprovar para publicar.
+ *
+ * Faz PATCH /api/shopee/achadinhos/[id] com { action }.
+ */
+export function useReviewAchadinho() {
+  const { trigger, isMutating, error } = useSWRMutation(
+    "/api/shopee/achadinhos",
+    async (
+      url: string,
+      { arg }: { arg: { id: string; action: AchadinhoReviewAction } },
+    ) => {
+      const res = await fetch(`/api/shopee/achadinhos/${arg.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: arg.action }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Erro ao revisar achadinho");
+      }
+      return res.json();
+    },
+  );
+
+  return {
+    review: trigger,
+    isReviewing: isMutating,
     error: error?.message ?? null,
   };
 }

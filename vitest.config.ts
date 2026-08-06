@@ -24,6 +24,10 @@ export default defineConfig({
         "lib/hooks/**",
         "lib/admin/admin-client.ts",
         "lib/admin/useQuotaUsage.ts",
+        // Hooks SWR são client-side: exercitados na suíte jsdom
+        // (vitest.component.config.ts), não nesta. Mantê-los aqui reportava
+        // 0% para código que tem teste.
+        "lib/swr/**",
         "**/*.d.ts",
       ],
       reporter: ["text", "text-summary", "lcov"],

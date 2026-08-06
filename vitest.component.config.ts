@@ -21,7 +21,9 @@ export default defineConfig({
     css: false,
     coverage: {
       provider: "v8",
-      include: ["app/components/**/*.tsx"],
+      // Inclui os hooks SWR: são client-side e só rodam nesta suíte (jsdom).
+      // A config de node os exclui, para que não reportem 0% lá.
+      include: ["app/components/**/*.tsx", "lib/swr/**/*.ts"],
       exclude: ["**/*.d.ts", "**/videoCardConfig.ts"],
       reporter: ["text", "lcov"],
     },
