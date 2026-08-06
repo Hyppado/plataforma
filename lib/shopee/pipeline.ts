@@ -300,13 +300,22 @@ async function fetchVideosByHashtagPaginated(
       `Página ${offset / ECHOTIK_PAGE_SIZE + 1}: ${pageVideos.length} vídeos retornados, ${added} novos (total acumulado: ${allVideos.length}/${clampedCount})`,
     );
 
-    // Se a página veio menor que o solicitado, não há mais páginas
-    if (rawItems.length < pageCount) {
-      hasMore = false;
+    // NÃO usar "página menor que o solicitado" como fim da lista: a EchoTik
+    // devolve rotineiramente menos itens do que o pedido (ex: 19 para
+    // count=20) e o fim prematuro fazia o cron parar na primeira página —
+    // por isso execuções com requestedCount=50 registravam found=11.
+    //
+    // Critério de parada correto: a API sinalizar has_more=0, a página vir
+    // vazia (tratado acima), ou a página não trazer NENHUM vídeo novo
+    // (proteção contra offset que não avança e devolve sempre o mesmo bloco).
+    if (added === 0) {
+      log.info(
+        "Página não trouxe vídeos novos — encerrando paginação",
+        { hashtagId, offset },
+      );
       break;
     }
 
-    // Verifica se a API indicou que há mais páginas (se disponível)
     const hasMoreFlag = response?.data?.has_more;
     if (hasMoreFlag === 0) {
       hasMore = false;

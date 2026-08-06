@@ -67,6 +67,7 @@ async function main() {
   const hashtagId = await getAchadinhosHashtagId();
   const fresh = new Map<string, string>(); // videoExternalId -> coverUrl novo
   const wanted = new Set(broken.map((r) => r.videoExternalId));
+  const seen = new Set<string>(); // dedup entre páginas
 
   console.log(`\nVarrendo a hashtag ${hashtagId} atrás de capas novas...`);
 
@@ -89,17 +90,28 @@ async function main() {
     const items = response?.data?.aweme_list ?? [];
     if (items.length === 0) break;
 
+    // A EchoTik devolve rotineiramente menos itens do que o pedido (19 para
+    // count=20), então "página curta" NÃO significa fim da lista. Paginamos
+    // enquanto houver itens e o offset estiver de fato avançando.
+    let novos = 0;
     for (const v of mapAwemeListToVideos(items)) {
+      if (!seen.has(v.video_id)) {
+        seen.add(v.video_id);
+        novos++;
+      }
       if (wanted.has(v.video_id) && v.cover_url && !fresh.has(v.video_id)) {
         fresh.set(v.video_id, v.cover_url);
       }
     }
 
     console.log(
-      `  página ${page + 1}: ${items.length} vídeos, ${fresh.size}/${wanted.size} capas encontradas`,
+      `  página ${page + 1}: ${items.length} vídeos (${novos} novos), ${fresh.size}/${wanted.size} capas encontradas`,
     );
 
-    if (items.length < PAGE_SIZE) break;
+    // Sem vídeos novos = offset não avança, não adianta continuar
+    if (novos === 0) break;
+    if (response?.data?.has_more === 0) break;
+
     await sleep(PAGE_DELAY_MS);
   }
 
