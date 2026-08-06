@@ -62,6 +62,7 @@ import {
   parseViewsFromEchoTikItem,
 } from "@/lib/shopee/client";
 import { mapShopeeCategories } from "@/lib/shopee/shopee-categories";
+import { uploadImageToBlob } from "@/lib/storage/blob";
 
 const log = createLogger("shopee/pipeline");
 
@@ -545,11 +546,61 @@ async function saveProductResult(
  * Cria ou atualiza o registro do achadinho com status PROCESSING,
  * preenchendo tiktokVideoUrl, views e authorName vindos do EchoTik.
  */
+/**
+ * Persiste a capa do vídeo no Vercel Blob e devolve a URL permanente.
+ *
+ * POR QUE ISTO EXISTE
+ * A EchoTik devolve a capa como URL assinada do CDN do TikTok, com
+ * `x-expires` na query string. Guardar essa URL crua funciona por algumas
+ * horas e depois passa a responder 403 — foi exatamente o que aconteceu com
+ * todos os achadinhos já ingeridos: capa gravada, capa quebrada no dia
+ * seguinte.
+ *
+ * O lado TikTok do produto já resolve isso (uploadPendingImages no cron da
+ * EchoTik grava blobUrl permanente); o pipeline da Shopee nunca fez o mesmo.
+ *
+ * A janela para baixar é AGORA, enquanto a URL ainda é válida.
+ *
+ * @returns URL permanente do Blob, ou a URL original como fallback
+ */
+export async function cacheCoverToBlob(
+  videoExternalId: string,
+  coverUrl: string | null | undefined,
+): Promise<string | null> {
+  if (!coverUrl) return null;
+
+  // Já é uma URL permanente — nada a fazer
+  if (coverUrl.includes(".public.blob.vercel-storage.com")) return coverUrl;
+
+  try {
+    const blobUrl = await uploadImageToBlob(
+      coverUrl,
+      `shopee/achadinhos/${videoExternalId}.jpg`,
+    );
+
+    if (blobUrl) {
+      log.info(`Capa persistida no Blob para ${videoExternalId}`);
+      return blobUrl;
+    }
+  } catch (error) {
+    log.warn(`Falha ao persistir capa no Blob para ${videoExternalId}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  // Fallback: guarda a URL original. Vai expirar, mas é melhor que nada e a
+  // próxima execução tenta de novo (o update também atualiza a capa).
+  return coverUrl;
+}
+
 async function upsertProcessingRecord(video: EchoTikVideoDTO) {
   const { video_id: videoExternalId, video_desc, cover_url, author_name, views } = video;
 
   // URL canônica do TikTok (tiktokVideoUrl — para embed/player)
   const canonicalTikTokUrl = buildCanonicalTikTokUrl(videoExternalId, author_name);
+
+  // Baixa a capa enquanto a URL assinada ainda é válida
+  const coverUrl = await cacheCoverToBlob(videoExternalId, cover_url);
 
   return prisma.shopeeAchadinhoProduct.upsert({
     where: { videoExternalId },
@@ -560,13 +611,18 @@ async function upsertProcessingRecord(video: EchoTikVideoDTO) {
       videoUrl: canonicalTikTokUrl,
       views: BigInt(views ?? 0),
       authorName: author_name ?? null,
+      // A capa TAMBÉM é atualizada no update: antes só era gravada no create,
+      // então um registro que nasceu sem capa (ou com capa expirada) nunca se
+      // recuperava, mesmo sendo reprocessado.
+      ...(coverUrl ? { coverUrl } : {}),
+      ...(video_desc ? { videoTitle: video_desc } : {}),
     },
     create: {
       videoExternalId,
       // tiktokVideoUrl — URL canônica do TikTok
       videoUrl: canonicalTikTokUrl,
       videoTitle: video_desc || null,
-      coverUrl: cover_url || null,
+      coverUrl,
       views: BigInt(views ?? 0),
       authorName: author_name ?? null,
       status: "PROCESSING",
