@@ -148,6 +148,28 @@ describe("GET /api/shopee/achadinhos — visibilidade", () => {
     expect(res.status).toBe(400);
   });
 
+  it("esconde do feed público itens sem capa", async () => {
+    // Card sem imagem renderiza como retângulo vazio — não é apresentável.
+    mockAuthenticatedUser();
+    mockFeedQueries();
+
+    await GET(makeGetRequest("/api/shopee/achadinhos") as any);
+
+    expect(findManyWhere().coverUrl).toEqual({ not: null });
+  });
+
+  it("admin com ?status=all continua vendo itens sem capa", async () => {
+    // Precisa enxergar para poder rejeitar.
+    mockAuthenticatedAdmin();
+    mockFeedQueries();
+
+    await GET(
+      makeGetRequest("/api/shopee/achadinhos", { status: "all" }) as any,
+    );
+
+    expect(findManyWhere().coverUrl).toBeUndefined();
+  });
+
   it("a lista de categorias respeita a mesma visibilidade", async () => {
     mockAuthenticatedUser();
     mockFeedQueries();

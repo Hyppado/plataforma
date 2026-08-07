@@ -28,7 +28,7 @@ import { PrismaClient } from "@prisma/client";
 import { fetchVideosByHashtag } from "@/lib/echotik/client";
 import {
   mapAwemeListToVideos,
-  getAchadinhosHashtagId,
+  getAchadinhosHashtagIds,
 } from "@/lib/shopee/client";
 import { cacheCoverToBlob } from "@/lib/shopee/pipeline";
 
@@ -64,13 +64,16 @@ async function main() {
   }
 
   // 2. Rebuscar capas novas na hashtag
-  const hashtagId = await getAchadinhosHashtagId();
+  const hashtagIds = await getAchadinhosHashtagIds();
   const fresh = new Map<string, string>(); // videoExternalId -> coverUrl novo
   const wanted = new Set(broken.map((r) => r.videoExternalId));
-  const seen = new Set<string>(); // dedup entre páginas
+  const seen = new Set<string>(); // dedup entre páginas e hashtags
 
-  console.log(`\nVarrendo a hashtag ${hashtagId} atrás de capas novas...`);
+  console.log(`\nVarrendo ${hashtagIds.length} hashtag(s) atrás de capas novas...`);
 
+  for (const hashtagId of hashtagIds) {
+  if (fresh.size >= wanted.size) break;
+  console.log(`  hashtag ${hashtagId}`);
   for (let page = 0; page < MAX_PAGES && fresh.size < wanted.size; page++) {
     let response;
     try {
@@ -113,6 +116,7 @@ async function main() {
     if (response?.data?.has_more === 0) break;
 
     await sleep(PAGE_DELAY_MS);
+  }
   }
 
   const recoverable = broken.filter((r) => fresh.has(r.videoExternalId));
