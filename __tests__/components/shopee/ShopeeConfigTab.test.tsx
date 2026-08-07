@@ -17,6 +17,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ShopeeConfigTab } from "@/app/components/admin/shopee/ShopeeConfigTab";
+import { ACHADINHOS_MAX_HASHTAGS } from "@/lib/shopee/types";
 
 const CONFIG = {
   configured: true,
@@ -118,6 +119,66 @@ describe("seletor de hashtag", () => {
 
     await waitFor(() =>
       expect(screen.getByText(/Shopee Affiliate API/i)).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("teto de hashtags", () => {
+  /** Config com N hashtags salvas e as opções correspondentes na busca. */
+  function mockComNHashtags(n: number) {
+    const tags = Array.from({ length: n }, (_, i) => ({
+      id: String(1000000000000000 + i),
+      name: `tag${i}`,
+      videoCount: 1000,
+      viewCount: 1e6,
+    }));
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("/hashtags")) {
+        return { ok: true, json: async () => ({ ok: true, hashtags: tags }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({ ...CONFIG, achadinhosHashtagId: tags.map((t) => t.id).join(",") }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return tags;
+  }
+
+  it("declara o limite no rótulo do campo", async () => {
+    // O admin precisa saber o teto ANTES de tentar passar dele.
+    mockApi();
+
+    render(<ShopeeConfigTab />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(
+          new RegExp(`Hashtags dos Achadinhos \\(máx\\. ${ACHADINHOS_MAX_HASHTAGS}\\)`, "i"),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("mostra o progresso em relação ao teto quando há seleção", async () => {
+    mockApi(); // CONFIG traz 2 hashtags
+
+    render(<ShopeeConfigTab />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(new RegExp(`2 de ${ACHADINHOS_MAX_HASHTAGS} hashtags`)),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("avisa que o limite foi atingido no máximo", async () => {
+    mockComNHashtags(ACHADINHOS_MAX_HASHTAGS);
+
+    render(<ShopeeConfigTab />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Limite de .* atingido/i)).toBeInTheDocument(),
     );
   });
 });

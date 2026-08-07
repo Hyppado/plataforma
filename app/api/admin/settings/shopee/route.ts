@@ -15,6 +15,7 @@ import {
   hasSecretSetting,
   getSetting,
 } from "@/lib/settings";
+import { ACHADINHOS_MAX_HASHTAGS } from "@/lib/shopee/types";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -142,6 +143,20 @@ export async function POST(req: NextRequest) {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => /^\d+$/.test(s));
+
+      // Teto derivado do orçamento de descoberta. Rejeitamos em vez de cortar
+      // a lista em silêncio: o admin precisa saber que a escolha não coube.
+      if (ids.length > ACHADINHOS_MAX_HASHTAGS) {
+        return NextResponse.json(
+          {
+            error:
+              `Máximo de ${ACHADINHOS_MAX_HASHTAGS} hashtags — ` +
+              `${ids.length} foram enviadas. Acima disso a varredura não ` +
+              `termina dentro do orçamento e as últimas hashtags nunca são lidas.`,
+          },
+          { status: 400 },
+        );
+      }
 
       if (ids.length > 0) {
         ops.push(

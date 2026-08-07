@@ -50,6 +50,7 @@ import {
   buildShopeeSearchFallbackLink,
   SHOPEE_DEFAULTS,
   SHOPEE_BUDGET,
+  ACHADINHOS_MAX_HASHTAGS,
   achadinhosLoopBudgetMs,
   TRANSIENT_ERROR_PREFIX,
   isTransientFailure,
@@ -938,6 +939,18 @@ export async function processAchadinhosBatch(
       });
       return { ...empty, elapsedMs: Date.now() - startedAt };
     }
+  }
+
+  // Teto defensivo: a validação está na API admin, mas configurações gravadas
+  // antes dela (ou via env) podem trazer mais. Cortar aqui é honesto — as
+  // excedentes não seriam varridas de qualquer jeito, o orçamento acabaria antes.
+  if (hashtagIds.length > ACHADINHOS_MAX_HASHTAGS) {
+    log.warn(
+      `${hashtagIds.length} hashtags configuradas, acima do teto de ${ACHADINHOS_MAX_HASHTAGS} — ` +
+        `as excedentes serão ignoradas`,
+      { ignoradas: hashtagIds.slice(ACHADINHOS_MAX_HASHTAGS) },
+    );
+    hashtagIds = hashtagIds.slice(0, ACHADINHOS_MAX_HASHTAGS);
   }
 
   // Passo 1: descoberta, limitada ao seu próprio orçamento

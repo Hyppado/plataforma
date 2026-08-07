@@ -22,6 +22,7 @@ import {
   Autocomplete,
 } from "@mui/material";
 import { Check, Warning } from "@mui/icons-material";
+import { ACHADINHOS_MAX_HASHTAGS } from "@/lib/shopee/types";
 
 /** Hashtag real devolvida pela busca no EchoTik. */
 interface HashtagOption {
@@ -62,6 +63,7 @@ export function ShopeeConfigTab() {
   const [hashtagLoading, setHashtagLoading] = useState(false);
   const [hashtagQuery, setHashtagQuery] = useState("");
   const [selectedHashtags, setSelectedHashtags] = useState<HashtagOption[]>([]);
+  const noLimite = selectedHashtags.length >= ACHADINHOS_MAX_HASHTAGS;
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -312,9 +314,13 @@ export function ShopeeConfigTab() {
             if (reason === "input") setHashtagQuery(v);
           }}
           onChange={(_, options) => {
+            // Segunda barreira além do getOptionDisabled: colar/Enter também
+            // passa por aqui. Remover nunca é bloqueado.
+            if (options.length > ACHADINHOS_MAX_HASHTAGS) return;
             setSelectedHashtags(options);
             setAchadinhosHashtagId(options.map((o) => o.id).join(","));
           }}
+          getOptionDisabled={() => noLimite}
           noOptionsText={
             hashtagLoading ? "Buscando..." : "Nenhuma hashtag encontrada"
           }
@@ -331,18 +337,20 @@ export function ShopeeConfigTab() {
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Hashtags dos Achadinhos"
+              label={`Hashtags dos Achadinhos (máx. ${ACHADINHOS_MAX_HASHTAGS})`}
               size="small"
               fullWidth
               placeholder={
                 selectedHashtags.length === 0 ? "Digite para buscar, ex: achadinhosshopee" : ""
               }
               helperText={
-                selectedHashtags.length > 0
-                  ? `${selectedHashtags.length} hashtag(s) · ${selectedHashtags
-                      .reduce((t, h) => t + h.videoCount, 0)
-                      .toLocaleString("pt-BR")} vídeos no total`
-                  : "Escolha uma ou mais. Cada hashtag rende poucos vídeos novos por dia — combinar várias aumenta a oferta."
+                noLimite
+                  ? `Limite de ${ACHADINHOS_MAX_HASHTAGS} atingido. Acima disso a varredura não termina dentro do orçamento e as últimas hashtags nunca são lidas.`
+                  : selectedHashtags.length > 0
+                    ? `${selectedHashtags.length} de ${ACHADINHOS_MAX_HASHTAGS} hashtags · ${selectedHashtags
+                        .reduce((t, h) => t + h.videoCount, 0)
+                        .toLocaleString("pt-BR")} vídeos no total`
+                    : `Escolha até ${ACHADINHOS_MAX_HASHTAGS}. Cada hashtag rende poucos vídeos novos por dia — combinar várias aumenta a oferta.`
               }
               InputProps={{
                 ...params.InputProps,
