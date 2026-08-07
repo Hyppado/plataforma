@@ -27,6 +27,7 @@ import {
   Typography,
   Button,
   ButtonBase,
+  CircularProgress,
 } from "@mui/material";
 import {
   PlayArrowRounded,
@@ -38,6 +39,7 @@ import {
   AttachMoney,
   Subtitles,
   AutoAwesome,
+  Download,
   Bookmark,
   BookmarkBorder,
 } from "@mui/icons-material";
@@ -96,6 +98,8 @@ export function ShopeeAchadinhoCard({
   >("idle");
   const [insightData, setInsightData] = useState<InsightData | null>(null);
   const [insightError, setInsightError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Salvar — reutiliza useSavedVideos (mesma lógica do "Vídeos em Alta")
   // Converte o Achadinho em VideoDTO para aparecer na aba "Vídeos Salvos"
@@ -131,6 +135,42 @@ export function ShopeeAchadinhoCard({
   };
 
   // ── Ações do card (funcionalidades reais, mesmas do TikTok Shop) ──
+
+  // Download do vídeo — a rota resolve a URL na EchoTik (assinada, expira) e
+  // devolve o arquivo com Content-Disposition, senão o navegador só abriria
+  // o vídeo numa aba em vez de baixar.
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (downloading) return;
+
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const res = await fetch(`/api/shopee/achadinhos/${achadinho.id}/download`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setDownloadError(body.error ?? "Não foi possível baixar o vídeo.");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        res.headers.get("content-disposition")?.match(/filename="(.+?)"/)?.[1] ??
+        `${achadinho.videoExternalId}.mp4`;
+      // Precisa estar no DOM para o clique valer em todos os navegadores
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError("Falha de conexão ao baixar o vídeo.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Transcrição: abre o TranscriptDialog já existente com o texto do achadinho
   const handleTranscribe = (e: React.MouseEvent) => {
@@ -611,6 +651,44 @@ export function ShopeeAchadinhoCard({
           >
             Transcrição
           </Button>
+
+          <Tooltip title={downloadError ?? "Baixar o vídeo para repostar"} arrow>
+            <span>
+              <Button
+                fullWidth
+                variant="outlined"
+                disabled={downloading}
+                startIcon={
+                  downloading ? (
+                    <CircularProgress size={14} sx={{ color: "inherit" }} />
+                  ) : (
+                    <Download sx={{ fontSize: { xs: 15, md: 16 } }} />
+                  )
+                }
+                onClick={handleDownload}
+                sx={{
+                  py: { xs: 0.65, md: 0.75 },
+                  fontSize: { xs: "0.74rem", md: "0.78rem" },
+                  fontWeight: 600,
+                  textTransform: "none",
+                  borderRadius: 3,
+                  color: downloadError ? "#EF4444" : UI.text.secondary,
+                  borderColor: downloadError
+                    ? "rgba(239,68,68,0.4)"
+                    : "rgba(255,255,255,0.12)",
+                  transition: "all 160ms ease",
+                  "&:hover": {
+                    borderColor: "rgba(255,255,255,0.22)",
+                    background: "rgba(255,255,255,0.04)",
+                    transform: "translateY(-1px)",
+                  },
+                  "&:active": { transform: "scale(0.98)" },
+                }}
+              >
+                {downloading ? "Baixando..." : "Baixar vídeo"}
+              </Button>
+            </span>
+          </Tooltip>
 
           <Button
             fullWidth

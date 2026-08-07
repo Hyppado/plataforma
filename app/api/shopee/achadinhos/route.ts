@@ -121,6 +121,11 @@ export async function GET(req: NextRequest) {
       // "all" — sem filtro de status
     } else {
       statusWhere.status = "READY";
+      // Um card sem capa aparece como um retângulo vazio no feed. Isso
+      // acontece quando o vídeo sai da hashtag e não há de onde rebaixar a
+      // imagem. O admin continua vendo o registro (via ?status=) para poder
+      // rejeitá-lo; o usuário final não vê um card quebrado.
+      statusWhere.coverUrl = { not: null };
     }
 
     // Monta o where dinâmico
