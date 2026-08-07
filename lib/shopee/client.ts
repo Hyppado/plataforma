@@ -23,6 +23,7 @@ import {
   type EchoTikVideoDTO,
   SHOPEE_DEFAULTS,
   RANKING_KEYWORDS,
+  parseAchadinhoHashtags,
 } from "@/lib/shopee/types";
 import { searchShopeeProductsGraphQL } from "@/lib/shopee/shopee-api-client";
 import { mapShopeeCategories } from "@/lib/shopee/shopee-categories";
@@ -234,17 +235,15 @@ export async function getAchadinhosHashtagId(): Promise<string> {
  * produção, #achadinhosshopee rende ~30 vídeos únicos acima dos filtros e
  * esgota. Minerar várias hashtags é o que aumenta a oferta de verdade.
  *
- * Formato da setting: IDs separados por vírgula ("169...,170..."). Um único
- * ID (formato antigo) continua funcionando.
+ * Formato da setting: "id|nome,id|nome" (ver parseAchadinhoHashtags). Os
+ * formatos antigos — um único ID, ou vários IDs separados por vírgula sem
+ * nome — continuam funcionando.
  *
  * Ordem de prioridade: env → setting → fallback padrão.
  */
 export async function getAchadinhosHashtagIds(): Promise<string[]> {
   const parse = (raw: string | null | undefined): string[] =>
-    (raw ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s && s !== "0");
+    parseAchadinhoHashtags(raw).map((h) => h.id);
 
   const doEnv = parse(process.env.SHOPEE_HASHTAG_ID);
   if (doEnv.length > 0) return doEnv;
