@@ -18,6 +18,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["__tests__/components/setup.tsx"],
     include: ["__tests__/components/**/*.test.{ts,tsx}"],
+    // Runners de CI são bem mais lentos que a máquina local para jsdom + MUI.
+    // O default de 5s causava falhas intermitentes em testes de interação.
+    testTimeout: 20_000,
     css: false,
     coverage: {
       provider: "v8",
