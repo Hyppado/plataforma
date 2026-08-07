@@ -70,14 +70,12 @@ async function renderTab(achadinhos: ShopeeAchadinhoDTO[]) {
   render(<ShopeeAdminTab />);
 
   await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-
-  if (achadinhos.length > 0) {
-    // Espera a primeira linha estar de fato no DOM
-    const first = achadinhos[0];
-    await screen.findByText(
-      (first.productName || first.videoTitle || "—") as string,
-    );
-  }
+  // Espera o carregamento terminar. Não dá para esperar por uma linha
+  // específica: o filtro padrão esconde FAILED, então nem toda fixture
+  // resulta em linha renderizada.
+  await waitFor(() =>
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument(),
+  );
 
   return fetchMock;
 }
@@ -146,6 +144,7 @@ describe("visibilidade dos botões de revisão", () => {
   });
 
   it("FAILED não é revisável — pertence ao pipeline", async () => {
+    // Escondido do filtro padrão; mesmo visível, não oferece revisão.
     await renderTab([buildAchadinho({ status: "FAILED" })]);
 
     expect(queryByTooltip(/aprovar/i)).toBeFalsy();
@@ -153,9 +152,31 @@ describe("visibilidade dos botões de revisão", () => {
   });
 
   it("editar link de afiliado está sempre disponível", async () => {
-    await renderTab([buildAchadinho({ status: "FAILED" })]);
+    await renderTab([buildAchadinho({ status: "PENDING" })]);
 
     expect(queryByTooltip(/editar link/i)).toBeTruthy();
+  });
+});
+
+describe("filtro padrão", () => {
+  it("esconde FAILED por padrão — falhas são diagnóstico, não fila", async () => {
+    await renderTab([
+      buildAchadinho({ id: "a", status: "PENDING", productName: "Para Revisar" }),
+      buildAchadinho({ id: "b", status: "FAILED", productName: "Deu Errado" }),
+    ]);
+
+    expect(screen.getByText("Para Revisar")).toBeInTheDocument();
+    expect(screen.queryByText("Deu Errado")).not.toBeInTheDocument();
+  });
+
+  it("conta apenas os visíveis no cabeçalho", async () => {
+    await renderTab([
+      buildAchadinho({ id: "a", status: "PENDING", productName: "Para Revisar" }),
+      buildAchadinho({ id: "b", status: "FAILED", productName: "Deu Errado" }),
+      buildAchadinho({ id: "c", status: "FAILED", productName: "Outro Erro" }),
+    ]);
+
+    expect(screen.getByText(/1 achadinhos encontrados/)).toBeInTheDocument();
   });
 });
 

@@ -66,7 +66,9 @@ export function ShopeeAdminTab() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [statusFilter, setStatusFilter] = useState("all");
+  // Default "active": esconde FAILED. A fila serve para revisar conteúdo
+  // aproveitável — falhas são diagnóstico e poluíam a lista (21 de 44).
+  const [statusFilter, setStatusFilter] = useState("active");
   const [selectedProduct, setSelectedProduct] = useState<ShopeeAchadinhoDTO | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
@@ -123,9 +125,12 @@ export function ShopeeAdminTab() {
   }, [fetchAchadinhos]);
 
   // Filtragem por status
-  const filtered = statusFilter === "all"
-    ? achadinhos
-    : achadinhos.filter((a) => a.status === statusFilter);
+  const filtered =
+    statusFilter === "all"
+      ? achadinhos
+      : statusFilter === "active"
+        ? achadinhos.filter((a) => a.status !== "FAILED")
+        : achadinhos.filter((a) => a.status === statusFilter);
 
   // Paginação
   // Fila de revisão: o que EXIGE ação do admin vem primeiro. Ordenar por data
@@ -238,6 +243,7 @@ export function ShopeeAdminTab() {
               "& .MuiSvgIcon-root": { color: "rgba(255,255,255,0.5)" },
             }}
           >
+            <MenuItem value="active">Ativos (sem falhas)</MenuItem>
             <MenuItem value="all">Todos</MenuItem>
             <MenuItem value="PENDING">Aguardando revisão</MenuItem>
             <MenuItem value="READY">Publicado</MenuItem>
