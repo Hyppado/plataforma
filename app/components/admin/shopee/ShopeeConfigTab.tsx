@@ -163,7 +163,46 @@ export function ShopeeConfigTab() {
   }, [hashtagOptions, achadinhosHashtagId, selectedHashtag]);
 
   if (loading) {
-    return (
+    // Busca hashtags no EchoTik conforme o admin digita (debounce de 400ms).
+  // A lista vem sempre do servidor: assim o campo só oferece hashtags que
+  // existem, em vez de aceitar um ID numérico digitado à mão.
+  useEffect(() => {
+    const termo = hashtagQuery.trim();
+    const alvo = termo.length >= 2 ? termo : "achadinhosshopee";
+
+    let cancelado = false;
+    setHashtagLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/settings/shopee/hashtags?q=${encodeURIComponent(alvo)}`,
+        );
+        const data = await res.json();
+        if (cancelado) return;
+        setHashtagOptions(data.hashtags ?? []);
+      } catch {
+        if (!cancelado) setHashtagOptions([]);
+      } finally {
+        if (!cancelado) setHashtagLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [hashtagQuery]);
+
+  // Mostra a hashtag já salva assim que ela aparecer nos resultados —
+  // o banco guarda só o ID, o nome vem da busca.
+  useEffect(() => {
+    if (selectedHashtag || !achadinhosHashtagId) return;
+    const achada = hashtagOptions.find((h) => h.id === achadinhosHashtagId);
+    if (achada) setSelectedHashtag(achada);
+  }, [hashtagOptions, achadinhosHashtagId, selectedHashtag]);
+
+  return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
         <CircularProgress size={28} color="primary" />
       </Box>
