@@ -30,10 +30,14 @@ vi.mock("@/lib/transcription/whisper", () => ({
   isWhisperError: () => false,
 }));
 
+const getSetting = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/settings", () => ({
   getSecretSetting: vi.fn().mockResolvedValue("sk-test"),
-  getSetting: vi.fn().mockResolvedValue(null),
-  SETTING_KEYS: { OPENAI_API_KEY: "openai.api_key" },
+  getSetting: (...a: unknown[]) => getSetting(...a),
+  SETTING_KEYS: {
+    OPENAI_API_KEY: "openai.api_key",
+    SHOPEE_ACHADINHOS_MIN_VIEWS: "shopee.achadinhos_min_views",
+  },
 }));
 
 const findBestShopeeOffer = vi.fn();
@@ -336,5 +340,75 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
 
     expect(result.found).toBe(0);
     expect(result.processed).toBe(0);
+  });
+});
+
+describe("processAchadinhosBatch — piso de views configurável e idade", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOpenAiSuccess();
+    mockDbWrites();
+    getVideoCaptions.mockResolvedValue({ text: "legenda" });
+    findBestShopeeOffer.mockResolvedValue(null);
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue([]);
+  });
+
+  /** ID de vídeo TikTok com a data de publicação embutida nos 32 bits altos. */
+  function tiktokIdFor(date: Date): string {
+    return (BigInt(Math.floor(date.getTime() / 1000)) * BigInt(4294967296)).toString();
+  }
+
+  function mockPageWithIds(ids: string[], views = 5_000) {
+    fetchVideosByHashtag.mockResolvedValue({
+      data: {
+        aweme_list: ids.map((id) => ({
+          aweme_id: id,
+          desc: "achadinho",
+          author: { unique_id: "creator" },
+          video: { cover: { url_list: ["https://cdn/c.jpg"] } },
+          statistics: { play_count: views },
+        })),
+        has_more: 0,
+      },
+    });
+  }
+
+  it("admite vídeos abaixo de 30k quando o admin baixa o piso", async () => {
+    // Era o gargalo real: com 30k fixo, ~90% da hashtag era descartada e a
+    // fila esgotava.
+    getSetting.mockResolvedValue("1000");
+    mockPageWithIds([tiktokIdFor(new Date())], 5_000);
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.found).toBe(1);
+  });
+
+  it("mantém o padrão de 30k quando não há setting", async () => {
+    getSetting.mockResolvedValue(null);
+    mockPageWithIds([tiktokIdFor(new Date())], 5_000);
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.found).toBe(0);
+  });
+
+  it("descarta vídeo antigo demais — EchoTik não serve download-url", async () => {
+    getSetting.mockResolvedValue("1000");
+    const doisAnosAtras = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
+    mockPageWithIds([tiktokIdFor(doisAnosAtras)], 500_000);
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.found).toBe(0);
+  });
+
+  it("aceita vídeo recente com muitas views", async () => {
+    getSetting.mockResolvedValue("1000");
+    mockPageWithIds([tiktokIdFor(new Date())], 500_000);
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.found).toBe(1);
   });
 });
