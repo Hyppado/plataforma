@@ -128,7 +128,26 @@ export function ShopeeAdminTab() {
     : achadinhos.filter((a) => a.status === statusFilter);
 
   // Paginação
-  const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  // Fila de revisão: o que EXIGE ação do admin vem primeiro. Ordenar por data
+  // de criação enterrava o único item pendente no meio de dezenas de
+  // publicados — o admin não conseguia achar o que revisar.
+  const REVIEW_PRIORITY: Record<string, number> = {
+    PENDING: 0, // aguardando revisão — ação necessária
+    PROCESSING: 1, // pipeline trabalhando
+    FAILED: 2, // diagnóstico
+    READY: 3, // publicado, nada a fazer
+    REJECTED: 4, // arquivado
+  };
+
+  const ordered = [...filtered].sort((a, b) => {
+    const pa = REVIEW_PRIORITY[a.status] ?? 9;
+    const pb = REVIEW_PRIORITY[b.status] ?? 9;
+    if (pa !== pb) return pa - pb;
+    // Dentro do mesmo status, mais recentes primeiro
+    return +new Date(b.createdAt) - +new Date(a.createdAt);
+  });
+
+  const paginated = ordered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handleChangePage = (_: unknown, newPage: number) => {
     setPage(newPage);

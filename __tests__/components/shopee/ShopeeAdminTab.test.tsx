@@ -159,6 +159,31 @@ describe("visibilidade dos botões de revisão", () => {
   });
 });
 
+describe("ordenação da fila", () => {
+  it("mostra PENDING antes de PUBLICADO — o que exige ação vem primeiro", async () => {
+    // Regressão real: 22 publicados enterravam o único item a revisar.
+    await renderTab([
+      buildAchadinho({ id: "a", status: "READY", productName: "Publicado A" }),
+      buildAchadinho({ id: "b", status: "READY", productName: "Publicado B" }),
+      buildAchadinho({ id: "c", status: "PENDING", productName: "Precisa Revisar" }),
+    ]);
+
+    const linhas = screen.getAllByRole("row").slice(1); // pula o cabeçalho
+    expect(linhas[0]).toHaveTextContent("Precisa Revisar");
+  });
+
+  it("REJECTED vai para o fim da fila", async () => {
+    await renderTab([
+      buildAchadinho({ id: "a", status: "REJECTED", productName: "Item Arquivado" }),
+      buildAchadinho({ id: "b", status: "PENDING", productName: "Item Na Fila" }),
+    ]);
+
+    const linhas = screen.getAllByRole("row").slice(1);
+    expect(linhas[0]).toHaveTextContent("Item Na Fila");
+    expect(linhas[linhas.length - 1]).toHaveTextContent("Item Arquivado");
+  });
+});
+
 describe("player de revisão", () => {
   it("oferece assistir ao vídeo em cada linha", async () => {
     // O admin precisa ver o vídeo antes de publicar — aprovar às cegas um
