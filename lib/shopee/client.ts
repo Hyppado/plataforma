@@ -223,18 +223,36 @@ export async function syncShopeeRankings(): Promise<number> {
  * 3. Fallback: SHOPEE_DEFAULTS.ACHADINHOS_HASHTAG_ID (1696392324325382)
  */
 export async function getAchadinhosHashtagId(): Promise<string> {
-  const envHashtag = process.env.SHOPEE_HASHTAG_ID?.trim();
+  const [primeira] = await getAchadinhosHashtagIds();
+  return primeira;
+}
 
-  if (envHashtag && envHashtag !== "0") {
-    return envHashtag;
-  }
+/**
+ * Retorna TODAS as hashtags configuradas para os achadinhos.
+ *
+ * Uma hashtag só tem tantos vídeos recentes e transcritíveis; medido em
+ * produção, #achadinhosshopee rende ~30 vídeos únicos acima dos filtros e
+ * esgota. Minerar várias hashtags é o que aumenta a oferta de verdade.
+ *
+ * Formato da setting: IDs separados por vírgula ("169...,170..."). Um único
+ * ID (formato antigo) continua funcionando.
+ *
+ * Ordem de prioridade: env → setting → fallback padrão.
+ */
+export async function getAchadinhosHashtagIds(): Promise<string[]> {
+  const parse = (raw: string | null | undefined): string[] =>
+    (raw ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s && s !== "0");
 
-  const dbHashtag = await getSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_HASHTAG_ID);
-  if (dbHashtag && dbHashtag.trim() && dbHashtag !== "0") {
-    return dbHashtag.trim();
-  }
+  const doEnv = parse(process.env.SHOPEE_HASHTAG_ID);
+  if (doEnv.length > 0) return doEnv;
 
-  return SHOPEE_DEFAULTS.ACHADINHOS_HASHTAG_ID;
+  const daSetting = parse(await getSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_HASHTAG_ID));
+  if (daSetting.length > 0) return daSetting;
+
+  return [SHOPEE_DEFAULTS.ACHADINHOS_HASHTAG_ID];
 }
 
 /**

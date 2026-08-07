@@ -53,6 +53,7 @@ vi.mock("@/lib/shopee/client", async () => {
   return {
     ...actual,
     getAchadinhosHashtagId: vi.fn().mockResolvedValue("1696392324325382"),
+    getAchadinhosHashtagIds: vi.fn().mockResolvedValue(["1696392324325382"]),
   };
 });
 
@@ -410,5 +411,68 @@ describe("processAchadinhosBatch — piso de views configurável e idade", () =>
     const result = await processAchadinhosBatch({ count: 20 });
 
     expect(result.found).toBe(1);
+  });
+});
+
+
+describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOpenAiSuccess();
+    mockDbWrites();
+    getVideoCaptions.mockResolvedValue({ text: "legenda" });
+    findBestShopeeOffer.mockResolvedValue(null);
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue([]);
+  });
+
+  it("não processa nada quando o inventário já está no alvo", async () => {
+    mockHashtagPage(5);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(50);
+
+    const result = await processAchadinhosBatch({ count: 20, targetInventory: 50 });
+
+    expect(result.processed).toBe(0);
+    expect(result.targetReached).toBe(true);
+  });
+
+  it("para no meio do lote ao alcançar o alvo", async () => {
+    // Inventário 49, alvo 50: um sucesso já fecha a conta.
+    mockHashtagPage(5);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(49);
+    findBestShopeeOffer.mockResolvedValue({
+      offerLink: "https://shopee.com.br/product/1",
+      productLink: "https://shopee.com.br/product/1",
+      priceMin: "10", priceMax: "20", sales: 5, commissionRate: "5",
+      imageUrl: "https://cdn/i.jpg", productName: "P", productCatIds: [100632],
+    });
+
+    const result = await processAchadinhosBatch({ count: 20, targetInventory: 50 });
+
+    expect(result.processed).toBe(1);
+    expect(result.targetReached).toBe(true);
+  });
+
+  it("sem alvo definido, processa tudo que encontrar", async () => {
+    mockHashtagPage(3);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(999);
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.processed).toBe(3);
+  });
+
+  it("consulta várias hashtags e deduplica entre elas", async () => {
+    // A mesma página volta para as duas hashtags: o vídeo não pode contar 2x.
+    mockHashtagPage(4);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(0);
+
+    const result = await processAchadinhosBatch({
+      count: 40,
+      hashtagIds: ["1696392324325382", "1697332031215622"],
+    });
+
+    expect(fetchVideosByHashtag).toHaveBeenCalled();
+    // 4 vídeos únicos, mesmo tendo vindo de duas hashtags
+    expect(result.found).toBe(4);
   });
 });

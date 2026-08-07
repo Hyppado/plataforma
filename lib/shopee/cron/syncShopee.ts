@@ -123,10 +123,14 @@ export async function runShopeeRankingsCron(force = false): Promise<number> {
 /**
  * Executa o scan automatizado e pipeline de IA para "Achadinhos Shopee".
  *
+ * O número configurado é um ALVO de achadinhos exibíveis (PENDING + READY),
+ * não "quantos vídeos varrer". Abaixo do alvo o cron roda mesmo dentro da
+ * janela de frequência, para convergir rápido; no alvo, volta a respeitar a
+ * cadência — e roda de novo quando ela vence, trazendo conteúdo novo.
+ *
  * @param force - Se true, ignora a verificação de frequência
- * @param countOverride - Quantidade dinâmica de vídeos (20-400).
- *   Se fornecido, sobrescreve o valor do banco/painel admin.
- * @returns Número de vídeos processados com sucesso, ou -1 se pulou
+ * @param countOverride - Alvo dinâmico (20-400), sobrescreve a setting
+ * @returns Número de achadinhos criados com sucesso, ou -1 se pulou
  */
 export async function runShopeeAchadinhosCron(
   force = false,
@@ -135,37 +139,59 @@ export async function runShopeeAchadinhosCron(
   const freqSetting = await getSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_FREQUENCY);
   const intervalHours = freqSetting ? parseInt(freqSetting, 10) : SHOPEE_DEFAULTS.ACHADINHOS_FREQUENCY_HOURS;
 
-  // Quantidade de vídeos a buscar por execução — configurável no painel admin.
-  // O admin define entre 20 e 400 (paginação segura em blocos de 20 com delay).
-  // Se countOverride for passado (ex: via query param do cron), ele sobrescreve
-  // o valor do banco.
-  let achadinhosCount: number;
+  // ALVO de achadinhos exibíveis (não "quantos vídeos varrer").
+  // O admin configura quantos itens quer disponíveis no feed.
+  let alvo: number;
   if (countOverride !== undefined) {
-    achadinhosCount = Math.min(400, Math.max(20, countOverride));
+    alvo = Math.min(400, Math.max(20, countOverride));
   } else {
     const countSetting = await getSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_COUNT);
-    achadinhosCount = countSetting
+    alvo = countSetting
       ? Math.min(400, Math.max(20, parseInt(countSetting, 10) || SHOPEE_DEFAULTS.ACHADINHOS_COUNT))
       : SHOPEE_DEFAULTS.ACHADINHOS_COUNT;
   }
 
+  const exibiveis = await prisma.shopeeAchadinhoProduct.count({
+    where: { status: { in: ["PENDING", "READY"] } },
+  });
+  const abaixoDoAlvo = exibiveis < alvo;
+
   const skipKey = "shopee:achadinhos";
-  if (!force && (await shouldSkipShopeeTask(skipKey, intervalHours))) {
-    log.info("Cron de achadinhos Shopee: pulando (já processado recentemente)");
+
+  // Composição do gate:
+  // - ABAIXO do alvo → roda agora, ignorando o cooldown. É assim que o
+  //   inventário converge rápido em vez de esperar a próxima janela.
+  // - NO alvo → respeita a cadência normal. Não é "nunca mais rodar": quando
+  //   a janela vence, roda de novo para trazer conteúdo novo, senão o feed
+  //   envelhece e congela no que já existe.
+  if (!force && !abaixoDoAlvo && (await shouldSkipShopeeTask(skipKey, intervalHours))) {
+    log.info(
+      `Cron de achadinhos: pulando — alvo já atingido (${exibiveis}/${alvo}) e dentro da janela de ${intervalHours}h`,
+    );
     return -1;
+  }
+
+  if (abaixoDoAlvo) {
+    log.info(
+      `Abaixo do alvo (${exibiveis}/${alvo}) — rodando mesmo dentro da janela de ${intervalHours}h`,
+    );
   }
 
   const run = await createIngestionRun(skipKey);
 
   try {
-    log.info("Cron de achadinhos Shopee iniciado...", { count: achadinhosCount });
+    log.info("Cron de achadinhos Shopee iniciado...", { alvo, exibiveis });
 
     // O lote descobre, filtra o que já foi processado e roda em série dentro
     // de um orçamento de tempo, persistindo cada vídeo. Se o orçamento acabar,
     // devolve `partial: true` e o próximo cron continua de onde parou.
     const result = await processAchadinhosBatch({
       region: "BR",
-      count: achadinhosCount,
+      // Quanto varrer por execução: a folga até o alvo, com um piso para não
+      // fazer varreduras minúsculas. O rendimento é baixo (~4% dos vídeos
+      // viram achadinho), então buscamos bem mais do que falta.
+      count: Math.min(400, Math.max(20, (alvo - exibiveis) * 10)),
+      targetInventory: alvo,
     });
 
     await finishIngestionRun(run.id, "SUCCESS", {
@@ -177,7 +203,9 @@ export async function runShopeeAchadinhosCron(
       // Lido por shouldSkipShopeeTask — um lote parcial não inicia o cooldown
       partial: result.partial,
       elapsedMs: result.elapsedMs,
-      requestedCount: achadinhosCount,
+      target: alvo,
+      inventory: result.inventory ?? exibiveis,
+      targetReached: !!result.targetReached,
     });
 
     log.info(

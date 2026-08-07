@@ -82,9 +82,15 @@ function finishedStatus() {
   return calls.at(-1)[0].data.status;
 }
 
+/** Define quantos exibíveis existem hoje (PENDING + READY). */
+function inventario(n: number) {
+  (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(n);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   getSetting.mockResolvedValue(null);
+  inventario(0); // por padrão: abaixo do alvo
   (prismaMock.ingestionRun.create as any).mockResolvedValue({ id: "run-1" });
   (prismaMock.ingestionRun.update as any).mockResolvedValue({});
 });
@@ -177,23 +183,23 @@ describe("runShopeeAchadinhosCron — lote e orçamento", () => {
     expect(finishedStats()).toMatchObject({ partial: false, remaining: 0 });
   });
 
-  it("limita countOverride ao teto de 400", async () => {
+  it("limita o alvo ao teto de 400", async () => {
     processAchadinhosBatch.mockResolvedValue(batchResult());
 
     await runShopeeAchadinhosCron(false, 9999);
 
     expect(processAchadinhosBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ count: 400 }),
+      expect.objectContaining({ targetInventory: 400 }),
     );
   });
 
-  it("limita countOverride ao piso de 20", async () => {
+  it("limita o alvo ao piso de 20", async () => {
     processAchadinhosBatch.mockResolvedValue(batchResult());
 
     await runShopeeAchadinhosCron(false, 1);
 
     expect(processAchadinhosBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ count: 20 }),
+      expect.objectContaining({ targetInventory: 20 }),
     );
   });
 
@@ -206,8 +212,55 @@ describe("runShopeeAchadinhosCron — lote e orçamento", () => {
     await runShopeeAchadinhosCron(false, 120);
 
     expect(processAchadinhosBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ count: 120 }),
+      expect.objectContaining({ targetInventory: 120 }),
     );
+  });
+
+  it("varre bem mais que a folga — o rendimento é baixo", async () => {
+    // alvo 50, inventário 40 → folga 10 → varre 100
+    inventario(40);
+    processAchadinhosBatch.mockResolvedValue(batchResult());
+
+    await runShopeeAchadinhosCron(false, 50);
+
+    expect(processAchadinhosBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ count: 100, targetInventory: 50 }),
+    );
+  });
+
+  it("ABAIXO do alvo: roda mesmo com execução completa recente", async () => {
+    // Convergir rápido importa mais que respeitar a janela.
+    inventario(10);
+    recentCompleteRun();
+    processAchadinhosBatch.mockResolvedValue(batchResult());
+
+    const result = await runShopeeAchadinhosCron(false, 50);
+
+    expect(result).not.toBe(-1);
+    expect(processAchadinhosBatch).toHaveBeenCalled();
+  });
+
+  it("NO alvo + dentro da janela: pula", async () => {
+    inventario(50);
+    recentCompleteRun();
+
+    const result = await runShopeeAchadinhosCron(false, 50);
+
+    expect(result).toBe(-1);
+    expect(processAchadinhosBatch).not.toHaveBeenCalled();
+  });
+
+  it("NO alvo mas janela vencida: roda para trazer conteúdo novo", async () => {
+    // O alvo atingido não pode significar "nunca mais rodar" — senão o feed
+    // congela no que já existe e envelhece.
+    inventario(50);
+    noPreviousRun();
+    processAchadinhosBatch.mockResolvedValue(batchResult());
+
+    const result = await runShopeeAchadinhosCron(false, 50);
+
+    expect(result).not.toBe(-1);
+    expect(processAchadinhosBatch).toHaveBeenCalled();
   });
 
   it("marca FAILED quando o lote lança", async () => {

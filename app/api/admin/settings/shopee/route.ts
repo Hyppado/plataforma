@@ -134,14 +134,24 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+    // Aceita uma ou várias hashtags. Guardado como IDs separados por vírgula —
+    // uma hashtag só rende ~30 vídeos úteis, então minerar várias é o que
+    // aumenta a oferta.
     if (typeof body.achadinhosHashtagId === "string" && body.achadinhosHashtagId.trim()) {
-      ops.push(
-        upsertSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_HASHTAG_ID, body.achadinhosHashtagId.trim(), {
-          label: "ID da Hashtag dos Achadinhos",
-          group: "shopee",
-          type: "text",
-        }),
-      );
+      const ids = body.achadinhosHashtagId
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => /^\d+$/.test(s));
+
+      if (ids.length > 0) {
+        ops.push(
+          upsertSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_HASHTAG_ID, ids.join(","), {
+            label: "Hashtags dos Achadinhos",
+            group: "shopee",
+            type: "text",
+          }),
+        );
+      }
     }
 
     await Promise.all(ops);

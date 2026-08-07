@@ -24,7 +24,7 @@ const CONFIG = {
   rankingFrequency: "24",
   achadinhosFrequency: "12",
   achadinhosCount: "50",
-  achadinhosHashtagId: "1696392324325382",
+  achadinhosHashtagId: "1696392324325382,1697332031215622",
 };
 
 const HASHTAGS = [
@@ -80,12 +80,23 @@ describe("ciclo de vida", () => {
     render(<ShopeeConfigTab />);
 
     await waitFor(() =>
-      expect(screen.getByLabelText(/Hashtag dos Achadinhos/i)).toBeInTheDocument(),
+      expect(screen.getByLabelText(/Hashtags dos Achadinhos/i)).toBeInTheDocument(),
     );
   });
 });
 
 describe("seletor de hashtag", () => {
+  it("reidrata as hashtags salvas a partir dos IDs", async () => {
+    // O banco guarda só IDs separados por vírgula; os nomes vêm da busca.
+    mockApi();
+
+    render(<ShopeeConfigTab />);
+
+    await waitFor(() =>
+      expect(screen.getByText("#achadinhosshopee")).toBeInTheDocument(),
+    );
+  });
+
   it("busca hashtags no endpoint dedicado", async () => {
     const fetchMock = mockApi();
 

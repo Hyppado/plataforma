@@ -61,7 +61,7 @@ import {
 } from "@/lib/echotik/client";
 import {
   mapAwemeListToVideos,
-  getAchadinhosHashtagId,
+  getAchadinhosHashtagIds,
   parseViewsFromEchoTikItem,
 } from "@/lib/shopee/client";
 import { mapShopeeCategories } from "@/lib/shopee/shopee-categories";
@@ -789,8 +789,13 @@ export async function processAchadinhoVideo(
 // ─── Orquestrador do lote (com orçamento de tempo) ─────────────────────────
 
 export interface ProcessAchadinhosBatchOptions {
-  /** hashtag_id da EchoTik — se omitido, usa setting configurada ou padrão */
-  hashtagId?: string;
+  /** hashtag_ids da EchoTik — se omitido, usa as settings configuradas */
+  hashtagIds?: string[];
+  /**
+   * Alvo de achadinhos exibíveis. O lote para assim que o inventário
+   * (PENDING + READY) alcança este número — não adianta processar mais.
+   */
+  targetInventory?: number;
   /** Região — default "BR" (evita vídeos EN/ES) */
   region?: string;
   /** Quantidade de vídeos a considerar (20-400) */
@@ -817,6 +822,10 @@ export interface AchadinhosBatchResult {
   partial: boolean;
   /** Duração total do lote em ms */
   elapsedMs: number;
+  /** Inventário de exibíveis (PENDING + READY) ao fim do lote */
+  inventory?: number;
+  /** true se parou por ter atingido o alvo */
+  targetReached?: boolean;
 }
 
 /**
@@ -913,18 +922,18 @@ export async function processAchadinhosBatch(
     elapsedMs: 0,
   };
 
-  let hashtagId = options.hashtagId;
+  let hashtagIds = options.hashtagIds;
 
-  // Resolve o hashtag_id: param → env → setting → fallback padrão
-  if (!hashtagId) {
+  // Resolve as hashtags: param → env → settings → fallback padrão
+  if (!hashtagIds || hashtagIds.length === 0) {
     try {
-      hashtagId = await getAchadinhosHashtagId();
-      if (!hashtagId) {
-        log.warn("Nenhum hashtag_id disponível para o pipeline de achadinhos");
+      hashtagIds = await getAchadinhosHashtagIds();
+      if (hashtagIds.length === 0) {
+        log.warn("Nenhuma hashtag disponível para o pipeline de achadinhos");
         return { ...empty, elapsedMs: Date.now() - startedAt };
       }
     } catch (error) {
-      log.error("Falha ao resolver hashtag_id para o pipeline de achadinhos", {
+      log.error("Falha ao resolver hashtags para o pipeline de achadinhos", {
         error: error instanceof Error ? error.message : String(error),
       });
       return { ...empty, elapsedMs: Date.now() - startedAt };
@@ -943,16 +952,45 @@ export async function processAchadinhosBatch(
       ? Math.max(0, parseInt(minViewsSetting, 10))
       : SHOPEE_DEFAULTS.ACHADINHOS_MIN_VIEWS;
 
-  const videos = await fetchVideosByHashtagPaginated(
-    hashtagId,
-    region,
-    options.count ?? SHOPEE_DEFAULTS.ACHADINHOS_COUNT,
-    discoveryDeadline,
-    minViews,
+  // Descoberta em várias hashtags: o orçamento é dividido entre elas e os
+  // resultados deduplicados por video_id (um mesmo vídeo costuma aparecer em
+  // #achadinhosshopee e #achadinhoshopee ao mesmo tempo).
+  const porHashtag = Math.max(
+    ACHADINHOS_MIN_COUNT,
+    Math.ceil((options.count ?? SHOPEE_DEFAULTS.ACHADINHOS_COUNT) / hashtagIds.length),
   );
 
+  const vistos = new Set<string>();
+  const videos: EchoTikVideoDTO[] = [];
+
+  for (const hashtagId of hashtagIds) {
+    if (Date.now() >= discoveryDeadline) {
+      log.warn("Orçamento de descoberta esgotado — hashtags restantes ficam para a próxima", {
+        restantes: hashtagIds.length - hashtagIds.indexOf(hashtagId),
+      });
+      break;
+    }
+
+    const doHashtag = await fetchVideosByHashtagPaginated(
+      hashtagId,
+      region,
+      porHashtag,
+      discoveryDeadline,
+      minViews,
+    );
+
+    let novos = 0;
+    for (const v of doHashtag) {
+      if (vistos.has(v.video_id)) continue;
+      vistos.add(v.video_id);
+      videos.push(v);
+      novos++;
+    }
+    log.info(`Hashtag ${hashtagId}: ${doHashtag.length} vídeos, ${novos} novos`);
+  }
+
   if (videos.length === 0) {
-    log.info("Nenhum vídeo retornado pela hashtag", { hashtagId, region });
+    log.info("Nenhum vídeo retornado pelas hashtags", { hashtagIds, region });
     return { ...empty, elapsedMs: Date.now() - startedAt };
   }
 
@@ -970,7 +1008,25 @@ export async function processAchadinhosBatch(
   let succeeded = 0;
   let partial = false;
 
+  // Inventário atual de exibíveis — o alvo é sobre o que o usuário VÊ, não
+  // sobre quantos vídeos varremos.
+  let exibiveis = options.targetInventory
+    ? await prisma.shopeeAchadinhoProduct.count({
+        where: { status: { in: ["PENDING", "READY"] } },
+      })
+    : 0;
+
   for (const video of pending) {
+    // Alvo atingido no meio do lote: parar. Processar mais só gastaria
+    // Whisper/GPT para engordar uma fila que já está no tamanho pedido.
+    if (options.targetInventory && exibiveis >= options.targetInventory) {
+      log.info(
+        `Alvo de ${options.targetInventory} achadinhos exibíveis atingido — encerrando lote`,
+        { exibiveis, processados: processed },
+      );
+      break;
+    }
+
     // Só inicia mais um vídeo se o pior caso ainda couber no orçamento.
     // Sem esta guarda, um Whisper de 120s iniciado faltando 20s seria morto
     // pela plataforma no meio da escrita.
@@ -987,10 +1043,15 @@ export async function processAchadinhosBatch(
 
     const ok = await processAchadinhoVideo(video);
     processed++;
-    if (ok) succeeded++;
+    if (ok) {
+      succeeded++;
+      exibiveis++; // chegou em PENDING, já conta como exibível
+    }
   }
 
   const result: AchadinhosBatchResult = {
+    inventory: exibiveis,
+    targetReached: !!options.targetInventory && exibiveis >= options.targetInventory,
     found: videos.length,
     alreadyProcessed,
     processed,
