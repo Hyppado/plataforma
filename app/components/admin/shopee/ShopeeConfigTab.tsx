@@ -177,7 +177,7 @@ export function ShopeeConfigTab() {
       </Typography>
       <Typography sx={{ color: "text.secondary", mb: 3, fontSize: "0.875rem" }}>
         Credenciais da Shopee Affiliate Partner API usada para buscar produtos
-        e gerar links de afiliado. As chaves são armazenadas criptografadas.
+        e resolver os links dos produtos. As chaves são armazenadas criptografadas.
       </Typography>
 
       {/* Status */}
@@ -328,9 +328,11 @@ export function ShopeeConfigTab() {
               fullWidth
               placeholder="Digite para buscar, ex: achadinhosshopee"
               helperText={
-                achadinhosHashtagId
-                  ? `Hashtag selecionada — ID ${achadinhosHashtagId}. Escolha da lista: só aparecem hashtags que existem de verdade no EchoTik.`
-                  : "Digite um termo para buscar hashtags reais no EchoTik. A contagem de vídeos ajuda a escolher qual vale minerar."
+                selectedHashtag
+                  ? `${selectedHashtag.videoCount.toLocaleString("pt-BR")} vídeos · ID ${selectedHashtag.id}`
+                  : achadinhosHashtagId
+                    ? `ID ${achadinhosHashtagId}`
+                    : "Digite para buscar hashtags no EchoTik"
               }
               InputProps={{
                 ...params.InputProps,

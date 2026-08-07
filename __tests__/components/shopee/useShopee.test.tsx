@@ -178,7 +178,7 @@ describe("useUpdateAffiliateLink", () => {
       vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        json: async () => ({ error: "Link de afiliado inválido" }),
+        json: async () => ({ error: "Link do produto inválido" }),
       }),
     );
 
@@ -188,7 +188,7 @@ describe("useUpdateAffiliateLink", () => {
       act(async () => {
         await result.current.updateLink({ id: "ach-7", affiliateLink: "nope" });
       }),
-    ).rejects.toThrow("Link de afiliado inválido");
+    ).rejects.toThrow("Link do produto inválido");
   });
 });
 

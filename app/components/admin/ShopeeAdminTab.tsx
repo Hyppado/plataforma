@@ -3,7 +3,7 @@
  *
  * Aba "Shopee" no painel Admin.
  * Permite que administradores visualizem e validem os produtos Achadinhos Shopee,
- * editando/sobrescrevendo o link de afiliado quando necessário.
+ * editando/sobrescrevendo o link do produto quando necessário.
  *
  * Funcionalidades:
  * - Lista completa de achadinhos com status, produto extraído e link
@@ -275,7 +275,7 @@ export function ShopeeAdminTab() {
                 PRODUTO
               </TableCell>
               <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                LINK DE AFILIADO
+                LINK DO PRODUTO
               </TableCell>
               <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 CRIADO EM
@@ -377,7 +377,7 @@ export function ShopeeAdminTab() {
                   )}
                 </TableCell>
 
-                {/* Link de afiliado */}
+                {/* Link do produto */}
                 <TableCell sx={{ maxWidth: 250 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <LinkIcon sx={{ fontSize: 11, color: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
@@ -487,7 +487,7 @@ export function ShopeeAdminTab() {
                       </Tooltip>
                     )}
 
-                  <Tooltip title="Editar link de afiliado" arrow>
+                  <Tooltip title="Editar link do produto" arrow>
                     <IconButton
                       size="small"
                       onClick={() => handleOpenEdit(achadinho)}
