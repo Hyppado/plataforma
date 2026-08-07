@@ -61,7 +61,7 @@ export function ShopeeConfigTab() {
   const [hashtagOptions, setHashtagOptions] = useState<HashtagOption[]>([]);
   const [hashtagLoading, setHashtagLoading] = useState(false);
   const [hashtagQuery, setHashtagQuery] = useState("");
-  const [selectedHashtag, setSelectedHashtag] = useState<HashtagOption | null>(null);
+  const [selectedHashtags, setSelectedHashtags] = useState<HashtagOption[]>([]);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -154,13 +154,20 @@ export function ShopeeConfigTab() {
     };
   }, [hashtagQuery]);
 
-  // Mostra a hashtag já salva assim que ela aparecer nos resultados —
-  // o banco guarda só o ID, o nome vem da busca.
+  // Reidrata os nomes das hashtags salvas — o banco guarda só os IDs.
   useEffect(() => {
-    if (selectedHashtag || !achadinhosHashtagId) return;
-    const achada = hashtagOptions.find((h) => h.id === achadinhosHashtagId);
-    if (achada) setSelectedHashtag(achada);
-  }, [hashtagOptions, achadinhosHashtagId, selectedHashtag]);
+    if (!achadinhosHashtagId) return;
+    const idsSalvos = achadinhosHashtagId.split(",").map((s) => s.trim()).filter(Boolean);
+    const faltando = idsSalvos.filter(
+      (id) => !selectedHashtags.some((h) => h.id === id),
+    );
+    if (faltando.length === 0) return;
+
+    const achadas = hashtagOptions.filter((h) => faltando.includes(h.id));
+    if (achadas.length > 0) {
+      setSelectedHashtags((atuais) => [...atuais, ...achadas]);
+    }
+  }, [hashtagOptions, achadinhosHashtagId, selectedHashtags]);
 
   if (loading) {
     return (
@@ -284,28 +291,29 @@ export function ShopeeConfigTab() {
           helperText="Horas entre cada scan de novos achadinhos via EchoTik"
         />
         <TextField
-          label="Quantidade de Achadinhos por Sincronização"
+          label="Alvo de Achadinhos Disponíveis"
           value={achadinhosCount}
           onChange={(e) => setAchadinhosCount(e.target.value)}
           type="number"
           size="small"
           fullWidth
           inputProps={{ min: 20, max: 400 }}
-          helperText="Quantos vídeos o cron deve buscar a cada execução (20-400). A busca é paginada em blocos de 20 com delay ~2s."
+          helperText="ALVO de achadinhos disponíveis no feed (20-400). O cron trabalha até atingir esse número e, depois, só volta a rodar na frequência configurada para trazer conteúdo novo."
         />
         <Autocomplete
+          multiple
           options={hashtagOptions}
           loading={hashtagLoading}
-          value={selectedHashtag}
+          value={selectedHashtags}
           filterOptions={(x) => x} /* a filtragem é do servidor */
           getOptionLabel={(o) => `#${o.name}`}
           isOptionEqualToValue={(a, b) => a.id === b.id}
           onInputChange={(_, v, reason) => {
             if (reason === "input") setHashtagQuery(v);
           }}
-          onChange={(_, option) => {
-            setSelectedHashtag(option);
-            setAchadinhosHashtagId(option?.id ?? "");
+          onChange={(_, options) => {
+            setSelectedHashtags(options);
+            setAchadinhosHashtagId(options.map((o) => o.id).join(","));
           }}
           noOptionsText={
             hashtagLoading ? "Buscando..." : "Nenhuma hashtag encontrada"
@@ -323,16 +331,18 @@ export function ShopeeConfigTab() {
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Hashtag dos Achadinhos"
+              label="Hashtags dos Achadinhos"
               size="small"
               fullWidth
-              placeholder="Digite para buscar, ex: achadinhosshopee"
+              placeholder={
+                selectedHashtags.length === 0 ? "Digite para buscar, ex: achadinhosshopee" : ""
+              }
               helperText={
-                selectedHashtag
-                  ? `${selectedHashtag.videoCount.toLocaleString("pt-BR")} vídeos · ID ${selectedHashtag.id}`
-                  : achadinhosHashtagId
-                    ? `ID ${achadinhosHashtagId}`
-                    : "Digite para buscar hashtags no EchoTik"
+                selectedHashtags.length > 0
+                  ? `${selectedHashtags.length} hashtag(s) · ${selectedHashtags
+                      .reduce((t, h) => t + h.videoCount, 0)
+                      .toLocaleString("pt-BR")} vídeos no total`
+                  : "Escolha uma ou mais. Cada hashtag rende poucos vídeos novos por dia — combinar várias aumenta a oferta."
               }
               InputProps={{
                 ...params.InputProps,
