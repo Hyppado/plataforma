@@ -181,6 +181,7 @@ function ProductImage({
           component="img"
           src={product.coverUrl || fallbackImg}
           alt={product.productName}
+          loading="lazy"
           referrerPolicy="no-referrer"
           onLoad={() => setImgLoaded(true)}
           onError={() => {

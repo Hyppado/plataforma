@@ -132,6 +132,7 @@ export function ShopeeProductCard({ product, onClick }: ShopeeProductCardProps) 
           component="img"
           src={imgSrc}
           alt={product.productName}
+          loading="lazy"
           referrerPolicy="no-referrer"
           onError={handleImgError}
           sx={{

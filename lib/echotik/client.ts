@@ -140,15 +140,27 @@ function getBackoffDelay(attempt: number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Detecta se a resposta parseada é um envelope EchoTik com `code=500`
- * (risk control). Nesses casos a documentação instrui a re-tentar.
- * HTTP status costuma ser 200, mas o `code` no corpo é 500.
+ * Detecta um envelope EchoTik com falha no corpo (`code != 0`).
+ *
+ * A documentação oficial é explícita e vale para QUALQUER código, não só 500:
+ *
+ *   global-rules §10.3 — "Realtime endpoints may fail intermittently due to
+ *   risk-control instability. If a realtime endpoint returns `code != 0`,
+ *   retry at least once. Requests returning `code != 0` do not consume
+ *   usage credits."
+ *
+ * Antes só `code === 500` era re-tentado, então um `code=1` ou `code=429`
+ * falhava de primeira — mesmo sendo retentativa gratuita.
+ *
+ * O HTTP status costuma ser 200; o erro real vem no `code` do corpo.
  */
-function isRetryableRiskControlCode(data: unknown): boolean {
+function isRetryableEnvelopeCode(data: unknown): boolean {
   if (typeof data !== "object" || data === null) return false;
 
   const envelope = data as Partial<EchotikApiEnvelope>;
-  return typeof envelope.code === "number" && envelope.code === 500;
+  // Sem `code` numérico não dá para julgar — trata como sucesso.
+  if (typeof envelope.code !== "number") return false;
+  return envelope.code !== 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -228,14 +240,15 @@ export async function echotikRequest<T = unknown>(
         // podem retornar HTTP 200 com `code=500` no corpo (risk control).
         // Esses erros NÃO consomem cota e devem ser re-tentados.
         // Porém, se fastFailRiskControl estiver ativo, lança imediatamente.
-        if (isRetryableRiskControlCode(data)) {
+        if (isRetryableEnvelopeCode(data)) {
+          const envelopeCode = (data as Partial<EchotikApiEnvelope>).code;
           if (opts.fastFailRiskControl) {
             throw new Error(
-              `[echotik-client] Risk control code=500 — ${url.pathname} (fast-fail)`,
+              `[echotik-client] code=${envelopeCode} — ${url.pathname} (fast-fail)`,
             );
           }
           lastError = new Error(
-            `[echotik-client] Risk control code=500 — ${url.pathname}`,
+            `[echotik-client] code=${envelopeCode} — ${url.pathname}`,
           );
         } else {
           return data;

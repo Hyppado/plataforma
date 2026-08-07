@@ -39,6 +39,14 @@
 - [x] Build and Test — Completed 2026-08-06
   - **Artifacts**: `aidlc-docs/construction/build-and-test/build-and-test-summary.md`
   - Typecheck clean; 1179 node + 113 component tests passing; production build succeeds
+- [x] Segunda rodada de remediação — Completed 2026-08-07
+  - Link de afiliado passa a ser link direto do produto (decisão de produto)
+  - Retry conforme doc EchoTik (qualquer code != 0), em todos os call sites
+  - Assinatura de capas em lote (10 por chamada)
+  - Imagens alinhadas ao padrão do projeto + lazy loading
+  - ShopeeAdminTab migrado para os hooks SWR + memoização
+  - Auto-deploy: squash → merge commit (elimina divergência develop/main)
+  - Typecheck limpo; 1207 node + 121 component tests passando; build de produção OK
 
 ### Deferred Decisions
 - **Achadinhos cron split** (producer + staged worker, views-desc priority queue) — analysed,

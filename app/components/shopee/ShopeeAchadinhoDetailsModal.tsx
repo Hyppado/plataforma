@@ -260,6 +260,7 @@ export function ShopeeAchadinhoDetailsModal({
                 component="img"
                 src={imgSrc}
                 alt={achadinho.productName || achadinho.videoTitle || ""}
+                loading="lazy"
                 onError={() => setImgError(true)}
                 sx={{
                   position: "absolute",

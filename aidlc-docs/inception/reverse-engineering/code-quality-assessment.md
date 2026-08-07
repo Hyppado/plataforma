@@ -96,6 +96,55 @@
 
 Items 4 and 7 were coupled. `graphqlRequest()` swallowed every failure and returned `{}`, so `searchShopeeProductsGraphQL()` never threw, so the per-keyword `catch` in `syncShopeeRankings()` never fired, so `keywordFailures` stayed at `0` — meaning the shrink guard added in item 4 was **inert until item 7 landed**. Error-swallowing at a boundary silently disabled a protection three call levels up.
 
+## Segunda rodada de remediação (2026-08-07)
+
+Disparada por uma reavaliação usando os skills `next-best-practices`,
+`vercel-react-best-practices` e `echotik-api-assistant`.
+
+| Item | Resultado |
+|---|---|
+| **Link de afiliado** | **Mudança de produto**: o pipeline assinava os links com as credenciais da plataforma e a tag `hyppado_achadinhos` — o assinante divulgava e a comissão caía na Hyppado. Agora serve o link direto do produto (`productLink`), sem atribuição a ninguém |
+| **Retry em `code != 0`** | O client só re-tentava `code === 500`; a doc (global-rules §10.3) manda re-tentar qualquer `code != 0` e diz que essas respostas não consomem cota. `isRetryableEnvelopeCode` cobre todos agora |
+| **`cacheDownloadUrls.ts`** | O cron da EchoTik chamava `download-url` sem retries — mesmo defeito já corrigido no lado Shopee, vivo num segundo lugar. Corrigido |
+| **Assinatura de capas em lote** | `batch/cover/download` aceita 10 URLs e não consome cota, mas assinávamos 1 por vez (~10x mais chamadas — e volume é o que dispara risk control). `signEchotikCoverUrls` agora agrupa de 10 em 10; `uploadImages` percorre em blocos |
+| **Imagens Shopee** | Alinhadas ao padrão do projeto (`Box component="img"` + `loading="lazy"` + `onError`), como em `VideoCard`. O `<img>` cru com `eslint-disable` foi removido. `loading="lazy"` acrescentado em 4 componentes que não tinham |
+| **Memoização** | `filtered`/`ordered`/`paginated` do `ShopeeAdminTab` eram recalculados a cada render (inclusive ao abrir o player). Agora em `useMemo`; `REVIEW_PRIORITY` foi para o escopo do módulo |
+| **Hooks SWR** | `ShopeeAdminTab` usava `fetch` manual enquanto `useShopeeAchadinhos()`/`useReviewAchadinho()` já existiam. Migrado — dedup e cache de graça, lógica deixa de estar duplicada |
+| **Cobertura** | `app/api/shopee/ranking` (0% → coberto) e `ShopeeProductCard`. Somado ao `ShopeeConfigTab.test.tsx` criado após o incidente de produção |
+| **Auto-deploy** | `--squash` → `--merge`. O squash fazia `main` e `develop` divergirem por construção; todo sync virava merge com risco de conflito — foi assim que hooks duplicados voltaram e quebraram a produção |
+
+### Incidente de produção no meio da rodada
+
+A aba Shopee em Configuração caiu em "Algo deu errado". Causa: os dois
+`useEffect` do seletor de hashtag foram inseridos **dentro** do
+`if (loading) { ... }`, então sumiam quando o config carregava — React
+derrubava a árvore com *"Rendered fewer hooks than expected"*.
+
+Typecheck, build e 1202 testes ficaram verdes: **nenhum teste renderizava o
+componente**. Era exatamente uma das superfícies sem cobertura listadas na
+primeira rodada. O teste agora existe e foi verificado contra a versão
+quebrada antes de ser aceito.
+
+Reincidiu uma vez: o merge `main → develop` uniu as duas versões do arquivo e
+duplicou os hooks. O teste pegou em segundos — e motivou a troca de squash
+por merge commit.
+
+## Descobertas sobre a API da EchoTik
+
+Medido, não suposto:
+
+- **`/realtime/video/search` devolve vazio** — `code=0`, `msg=ok`, envelope
+  completo e localizado em pt-BR, `aweme_list: []`. Vale até para o exemplo da
+  própria documentação (`keyword=baby`, `region=US`). Endpoints irmãos
+  funcionam com as mesmas credenciais, então é específico dele. Seria a fonte
+  ideal (tem `publish_time=90` nativo). Pendente de contato com a EchoTik.
+- **Busca offline está 238 dias defasada** — `/echotik/search/items` devolve
+  30 vídeos BR, mas o mais recente é de 2025-12-12, contra 2026-08-06 do
+  endpoint realtime. A regra §1 fala em "T+1"; na prática, para esta consulta,
+  são 8 meses. Inviável para conteúdo recente.
+- **`hashtag/video/list` não tem filtro de data** — só `hashtag_id`, `region`,
+  `offset`, `count`. Por isso a guarda de idade é client-side.
+
 ## Remaining Follow-ups
 
 - **GraphQL variables** — strictly better than interpolation, but the vendor uses a hand-rolled signature scheme over the exact payload string and its docs show inline queries. Needs live-credential verification before switching.

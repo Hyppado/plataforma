@@ -39,5 +39,8 @@ clean-plans.js
 .claude/
 .github/skills/
 .github/prompts/
+.agents/
+.aidlc-rule-details/
 
 openspec
+skills-lock.json

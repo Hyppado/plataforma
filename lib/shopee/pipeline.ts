@@ -42,7 +42,7 @@ import { getVideoCaptions } from "@/lib/transcription/media";
 import { getVideoDownloadUrl, downloadVideoBuffer } from "@/lib/transcription/media";
 import { transcribeWithWhisper, isWhisperError } from "@/lib/transcription/whisper";
 import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
-import { findBestShopeeOffer, generateShortLink } from "@/lib/shopee/shopee-api-client";
+import { findBestShopeeOffer } from "@/lib/shopee/shopee-api-client";
 import {
   type EchoTikVideoDTO,
   GPT_PRODUCT_EXTRACTION_SYSTEM_PROMPT,
@@ -532,30 +532,27 @@ async function saveProductResult(
   );
 
   if (offer) {
-    // Tenta gerar link encurtado de afiliado (shopeeAffiliateUrl).
-    // Se falhar (ex: link já encurtado s.shopee.com.br), usa o originUrl como fallback.
-    let shortLink: string | null = null;
-    if (offer.offerLink && !offer.offerLink.includes("s.shopee.com.br")) {
-      try {
-        shortLink = await generateShortLink(offer.offerLink, ["hyppado_achadinhos"]);
-      } catch (error) {
-        log.warn(`Falha ao gerar link de afiliado, usando original`, {
-          offerLink: offer.offerLink,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    // shopeeAffiliateUrl = link de venda da Shopee (encurtado ou original)
-    affiliateLink = shortLink || offer.offerLink || buildShopeeSearchFallbackLink(productName);
-    originalAffLink = offer.offerLink || affiliateLink;
+    // LINK DIRETO DO PRODUTO — sem monetização.
+    //
+    // Antes o pipeline chamava generateShortLink(..., ["hyppado_achadinhos"]),
+    // que assina o link com as credenciais de afiliado da plataforma. Ou seja:
+    // o assinante divulgava o produto e a comissão caía na conta da Hyppado.
+    // Decisão de produto: servir o link direto do produto, sem atribuição de
+    // afiliado a ninguém. A plataforma entrega inteligência, não monetiza o
+    // clique do assinante.
+    //
+    // Preferimos productLink (URL canônica do produto) e só caímos em
+    // offerLink se ele não vier.
+    affiliateLink =
+      offer.productLink || offer.offerLink || buildShopeeSearchFallbackLink(productName);
+    originalAffLink = affiliateLink;
     price = parseFloat(offer.priceMin || offer.priceMax) || null;
     saleCount = offer.sales || 0;
     commission = offer.commissionRate ? parseFloat(offer.commissionRate) : null;
     productImageUrl = offer.imageUrl || null;
     productPriceMin = offer.priceMin ? parseFloat(offer.priceMin) : null;
     productPriceMax = offer.priceMax ? parseFloat(offer.priceMax) : null;
-    productLink = offer.offerLink || null;
+    productLink = offer.productLink || offer.offerLink || null;
     log.info(`Produto encontrado na Shopee: "${offer.productName}" (${affiliateLink})`);
   } else {
     affiliateLink = buildShopeeSearchFallbackLink(productName);

@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -48,10 +48,12 @@ import {
 import { alpha } from "@mui/material/styles";
 import { EditAffiliateModal } from "@/app/components/shopee/EditAffiliateModal";
 import { TikTokPlayerModal } from "@/app/components/videos/TikTokPlayerModal";
-import type {
-  ShopeeAchadinhoDTO,
-  AchadinhoReviewAction,
-  AchadinhoStatus,
+import {
+  useShopeeAchadinhos,
+  useReviewAchadinho,
+  type ShopeeAchadinhoDTO,
+  type AchadinhoReviewAction,
+  type AchadinhoStatus,
 } from "@/lib/swr/useShopee";
 
 /**
@@ -61,9 +63,24 @@ import type {
  */
 const REVIEWABLE_STATUSES: AchadinhoStatus[] = ["PENDING", "READY", "REJECTED"];
 
+/**
+ * Ordem da fila de revisão: o que EXIGE ação do admin vem primeiro.
+ * Fora do componente — é constante, não precisa ser recriado a cada render.
+ */
+const REVIEW_PRIORITY: Record<string, number> = {
+  PENDING: 0, // aguardando revisão — ação necessária
+  PROCESSING: 1, // pipeline trabalhando
+  FAILED: 2, // diagnóstico
+  READY: 3, // publicado, nada a fazer
+  REJECTED: 4, // arquivado
+};
+
 export function ShopeeAdminTab() {
-  const [achadinhos, setAchadinhos] = useState<ShopeeAchadinhoDTO[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SWR em vez de fetch manual: dedup entre instâncias, cache e revalidação
+  // vêm de graça, e a lógica deixa de estar duplicada com lib/swr/useShopee.
+  const { achadinhos, isLoading: loading, mutate } = useShopeeAchadinhos();
+  const { review } = useReviewAchadinho();
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   // Default "active": esconde FAILED. A fila serve para revisar conteúdo
@@ -75,41 +92,24 @@ export function ShopeeAdminTab() {
   // Player de revisão: o admin precisa assistir ao vídeo antes de publicar
   const [playing, setPlaying] = useState<ShopeeAchadinhoDTO | null>(null);
 
-  const fetchAchadinhos = useCallback(async () => {
-    setLoading(true);
-    try {
-      // status=all — o admin revisa a fila inteira (PENDING/REJECTED inclusive),
-      // não apenas os publicados. pageSize alto: sem ele a API devolve 24 e a
-      // paginação client-side abaixo só enxergaria a primeira página.
-      const res = await fetch("/api/shopee/achadinhos?status=all&pageSize=1000");
-      const data = await res.json();
-      if (data.ok) {
-        setAchadinhos(data.achadinhos);
-      }
-    } catch (err) {
-      console.error("Erro ao carregar achadinhos:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const handleReview = useCallback(
     async (id: string, action: AchadinhoReviewAction) => {
       setReviewingId(id);
       try {
-        const res = await fetch(`/api/shopee/achadinhos/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-          console.error("Erro ao revisar achadinho:", data.error);
-          return;
-        }
-        // Atualiza só a linha afetada — evita recarregar a lista inteira
-        setAchadinhos((prev) =>
-          prev.map((a) => (a.id === id ? { ...a, status: data.achadinho.status } : a)),
+        const data = await review({ id, action });
+        // Atualiza o cache do SWR só na linha afetada
+        await mutate(
+          (atual) =>
+            atual
+              ? {
+                  ...atual,
+                  achadinhos: atual.achadinhos.map((a) =>
+                    a.id === id ? { ...a, status: data.achadinho.status } : a,
+                  ),
+                }
+              : atual,
+          { revalidate: false },
         );
       } catch (err) {
         console.error("Erro ao revisar achadinho:", err);
@@ -117,42 +117,33 @@ export function ShopeeAdminTab() {
         setReviewingId(null);
       }
     },
-    [],
+    [review, mutate],
   );
 
-  useEffect(() => {
-    fetchAchadinhos();
-  }, [fetchAchadinhos]);
+  // Filtragem + ordenação memoizadas: sem isso a lista inteira era refiltrada
+  // e reordenada a cada render (inclusive ao abrir o player ou o modal).
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return achadinhos;
+    if (statusFilter === "active") return achadinhos.filter((a) => a.status !== "FAILED");
+    return achadinhos.filter((a) => a.status === statusFilter);
+  }, [achadinhos, statusFilter]);
 
-  // Filtragem por status
-  const filtered =
-    statusFilter === "all"
-      ? achadinhos
-      : statusFilter === "active"
-        ? achadinhos.filter((a) => a.status !== "FAILED")
-        : achadinhos.filter((a) => a.status === statusFilter);
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const pa = REVIEW_PRIORITY[a.status] ?? 9;
+        const pb = REVIEW_PRIORITY[b.status] ?? 9;
+        if (pa !== pb) return pa - pb;
+        // Dentro do mesmo status, mais recentes primeiro
+        return +new Date(b.createdAt) - +new Date(a.createdAt);
+      }),
+    [filtered],
+  );
 
-  // Paginação
-  // Fila de revisão: o que EXIGE ação do admin vem primeiro. Ordenar por data
-  // de criação enterrava o único item pendente no meio de dezenas de
-  // publicados — o admin não conseguia achar o que revisar.
-  const REVIEW_PRIORITY: Record<string, number> = {
-    PENDING: 0, // aguardando revisão — ação necessária
-    PROCESSING: 1, // pipeline trabalhando
-    FAILED: 2, // diagnóstico
-    READY: 3, // publicado, nada a fazer
-    REJECTED: 4, // arquivado
-  };
-
-  const ordered = [...filtered].sort((a, b) => {
-    const pa = REVIEW_PRIORITY[a.status] ?? 9;
-    const pb = REVIEW_PRIORITY[b.status] ?? 9;
-    if (pa !== pb) return pa - pb;
-    // Dentro do mesmo status, mais recentes primeiro
-    return +new Date(b.createdAt) - +new Date(a.createdAt);
-  });
-
-  const paginated = ordered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const paginated = useMemo(
+    () => ordered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [ordered, page, rowsPerPage],
+  );
 
   const handleChangePage = (_: unknown, newPage: number) => {
     setPage(newPage);
@@ -174,7 +165,7 @@ export function ShopeeAdminTab() {
   };
 
   const handleEditSuccess = () => {
-    fetchAchadinhos();
+    void mutate();
   };
 
   const statusChip = (status: string) => {
@@ -331,11 +322,15 @@ export function ShopeeAdminTab() {
                         }}
                       >
                         {achadinho.coverUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <Box
+                            component="img"
                             src={achadinho.coverUrl}
                             alt={achadinho.productName || "capa"}
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            loading="lazy"
+                            onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                              (e.target as HTMLImageElement).style.display = "none";
+                            }}
+                            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
                         ) : null}
                         <Box

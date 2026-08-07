@@ -16,7 +16,21 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { uploadEchotikImageToBlob } from "@/lib/storage/blob";
+import { uploadImageToBlob, signEchotikCoverUrls } from "@/lib/storage/blob";
+
+/**
+ * Assinatura de capas é feita em lote (10 por chamada, sem consumir cota).
+ * Assinar uma a uma gerava ~10x mais chamadas à EchoTik — e volume de
+ * chamada é o que dispara o risk control deles.
+ */
+const SIGN_CHUNK = 10;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size));
+  return out;
+}
 import type { Logger } from "@/lib/logger";
 
 // ---------------------------------------------------------------------------
@@ -90,7 +104,7 @@ async function uploadProductImages(
   });
   let uploaded = 0;
 
-  for (const product of products) {
+  for (const grupo of chunk(products, SIGN_CHUNK)) {
     if (deadlineMs && Date.now() > deadlineMs) {
       log.info("Deadline approaching, stopping product image uploads", {
         uploaded,
@@ -99,20 +113,28 @@ async function uploadProductImages(
       break;
     }
 
-    const blobPath = `products/${product.productExternalId}.jpg`;
-    const blobUrl = await uploadEchotikImageToBlob(product.coverUrl!, blobPath);
+    // Uma única chamada assina as 10 capas do grupo
+    const assinadas = await signEchotikCoverUrls(
+      grupo.map((p) => p.coverUrl!).filter(Boolean),
+    );
 
-    if (blobUrl) {
-      await prisma.echotikProductDetail.update({
-        where: { id: product.id },
-        data: { blobUrl },
-      });
-      uploaded++;
-    } else {
-      // Leave blobUrl as null — will retry on next cron run
-      log.warn("Product image upload failed, will retry next run", {
-        productExternalId: product.productExternalId,
-      });
+    for (const product of grupo) {
+      const blobPath = `products/${product.productExternalId}.jpg`;
+      const signed = assinadas.get(product.coverUrl!);
+      const blobUrl = signed ? await uploadImageToBlob(signed, blobPath) : null;
+
+      if (blobUrl) {
+        await prisma.echotikProductDetail.update({
+          where: { id: product.id },
+          data: { blobUrl },
+        });
+        uploaded++;
+      } else {
+        // Leave blobUrl as null — will retry on next cron run
+        log.warn("Product image upload failed, will retry next run", {
+          productExternalId: product.productExternalId,
+        });
+      }
     }
   }
 
@@ -168,7 +190,7 @@ async function uploadCreatorAvatars(
   });
   let uploaded = 0;
 
-  for (const creator of creators) {
+  for (const grupo of chunk(creators, SIGN_CHUNK)) {
     if (deadlineMs && Date.now() > deadlineMs) {
       log.info("Deadline approaching, stopping creator avatar uploads", {
         uploaded,
@@ -177,25 +199,32 @@ async function uploadCreatorAvatars(
       break;
     }
 
-    const blobPath = `creators/${creator.userExternalId}.jpg`;
-    const blobUrl = await uploadEchotikImageToBlob(creator.avatar!, blobPath);
+    const assinadas = await signEchotikCoverUrls(
+      grupo.map((c) => c.avatar!).filter(Boolean),
+    );
 
-    if (blobUrl) {
-      // Update ALL records for this creator (across dates/cycles) so older
-      // snapshots also resolve to the blob URL
-      await prisma.echotikCreatorTrendDaily.updateMany({
-        where: {
+    for (const creator of grupo) {
+      const blobPath = `creators/${creator.userExternalId}.jpg`;
+      const signed = assinadas.get(creator.avatar!);
+      const blobUrl = signed ? await uploadImageToBlob(signed, blobPath) : null;
+
+      if (blobUrl) {
+        // Update ALL records for this creator (across dates/cycles) so older
+        // snapshots also resolve to the blob URL
+        await prisma.echotikCreatorTrendDaily.updateMany({
+          where: {
+            userExternalId: creator.userExternalId,
+            avatar: creator.avatar,
+          },
+          data: { avatarBlobUrl: blobUrl },
+        });
+        uploaded++;
+      } else {
+        // Leave avatarBlobUrl as null — will retry on next cron run
+        log.warn("Creator avatar upload failed, will retry next run", {
           userExternalId: creator.userExternalId,
-          avatar: creator.avatar,
-        },
-        data: { avatarBlobUrl: blobUrl },
-      });
-      uploaded++;
-    } else {
-      // Leave avatarBlobUrl as null — will retry on next cron run
-      log.warn("Creator avatar upload failed, will retry next run", {
-        userExternalId: creator.userExternalId,
-      });
+        });
+      }
     }
   }
 

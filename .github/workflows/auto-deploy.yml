@@ -6,8 +6,16 @@
 #   1. Triggered on every push to `develop`
 #   2. Waits for `ci.yml` to pass on the same SHA
 #   3. Creates (or updates) a PR from develop → main
-#   4. Enables auto-merge (squash) — GitHub merges as soon as required
+#   4. Enables auto-merge (merge commit) — GitHub merges as soon as required
 #      checks pass and branch protection rules are satisfied.
+#
+# POR QUE MERGE COMMIT E NÃO SQUASH:
+# O squash cria em main um commit novo que não existe em develop. Com o tempo
+# as duas branches divergem por construção, mesmo com conteúdo idêntico —
+# develop aparece como BEHIND e todo sync main->develop vira um merge com
+# risco de conflito. Isso já duplicou hooks silenciosamente e quebrou a
+# produção. Merge commit preserva a ancestralidade: develop e main
+# compartilham histórico e o sync passa a ser trivial.
 #
 # Requirements:
 #   - Only `GITHUB_TOKEN` — no PAT needed
@@ -129,7 +137,7 @@ jobs:
 
           # Enable auto-merge with retries — the PR may not be immediately
           # eligible (e.g. branch-protection checks are still queuing).
-          echo "🤖 Enabling auto-merge (squash) on PR #${PR_NUMBER}..."
+          echo "🤖 Enabling auto-merge (merge commit) on PR #${PR_NUMBER}..."
           MAX_ATTEMPTS=5
           ATTEMPT=0
           RETRY_DELAY=15
@@ -138,7 +146,7 @@ jobs:
             if gh pr merge "$PR_NUMBER" \
               --repo "$GITHUB_REPOSITORY" \
               --auto \
-              --squash \
+              --merge \
               --delete-branch=false; then
               echo "✅ Auto-merge enabled on PR #${PR_NUMBER} (attempt ${ATTEMPT})."
               break

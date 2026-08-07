@@ -145,3 +145,24 @@ NOTE: lib/swr/useShopee.ts reports 0% in both coverage runs despite having 14 te
 **Context**: CONSTRUCTION PHASE — remediation follow-through complete.
 
 ---
+
+## Segunda rodada de remediação — reavaliação com skills
+**Timestamp**: 2026-08-07T18:30:00Z
+**User Input**: "added new vercel skills and skill that can help do the evaluation of the code again focusing in the shopee features" / lista de decisões: "1 - plain link / 3 - i dont want older videos then that / 4 - so fix it everywhere needed / 5 - sp apply the enrire fix / 6 - so send 10 url do the best aproach / 7 - fix it / 8 - do the best practice aproach and what follows project patther / 9 - also apply best practices / 10 - test what is missing / 11 - drop it for now / 12 - dropt it for now / 13 - do it / 14 - applu best practos / 15 - update ai dlc"
+**AI Response**: Reavaliação usando next-best-practices, vercel-react-best-practices e echotik-api-assistant. Aplicado:
+(1) LINK DE AFILIADO — decisão de produto: pipeline deixa de assinar links com as credenciais da plataforma (generateShortLink + tag hyppado_achadinhos) e passa a servir o link direto do produto. Antes, o assinante divulgava e a comissão ia para a Hyppado.
+(3) GUARDA DE IDADE — mantida em 400 dias por decisão do usuário; o suposto conflito com o retry se dissolve, já que o retry passa a proteger vídeos recentes.
+(4)(5) RETRY — isRetryableEnvelopeCode passa a re-tentar qualquer code != 0 (global-rules §10.3, respostas que não consomem cota), não só 500; cacheDownloadUrls.ts do cron EchoTik ganhou retries:4 (mesmo defeito já corrigido no lado Shopee).
+(6) CAPAS EM LOTE — signEchotikCoverUrls agrupa 10 URLs por chamada (limite documentado, sem consumo de cota); uploadImages percorre produtos e criadores em blocos. Reduz ~10x o volume de chamadas, que é o gatilho do risk control.
+(7)(8) IMAGENS — alinhadas ao padrão do projeto (Box component="img" + loading="lazy" + onError, como VideoCard) em vez de introduzir next/image só no Shopee; removido o <img> cru com eslint-disable; loading="lazy" adicionado em 4 componentes.
+(9) MEMOIZAÇÃO — filtered/ordered/paginated do ShopeeAdminTab em useMemo; REVIEW_PRIORITY movido para o escopo do módulo.
+(#7 da lista) SWR — ShopeeAdminTab migrado de fetch manual para useShopeeAchadinhos/useReviewAchadinho; testes reescritos para mockar os hooks.
+(10) TESTES — __tests__/api/shopee/ranking.test.ts (5) e ShopeeProductCard.test.tsx (4).
+(11)(12) video/search e Universal Search — deixados de lado por decisão do usuário.
+(13) PR #114 — já estava merged; 0 PRs abertos.
+(14) AUTO-DEPLOY — --squash trocado por --merge. O squash fazia main e develop divergirem por construção; o sync main->develop virava merge com risco de conflito e já duplicou hooks, quebrando a produção.
+(15) AI-DLC — code-quality-assessment.md atualizado com a segunda rodada, o incidente de produção e as descobertas medidas sobre a API da EchoTik.
+NÃO aplicado por decisão do usuário: min_views permanece em 3000.
+**Context**: CONSTRUCTION PHASE — segunda rodada de remediação sobre o vertical Shopee.
+
+---
