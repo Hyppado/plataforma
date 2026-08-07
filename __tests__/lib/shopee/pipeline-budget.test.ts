@@ -157,7 +157,12 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
   it("respeita o cooldown de FAILED — não tenta de novo no mesmo dia", async () => {
     mockHashtagPage(1);
     (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue([
-      { videoExternalId: "video-0", status: "FAILED", updatedAt: new Date() },
+      {
+        videoExternalId: "video-0",
+        status: "FAILED",
+        updatedAt: new Date(),
+        errorMessage: "Nenhum produto identificado",
+      },
     ]);
 
     const result = await processAchadinhosBatch({ count: 20 });
@@ -170,12 +175,79 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
     mockHashtagPage(1);
     const old = new Date(Date.now() - 48 * 60 * 60 * 1000);
     (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue([
-      { videoExternalId: "video-0", status: "FAILED", updatedAt: old },
+      {
+        videoExternalId: "video-0",
+        status: "FAILED",
+        updatedAt: old,
+        errorMessage: "Nenhum produto identificado",
+      },
     ]);
 
     const result = await processAchadinhosBatch({ count: 20 });
 
     expect(result.processed).toBe(1);
+  });
+});
+
+describe("processAchadinhosBatch — cooldown transitório vs definitivo", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOpenAiSuccess();
+    mockDbWrites();
+    getVideoCaptions.mockResolvedValue({ text: "legenda" });
+    findBestShopeeOffer.mockResolvedValue(null);
+  });
+
+  /** Falha do fornecedor, gravada com o prefixo transitório. */
+  function failedRow(minutesAgo: number, transient: boolean) {
+    return [
+      {
+        videoExternalId: "video-0",
+        status: "FAILED",
+        updatedAt: new Date(Date.now() - minutesAgo * 60 * 1000),
+        errorMessage: transient
+          ? "[transitório] URL de download indisponível na EchoTik"
+          : "Vídeo sem fala transcrevível",
+      },
+    ];
+  }
+
+  it("falha TRANSITÓRIA volta à fila depois de 1h", async () => {
+    // Cenário real: rate limit da EchoTik marcou 12 vídeos bons como FAILED.
+    // Eles não podem ficar 24h fora por causa de um soluço do fornecedor.
+    mockHashtagPage(1);
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue(
+      failedRow(90, true),
+    );
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.processed).toBe(1);
+  });
+
+  it("falha TRANSITÓRIA ainda dentro de 1h continua fora da fila", async () => {
+    mockHashtagPage(1);
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue(
+      failedRow(30, true),
+    );
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.processed).toBe(0);
+    expect(result.alreadyProcessed).toBe(1);
+  });
+
+  it("falha DEFINITIVA continua fora por 24h, mesmo após 1h", async () => {
+    // Vídeo sem fala não melhora em uma hora — não vale re-gastar Whisper.
+    mockHashtagPage(1);
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue(
+      failedRow(90, false),
+    );
+
+    const result = await processAchadinhosBatch({ count: 20 });
+
+    expect(result.processed).toBe(0);
+    expect(result.alreadyProcessed).toBe(1);
   });
 });
 

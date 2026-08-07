@@ -51,6 +51,8 @@ import {
   SHOPEE_DEFAULTS,
   SHOPEE_BUDGET,
   achadinhosLoopBudgetMs,
+  TRANSIENT_ERROR_PREFIX,
+  isTransientFailure,
 } from "@/lib/shopee/types";
 import {
   fetchVideosByHashtag,
@@ -345,6 +347,21 @@ export interface TranscriptWithSource {
 }
 
 /**
+ * Resultado da transcrição, distinguindo POR QUE falhou.
+ *
+ * A distinção importa para o cooldown de retentativa: uma indisponibilidade
+ * da EchoTik não deve tirar um vídeo bom da fila por 24h.
+ */
+export type TranscriptOutcome =
+  | ({ ok: true } & TranscriptWithSource)
+  | {
+      ok: false;
+      /** true = culpa do fornecedor (retentar logo); false = do conteúdo */
+      transient: boolean;
+      reason: string;
+    };
+
+/**
  * Obtém a transcrição de um vídeo com fallback.
  *
  * Fluxo:
@@ -362,7 +379,7 @@ export interface TranscriptWithSource {
  */
 export async function getTranscriptWithFallback(
   video: EchoTikVideoDTO,
-): Promise<TranscriptWithSource | null> {
+): Promise<TranscriptOutcome> {
   const { video_id: videoExternalId, author_name } = video;
 
   // ── Passo 1: Tentar captions nativos (EchoTik Captions) ──────────────
@@ -373,7 +390,7 @@ export async function getTranscriptWithFallback(
       log.info(
         `Legenda nativa obtida via captions (${cleanText.length} caracteres) para ${videoExternalId}`,
       );
-      return { text: cleanText, source: "echotik_captions" };
+      return { ok: true, text: cleanText, source: "echotik_captions" };
     }
   } catch (error) {
     log.warn(`Captions indisponíveis para ${videoExternalId} — tentando Whisper`, {
@@ -393,14 +410,15 @@ export async function getTranscriptWithFallback(
 
     if (!urls) {
       log.info(`Download URL indisponível para ${videoExternalId} — pulando (fast-fail)`);
-      return null;
+      // Fornecedor indisponível (500 / risk control) — o vídeo pode ser bom
+      return { ok: false, transient: true, reason: "URL de download indisponível na EchoTik" };
     }
 
     // 2b. Baixar vídeo (max 25MB — limite do Whisper API)
     const videoBuffer = await downloadVideoBuffer(urls);
     if (!videoBuffer) {
       log.info(`Download do vídeo falhou para ${videoExternalId} — pulando (fast-fail)`);
-      return null;
+      return { ok: false, transient: true, reason: "Download do vídeo falhou" };
     }
 
     // 2c. Transcrever com Whisper
@@ -413,26 +431,31 @@ export async function getTranscriptWithFallback(
       log.warn(`Whisper falhou para ${videoExternalId} — pulando`, {
         error: whisperResult.error,
       });
-      return null;
+      return { ok: false, transient: true, reason: `Whisper falhou: ${whisperResult.error}` };
     }
 
     const text = whisperResult.text?.trim();
     if (!text || text.length < 3) {
+      // Áudio sem fala aproveitável — isto é do CONTEÚDO, não do fornecedor
       log.warn(`Whisper retornou texto vazio para ${videoExternalId} — pulando`);
-      return null;
+      return { ok: false, transient: false, reason: "Vídeo sem fala transcrevível" };
     }
 
     log.info(
       `Transcrição via Whisper obtida para ${videoExternalId} (${text.length} caracteres, lang=${whisperResult.language})`,
     );
-    return { text, source: "openai_whisper" };
+    return { ok: true, text, source: "openai_whisper" };
   } catch (error) {
     // Fast-fail: a EchoTik bloqueou o download ou deu time out — retorna
     // null imediatamente para o caller aplicar `continue` no próximo vídeo.
     log.warn(`Falha no fallback Whisper para ${videoExternalId} — pulando (fast-fail)`, {
       error: error instanceof Error ? error.message : String(error),
     });
-    return null;
+    return {
+      ok: false,
+      transient: true,
+      reason: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -676,17 +699,23 @@ export async function processAchadinhoVideo(
     const record = await upsertProcessingRecord(video);
 
     // 1. Transcrição com fallback (Captions → Whisper fast-fail)
-    const transcript =
-      transcriptOverride ?? (await getTranscriptWithFallback(video));
+    const transcript: TranscriptOutcome = transcriptOverride
+      ? { ok: true, ...transcriptOverride }
+      : await getTranscriptWithFallback(video);
 
-    if (!transcript) {
-      log.info(`Sem transcrição para ${videoExternalId} — pulando`);
+    if (!transcript.ok) {
+      // Falha do FORNECEDOR é marcada como transitória: o vídeo entra de novo
+      // na fila em 1h em vez de 24h. Sem isso, um rate limit da EchoTik tira
+      // vídeos legítimos de circulação por um dia inteiro.
+      const prefix = transcript.transient ? `${TRANSIENT_ERROR_PREFIX} ` : "";
+      log.info(
+        `Sem transcrição para ${videoExternalId} — pulando (${transcript.transient ? "transitório" : "definitivo"})`,
+      );
       await prisma.shopeeAchadinhoProduct.update({
         where: { id: record.id },
         data: {
           status: "FAILED",
-          errorMessage:
-            "Sem transcrição disponível (captions Echotik e fallback Whisper falharam) — vídeo pulado",
+          errorMessage: `${prefix}${transcript.reason}`,
         },
       });
       return false;
@@ -705,7 +734,9 @@ export async function processAchadinhoVideo(
     log.info(`Extraindo nome do produto com GPT: ${videoExternalId}`);
     const productName = await extractProductName(video.video_desc, transcriptText);
     if (!productName) {
-      log.error(`Falha na extração do nome do produto — pulando: ${videoExternalId}`);
+      // warn, não error: o GPT devolver NULL é operação NORMAL (vídeo sem
+      // produto identificável). Logar como error polui o painel de erros.
+      log.warn(`Nenhum produto identificado — pulando: ${videoExternalId}`);
       await prisma.shopeeAchadinhoProduct.update({
         where: { id: record.id },
         data: {
@@ -795,12 +826,21 @@ async function filterUnprocessedVideos(
 
   const existing = await prisma.shopeeAchadinhoProduct.findMany({
     where: { videoExternalId: { in: videos.map((v) => v.video_id) } },
-    select: { videoExternalId: true, status: true, updatedAt: true },
+    select: {
+      videoExternalId: true,
+      status: true,
+      updatedAt: true,
+      errorMessage: true,
+    },
   });
 
   const byId = new Map(existing.map((e) => [e.videoExternalId, e]));
+  const now = Date.now();
   const failedRetryThreshold = new Date(
-    Date.now() - SHOPEE_BUDGET.FAILED_RETRY_COOLDOWN_MS,
+    now - SHOPEE_BUDGET.FAILED_RETRY_COOLDOWN_MS,
+  );
+  const transientRetryThreshold = new Date(
+    now - SHOPEE_BUDGET.TRANSIENT_RETRY_COOLDOWN_MS,
   );
 
   const pending = videos.filter((video) => {
@@ -808,8 +848,12 @@ async function filterUnprocessedVideos(
     if (!row) return true;
 
     if (row.status === "FAILED") {
-      // Só tenta de novo depois do cooldown
-      return row.updatedAt < failedRetryThreshold;
+      // Cooldown curto para falhas do fornecedor, longo para falhas de
+      // conteúdo. Um 500 da EchoTik não deve custar 24h de um vídeo bom.
+      const threshold = isTransientFailure(row.errorMessage)
+        ? transientRetryThreshold
+        : failedRetryThreshold;
+      return row.updatedAt < threshold;
     }
 
     // PROCESSING = execução anterior interrompida → reprocessar
