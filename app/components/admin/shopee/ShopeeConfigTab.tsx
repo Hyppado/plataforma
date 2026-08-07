@@ -123,8 +123,7 @@ export function ShopeeConfigTab() {
     }
   };
 
-  if (loading) {
-    // Busca hashtags no EchoTik conforme o admin digita (debounce de 400ms).
+  // Busca hashtags no EchoTik conforme o admin digita (debounce de 400ms).
   // A lista vem sempre do servidor: assim o campo só oferece hashtags que
   // existem, em vez de aceitar um ID numérico digitado à mão.
   useEffect(() => {
@@ -163,7 +162,8 @@ export function ShopeeConfigTab() {
     if (achada) setSelectedHashtag(achada);
   }, [hashtagOptions, achadinhosHashtagId, selectedHashtag]);
 
-  return (
+  if (loading) {
+    return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
         <CircularProgress size={28} color="primary" />
       </Box>
