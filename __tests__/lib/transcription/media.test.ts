@@ -210,17 +210,22 @@ describe("lib/transcription/media", () => {
         noWatermarkUrl: "https://example.com/nowm.mp4",
       });
 
-      // Nova arquitetura: Fast-Fail para o endpoint download-url.
-      // O cron NÃO pode travar esperando backoff exponencial quando a EchoTik
-      // bloqueia o download (Risk Control code=500). Retries mínimos (1),
-      // timeout curto (10s) e fastFailRiskControl=true lançam imediatamente.
+      // Risk control: a documentação oficial da EchoTik manda INSISTIR —
+      // "如果接口返回code=500，请继续重试（code=500不消耗当前调用额度）"
+      // (se vier code=500, continue tentando; 500 não consome cota).
+      // https://opendocs.echotik.live/realtime/hashtag/search.md
+      //
+      // O fast-fail anterior (retries:1) desistia no primeiro 500 e custou
+      // 12 de 12 vídeos numa execução real, sendo a retentativa gratuita.
+      // Quem protege contra travar é o orçamento de tempo do lote, não este
+      // endpoint.
       expect(echotikRequestMock).toHaveBeenCalledWith(
         "/api/v3/realtime/video/download-url",
         {
           params: { url: "https://www.tiktok.com/@user/video/vid-dl-1" },
           timeout: 10_000,
-          retries: 1,
-          fastFailRiskControl: true,
+          retries: 4,
+          fastFailRiskControl: false,
         },
       );
     });

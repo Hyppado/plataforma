@@ -225,16 +225,27 @@ async function getVideoDownloadUrlFromEchotik(
   try {
     const resolvedUrl = tiktokUrl || `https://www.tiktok.com/@user/video/${videoExternalId}`;
 
-    // Fast-Fail: retries mínimos + lança imediatamente em risk control.
-    // Evita que o cron fique travado minutos esperando backoff exponencial
-    // quando a EchoTik bloqueia o endpoint de download.
+    // A documentação oficial da EchoTik é explícita sobre risk control:
+    //
+    //   "实时接口可能遇到风控，如果接口返回code=500，请继续重试
+    //    （code=500不消耗当前调用额度）"
+    //   → endpoints realtime podem cair em risk control; se vier code=500,
+    //     CONTINUE tentando — 500 não consome cota.
+    //   https://opendocs.echotik.live/realtime/hashtag/search.md
+    //
+    // O fast-fail anterior (retries: 1 + fastFailRiskControl) desistia no
+    // primeiro 500. Medido em produção: 12 de 12 vídeos perdidos por isso,
+    // sendo que a retentativa era GRATUITA. Agora tentamos de verdade.
+    //
+    // O orçamento de tempo do lote continua sendo a proteção contra travar:
+    // processAchadinhosBatch só inicia um vídeo se couber o pior caso.
     const response = await echotikRequest<EchotikDownloadUrlResponse>(
       "/api/v3/realtime/video/download-url",
       {
         params: { url: resolvedUrl },
         timeout: 10_000,
-        retries: 1,
-        fastFailRiskControl: true,
+        retries: 4,
+        fastFailRiskControl: false,
       },
     );
 
