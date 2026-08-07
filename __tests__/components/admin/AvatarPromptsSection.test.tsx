@@ -71,7 +71,11 @@ const FAKE_CONFIG = {
 };
 
 function setup() {
-  const user = userEvent.setup();
+  // delay: null remove o atraso entre teclas do userEvent. Cada tecla
+  // re-renderiza um campo controlado do MUI, então digitar " EXTRA_TEXT"
+  // (11 teclas) estourava o timeout de 5s em runners de CI carregados —
+  // o teste passava localmente e falhava de forma intermitente no CI.
+  const user = userEvent.setup({ delay: null });
   render(<AvatarPromptsSection />);
   return { user };
 }
