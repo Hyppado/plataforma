@@ -78,11 +78,38 @@ export const SHOPEE_BUDGET = {
    */
   DISCOVERY_BUDGET_MS: 60_000,
   /**
-   * Cooldown antes de reprocessar um vídeo que falhou. Evita que os mesmos
-   * vídeos ruins consumam todo o orçamento de todas as execuções.
+   * Cooldown antes de reprocessar um vídeo que falhou por motivo DEFINITIVO
+   * (ex: GPT não identificou produto). Evita que os mesmos vídeos ruins
+   * consumam todo o orçamento de todas as execuções.
    */
   FAILED_RETRY_COOLDOWN_MS: 24 * 60 * 60 * 1000,
+  /**
+   * Cooldown para falhas TRANSITÓRIAS do fornecedor (EchoTik 500 / risk
+   * control, timeout de rede). Nesses casos o vídeo provavelmente é bom — só
+   * pegamos a API num momento ruim.
+   *
+   * Já aconteceu em produção: dois cron seguidos esgotaram o rate limit da
+   * EchoTik e 12 vídeos legítimos (125k a 3,1M views) foram marcados FAILED,
+   * ficando 24h fora da fila. Uma hora é suficiente para o limiter reiniciar
+   * sem transformar um soluço do fornecedor em um dia de conteúdo perdido.
+   */
+  TRANSIENT_RETRY_COOLDOWN_MS: 60 * 60 * 1000,
 } as const;
+
+/**
+ * Prefixo que marca uma falha como transitória (culpa do fornecedor, não do
+ * conteúdo). Gravado em `errorMessage` e lido por `filterUnprocessedVideos`
+ * para escolher o cooldown.
+ *
+ * Usar o errorMessage evita uma migração só para adicionar um status novo, e
+ * mantém o motivo legível no painel admin.
+ */
+export const TRANSIENT_ERROR_PREFIX = "[transitório]";
+
+/** true se a falha registrada foi transitória (deve ser retentada logo). */
+export function isTransientFailure(errorMessage: string | null): boolean {
+  return !!errorMessage?.startsWith(TRANSIENT_ERROR_PREFIX);
+}
 
 /**
  * Orçamento útil do laço: limite da função menos a margem de segurança.
