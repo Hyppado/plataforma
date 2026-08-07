@@ -5,7 +5,7 @@
  * Atualmente suporta:
  *
  * PATCH /api/shopee/achadinhos/[id]
- *   - Atualiza o link de afiliado e/ou o status de revisão de um achadinho.
+ *   - Atualiza o link do produto e/ou o status de revisão de um achadinho.
  *   - Apenas administradores podem usar este endpoint.
  *   - Salva o link original em originalAffLink na primeira alteração.
  *   - Body: { affiliateLink?: string, action?: "approve" | "reject" | "reset" }
@@ -85,7 +85,7 @@ const REVIEWABLE_STATUSES: ShopeeAchadinhoStatus[] = [
 /**
  * PATCH /api/shopee/achadinhos/[id]
  *
- * Permite que um administrador sobrescreva o link de afiliado e/ou avance o
+ * Permite que um administrador sobrescreva o link do produto e/ou avance o
  * achadinho no gate de aprovação. O link original é preservado em
  * originalAffLink para referência.
  */
@@ -96,7 +96,7 @@ export async function PATCH(
   const auth = await requireAuth();
   if (!isAuthed(auth)) return auth;
 
-  // Apenas administradores podem editar links de afiliado ou revisar
+  // Apenas administradores podem editar o link do produto ou revisar
   if (auth.role !== "ADMIN") {
     return NextResponse.json(
       { ok: false, error: "Apenas administradores podem editar ou revisar achadinhos" },
@@ -122,7 +122,7 @@ export async function PATCH(
     if (hasLink) {
       if (!affiliateLink || typeof affiliateLink !== "string") {
         return NextResponse.json(
-          { ok: false, error: "Link de afiliado é obrigatório" },
+          { ok: false, error: "Link do produto é obrigatório" },
           { status: 400 },
         );
       }
@@ -130,7 +130,7 @@ export async function PATCH(
       // Valida se é uma URL HTTP/HTTPS válida
       if (!isValidUrl(affiliateLink)) {
         return NextResponse.json(
-          { ok: false, error: "Link de afiliado inválido. Deve ser uma URL HTTP/HTTPS válida." },
+          { ok: false, error: "Link do produto inválido. Deve ser uma URL HTTP/HTTPS válida." },
           { status: 400 },
         );
       }

@@ -678,7 +678,7 @@ export function ShopeeAchadinhoCard({
         {/* Admin: Edit affiliate link */}
         {isAdmin && (
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0.5 }}>
-            <Tooltip title="Editar link de afiliado" arrow>
+            <Tooltip title="Editar link do produto" arrow>
               <IconButton
                 size="small"
                 onClick={(e) => {

@@ -11,7 +11,7 @@
  * - Grid de cards com animação de entrada
  * - Botão "Carregar mais" com paginação incremental
  * - Skeleton loading e estado vazio
- * - Admin pode editar link de afiliado diretamente nos cards
+ * - Admin pode editar o link do produto diretamente nos cards
  */
 
 "use client";

@@ -1,7 +1,7 @@
 /**
  * app/components/shopee/EditAffiliateModal.tsx
  *
- * Modal para administradores editarem/sobrescreverem o link de afiliado
+ * Modal para administradores editarem/sobrescreverem o link do produto
  * de um produto "Achadinho Shopee".
  *
  * Regras:
@@ -51,7 +51,7 @@ export function EditAffiliateModal({
     setSuccessMessage(null);
     try {
       await updateLink({ id: product.id, affiliateLink: affiliateLink.trim() });
-      setSuccessMessage("Link de afiliado atualizado com sucesso!");
+      setSuccessMessage("Link do produto atualizado com sucesso!");
       setTimeout(() => {
         onClose();
         onSuccess?.();
@@ -96,7 +96,7 @@ export function EditAffiliateModal({
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <LinkIcon sx={{ fontSize: 18, color: "#2DD4FF" }} />
           <Typography sx={{ fontWeight: 600, color: "#fff", fontSize: "0.9rem" }}>
-            Editar Link de Afiliado
+            Editar Link do Produto
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small" sx={{ color: "rgba(255,255,255,0.5)" }}>
@@ -165,7 +165,7 @@ export function EditAffiliateModal({
 
         {/* Campo de edição */}
         <Typography sx={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.4)", mb: 0.5 }}>
-          NOVO LINK DE AFILIADO
+          NOVO LINK DO PRODUTO
         </Typography>
         <TextField
           fullWidth

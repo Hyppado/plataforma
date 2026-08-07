@@ -6,7 +6,7 @@
  * via pipeline de IA (Whisper → GPT → Shopee API).
  *
  * Exibe: thumbnail do vídeo, status do processamento, nome do produto extraído,
- * preço da Shopee, vendas, categoria, link de afiliado e botão de edição (admin).
+ * preço da Shopee, vendas, categoria, link do produto e botão de edição (admin).
  */
 
 "use client";
@@ -246,7 +246,7 @@ export function ShopeeAchadinhoVideoCard({
           />
         )}
 
-        {/* Link de afiliado + ação admin */}
+        {/* Link do produto + ação admin */}
         <Box
           sx={{
             display: "flex",
@@ -286,7 +286,7 @@ export function ShopeeAchadinhoVideoCard({
             </Tooltip>
           )}
           {isAdmin && (
-            <Tooltip title="Editar link de afiliado" arrow>
+            <Tooltip title="Editar link do produto" arrow>
               <IconButton
                 size="small"
                 onClick={() => setEditModalOpen(true)}
