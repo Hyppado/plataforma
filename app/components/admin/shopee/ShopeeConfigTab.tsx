@@ -19,8 +19,17 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  Autocomplete,
 } from "@mui/material";
 import { Check, Warning } from "@mui/icons-material";
+
+/** Hashtag real devolvida pela busca no EchoTik. */
+interface HashtagOption {
+  id: string;
+  name: string;
+  videoCount: number;
+  viewCount: number;
+}
 
 interface ShopeeConfig {
   configured: boolean;
@@ -47,6 +56,12 @@ export function ShopeeConfigTab() {
   const [achadinhosHashtagId, setAchadinhosHashtagId] = useState(
     "1696392324325382",
   );
+
+  // ── Seletor de hashtag (busca ao vivo na EchoTik) ──────────────────────
+  const [hashtagOptions, setHashtagOptions] = useState<HashtagOption[]>([]);
+  const [hashtagLoading, setHashtagLoading] = useState(false);
+  const [hashtagQuery, setHashtagQuery] = useState("");
+  const [selectedHashtag, setSelectedHashtag] = useState<HashtagOption | null>(null);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -109,7 +124,46 @@ export function ShopeeConfigTab() {
   };
 
   if (loading) {
-    return (
+    // Busca hashtags no EchoTik conforme o admin digita (debounce de 400ms).
+  // A lista vem sempre do servidor: assim o campo só oferece hashtags que
+  // existem, em vez de aceitar um ID numérico digitado à mão.
+  useEffect(() => {
+    const termo = hashtagQuery.trim();
+    const alvo = termo.length >= 2 ? termo : "achadinhosshopee";
+
+    let cancelado = false;
+    setHashtagLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/settings/shopee/hashtags?q=${encodeURIComponent(alvo)}`,
+        );
+        const data = await res.json();
+        if (cancelado) return;
+        setHashtagOptions(data.hashtags ?? []);
+      } catch {
+        if (!cancelado) setHashtagOptions([]);
+      } finally {
+        if (!cancelado) setHashtagLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [hashtagQuery]);
+
+  // Mostra a hashtag já salva assim que ela aparecer nos resultados —
+  // o banco guarda só o ID, o nome vem da busca.
+  useEffect(() => {
+    if (selectedHashtag || !achadinhosHashtagId) return;
+    const achada = hashtagOptions.find((h) => h.id === achadinhosHashtagId);
+    if (achada) setSelectedHashtag(achada);
+  }, [hashtagOptions, achadinhosHashtagId, selectedHashtag]);
+
+  return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
         <CircularProgress size={28} color="primary" />
       </Box>
@@ -239,14 +293,56 @@ export function ShopeeConfigTab() {
           inputProps={{ min: 20, max: 400 }}
           helperText="Quantos vídeos o cron deve buscar a cada execução (20-400). A busca é paginada em blocos de 20 com delay ~2s."
         />
-        <TextField
-          label="ID da Hashtag dos Achadinhos"
-          value={achadinhosHashtagId}
-          onChange={(e) => setAchadinhosHashtagId(e.target.value)}
-          size="small"
-          fullWidth
-          placeholder="1696392324325382"
-          helperText="ID numérico da hashtag #achadinhosshopee no EchoTik. Usado para buscar vídeos na API. Padrão: 1696392324325382."
+        <Autocomplete
+          options={hashtagOptions}
+          loading={hashtagLoading}
+          value={selectedHashtag}
+          filterOptions={(x) => x} /* a filtragem é do servidor */
+          getOptionLabel={(o) => `#${o.name}`}
+          isOptionEqualToValue={(a, b) => a.id === b.id}
+          onInputChange={(_, v, reason) => {
+            if (reason === "input") setHashtagQuery(v);
+          }}
+          onChange={(_, option) => {
+            setSelectedHashtag(option);
+            setAchadinhosHashtagId(option?.id ?? "");
+          }}
+          noOptionsText={
+            hashtagLoading ? "Buscando..." : "Nenhuma hashtag encontrada"
+          }
+          renderOption={(props, option) => (
+            <Box component="li" {...props} key={option.id}>
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                <Typography sx={{ fontSize: "0.85rem" }}>#{option.name}</Typography>
+                <Typography sx={{ fontSize: "0.7rem", opacity: 0.6 }}>
+                  {option.videoCount.toLocaleString("pt-BR")} vídeos · ID {option.id}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Hashtag dos Achadinhos"
+              size="small"
+              fullWidth
+              placeholder="Digite para buscar, ex: achadinhosshopee"
+              helperText={
+                achadinhosHashtagId
+                  ? `Hashtag selecionada — ID ${achadinhosHashtagId}. Escolha da lista: só aparecem hashtags que existem de verdade no EchoTik.`
+                  : "Digite um termo para buscar hashtags reais no EchoTik. A contagem de vídeos ajuda a escolher qual vale minerar."
+              }
+              InputProps={{
+                ...params.InputProps,
+                endAdornment: (
+                  <>
+                    {hashtagLoading ? <CircularProgress size={16} /> : null}
+                    {params.InputProps.endAdornment}
+                  </>
+                ),
+              }}
+            />
+          )}
         />
       </Box>
 

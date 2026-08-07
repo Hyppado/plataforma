@@ -342,3 +342,72 @@ export async function fetchVideoCaptions(
     },
   );
 }
+// ─── Busca de hashtags (resolução nome → ID) ──────────────────────────────
+
+/** Uma hashtag retornada pela busca, já normalizada. */
+export interface EchotikHashtagResult {
+  /** ID numérico da hashtag no EchoTik (challenge_info.cid) */
+  id: string;
+  /** Nome sem o "#" (challenge_info.cha_name) */
+  name: string;
+  /** Quantidade de vídeos publicados com a hashtag */
+  videoCount: number;
+  /** Total de visualizações acumuladas */
+  viewCount: number;
+}
+
+interface EchotikHashtagSearchResponse extends EchotikApiEnvelope {
+  data?: {
+    challenge_list?: Array<{
+      challenge_info?: {
+        cid?: string;
+        cha_name?: string;
+        use_count?: number;
+        view_count?: number;
+      };
+    }>;
+  };
+}
+
+/**
+ * Busca hashtags por palavra-chave e devolve as entidades reais do EchoTik.
+ *
+ * Endpoint: GET /api/v3/realtime/hashtag/search
+ * Documentação: https://opendocs.echotik.live/realtime/hashtag/search.md
+ *
+ * Serve para resolver um termo digitado ("achadinhosshopee") no ID numérico
+ * que o endpoint de vídeos da hashtag exige — e para oferecer ao admin uma
+ * lista de hashtags REAIS em vez de um campo numérico livre onde dá para
+ * digitar um ID inexistente.
+ *
+ * Ordena por quantidade de vídeos (desc): a hashtag canônica é praticamente
+ * sempre a de maior volume, e variações/erros de digitação ficam abaixo.
+ */
+export async function searchHashtags(params: {
+  keyword: string;
+  region?: string;
+  count?: number;
+}): Promise<EchotikHashtagResult[]> {
+  const { keyword, region = "BR", count = 20 } = params;
+
+  const response = await echotikRequest<EchotikHashtagSearchResponse>(
+    "/api/v3/realtime/hashtag/search",
+    {
+      params: { keyword, region, count },
+      // code=500 é risk control e NÃO consome cota — vale insistir
+      retries: 4,
+      timeout: 15_000,
+    },
+  );
+
+  return (response?.data?.challenge_list ?? [])
+    .map((entry) => entry.challenge_info)
+    .filter((info): info is NonNullable<typeof info> => !!info?.cid && !!info?.cha_name)
+    .map((info) => ({
+      id: String(info.cid),
+      name: String(info.cha_name),
+      videoCount: Number(info.use_count ?? 0),
+      viewCount: Number(info.view_count ?? 0),
+    }))
+    .sort((a, b) => b.videoCount - a.videoCount);
+}
