@@ -58,6 +58,7 @@ vi.mock("@/lib/shopee/client", async () => {
 });
 
 import { processAchadinhosBatch } from "@/lib/shopee/pipeline";
+import { ACHADINHOS_MAX_HASHTAGS } from "@/lib/shopee/types";
 
 /** Item cru da EchoTik, acima do limiar de 30k views. */
 function awemeItem(id: string, views = 100_000) {
@@ -474,5 +475,28 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
     expect(fetchVideosByHashtag).toHaveBeenCalled();
     // 4 vídeos únicos, mesmo tendo vindo de duas hashtags
     expect(result.found).toBe(4);
+  });
+
+  it("corta hashtags acima do teto em vez de varrer todas", async () => {
+    // Config gravada antes da validação da API admin (ou via env) pode trazer
+    // mais que o teto. Varrer todas estoura o orçamento de descoberta e as
+    // últimas não seriam lidas de qualquer forma.
+    mockHashtagPage(1);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(0);
+
+    const excedente = Array.from({ length: ACHADINHOS_MAX_HASHTAGS + 3 }, (_, i) =>
+      String(1000000000000000 + i),
+    );
+
+    await processAchadinhosBatch({ count: 20, hashtagIds: excedente });
+
+    const varridas = new Set(
+      (fetchVideosByHashtag as any).mock.calls.map((c: any[]) => c[0].hashtagId),
+    );
+    expect(varridas.size).toBe(ACHADINHOS_MAX_HASHTAGS);
+    // As excedentes ficam de fora, na ordem em que foram configuradas
+    for (const id of excedente.slice(ACHADINHOS_MAX_HASHTAGS)) {
+      expect(varridas.has(id)).toBe(false);
+    }
   });
 });

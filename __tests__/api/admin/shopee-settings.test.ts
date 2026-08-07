@@ -35,6 +35,11 @@ vi.mock("@/lib/settings", () => ({
 }));
 
 import { GET, POST } from "@/app/api/admin/settings/shopee/route";
+import {
+  ACHADINHOS_MAX_HASHTAGS,
+  ACHADINHOS_HASHTAG_COST_MS,
+  SHOPEE_BUDGET,
+} from "@/lib/shopee/types";
 
 /** Extrai o valor gravado para uma chave de Setting. */
 function upsertedValue(mock: typeof upsertSetting, key: string) {
@@ -226,5 +231,52 @@ describe("POST — parâmetros de sincronização", () => {
     expect(res.status).toBe(200);
     expect(upsertSetting).not.toHaveBeenCalled();
     expect(upsertSecretSetting).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST — teto de hashtags", () => {
+  beforeEach(() => mockAuthenticatedAdmin());
+
+  /** Gera N IDs numéricos distintos. */
+  const ids = (n: number) =>
+    Array.from({ length: n }, (_, i) => String(1000000000000000 + i)).join(",");
+
+  it("aceita exatamente o máximo", async () => {
+    const req = makePostRequest("/api/admin/settings/shopee", {
+      achadinhosHashtagId: ids(ACHADINHOS_MAX_HASHTAGS),
+    });
+    const res = await POST(req as any);
+
+    expect(res.status).toBe(200);
+    expect(
+      upsertedValue(upsertSetting, "shopee.achadinhos_hashtag_id"),
+    ).toBe(ids(ACHADINHOS_MAX_HASHTAGS));
+  });
+
+  it("rejeita acima do máximo em vez de cortar em silêncio", async () => {
+    // Cortar a lista faria o admin acreditar que salvou hashtags que o
+    // pipeline nunca leria. O erro precisa ser visível.
+    const req = makePostRequest("/api/admin/settings/shopee", {
+      achadinhosHashtagId: ids(ACHADINHOS_MAX_HASHTAGS + 1),
+    });
+    const res = await POST(req as any);
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain(String(ACHADINHOS_MAX_HASHTAGS));
+    expect(upsertSetting).not.toHaveBeenCalledWith(
+      "shopee.achadinhos_hashtag_id",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("o teto cabe no orçamento de descoberta", () => {
+    // O teto só faz sentido enquanto for derivado do orçamento. Se alguém
+    // subir ACHADINHOS_HASHTAG_COST_MS sem rever o orçamento, isto acusa.
+    expect(
+      ACHADINHOS_MAX_HASHTAGS * ACHADINHOS_HASHTAG_COST_MS,
+    ).toBeLessThanOrEqual(SHOPEE_BUDGET.DISCOVERY_BUDGET_MS);
+    expect(ACHADINHOS_MAX_HASHTAGS).toBeGreaterThan(1);
   });
 });

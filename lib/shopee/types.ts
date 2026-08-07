@@ -112,6 +112,32 @@ export const SHOPEE_BUDGET = {
 } as const;
 
 /**
+ * Custo medido de varrer UMA hashtag no piso da descoberta.
+ *
+ * Medição em produção (agosto/2026): uma página de 20 leva 4,4s a 6,3s na
+ * EchoTik. Os filtros de views e idade costumam derrubar itens suficientes
+ * para forçar uma segunda página, que ainda paga o delay de 2s contra o Risk
+ * Control. ~7,5s é a média realista por hashtag.
+ */
+export const ACHADINHOS_HASHTAG_COST_MS = 7_500;
+
+/**
+ * Teto de hashtags que o admin pode configurar.
+ *
+ * A descoberta varre as hashtags em sequência dentro de DISCOVERY_BUDGET_MS.
+ * Passando deste teto o laço apenas esgota o orçamento e sai — as últimas
+ * hashtags da lista NUNCA chegam a ser varridas. O sintoma é silencioso:
+ * a configuração aceita, o admin acha que estão todas valendo, e as do fim
+ * não contribuem com nenhum vídeo.
+ *
+ * Derivado do orçamento em vez de fixado na mão para que subir
+ * DISCOVERY_BUDGET_MS suba o teto junto.
+ */
+export const ACHADINHOS_MAX_HASHTAGS = Math.floor(
+  SHOPEE_BUDGET.DISCOVERY_BUDGET_MS / ACHADINHOS_HASHTAG_COST_MS,
+);
+
+/**
  * Prefixo que marca uma falha como transitória (culpa do fornecedor, não do
  * conteúdo). Gravado em `errorMessage` e lido por `filterUnprocessedVideos`
  * para escolher o cooldown.
