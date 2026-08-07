@@ -15,7 +15,11 @@ import {
   hasSecretSetting,
   getSetting,
 } from "@/lib/settings";
-import { ACHADINHOS_MAX_HASHTAGS } from "@/lib/shopee/types";
+import {
+  ACHADINHOS_MAX_HASHTAGS,
+  parseAchadinhoHashtags,
+  serializeAchadinhoHashtags,
+} from "@/lib/shopee/types";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -48,6 +52,12 @@ export async function GET() {
       achadinhosCount: achadinhosCount ?? "50",
       // ID numérico da hashtag de achadinhos da Shopee (default padrão)
       achadinhosHashtagId: achadinhosHashtagId ?? "1696392324325382",
+      // Seleção já resolvida em {id, name}. É isto que a tela usa para
+      // desenhar os chips — sem depender de uma busca na EchoTik, que falha
+      // com frequência e fazia a configuração parecer ter sumido.
+      achadinhosHashtags: parseAchadinhoHashtags(
+        achadinhosHashtagId ?? "1696392324325382",
+      ),
     });
   } catch {
     return NextResponse.json(
@@ -135,36 +145,37 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    // Aceita uma ou várias hashtags. Guardado como IDs separados por vírgula —
-    // uma hashtag só rende ~30 vídeos úteis, então minerar várias é o que
-    // aumenta a oferta.
+    // Aceita uma ou várias hashtags, no formato "id|nome,id|nome". O nome é
+    // gravado junto para que a tela desenhe a seleção salva sem consultar a
+    // EchoTik. O formato antigo (só IDs) continua sendo aceito.
     if (typeof body.achadinhosHashtagId === "string" && body.achadinhosHashtagId.trim()) {
-      const ids = body.achadinhosHashtagId
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => /^\d+$/.test(s));
+      const tags = parseAchadinhoHashtags(body.achadinhosHashtagId);
 
       // Teto derivado do orçamento de descoberta. Rejeitamos em vez de cortar
       // a lista em silêncio: o admin precisa saber que a escolha não coube.
-      if (ids.length > ACHADINHOS_MAX_HASHTAGS) {
+      if (tags.length > ACHADINHOS_MAX_HASHTAGS) {
         return NextResponse.json(
           {
             error:
               `Máximo de ${ACHADINHOS_MAX_HASHTAGS} hashtags — ` +
-              `${ids.length} foram enviadas. Acima disso a varredura não ` +
+              `${tags.length} foram enviadas. Acima disso a varredura não ` +
               `termina dentro do orçamento e as últimas hashtags nunca são lidas.`,
           },
           { status: 400 },
         );
       }
 
-      if (ids.length > 0) {
+      if (tags.length > 0) {
         ops.push(
-          upsertSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_HASHTAG_ID, ids.join(","), {
-            label: "Hashtags dos Achadinhos",
-            group: "shopee",
-            type: "text",
-          }),
+          upsertSetting(
+            SETTING_KEYS.SHOPEE_ACHADINHOS_HASHTAG_ID,
+            serializeAchadinhoHashtags(tags),
+            {
+              label: "Hashtags dos Achadinhos",
+              group: "shopee",
+              type: "text",
+            },
+          ),
         );
       }
     }

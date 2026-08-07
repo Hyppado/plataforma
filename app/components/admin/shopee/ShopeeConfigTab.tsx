@@ -39,6 +39,8 @@ interface ShopeeConfig {
   achadinhosFrequency: string;
   achadinhosCount: string;
   achadinhosHashtagId: string;
+  /** Seleção salva já resolvida — a tela desenha os chips a partir disto. */
+  achadinhosHashtags?: { id: string; name: string }[];
 }
 
 export function ShopeeConfigTab() {
@@ -64,6 +66,7 @@ export function ShopeeConfigTab() {
   const [hashtagQuery, setHashtagQuery] = useState("");
   const [selectedHashtags, setSelectedHashtags] = useState<HashtagOption[]>([]);
   const noLimite = selectedHashtags.length >= ACHADINHOS_MAX_HASHTAGS;
+  const totalVideos = selectedHashtags.reduce((t, h) => t + h.videoCount, 0);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -77,6 +80,21 @@ export function ShopeeConfigTab() {
         if (data.achadinhosFrequency) setAchadinhosFrequency(data.achadinhosFrequency);
         if (data.achadinhosCount) setAchadinhosCount(data.achadinhosCount);
         if (data.achadinhosHashtagId) setAchadinhosHashtagId(data.achadinhosHashtagId);
+        // A seleção salva vem pronta do banco. Nada aqui depende da EchoTik:
+        // se a busca estiver fora do ar, os chips continuam aparecendo.
+        if (data.achadinhosHashtags?.length) {
+          setSelectedHashtags(
+            data.achadinhosHashtags.map((h) => ({
+              id: h.id,
+              // Config no formato antigo vem sem nome. Deixar vazio de
+              // propósito: getOptionLabel exibe o ID nesse caso, e assim o ID
+              // não acaba gravado COMO nome no próximo save.
+              name: h.name,
+              videoCount: 0,
+              viewCount: 0,
+            })),
+          );
+        }
       }
     } catch {
       // ignore
@@ -156,20 +174,36 @@ export function ShopeeConfigTab() {
     };
   }, [hashtagQuery]);
 
-  // Reidrata os nomes das hashtags salvas — o banco guarda só os IDs.
+  // NÃO reidratar a seleção a partir de hashtagOptions. A seleção salva já
+  // chega pronta em loadConfig; redescobri-la pela busca fazia os chips
+  // sumirem sempre que a EchoTik respondia risk control — e, pior, salvar
+  // nesse estado apagava as hashtags que não tinham aparecido.
+  //
+  // O que a busca PODE fazer é preencher o nome de uma hashtag salva no
+  // formato antigo (só ID), se ela por acaso aparecer no resultado. É
+  // estritamente aditivo: nunca remove nem troca um chip, então a falha da
+  // EchoTik continua sendo inofensiva.
   useEffect(() => {
-    if (!achadinhosHashtagId) return;
-    const idsSalvos = achadinhosHashtagId.split(",").map((s) => s.trim()).filter(Boolean);
-    const faltando = idsSalvos.filter(
-      (id) => !selectedHashtags.some((h) => h.id === id),
-    );
-    if (faltando.length === 0) return;
+    if (hashtagOptions.length === 0) return;
 
-    const achadas = hashtagOptions.filter((h) => faltando.includes(h.id));
-    if (achadas.length > 0) {
-      setSelectedHashtags((atuais) => [...atuais, ...achadas]);
-    }
-  }, [hashtagOptions, achadinhosHashtagId, selectedHashtags]);
+    setSelectedHashtags((atuais) => {
+      let mudou = false;
+      const enriquecidas = atuais.map((sel) => {
+        if (sel.name) return sel;
+        const achada = hashtagOptions.find((o) => o.id === sel.id);
+        if (!achada) return sel;
+        mudou = true;
+        return { ...sel, name: achada.name, videoCount: achada.videoCount };
+      });
+
+      if (!mudou) return atuais;
+      // Reflete no valor que será salvo, senão o nome recuperado se perderia.
+      setAchadinhosHashtagId(
+        enriquecidas.map((o) => `${o.id}|${o.name}`).join(","),
+      );
+      return enriquecidas;
+    });
+  }, [hashtagOptions]);
 
   if (loading) {
     return (
@@ -308,7 +342,7 @@ export function ShopeeConfigTab() {
           loading={hashtagLoading}
           value={selectedHashtags}
           filterOptions={(x) => x} /* a filtragem é do servidor */
-          getOptionLabel={(o) => `#${o.name}`}
+          getOptionLabel={(o) => `#${o.name || o.id}`}
           isOptionEqualToValue={(a, b) => a.id === b.id}
           onInputChange={(_, v, reason) => {
             if (reason === "input") setHashtagQuery(v);
@@ -318,7 +352,11 @@ export function ShopeeConfigTab() {
             // passa por aqui. Remover nunca é bloqueado.
             if (options.length > ACHADINHOS_MAX_HASHTAGS) return;
             setSelectedHashtags(options);
-            setAchadinhosHashtagId(options.map((o) => o.id).join(","));
+            // "id|nome" — o nome é gravado junto para a tela não precisar
+            // redescobri-lo na EchoTik ao reabrir.
+            setAchadinhosHashtagId(
+              options.map((o) => `${o.id}|${o.name}`).join(","),
+            );
           }}
           getOptionDisabled={() => noLimite}
           noOptionsText={
@@ -347,9 +385,13 @@ export function ShopeeConfigTab() {
                 noLimite
                   ? `Limite de ${ACHADINHOS_MAX_HASHTAGS} atingido. Acima disso a varredura não termina dentro do orçamento e as últimas hashtags nunca são lidas.`
                   : selectedHashtags.length > 0
-                    ? `${selectedHashtags.length} de ${ACHADINHOS_MAX_HASHTAGS} hashtags · ${selectedHashtags
-                        .reduce((t, h) => t + h.videoCount, 0)
-                        .toLocaleString("pt-BR")} vídeos no total`
+                    ? // O total de vídeos só é conhecido para hashtags vindas
+                      // da busca; as carregadas do banco não o trazem. Omitir
+                      // é melhor do que exibir uma soma incompleta.
+                      `${selectedHashtags.length} de ${ACHADINHOS_MAX_HASHTAGS} hashtags` +
+                      (totalVideos > 0
+                        ? ` · ${totalVideos.toLocaleString("pt-BR")} vídeos no total`
+                        : "")
                     : `Escolha até ${ACHADINHOS_MAX_HASHTAGS}. Cada hashtag rende poucos vídeos novos por dia — combinar várias aumenta a oferta.`
               }
               InputProps={{

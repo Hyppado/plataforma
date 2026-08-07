@@ -137,6 +137,63 @@ export const ACHADINHOS_MAX_HASHTAGS = Math.floor(
   SHOPEE_BUDGET.DISCOVERY_BUDGET_MS / ACHADINHOS_HASHTAG_COST_MS,
 );
 
+// ─── Hashtags configuradas ────────────────────────────────────────
+
+/** Uma hashtag escolhida pelo admin para alimentar os achadinhos. */
+export interface AchadinhoHashtag {
+  id: string;
+  /** Nome sem "#". Vazio em configurações antigas, que só guardavam o ID. */
+  name: string;
+}
+
+/**
+ * Formato da setting `shopee.achadinhos_hashtag_id`: `id|nome,id|nome`.
+ *
+ * POR QUE O NOME VAI JUNTO
+ * Antes só os IDs eram gravados, e a tela de configuração redescobria os nomes
+ * rodando uma busca na EchoTik a cada abertura. Quando a busca tomava risk
+ * control (`code=500`, rotineiro), ela voltava vazia e NENHUM chip aparecia —
+ * a configuração parecia ter sumido, embora estivesse intacta no banco.
+ *
+ * Isso era errado por construção: o ID já foi validado no momento da escolha,
+ * então exibir o que está salvo não pode depender de rede. Guardando o nome,
+ * a tela desenha a seleção direto do banco e a EchoTik só é consultada para
+ * ADICIONAR uma hashtag nova.
+ *
+ * Aceita o formato antigo (só o ID, sem `|`) — nesse caso o nome fica vazio e
+ * a tela mostra o próprio ID até o admin salvar de novo.
+ */
+export function parseAchadinhoHashtags(
+  raw: string | null | undefined,
+): AchadinhoHashtag[] {
+  const vistos = new Set<string>();
+  const saida: AchadinhoHashtag[] = [];
+
+  for (const parte of (raw ?? "").split(",")) {
+    const [idBruto, ...resto] = parte.split("|");
+    const id = idBruto.trim();
+    // "0" era o placeholder de "não configurado" no formato antigo
+    if (!/^\d+$/.test(id) || id === "0" || vistos.has(id)) continue;
+    vistos.add(id);
+    saida.push({ id, name: resto.join("|").trim().replace(/^#/, "") });
+  }
+
+  return saida;
+}
+
+/**
+ * Serializa para a setting. Vírgula e barra vertical são os separadores do
+ * formato, então não podem sobreviver dentro de um nome.
+ */
+export function serializeAchadinhoHashtags(tags: AchadinhoHashtag[]): string {
+  return tags
+    .map((t) => {
+      const nome = (t.name ?? "").replace(/[,|#\s]/g, "");
+      return nome ? `${t.id}|${nome}` : t.id;
+    })
+    .join(",");
+}
+
 /**
  * Prefixo que marca uma falha como transitória (culpa do fornecedor, não do
  * conteúdo). Gravado em `errorMessage` e lido por `filterUnprocessedVideos`

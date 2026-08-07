@@ -39,6 +39,8 @@ import {
   ACHADINHOS_MAX_HASHTAGS,
   ACHADINHOS_HASHTAG_COST_MS,
   SHOPEE_BUDGET,
+  parseAchadinhoHashtags,
+  serializeAchadinhoHashtags,
 } from "@/lib/shopee/types";
 
 /** Extrai o valor gravado para uma chave de Setting. */
@@ -278,5 +280,68 @@ describe("POST — teto de hashtags", () => {
       ACHADINHOS_MAX_HASHTAGS * ACHADINHOS_HASHTAG_COST_MS,
     ).toBeLessThanOrEqual(SHOPEE_BUDGET.DISCOVERY_BUDGET_MS);
     expect(ACHADINHOS_MAX_HASHTAGS).toBeGreaterThan(1);
+  });
+});
+
+describe("formato id|nome das hashtags", () => {
+  beforeEach(() => mockAuthenticatedAdmin());
+
+  it("grava o nome junto do ID", async () => {
+    const req = makePostRequest("/api/admin/settings/shopee", {
+      achadinhosHashtagId: "1696392324325382|achadinhosshopee,1697332031215622|achadinhoshopee",
+    });
+    await POST(req as any);
+
+    expect(upsertedValue(upsertSetting, "shopee.achadinhos_hashtag_id")).toBe(
+      "1696392324325382|achadinhosshopee,1697332031215622|achadinhoshopee",
+    );
+  });
+
+  it("continua aceitando o formato antigo, só com IDs", async () => {
+    const req = makePostRequest("/api/admin/settings/shopee", {
+      achadinhosHashtagId: "1696392324325382,1697332031215622",
+    });
+    await POST(req as any);
+
+    expect(upsertedValue(upsertSetting, "shopee.achadinhos_hashtag_id")).toBe(
+      "1696392324325382,1697332031215622",
+    );
+  });
+
+  it("nome com separador não corrompe a lista gravada", async () => {
+    // A invariante que importa: o que for gravado tem que reler exatamente
+    // os mesmos IDs. Um nome com "," ou "|" não pode inventar nem sumir com
+    // uma hashtag — no pior caso o nome trunca, que é cosmético.
+    const req = makePostRequest("/api/admin/settings/shopee", {
+      achadinhosHashtagId: "1696392324325382|acha,dinhos|shopee,1697332031215622|ok",
+    });
+    await POST(req as any);
+
+    const gravado = upsertedValue(upsertSetting, "shopee.achadinhos_hashtag_id");
+    const relido = parseAchadinhoHashtags(gravado);
+
+    expect(relido.map((h) => h.id)).toEqual([
+      "1696392324325382",
+      "1697332031215622",
+    ]);
+    // E o valor gravado é estável: reserializar não muda mais nada.
+    expect(serializeAchadinhoHashtags(relido)).toBe(gravado);
+  });
+
+  it("GET devolve a seleção já resolvida em {id, name}", async () => {
+    // É isto que permite a tela desenhar os chips sem consultar a EchoTik.
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_hashtag_id"
+        ? "1696392324325382|achadinhosshopee,1697332031215622|achadinhoshopee"
+        : null,
+    );
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.achadinhosHashtags).toEqual([
+      { id: "1696392324325382", name: "achadinhosshopee" },
+      { id: "1697332031215622", name: "achadinhoshopee" },
+    ]);
   });
 });
