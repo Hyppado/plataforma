@@ -95,6 +95,7 @@ export const SETTING_KEYS = {
   SHOPEE_RANKING_FREQUENCY: "shopee.ranking_frequency",
   SHOPEE_ACHADINHOS_FREQUENCY: "shopee.achadinhos_frequency",
   SHOPEE_ACHADINHOS_COUNT: "shopee.achadinhos_count",
+  SHOPEE_ACHADINHOS_MIN_VIEWS: "shopee.achadinhos_min_views",
   SHOPEE_ACHADINHOS_HASHTAG_ID: "shopee.achadinhos_hashtag_id",
   SHOPEE_ACHADINHOS_KEYWORD: "shopee.achadinhos_keyword",
   SHOPEE_AFFILIATE_APP_ID: "shopee.affiliate_app_id",

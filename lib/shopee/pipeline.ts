@@ -41,7 +41,7 @@ import { parseCaptionToPlainText } from "@/lib/transcription/media";
 import { getVideoCaptions } from "@/lib/transcription/media";
 import { getVideoDownloadUrl, downloadVideoBuffer } from "@/lib/transcription/media";
 import { transcribeWithWhisper, isWhisperError } from "@/lib/transcription/whisper";
-import { getSecretSetting, SETTING_KEYS } from "@/lib/settings";
+import { getSecretSetting, getSetting, SETTING_KEYS } from "@/lib/settings";
 import { findBestShopeeOffer, generateShortLink } from "@/lib/shopee/shopee-api-client";
 import {
   type EchoTikVideoDTO,
@@ -53,6 +53,7 @@ import {
   achadinhosLoopBudgetMs,
   TRANSIENT_ERROR_PREFIX,
   isTransientFailure,
+  tiktokVideoCreatedAt,
 } from "@/lib/shopee/types";
 import {
   fetchVideosByHashtag,
@@ -77,8 +78,6 @@ const ECHOTIK_PAGE_DELAY_MS = 2_000;
 /** Limite mínimo/máximo suportado pelo admin (20-400) */
 const ACHADINHOS_MIN_COUNT = 20;
 const ACHADINHOS_MAX_COUNT = 400;
-/** Filtro de relevância: apenas vídeos com >= 30k views entram no pipeline */
-const MIN_VIEWS_THRESHOLD = 30_000;
 
 /** Sleep helper para delays controlados */
 function sleep(ms: number): Promise<void> {
@@ -209,9 +208,13 @@ async function fetchVideosByHashtagPaginated(
   hashtagId: string,
   region: string,
   count: number,
-  discoveryDeadline?: number,
+  discoveryDeadline: number | undefined,
+  minViews: number,
 ): Promise<EchoTikVideoDTO[]> {
   const clampedCount = Math.min(ACHADINHOS_MAX_COUNT, Math.max(ACHADINHOS_MIN_COUNT, count));
+  const maxAgeCutoff = new Date(
+    Date.now() - SHOPEE_DEFAULTS.ACHADINHOS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
+  );
   const seenIds = new Set<string>();
   const allVideos: EchoTikVideoDTO[] = [];
 
@@ -282,10 +285,22 @@ async function fetchVideosByHashtagPaginated(
         ? parseViewsFromEchoTikItem(rawItem)
         : Number(video.views ?? 0);
 
-      if (isNaN(views) || views < MIN_VIEWS_THRESHOLD) {
+      if (isNaN(views) || views < minViews) {
         log.info(
           `Vídeo ${video.video_id} DESCARTADO por relevância — ` +
-            `views=${isNaN(views) ? "NaN" : views}, threshold=${MIN_VIEWS_THRESHOLD}`,
+            `views=${isNaN(views) ? "NaN" : views}, threshold=${minViews}`,
+        );
+        continue;
+      }
+
+      // Guarda de idade: a EchoTik não resolve download-url para vídeos
+      // muito antigos. Sem isto, a cauda antiga da hashtag reaparece a cada
+      // execução, gasta orçamento e nunca gera transcrição.
+      const createdAt = tiktokVideoCreatedAt(video.video_id);
+      if (createdAt && createdAt < maxAgeCutoff) {
+        log.info(
+          `Vídeo ${video.video_id} DESCARTADO por idade — ` +
+            `publicado em ${createdAt.toISOString().slice(0, 10)}`,
         );
         continue;
       }
@@ -924,11 +939,19 @@ export async function processAchadinhosBatch(
     startedAt + SHOPEE_BUDGET.DISCOVERY_BUDGET_MS,
     deadline,
   );
+  // Piso de views configurável pelo admin (shopee.achadinhos_min_views)
+  const minViewsSetting = await getSetting(SETTING_KEYS.SHOPEE_ACHADINHOS_MIN_VIEWS);
+  const minViews =
+    minViewsSetting && !isNaN(parseInt(minViewsSetting, 10))
+      ? Math.max(0, parseInt(minViewsSetting, 10))
+      : SHOPEE_DEFAULTS.ACHADINHOS_MIN_VIEWS;
+
   const videos = await fetchVideosByHashtagPaginated(
     hashtagId,
     region,
     options.count ?? SHOPEE_DEFAULTS.ACHADINHOS_COUNT,
     discoveryDeadline,
+    minViews,
   );
 
   if (videos.length === 0) {

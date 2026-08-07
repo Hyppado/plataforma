@@ -46,6 +46,21 @@ export const SHOPEE_DEFAULTS = {
   ACHADINHOS_KEYWORD: "achadinhosshopee",
   /** Região padrão para busca de achadinhos no EchoTik */
   ACHADINHOS_REGION: "BR",
+  /**
+   * Piso de views para um vídeo entrar no pipeline. Configurável pelo admin
+   * (shopee.achadinhos_min_views) — era constante em 30.000, o que na prática
+   * descartava ~90% da hashtag e esgotava a fila.
+   */
+  ACHADINHOS_MIN_VIEWS: 30_000,
+  /**
+   * Idade máxima do vídeo, em dias.
+   *
+   * A EchoTik não resolve download-url para vídeos muito antigos (medido:
+   * 100% de falha em vídeos anteriores a ~abr/2025, enquanto vídeos recentes
+   * baixam normalmente). Sem esta guarda, a cauda antiga da hashtag volta a
+   * cada execução, gasta orçamento e nunca produz nada.
+   */
+  ACHADINHOS_MAX_AGE_DAYS: 400,
 } as const;
 
 // ─── Orçamento de tempo (limite de execução da Vercel) ────────────
@@ -105,6 +120,21 @@ export const SHOPEE_BUDGET = {
  * mantém o motivo legível no painel admin.
  */
 export const TRANSIENT_ERROR_PREFIX = "[transitório]";
+
+/**
+ * Data de criação de um vídeo do TikTok — os 32 bits altos do ID são o
+ * unix timestamp de publicação.
+ */
+export function tiktokVideoCreatedAt(videoId: string): Date | null {
+  try {
+    // Sem literal BigInt (32n): o target do tsconfig é anterior a ES2020.
+    const seconds = Number(BigInt(videoId) / BigInt(4294967296)); // 2^32
+    if (!seconds || !isFinite(seconds)) return null;
+    return new Date(seconds * 1000);
+  } catch {
+    return null;
+  }
+}
 
 /** true se a falha registrada foi transitória (deve ser retentada logo). */
 export function isTransientFailure(errorMessage: string | null): boolean {
