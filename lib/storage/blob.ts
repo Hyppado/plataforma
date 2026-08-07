@@ -45,36 +45,81 @@ export function isEchotikCdnUrl(url: string | null | undefined): boolean {
  * Signs an Echotik CDN URL via the batch/cover/download API.
  * Returns the temporary signed URL, or null on failure.
  */
+/** Máximo de URLs por chamada, conforme a doc da EchoTik. */
+const COVER_BATCH_SIZE = 10;
+
+/**
+ * Assina VÁRIAS URLs do CDN da EchoTik numa só chamada.
+ *
+ * O endpoint batch/cover/download aceita até 10 URLs por requisição e não
+ * consome cota (global-rules §4). Antes assinávamos uma por vez, gerando ~10x
+ * mais chamadas do que o necessário — e chamada desnecessária é justamente o
+ * que dispara o risk control da EchoTik.
+ *
+ * @param coverUrls - URLs do CDN da EchoTik
+ * @returns Mapa urlOriginal → urlAssinada (só com as que deram certo)
+ */
+export async function signEchotikCoverUrls(
+  coverUrls: string[],
+): Promise<Map<string, string>> {
+  const resultado = new Map<string, string>();
+  const elegiveis = coverUrls.filter(isEchotikCdnUrl);
+  if (elegiveis.length === 0) return resultado;
+
+  for (let i = 0; i < elegiveis.length; i += COVER_BATCH_SIZE) {
+    const lote = elegiveis.slice(i, i + COVER_BATCH_SIZE);
+
+    try {
+      const result = await echotikRequest<CoverDownloadResponse>(
+        "/api/v3/echotik/batch/cover/download",
+        { params: { cover_urls: lote.join(",") } },
+      );
+
+      if (result.code !== 0 || !Array.isArray(result.data)) {
+        log.warn("batch/cover/download falhou", {
+          code: result.code,
+          message: result.message,
+          lote: lote.length,
+        });
+        continue;
+      }
+
+      // Cada entrada é { urlOriginal: urlAssinada }. Preservamos a chave para
+      // casar com a URL de origem — assinar em lote sem isso embaralharia
+      // qual assinatura pertence a qual imagem.
+      for (const entry of result.data) {
+        for (const [original, assinada] of Object.entries(entry ?? {})) {
+          if (assinada) resultado.set(original, assinada);
+        }
+      }
+    } catch (error) {
+      log.error("Falha ao assinar lote de capas", {
+        lote: lote.length,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return resultado;
+}
+
+/**
+ * Assina UMA URL do CDN da EchoTik.
+ * Mantido para os caminhos sob demanda (proxy de imagem, Influencer IA),
+ * onde só existe uma imagem por vez. Internamente usa a versão em lote.
+ */
 export async function signEchotikCoverUrl(
   coverUrl: string,
 ): Promise<string | null> {
-  try {
-    const result = await echotikRequest<CoverDownloadResponse>(
-      "/api/v3/echotik/batch/cover/download",
-      { params: { cover_urls: coverUrl } },
-    );
-
-    if (
-      result.code !== 0 ||
-      !Array.isArray(result.data) ||
-      result.data.length === 0
-    ) {
-      log.warn("batch/cover/download failed", {
-        code: result.code,
-        message: result.message,
-      });
-      return null;
-    }
-
-    const entry = result.data[0];
-    const signedUrl = Object.values(entry)[0];
-    return signedUrl || null;
-  } catch (error) {
-    log.error("Failed to sign cover URL", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
+  const mapa = await signEchotikCoverUrls([coverUrl]);
+  // A EchoTik pode devolver a chave normalizada; se só veio um resultado,
+  // aceita-o mesmo que a chave não bata exatamente.
+  const direto = mapa.get(coverUrl);
+  if (direto) return direto;
+  // Sem downlevelIteration: evita spread de MapIterator
+  let unica: string | null = null;
+  mapa.forEach((v) => { unica = v; });
+  return mapa.size === 1 ? unica : null;
 }
 
 // ---------------------------------------------------------------------------

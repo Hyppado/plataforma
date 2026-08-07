@@ -53,9 +53,13 @@ async function cacheDownloadUrlForVideo(
   try {
     const tiktokUrl = `https://www.tiktok.com/@user/video/${videoExternalId}`;
 
+    // Risk control: a doc da EchoTik manda insistir em code != 0 e diz que
+    // essas respostas NÃO consomem cota (global-rules §10.3). Sem retries
+    // explícitos este cron desistia cedo — mesmo defeito já corrigido no
+    // caminho da Shopee (lib/transcription/media.ts).
     const response = await echotikRequest<EchotikDownloadUrlResponse>(
       "/api/v3/realtime/video/download-url",
-      { params: { url: tiktokUrl }, timeout: 20_000 },
+      { params: { url: tiktokUrl }, timeout: 20_000, retries: 4 },
     );
 
     if (response.code !== 0 || !response.data) {

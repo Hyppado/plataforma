@@ -99,6 +99,7 @@ export function ShopeeAchadinhoVideoCard({
             component="img"
             src={imgSrc}
             alt={achadinho.productName || achadinho.videoTitle || ""}
+            loading="lazy"
             onLoad={() => setImgLoaded(true)}
             onError={() => setImgError(true)}
             sx={{
