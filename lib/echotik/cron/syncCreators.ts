@@ -204,6 +204,9 @@ export async function syncCreatorRanklist(
   const runStart = new Date();
   const rankingCycles: Array<1 | 2 | 3> = [1, 2, 3];
   let total = 0;
+  /** Ciclos que realmente trouxeram dados nesta rodada — só eles são podados. */
+  const refreshed: Array<{ rankingCycle: 1 | 2 | 3; rankField: number }> = [];
+
   for (const rankingCycle of rankingCycles) {
     for (const { field } of CREATOR_RANK_FIELDS) {
       if (deadlineMs && Date.now() > deadlineMs - 30_000) {
@@ -223,15 +226,35 @@ export async function syncCreatorRanklist(
         maxPages,
       );
       total += count;
+      if (count > 0) refreshed.push({ rankingCycle, rankField: field });
     }
   }
 
-  // Prune rows from previous runs — keep only what was upserted in this run
-  const pruned = await prisma.echotikCreatorTrendDaily.deleteMany({
-    where: { country: region, syncedAt: { lt: runStart } },
-  });
-  if (pruned.count > 0) {
-    log.info("Pruned stale creator rows", { region, pruned: pruned.count });
+  // Prune rows from previous runs — keep only what was upserted in this run.
+  //
+  // ESCOPO POR CICLO, NÃO POR REGIÃO
+  // Podar a região inteira apagava dado bom: o ranklist é offline e um ciclo
+  // pode legitimamente vir vazio (a doc da EchoTik trata data faltando como
+  // "ainda não coletado", não como erro). Um ciclo que não trouxe nada agora
+  // mantém o que já tinha, em vez de zerar a tela correspondente.
+  let pruned = 0;
+  for (const { rankingCycle, rankField } of refreshed) {
+    const result = await prisma.echotikCreatorTrendDaily.deleteMany({
+      where: {
+        country: region,
+        rankingCycle,
+        rankField,
+        syncedAt: { lt: runStart },
+      },
+    });
+    pruned += result.count;
+  }
+  if (pruned > 0) {
+    log.info("Pruned stale creator rows", {
+      region,
+      pruned,
+      cyclesRefreshed: refreshed.length,
+    });
   }
 
   return total;
