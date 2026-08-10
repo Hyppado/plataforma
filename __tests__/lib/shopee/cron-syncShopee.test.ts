@@ -26,8 +26,10 @@ vi.mock("@/lib/shopee/client", () => ({
 }));
 
 const processAchadinhosBatch = vi.fn();
+const trimAchadinhosToTarget = vi.fn();
 vi.mock("@/lib/shopee/pipeline", () => ({
   processAchadinhosBatch: (...args: unknown[]) => processAchadinhosBatch(...args),
+  trimAchadinhosToTarget: (...args: unknown[]) => trimAchadinhosToTarget(...args),
 }));
 
 import {
@@ -91,6 +93,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSetting.mockResolvedValue(null);
   inventario(0); // por padrão: abaixo do alvo
+  trimAchadinhosToTarget.mockResolvedValue(0);
   (prismaMock.ingestionRun.create as any).mockResolvedValue({ id: "run-1" });
   (prismaMock.ingestionRun.update as any).mockResolvedValue({});
 });
@@ -270,5 +273,87 @@ describe("runShopeeAchadinhosCron — lote e orçamento", () => {
 
     expect(result).toBe(0);
     expect(finishedStatus()).toBe("FAILED");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Renovação — o alvo é o TAMANHO do feed, não um teto vitalício
+// ---------------------------------------------------------------------------
+describe("runShopeeAchadinhosCron — renovação", () => {
+  beforeEach(() => {
+    processAchadinhosBatch.mockResolvedValue(batchResult());
+  });
+
+  it("no alvo e com a janela vencida, busca conteúdo novo", async () => {
+    // ESTE é o bug relatado: o feed parou de renovar. O gate liberava a
+    // execução na virada da janela, mas o lote recebia targetInventory igual
+    // ao inventário atual e quebrava no primeiro vídeo — rodava sem produzir
+    // nada, para sempre.
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_count" ? "100" : null,
+    );
+    inventario(100); // exatamente no alvo
+    (prismaMock.ingestionRun.findFirst as any).mockResolvedValue(null); // janela vencida
+
+    await runShopeeAchadinhosCron();
+
+    const opts = processAchadinhosBatch.mock.calls.at(-1)![0] as {
+      targetInventory: number;
+    };
+    expect(opts.targetInventory).toBeGreaterThan(100);
+  });
+
+  it("abaixo do alvo, o teto continua sendo o próprio alvo", async () => {
+    // Fora da renovação nada muda: corre atrás do alvo e para nele.
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_count" ? "100" : null,
+    );
+    inventario(40);
+
+    await runShopeeAchadinhosCron();
+
+    expect(processAchadinhosBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ targetInventory: 100 }),
+    );
+  });
+
+  it("aposenta os antigos de volta para o tamanho do alvo", async () => {
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_count" ? "100" : null,
+    );
+    inventario(100);
+    (prismaMock.ingestionRun.findFirst as any).mockResolvedValue(null);
+
+    await runShopeeAchadinhosCron();
+
+    // Poda para o ALVO, não para o teto de renovação
+    expect(trimAchadinhosToTarget).toHaveBeenCalledWith(100);
+  });
+
+  it("registra a renovação e quantos foram arquivados", async () => {
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_count" ? "100" : null,
+    );
+    inventario(100);
+    (prismaMock.ingestionRun.findFirst as any).mockResolvedValue(null);
+    trimAchadinhosToTarget.mockResolvedValueOnce(30);
+
+    await runShopeeAchadinhosCron();
+
+    expect(finishedStats()).toMatchObject({ renewal: true, archived: 30 });
+  });
+
+  it("dentro da janela e no alvo, continua pulando", async () => {
+    // A renovação é na virada da janela, não a cada execução do cron.
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_count" ? "100" : null,
+    );
+    inventario(100);
+    recentCompleteRun();
+
+    const result = await runShopeeAchadinhosCron();
+
+    expect(result).toBe(-1);
+    expect(processAchadinhosBatch).not.toHaveBeenCalled();
   });
 });

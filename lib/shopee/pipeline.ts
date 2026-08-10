@@ -787,14 +787,67 @@ export async function processAchadinhoVideo(
   }
 }
 
+/**
+ * Aposenta os achadinhos publicados mais antigos que excederem o alvo.
+ *
+ * O alvo é o tamanho do feed. Quando a renovação traz conteúdo novo e o admin
+ * aprova, o feed passa do tamanho pedido — os mais antigos então cedem lugar.
+ *
+ * DUAS DECISÕES QUE IMPORTAM
+ *
+ * 1. Só mexe em READY. PENDING está esperando revisão do admin: arquivar aí
+ *    seria descartar trabalho que ninguém olhou. Como todo achadinho novo
+ *    entra em PENDING, o feed só encolhe DEPOIS que um substituto já foi
+ *    publicado — nunca há um vale em que o feed fica menor que o alvo.
+ *
+ * 2. ARCHIVED, não REJECTED. Rejeitado é conteúdo que o admin recusou e que
+ *    nunca foi ao ar; arquivado é conteúdo que foi publicado e saiu por
+ *    rotação. Misturar os dois sujaria a fila de revisão.
+ *
+ * @returns quantos foram arquivados
+ */
+export async function trimAchadinhosToTarget(target: number): Promise<number> {
+  if (!target || target <= 0) return 0;
+
+  const publicados = await prisma.shopeeAchadinhoProduct.count({
+    where: { status: "READY" },
+  });
+  if (publicados <= target) return 0;
+
+  // Os mais recentes ficam; o excedente mais antigo sai.
+  const excedente = await prisma.shopeeAchadinhoProduct.findMany({
+    where: { status: "READY" },
+    orderBy: { createdAt: "desc" },
+    skip: target,
+    select: { id: true },
+  });
+  if (excedente.length === 0) return 0;
+
+  const { count } = await prisma.shopeeAchadinhoProduct.updateMany({
+    where: { id: { in: excedente.map((r) => r.id) } },
+    data: { status: "ARCHIVED" },
+  });
+
+  log.info(
+    `Rotação do feed: ${count} achadinhos antigos arquivados para manter o alvo de ${target}`,
+  );
+  return count;
+}
+
 // ─── Orquestrador do lote (com orçamento de tempo) ─────────────────────────
 
 export interface ProcessAchadinhosBatchOptions {
   /** hashtag_ids da EchoTik — se omitido, usa as settings configuradas */
   hashtagIds?: string[];
   /**
-   * Alvo de achadinhos exibíveis. O lote para assim que o inventário
+   * Teto de achadinhos exibíveis. O lote para assim que o inventário
    * (PENDING + READY) alcança este número — não adianta processar mais.
+   *
+   * Numa execução de RENOVAÇÃO o cron passa aqui um teto maior que o tamanho
+   * do feed (alvo + lote de renovação): estar no alvo é justamente a condição
+   * para trazer conteúdo novo. Como o inventário é recontado do banco a cada
+   * invocação, um teto absoluto continua valendo em lotes parciais — uma cota
+   * "por execução" reiniciaria a cada continuação e cresceria sem controle.
    */
   targetInventory?: number;
   /** Região — default "BR" (evita vídeos EN/ES) */
@@ -825,7 +878,7 @@ export interface AchadinhosBatchResult {
   elapsedMs: number;
   /** Inventário de exibíveis (PENDING + READY) ao fim do lote */
   inventory?: number;
-  /** true se parou por ter atingido o alvo */
+  /** true se parou por ter atingido o teto de inventário */
   targetReached?: boolean;
 }
 
@@ -1030,11 +1083,11 @@ export async function processAchadinhosBatch(
     : 0;
 
   for (const video of pending) {
-    // Alvo atingido no meio do lote: parar. Processar mais só gastaria
+    // Teto atingido no meio do lote: parar. Processar mais só gastaria
     // Whisper/GPT para engordar uma fila que já está no tamanho pedido.
     if (options.targetInventory && exibiveis >= options.targetInventory) {
       log.info(
-        `Alvo de ${options.targetInventory} achadinhos exibíveis atingido — encerrando lote`,
+        `Teto de ${options.targetInventory} achadinhos exibíveis atingido — encerrando lote`,
         { exibiveis, processados: processed },
       );
       break;
