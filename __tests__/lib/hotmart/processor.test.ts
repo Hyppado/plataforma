@@ -1153,3 +1153,89 @@ describe("handleApproved() — PURCHASE_APPROVED provisioning", () => {
     expect(processedCall).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------
+// PURCHASE_PROTEST — pedido de reembolso revoga na hora
+// ---------------------------------------------------------------------------
+describe("PURCHASE_PROTEST (pedido de reembolso)", () => {
+  /** Assinatura já existente, para o evento cair no caminho de atualização. */
+  function assinaturaExistente() {
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-existing",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+    } as any);
+  }
+
+  it("encerra o acesso na data do pedido, sem honrar o período pago", async () => {
+    // Antes o PROTEST só marcava a cobrança como REFUND_REQUEST e preservava a
+    // assinatura — quem pedia reembolso seguia usando o produto de graça
+    // durante todo o processamento.
+    const occurredAt = new Date("2026-08-10T10:00:00Z");
+    assinaturaExistente();
+
+    const promise = processHotmartEvent(
+      "event-protest",
+      makeFields({
+        eventType: "PURCHASE_PROTEST",
+        occurredAt,
+        // período pago ainda vigente: não pode ser honrado
+        accessExpiresAt: new Date("2026-12-31T00:00:00Z"),
+      }),
+    );
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(prismaMock.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "CANCELLED",
+          endedAt: occurredAt,
+        }),
+      }),
+    );
+  });
+
+  it("revoga também os acessos de cortesia", async () => {
+    assinaturaExistente();
+    prismaMock.accessGrant.updateMany.mockResolvedValue({ count: 1 } as any);
+
+    const promise = processHotmartEvent(
+      "event-protest-2",
+      makeFields({ eventType: "PURCHASE_PROTEST" }),
+    );
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(prismaMock.accessGrant.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isActive: true }),
+        data: { isActive: false },
+      }),
+    );
+  });
+
+  it("mantém a cobrança como REFUND_REQUEST, distinta de REFUNDED", async () => {
+    // O reembolso ainda não foi confirmado — misturar os dois estados
+    // atrapalharia a conciliação financeira.
+    assinaturaExistente();
+
+    const promise = processHotmartEvent(
+      "event-protest-3",
+      makeFields({ eventType: "PURCHASE_PROTEST" }),
+    );
+    await vi.runAllTimersAsync();
+    await promise;
+
+    const chamadas = [
+      ...prismaMock.subscriptionCharge.upsert.mock.calls,
+      ...prismaMock.subscriptionCharge.update.mock.calls,
+      ...prismaMock.subscriptionCharge.create.mock.calls,
+    ];
+    const json = JSON.stringify(chamadas);
+    expect(json).toContain("REFUND_REQUEST");
+  });
+});
