@@ -166,3 +166,53 @@ NÃO aplicado por decisão do usuário: min_views permanece em 3000.
 **Context**: CONSTRUCTION PHASE — segunda rodada de remediação sobre o vertical Shopee.
 
 ---
+
+## Investigação — EchoTik `code=429` no ranklist de vídeos
+**Timestamp**: 2026-08-10T20:30:00Z
+**User Input**: "investigue o erro  429  usando a doc da echotik que temos aqui no projeto entenda os rating limits"
+**AI Response**: Investigação concluída sem alteração de código. Registrado em `aidlc-state.md`
+sob Deferred Decisions por pedido do usuário ("marque para resolver essa questao dps no ai dlc").
+**Context**: Diagnóstico do 429 recorrente que derruba o sync de vídeos de US.
+
+### Natureza do erro
+- NÃO é status HTTP. A EchoTik responde HTTP 200 com `code: 429` no corpo. Confirmado pelo
+  formato da mensagem: o ramo HTTP produziria `429 Too Many Requests — /path`; o observado é
+  `code=429 — /path`, do ramo de envelope em `lib/echotik/client.ts`.
+- O cliente já re-tenta qualquer `code != 0` (3 tentativas, backoff exponencial com jitter),
+  conforme a regra §10.3 da skill. Um run falho significa três 429 seguidos.
+
+### O que a documentação cobre
+- Nada sobre limites. Verificados: referências da skill `echotik-api-assistant`,
+  `authentication.md`, `introduction.md`, `echotik/video/ranklist.md` e `llms.txt`.
+- Sem códigos de erro, QPS, concorrência, cota ou throttling documentados. Única menção
+  quantitativa é comercial ("a partir de ¥0,01 por requisição").
+- A regra §10.3 (retry em `code != 0`, requisições falhas não consomem crédito) é escopada a
+  endpoints REALTIME. O 429 observado é em endpoint OFFLINE — fora do escopo da regra.
+
+### Evidência empírica
+- 85 ocorrências: todas em `videos:US`, todas em `/api/v3/echotik/video/ranklist`.
+  Nunca em BR, produtos ou creators.
+- Início em 2026-08-09 (uma isolada em 07-27). Antes: 1 execução/dia de US, zero falhas.
+  Depois: 08-09 com 3 ok/44 falhas; 08-10 com 0 ok/40 falhas.
+- Cada run falho dura 10-16s = 3 tentativas + backoffs → falha na PRIMEIRA requisição,
+  não por acúmulo dentro do run.
+- Reprodução local com as mesmas credenciais (hashes de `ECHOTIK_USERNAME`/`PASSWORD`
+  conferidos entre produção e local): 15 páginas sequenciais de US sem nenhum 429.
+
+### Fatores sob nosso controle
+- `echotik:pages:videos = 100` no banco sobrescreve o padrão do código (10). Cada execução =
+  3 ciclos × 2 campos × 100 páginas = 600 requisições por região. `echotik:interval:videos = 1`h.
+- O laço de páginas do ranklist não tem pausa entre chamadas (~26 req/s medido em produção),
+  enquanto a paginação de hashtag espera 2s (`ECHOTIK_PAGE_DELAY_MS`).
+- Volume próprio: 34 execuções em 08-07 → 66 em 08-08 → 124 em 08-09.
+- Laço de realimentação: em `helpers.ts`, uma falha posterior ao último sucesso faz `shouldSkip`
+  ignorar o intervalo, então US é tentado a cada cron (15 min) em vez de 1×/h. O disjuntor
+  `hasExcessiveFailures` (5 falhas / 2h) fica quase sempre logo acima do ritmo de US (~2,6/h).
+
+### Conclusão
+Limite não documentado do lado da EchoTik. O formato aponta mais para teto de taxa/concorrência
+do que para cota de conta, já que as mesmas credenciais de uma origem mais lenta funcionam. É
+inferência, não prova — sem documentação nem instrumentação dentro da produção não há como
+fechar. Provado: o formato (1ª requisição, só US, só ranklist, desde 08-09) e o nosso volume.
+
+---
