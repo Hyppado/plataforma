@@ -128,7 +128,7 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
       { videoExternalId: "video-1", status: "READY", updatedAt: new Date() },
     ]);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(3);
     expect(result.alreadyProcessed).toBe(2);
@@ -143,7 +143,7 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
       { videoExternalId: "video-1", status: "REJECTED", updatedAt: new Date() },
     ]);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.alreadyProcessed).toBe(2);
     expect(result.processed).toBe(0);
@@ -155,7 +155,7 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
       { videoExternalId: "video-0", status: "PROCESSING", updatedAt: new Date() },
     ]);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(1);
   });
@@ -171,7 +171,7 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
       },
     ]);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.alreadyProcessed).toBe(1);
     expect(result.processed).toBe(0);
@@ -189,7 +189,7 @@ describe("processAchadinhosBatch — retomada entre execuções", () => {
       },
     ]);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(1);
   });
@@ -226,7 +226,7 @@ describe("processAchadinhosBatch — cooldown transitório vs definitivo", () =>
       failedRow(90, true),
     );
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(1);
   });
@@ -237,7 +237,7 @@ describe("processAchadinhosBatch — cooldown transitório vs definitivo", () =>
       failedRow(30, true),
     );
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(0);
     expect(result.alreadyProcessed).toBe(1);
@@ -250,7 +250,7 @@ describe("processAchadinhosBatch — cooldown transitório vs definitivo", () =>
       failedRow(90, false),
     );
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(0);
     expect(result.alreadyProcessed).toBe(1);
@@ -271,7 +271,7 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
     mockHashtagPage(5);
 
     // Orçamento menor que VIDEO_WORST_CASE_MS (90s) — nada deve começar
-    const result = await processAchadinhosBatch({ count: 20, budgetMs: 1_000 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20, budgetMs: 1_000 });
 
     expect(result.processed).toBe(0);
     expect(result.partial).toBe(true);
@@ -282,7 +282,7 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
   it("marca partial=false quando processa o lote inteiro", async () => {
     mockHashtagPage(3);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(3);
     expect(result.remaining).toBe(0);
@@ -301,7 +301,7 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
     });
 
     // 200s de orçamento: cabe apenas enquanto restar >= 90s
-    const result = await processAchadinhosBatch({
+    const result = await processAchadinhosBatch({ pageDelayMs: 0,
       count: 20,
       budgetMs: 200_000,
     });
@@ -317,7 +317,7 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
   it("persiste cada vídeo durante o lote — trabalho pago nunca é perdido", async () => {
     mockHashtagPage(3);
 
-    await processAchadinhosBatch({ count: 20 });
+    await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     // upsert (PROCESSING) chamado por vídeo, antes de qualquer fase final
     expect(prismaMock.shopeeAchadinhoProduct.upsert).toHaveBeenCalledTimes(3);
@@ -328,7 +328,7 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
   it("devolve resultado vazio quando a hashtag não retorna vídeos", async () => {
     fetchVideosByHashtag.mockResolvedValue({ data: { aweme_list: [], has_more: 0 } });
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(0);
     expect(result.processed).toBe(0);
@@ -338,7 +338,7 @@ describe("processAchadinhosBatch — orçamento de tempo", () => {
   it("descarta vídeos abaixo do limiar de relevância (30k views)", async () => {
     mockHashtagPage(3, 1_000);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(0);
     expect(result.processed).toBe(0);
@@ -381,7 +381,7 @@ describe("processAchadinhosBatch — piso de views configurável e idade", () =>
     getSetting.mockResolvedValue("1000");
     mockPageWithIds([tiktokIdFor(new Date())], 5_000);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(1);
   });
@@ -390,7 +390,7 @@ describe("processAchadinhosBatch — piso de views configurável e idade", () =>
     getSetting.mockResolvedValue(null);
     mockPageWithIds([tiktokIdFor(new Date())], 5_000);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(0);
   });
@@ -400,7 +400,7 @@ describe("processAchadinhosBatch — piso de views configurável e idade", () =>
     const doisAnosAtras = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
     mockPageWithIds([tiktokIdFor(doisAnosAtras)], 500_000);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(0);
   });
@@ -409,7 +409,7 @@ describe("processAchadinhosBatch — piso de views configurável e idade", () =>
     getSetting.mockResolvedValue("1000");
     mockPageWithIds([tiktokIdFor(new Date())], 500_000);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.found).toBe(1);
   });
@@ -430,7 +430,7 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
     mockHashtagPage(5);
     (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(50);
 
-    const result = await processAchadinhosBatch({ count: 20, targetInventory: 50 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20, targetInventory: 50 });
 
     expect(result.processed).toBe(0);
     expect(result.targetReached).toBe(true);
@@ -447,7 +447,7 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
       imageUrl: "https://cdn/i.jpg", productName: "P", productCatIds: [100632],
     });
 
-    const result = await processAchadinhosBatch({ count: 20, targetInventory: 50 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20, targetInventory: 50 });
 
     expect(result.processed).toBe(1);
     expect(result.targetReached).toBe(true);
@@ -457,7 +457,7 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
     mockHashtagPage(3);
     (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(999);
 
-    const result = await processAchadinhosBatch({ count: 20 });
+    const result = await processAchadinhosBatch({ pageDelayMs: 0, count: 20 });
 
     expect(result.processed).toBe(3);
   });
@@ -467,7 +467,7 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
     mockHashtagPage(4);
     (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(0);
 
-    const result = await processAchadinhosBatch({
+    const result = await processAchadinhosBatch({ pageDelayMs: 0,
       count: 40,
       hashtagIds: ["1696392324325382", "1697332031215622"],
     });
@@ -488,7 +488,7 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
       String(1000000000000000 + i),
     );
 
-    await processAchadinhosBatch({ count: 20, hashtagIds: excedente });
+    await processAchadinhosBatch({ pageDelayMs: 0, count: 20, hashtagIds: excedente });
 
     const varridas = new Set(
       (fetchVideosByHashtag as any).mock.calls.map((c: any[]) => c[0].hashtagId),
@@ -498,5 +498,89 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
     for (const id of excedente.slice(ACHADINHOS_MAX_HASHTAGS)) {
       expect(varridas.has(id)).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Descoberta em round-robin e ordenação por views
+// ---------------------------------------------------------------------------
+describe("processAchadinhosBatch — descoberta entre hashtags", () => {
+  beforeEach(() => {
+    // Nada processado antes: todo vídeo descoberto é candidato.
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue([]);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(0);
+  });
+
+  /** Cada hashtag devolve vídeos próprios, identificáveis pelo id. */
+  function mockPorHashtag(views: Record<string, number>) {
+    fetchVideosByHashtag.mockImplementation(async ({ hashtagId }: any) => ({
+      data: {
+        aweme_list: [awemeItem(`v-${hashtagId}`, views[hashtagId] ?? 100_000)],
+        has_more: 0,
+      },
+    }));
+  }
+
+  it("visita TODAS as hashtags configuradas, não só as primeiras", async () => {
+    // ESTE é o bug relatado: a descoberta paginava hashtag por hashtag até
+    // completar uma cota, gastava o orçamento nas primeiras e nunca chegava
+    // nas últimas. Com 8 configuradas, só ~3 contribuíam — e sempre as mesmas,
+    // sempre desde a página 0, daí a repetição de vídeos já processados.
+    const ids = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"];
+    mockPorHashtag({});
+
+    await processAchadinhosBatch({ pageDelayMs: 0, count: 400, hashtagIds: ids });
+
+    const visitadas = new Set(
+      (fetchVideosByHashtag as any).mock.calls.map((c: any[]) => c[0].hashtagId),
+    );
+    expect(Array.from(visitadas).sort()).toEqual(ids);
+  });
+
+  it("dá a primeira página de cada hashtag antes de aprofundar qualquer uma", async () => {
+    // Round-robin: a ordem das chamadas precisa alternar entre hashtags, não
+    // esgotar uma para só então passar à seguinte.
+    const ids = ["h1", "h2", "h3"];
+    fetchVideosByHashtag.mockImplementation(async ({ hashtagId, offset }: any) => ({
+      data: {
+        aweme_list: [awemeItem(`v-${hashtagId}-${offset}`)],
+        has_more: 1, // sempre há mais, para forçar uma 2ª rodada
+      },
+    }));
+
+    await processAchadinhosBatch({ pageDelayMs: 0, count: 400, hashtagIds: ids });
+
+    const ordem = (fetchVideosByHashtag as any).mock.calls
+      .slice(0, 3)
+      .map((c: any[]) => c[0].hashtagId);
+    expect(ordem).toEqual(ids);
+    // e a 4ª chamada volta para a primeira hashtag, já com offset avançado
+    const quarta = (fetchVideosByHashtag as any).mock.calls[3]?.[0];
+    expect(quarta?.hashtagId).toBe("h1");
+    expect(quarta?.offset).toBeGreaterThan(0);
+  });
+
+  it("processa os vídeos mais vistos primeiro", async () => {
+    // O orçamento é o recurso escasso e o rendimento cresce com as views.
+    // Processar na ordem em que a hashtag devolveu gastava o lote nos piores.
+    mockPorHashtag({ baixa: 5_000, media: 80_000, alta: 900_000 });
+    findBestShopeeOffer.mockResolvedValue({
+      offerLink: "https://shopee.com.br/product/1",
+      productLink: "https://shopee.com.br/product/1",
+      priceMin: "10", priceMax: "20", sales: 5, commissionRate: "5",
+      imageUrl: "https://cdn/i.jpg", productName: "P", productCatIds: [100632],
+    });
+
+    await processAchadinhosBatch({
+      pageDelayMs: 0,
+      count: 400,
+      hashtagIds: ["baixa", "media", "alta"],
+    });
+
+    // A ordem de criação no banco reflete a ordem de processamento
+    const criados = (prismaMock.shopeeAchadinhoProduct.upsert as any).mock.calls
+      .map((c: any[]) => c[0].where?.videoExternalId)
+      .filter(Boolean);
+    expect(criados[0]).toBe("v-alta");
   });
 });
