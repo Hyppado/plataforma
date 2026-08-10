@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { syncShopeeRankings } from "../client";
-import { processAchadinhosBatch } from "../pipeline";
+import { processAchadinhosBatch, trimAchadinhosToTarget } from "../pipeline";
 import { SHOPEE_DEFAULTS } from "@/lib/shopee/types";
 
 const log = createLogger("shopee/cron");
@@ -177,22 +177,46 @@ export async function runShopeeAchadinhosCron(
     );
   }
 
+  // RENOVAÇÃO — chegar no alvo não é "nunca mais buscar".
+  //
+  // Se já estamos no alvo e o gate acima deixou passar, é porque a janela de
+  // frequência venceu: a intenção é trazer conteúdo NOVO. O teto de inventário
+  // sobe para (alvo + alvo) para o lote poder produzir; depois do lote, os
+  // publicados mais antigos são aposentados de volta para o alvo.
+  //
+  // Sem isto o lote quebrava no primeiro vídeo (`exibíveis >= alvo`) e o feed
+  // congelava para sempre no acervo do dia em que o alvo foi alcançado.
+  const renovando = !abaixoDoAlvo;
+  const teto = renovando ? alvo * 2 : alvo;
+
+  if (renovando) {
+    log.info(
+      `No alvo (${exibiveis}/${alvo}) e janela de ${intervalHours}h vencida — ` +
+        `renovando: buscando até ${alvo} achadinhos novos`,
+    );
+  }
+
   const run = await createIngestionRun(skipKey);
 
   try {
-    log.info("Cron de achadinhos Shopee iniciado...", { alvo, exibiveis });
+    log.info("Cron de achadinhos Shopee iniciado...", { alvo, exibiveis, renovando });
 
     // O lote descobre, filtra o que já foi processado e roda em série dentro
     // de um orçamento de tempo, persistindo cada vídeo. Se o orçamento acabar,
     // devolve `partial: true` e o próximo cron continua de onde parou.
     const result = await processAchadinhosBatch({
       region: "BR",
-      // Quanto varrer por execução: a folga até o alvo, com um piso para não
+      // Quanto varrer por execução: a folga até o teto, com um piso para não
       // fazer varreduras minúsculas. O rendimento é baixo (~4% dos vídeos
       // viram achadinho), então buscamos bem mais do que falta.
-      count: Math.min(400, Math.max(20, (alvo - exibiveis) * 10)),
-      targetInventory: alvo,
+      count: Math.min(400, Math.max(20, (teto - exibiveis) * 10)),
+      targetInventory: teto,
     });
+
+    // Rotação: o que passou do tamanho do feed sai. Só mexe em READY, então
+    // o feed nunca encolhe abaixo do alvo — um antigo só sai depois que um
+    // substituto já foi publicado pelo admin.
+    const archived = await trimAchadinhosToTarget(alvo);
 
     await finishIngestionRun(run.id, "SUCCESS", {
       found: result.found,
@@ -204,6 +228,9 @@ export async function runShopeeAchadinhosCron(
       partial: result.partial,
       elapsedMs: result.elapsedMs,
       target: alvo,
+      ceiling: teto,
+      renewal: renovando,
+      archived,
       inventory: result.inventory ?? exibiveis,
       targetReached: !!result.targetReached,
     });

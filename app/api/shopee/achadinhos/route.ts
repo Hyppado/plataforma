@@ -72,6 +72,8 @@ const INSPECTABLE_STATUSES: ShopeeAchadinhoStatus[] = [
   "READY",
   "FAILED",
   "REJECTED",
+  // Saiu do feed por rotação — publicado um dia, substituído por conteúdo novo
+  "ARCHIVED",
 ];
 
 /** Type guard — valida a query string contra o enum do banco. */

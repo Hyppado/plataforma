@@ -1218,6 +1218,7 @@ enum ShopeeAchadinhoStatus {
   READY       // aprovado pelo admin, visível no feed
   FAILED      // pipeline não conseguiu extrair um produto utilizável
   REJECTED    // admin recusou — arquivado, nunca publicado
+  ARCHIVED    // saiu do feed por rotação: foi publicado e cedeu lugar a conteúdo novo
 }
 
 model ShopeeAchadinhoProduct {

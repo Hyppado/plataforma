@@ -1,0 +1,17 @@
+-- Acrescenta ARCHIVED ao ciclo de vida do achadinho.
+--
+-- Contexto: `achadinhos_count` é o TAMANHO do feed, não uma cota por
+-- execução. Quando a janela de frequência vence, o cron passa a trazer
+-- conteúdo novo mesmo estando no alvo, e os achadinhos mais antigos cedem
+-- lugar aos novos.
+--
+-- ARCHIVED é diferente de REJECTED: o rejeitado nunca foi publicado (o admin
+-- recusou), o arquivado foi publicado e saiu do feed por rotação. Separar os
+-- dois mantém a fila de revisão do admin legível e preserva a distinção no
+-- histórico.
+--
+-- ADD VALUE é aditivo e não reescreve linhas: nenhum registro existente muda
+-- de estado com esta migração. IF NOT EXISTS torna o deploy idempotente —
+-- `prisma migrate deploy` roda dentro do buildCommand da Vercel e um erro
+-- aqui abortaria o deploy.
+ALTER TYPE "ShopeeAchadinhoStatus" ADD VALUE IF NOT EXISTS 'ARCHIVED';
