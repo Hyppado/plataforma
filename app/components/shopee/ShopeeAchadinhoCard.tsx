@@ -7,12 +7,14 @@
  * - Clique no produto / redirecionamento de compra → shopeeAffiliateUrl (affiliateLink)
  * - Embed do vídeo ou "Abrir no TikTok" → tiktokVideoUrl (videoUrl)
  *
- * Exibe EXATAMENTE 5 dados formatados corretamente:
+ * Métricas exibidas na grade:
  * 1. Receita          — price × sales (calculado dinamicamente, em BRL)
  * 2. Views no TikTok  — quantidade de visualizações (vinda da Echotik), formatada (ex: 1.0M, 25K)
  * 3. Vendas           — quantidade de vendas (vinda da Shopee), formatada
  * 4. Comissão         — valor da comissão (vinda da Shopee)
- * 5. Preço            — preço do produto em BRL (vindo da Shopee)
+ *
+ * O preço em destaque que ficava abaixo da grade foi removido. O preço
+ * continua ao lado do nome do produto, no bloco de informações do produto.
  */
 
 "use client";
@@ -36,7 +38,6 @@ import {
   SmartDisplay,
   ShoppingCart,
   Percent,
-  AttachMoney,
   Subtitles,
   AutoAwesome,
   Download,
@@ -597,26 +598,6 @@ export function ShopeeAchadinhoCard({
             }
             color={UI.text.primary}
           />
-        </Box>
-
-        {/* 5. Preço — da Shopee em BRL (destaque) */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.3,
-            px: 0.75,
-            py: 0.5,
-            mb: 1,
-            borderRadius: 2,
-            background: "rgba(45,212,255,0.06)",
-            border: "1px solid rgba(45,212,255,0.15)",
-          }}
-        >
-          <AttachMoney sx={{ fontSize: 13, color: UI.accent }} />
-          <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: UI.accent }}>
-            {formatBRL(achadinho.price)}
-          </Typography>
         </Box>
 
         {/* Ações do Card — espelha o layout do VideoCard (TikTok Shop) */}
