@@ -295,6 +295,42 @@ async function fetchHashtagPage(
 const ACHADINHOS_MAX_ROUNDS = 10;
 
 /**
+ * Prioridade de processamento por faixa de views.
+ *
+ * O número devolvido é o APROVEITAMENTO MEDIDO da faixa: quantos por cento dos
+ * vídeos processados naquela faixa viraram achadinho utilizável. Medido sobre
+ * 226 vídeos do acervo em 2026-08-10:
+ *
+ *     3k – 50k     33%   (52 vídeos)
+ *     50k – 200k   45%   (51)
+ *     200k – 500k  71%   (49)   <- pico
+ *     500k – 1M    60%   (20)
+ *     1M – 3M      50%   (34)
+ *     >= 3M        30%   (20)
+ *
+ * NÃO É MONOTÔNICO, e essa é a razão de existir esta função. A intuição de
+ * "mais views, melhor" está errada na cauda: acima de 3M o aproveitamento cai
+ * ao patamar da pior faixa. Vídeo muito viral costuma ser conteúdo de
+ * entretenimento ou trend sem produto identificável — as falhas nessa faixa
+ * são de "extração do nome do produto" e "vídeo sem fala transcrevível".
+ *
+ * Ordenar por views decrescente colocava justamente essa faixa na frente:
+ * numa execução real, os 12 vídeos acima de 1M falharam TODOS enquanto os 7
+ * acertos vieram da faixa de 193k a 973k.
+ *
+ * Revisar quando o acervo crescer — os percentuais são de amostras de 20 a 52
+ * vídeos por faixa.
+ */
+export function prioridadePorViews(views: number): number {
+  if (views >= 3_000_000) return 30;
+  if (views >= 1_000_000) return 50;
+  if (views >= 500_000) return 60;
+  if (views >= 200_000) return 71;
+  if (views >= 50_000) return 45;
+  return 33;
+}
+
+/**
  * Descobre vídeos varrendo TODAS as hashtags configuradas, em round-robin.
  *
  * POR QUE ROUND-ROBIN
@@ -1086,17 +1122,18 @@ export async function processAchadinhosBatch(
   // Passo 2: descartar o que já foi processado (torna o lote resumível)
   const { pending, alreadyProcessed } = await filterUnprocessedVideos(videos);
 
-  // Passo 2.1: os mais vistos primeiro.
+  // Passo 2.1: os mais promissores primeiro.
   //
   // O orçamento de processamento é o recurso escasso — um vídeo custa até 90s
-  // entre Whisper, GPT e Shopee, e o lote só cabe ~10 por execução. Medido no
-  // acervo: vídeos com 200k+ views viram achadinho em 66% das vezes, contra
-  // 13% na faixa de 3k a 10k. Processar na ordem em que a hashtag devolveu
-  // gastava o orçamento em vídeos ruins enquanto os bons ficavam na fila.
-  //
-  // Com a fila ordenada, o piso de views deixa de ser crítico: o orçamento
-  // acaba antes de chegar nos fracos, sem precisar descartá-los por regra.
-  pending.sort((a, b) => Number(b.views ?? 0) - Number(a.views ?? 0));
+  // entre Whisper, GPT e Shopee, e o lote só cabe ~20 por execução. Processar
+  // na ordem em que a hashtag devolveu gastava o orçamento em vídeos ruins
+  // enquanto os bons ficavam na fila.
+  pending.sort((a, b) => {
+    const pa = prioridadePorViews(Number(a.views ?? 0));
+    const pb = prioridadePorViews(Number(b.views ?? 0));
+    if (pa !== pb) return pb - pa;
+    return Number(b.views ?? 0) - Number(a.views ?? 0);
+  });
 
   log.info(
     `Lote de achadinhos: ${videos.length} vídeos encontrados, ` +
