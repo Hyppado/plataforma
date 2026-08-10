@@ -5,6 +5,9 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mockAuthenticatedAdmin } from "@tests/helpers/auth";
+// ANTES do import da rota: o helper registra o mock do Prisma ao ser avaliado,
+// e a rota captura o módulo no momento em que é importada.
+import { prismaMock } from "@tests/helpers/prisma-mock";
 import { GET } from "@/app/api/admin/subscription-metrics/route";
 
 vi.mock("@/lib/hotmart/client");
@@ -53,6 +56,8 @@ describe("GET /api/admin/subscription-metrics", () => {
     vi.clearAllMocks();
     mockAuthenticatedAdmin();
     mockGetSetting.mockResolvedValue("PROD123");
+    // Inadimplentes vêm do nosso banco (a listagem da Hotmart os omite).
+    (prismaMock.subscription.count as any).mockResolvedValue(0);
   });
 
   /**
@@ -240,5 +245,36 @@ describe("GET /api/admin/subscription-metrics", () => {
     expect(body.activeSubscribers).toBe(0);
     expect(body.canceledSubscribers).toBe(0);
     expect(body.totalSubscribers).toBe(0);
+  });
+});
+
+describe("inadimplentes vêm do nosso banco", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthenticatedAdmin();
+    mockGetSetting.mockResolvedValue("PROD123");
+  });
+
+  it("usa a contagem local quando a Hotmart não devolve os DELAYED", async () => {
+    // A listagem /payments/api/v1/subscriptions OMITE assinaturas em atraso:
+    // status=DELAYED devolve total_results=0. Verificado em produção — 58
+    // inadimplentes no banco, todos confirmados na Hotmart um a um por
+    // subscriber_code, e a aba mostrava zero.
+    mockHotmartRequest.mockResolvedValue(mockCountResponse(0) as never);
+    (prismaMock.subscription.count as any).mockResolvedValue(58);
+
+    const { pastDueSubscribers } = await (await GET(buildRequest())).json();
+
+    expect(pastDueSubscribers).toBe(58);
+  });
+
+  it("não descarta a contagem da Hotmart quando ela é maior", async () => {
+    // Se um dia a API deles voltar a listar, o maior valor prevalece.
+    mockHotmartRequest.mockResolvedValue(mockCountResponse(7) as never);
+    (prismaMock.subscription.count as any).mockResolvedValue(2);
+
+    const { pastDueSubscribers } = await (await GET(buildRequest())).json();
+
+    expect(pastDueSubscribers).toBeGreaterThanOrEqual(7);
   });
 });

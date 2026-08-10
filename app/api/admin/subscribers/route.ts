@@ -3,8 +3,59 @@ import { requireAdmin, isAuthed } from "@/lib/auth";
 import { hotmartRequest } from "@/lib/hotmart/client";
 import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { createLogger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 
 const log = createLogger("api/admin/subscribers");
+
+/**
+ * Inadimplentes a partir do NOSSO banco, no mesmo formato que a listagem da
+ * Hotmart devolve — ver o comentário na rota sobre por que a API deles não
+ * serve para este caso.
+ */
+async function listarInadimplentes() {
+  const subs = await prisma.subscription.findMany({
+    where: { status: "PAST_DUE" },
+    include: {
+      plan: true,
+      hotmart: true,
+      user: { select: { name: true, email: true } },
+      charges: { where: { status: "PAID" }, orderBy: { paidAt: "desc" }, take: 1 },
+    },
+    orderBy: { nextChargeAt: "asc" },
+  });
+
+  return subs.map((s) => {
+    const ultimoPago = s.charges[0];
+    return {
+      id: s.id,
+      name: s.user.name,
+      email: s.user.email,
+      status: "PAST_DUE" as const,
+      plan: {
+        id: s.plan.id,
+        code: s.hotmart?.hotmartPlanCode ?? s.plan.id,
+        name: s.plan.name,
+        displayPrice: null,
+        periodicity: null,
+      },
+      source: "hotmart" as const,
+      subscriberCode: s.hotmart?.subscriberCode ?? null,
+      hotmartStatus: s.hotmart?.externalStatus ?? "DELAYED",
+      startedAt: s.startedAt?.toISOString() ?? null,
+      cancelledAt: s.cancelledAt?.toISOString() ?? null,
+      nextChargeAt: s.nextChargeAt?.toISOString() ?? null,
+      endDate: s.endedAt?.toISOString() ?? null,
+      requestDate: null,
+      trial: false,
+      maxChargeCycles: null,
+      recurrencyPeriod: null,
+      lastPaymentAt: ultimoPago?.paidAt?.toISOString() ?? null,
+      lastPaymentAmount: ultimoPago?.amountCents ?? null,
+      lastPaymentCurrency: ultimoPago?.currency ?? "BRL",
+      createdAt: s.createdAt.toISOString(),
+    };
+  });
+}
 
 /**
  * GET /api/admin/subscribers
@@ -145,6 +196,15 @@ export async function GET(request: Request) {
       ]);
       items = [...(startedData.items ?? []), ...(inactiveData.items ?? [])];
       // No reliable single total_results when merging two requests
+    } else if (statusFilter === "PAST_DUE") {
+      // INADIMPLENTES VÊM DO NOSSO BANCO — a listagem da Hotmart os omite.
+      //
+      // `status=DELAYED` devolve total_results=0 e varrer a lista inteira não
+      // traz nenhuma DELAYED, mas as mesmas assinaturas respondem
+      // `status: "DELAYED"` quando consultadas por `subscriber_code`. Sem
+      // isto a aba de inadimplentes abria vazia (verificado 2026-08-10: 58 no
+      // banco, todos confirmados na Hotmart um a um, e a tela mostrava zero).
+      return NextResponse.json({ subscribers: await listarInadimplentes() });
     } else {
       // Map our status filter to Hotmart status
       if (statusFilter && STATUS_FILTER_TO_HOTMART[statusFilter]) {
