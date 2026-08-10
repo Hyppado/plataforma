@@ -36,7 +36,14 @@ export interface AccountStateInput {
   hasActiveGrant: boolean;
 }
 
-const REFUND_CHARGE_STATUSES = new Set(["REFUNDED", "CHARGEBACK"]);
+// REFUND_REQUEST entra aqui junto dos confirmados: o pedido de reembolso já
+// revoga o acesso (ver IMMEDIATE_REVOCATION_EVENTS no processor da Hotmart),
+// então o painel precisa refletir isso em vez de mostrar a conta como ativa.
+const REFUND_CHARGE_STATUSES = new Set([
+  "REFUND_REQUEST",
+  "REFUNDED",
+  "CHARGEBACK",
+]);
 
 /** States in which the user currently has access to the product. */
 const ACCESS_STATES = new Set<AccountState>([

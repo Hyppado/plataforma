@@ -48,6 +48,7 @@ const ACTIVATION_EVENTS = new Set(["PURCHASE_APPROVED", "PURCHASE_COMPLETE"]);
 const CANCELLATION_EVENTS = new Set([
   "PURCHASE_CANCELED",
   "PURCHASE_CANCELLED", // variação ortográfica
+  "PURCHASE_PROTEST", // PEDIDO de reembolso — ver IMMEDIATE_REVOCATION_EVENTS
   "PURCHASE_REFUNDED",
   "PURCHASE_CHARGEBACK",
   "SUBSCRIPTION_CANCELLATION",
@@ -58,7 +59,17 @@ const DELAY_EVENTS = new Set(["PURCHASE_DELAYED"]);
 const EXPIRY_EVENTS = new Set(["PURCHASE_EXPIRED"]);
 
 // Eventos que revogam acesso IMEDIATAMENTE (sem honrar período pago)
+//
+// PURCHASE_PROTEST é o PEDIDO de reembolso, não a confirmação. Ele revoga
+// junto: quem pediu o dinheiro de volta não deve seguir usando o produto
+// enquanto a disputa corre. Antes ele só marcava a cobrança como
+// REFUND_REQUEST e preservava o acesso — na prática, acesso gratuito durante
+// todo o processamento do reembolso.
+//
+// Se o pedido for negado e a Hotmart mandar PURCHASE_APPROVED/COMPLETE
+// depois, o acesso volta pelo caminho normal de ativação.
 const IMMEDIATE_REVOCATION_EVENTS = new Set([
+  "PURCHASE_PROTEST",
   "PURCHASE_REFUNDED",
   "PURCHASE_CHARGEBACK",
 ]);
@@ -66,7 +77,6 @@ const IMMEDIATE_REVOCATION_EVENTS = new Set([
 // Eventos que não alteram estado de assinatura mas geram notificação + audit
 // Charge status pode ser atualizado, mas subscription status permanece inalterado.
 const STATUS_PRESERVING_EVENTS = new Set([
-  "PURCHASE_PROTEST", // Solicitação de reembolso (disputa)
   "UPDATE_SUBSCRIPTION_CHARGE_DATE", // Nova data de cobrança
 ]);
 
