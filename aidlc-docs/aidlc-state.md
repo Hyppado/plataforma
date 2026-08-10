@@ -53,6 +53,15 @@
   deferred pending real `IngestionRun` statistics. Rationale in `audit.md` (2026-08-06T02:30Z).
 - **Shopee GraphQL variables** — needs verification against the live vendor API before switching
   away from inline queries.
+- **EchoTik `code=429` no ranklist de vídeos** — investigado em 2026-08-10, correção adiada a
+  pedido do usuário. Diagnóstico completo em `audit.md` (2026-08-10T20:30Z). Resumo: envelope
+  HTTP 200 com `code:429`, exclusivo de `videos:US` em `/api/v3/echotik/video/ranklist`, desde
+  2026-08-09. Falha já na 1ª requisição (10-16s = 3 retries + backoff). A EchoTik não documenta
+  limite algum. Ações propostas, em ordem de impacto: (1) baixar `echotik:pages:videos` de 100
+  para 10-20 — é configuração, não código; (2) espaçar as páginas do ranklist, hoje sem pausa
+  nenhuma (~26 req/s) enquanto a paginação de hashtag espera 2s; (3) cooldown exponencial por
+  fonte no disjuntor, que hoje exige 5 falhas/2h e é contornado por US a ~2,6 falhas/h;
+  (4) perguntar ao suporte da EchoTik o significado do código.
 
 ### OPERATIONS PHASE
 - [ ] Not started (placeholder)
