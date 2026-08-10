@@ -57,7 +57,7 @@ vi.mock("@/lib/shopee/client", async () => {
   };
 });
 
-import { processAchadinhosBatch } from "@/lib/shopee/pipeline";
+import { processAchadinhosBatch, prioridadePorViews } from "@/lib/shopee/pipeline";
 import { ACHADINHOS_MAX_HASHTAGS } from "@/lib/shopee/types";
 
 /** Item cru da EchoTik, acima do limiar de 30k views. */
@@ -560,10 +560,12 @@ describe("processAchadinhosBatch — descoberta entre hashtags", () => {
     expect(quarta?.offset).toBeGreaterThan(0);
   });
 
-  it("processa os vídeos mais vistos primeiro", async () => {
-    // O orçamento é o recurso escasso e o rendimento cresce com as views.
-    // Processar na ordem em que a hashtag devolveu gastava o lote nos piores.
-    mockPorHashtag({ baixa: 5_000, media: 80_000, alta: 900_000 });
+  it("processa os mais promissores primeiro, não os mais vistos", async () => {
+    // O aproveitamento por faixa NÃO é monotônico: mede 71% entre 200k e 500k
+    // e cai para 30% acima de 3M. Ordenar por views decrescente colocava a
+    // pior faixa na frente — numa execução real os 12 vídeos acima de 1M
+    // falharam todos, enquanto os acertos vieram da faixa de 193k a 973k.
+    mockPorHashtag({ viral: 8_000_000, boa: 300_000, fraca: 5_000 });
     findBestShopeeOffer.mockResolvedValue({
       offerLink: "https://shopee.com.br/product/1",
       productLink: "https://shopee.com.br/product/1",
@@ -574,13 +576,37 @@ describe("processAchadinhosBatch — descoberta entre hashtags", () => {
     await processAchadinhosBatch({
       pageDelayMs: 0,
       count: 400,
-      hashtagIds: ["baixa", "media", "alta"],
+      hashtagIds: ["viral", "boa", "fraca"],
     });
 
     // A ordem de criação no banco reflete a ordem de processamento
     const criados = (prismaMock.shopeeAchadinhoProduct.upsert as any).mock.calls
       .map((c: any[]) => c[0].where?.videoExternalId)
       .filter(Boolean);
-    expect(criados[0]).toBe("v-alta");
+    // 300k (faixa de 71%) na frente; o viral de 8M fica por último (30%)
+    expect(criados[0]).toBe("v-boa");
+    expect(criados[criados.length - 1]).toBe("v-viral");
+  });
+});
+
+describe("prioridadePorViews()", () => {
+  it("prioriza a faixa de melhor aproveitamento (200k–500k)", () => {
+    const faixas = [5_000, 100_000, 300_000, 700_000, 2_000_000, 8_000_000];
+    const melhor = faixas.reduce((a, b) =>
+      prioridadePorViews(b) > prioridadePorViews(a) ? b : a,
+    );
+    expect(melhor).toBe(300_000);
+  });
+
+  it("NÃO é monotônico — o viral extremo perde para a faixa média", () => {
+    // A intuição "mais views, melhor" está errada na cauda: medido, acima de
+    // 3M o aproveitamento cai (30%) ao patamar da pior faixa.
+    expect(prioridadePorViews(8_000_000)).toBeLessThan(prioridadePorViews(300_000));
+    expect(prioridadePorViews(8_000_000)).toBeLessThan(prioridadePorViews(100_000));
+  });
+
+  it("dentro da faixa boa, mais views continua sendo melhor que menos", () => {
+    expect(prioridadePorViews(300_000)).toBeGreaterThan(prioridadePorViews(100_000));
+    expect(prioridadePorViews(100_000)).toBeGreaterThan(prioridadePorViews(10_000));
   });
 });
