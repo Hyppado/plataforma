@@ -39,10 +39,11 @@ function ShopeeAchadinhosContent() {
   const searchParams = useSearchParams();
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
-  // Ordenação final: por padrão, "Mais Vendidos" (saleCount desc) — o usuário
-  // vê os produtos de maior sucesso no topo. Pode trocar para Recentes/Preço.
+  // Ordenação padrão: "Recentes" (createdAt desc). O valor do feed está em ser
+  // novidade — o que acabou de entrar aparece primeiro. Pode trocar para Mais
+  // Vendidos/Preço.
   const categoryFilter = searchParams.get("category") || "";
-  const sort = searchParams.get("sort") || "saleCount";
+  const sort = searchParams.get("sort") || "createdAt";
   const order = searchParams.get("order") || "desc";
 
   // Reseta contagem quando filtros mudam
