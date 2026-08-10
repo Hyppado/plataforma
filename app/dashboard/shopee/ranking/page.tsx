@@ -27,6 +27,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { ShopeeProductCard } from "@/app/components/shopee/ShopeeProductCard";
+import { ShopeeProductTable } from "@/app/components/shopee/ShopeeProductTable";
 import { ShopeeProductDetailsModal } from "@/app/components/shopee/ShopeeProductDetailsModal";
 import { ShopeeCategoryDropdown } from "@/app/components/shopee/ShopeeCategoryDropdown";
 import { ExpandMore, GridView, ViewList } from "@mui/icons-material";
@@ -260,11 +261,12 @@ function ShopeeRankingContent() {
         )}
 
         {viewMode === "list" ? (
-          <Box sx={{ textAlign: "center", py: 4 }}>
-            <Typography sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.8rem" }}>
-              Modo lista disponível apenas para produtos TikTok
-            </Typography>
-          </Box>
+          <ShopeeProductTable
+            products={displayedProducts}
+            loading={isLoading}
+            title="Ranking Shopee"
+            onProductClick={(p) => setSelectedProduct(p)}
+          />
         ) : (
           <Grid container spacing={{ xs: 2, md: 2.5 }}>
             {displayedProducts.map((product, idx) => (
@@ -343,7 +345,9 @@ function ShopeeRankingContent() {
           </Box>
         )}
 
-        {!isLoading && displayedProducts.length === 0 && (
+        {/* Só no modo card: a tabela já tem a própria linha de "nenhum
+            produto", e as duas juntas apareceriam duplicadas. */}
+        {!isLoading && viewMode === "card" && displayedProducts.length === 0 && (
           <Box sx={{ textAlign: "center", py: 8, color: "rgba(255,255,255,0.5)" }}>
             <Typography sx={{ fontSize: "0.95rem" }}>Nenhum produto encontrado</Typography>
           </Box>
