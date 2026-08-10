@@ -151,6 +151,18 @@ export async function runShopeeAchadinhosCron(
       : SHOPEE_DEFAULTS.ACHADINHOS_COUNT;
   }
 
+  // ROTAÇÃO ANTES DO GATE, de propósito.
+  //
+  // Manter o feed no tamanho configurado não pode depender de haver ingestão.
+  // O admin aprova achadinhos a qualquer momento e o READY passa do alvo na
+  // hora; se a poda só rodasse depois do lote, o feed ficaria acima do alvo
+  // até a próxima janela de renovação — foram 103/100 por horas em produção.
+  //
+  // Rodar aqui é equivalente a rodar depois: o lote só cria registros PENDING
+  // (o gate de aprovação existe justamente para isso), então ele nunca muda a
+  // contagem de READY que a poda usa.
+  const archived = await trimAchadinhosToTarget(alvo);
+
   const exibiveis = await prisma.shopeeAchadinhoProduct.count({
     where: { status: { in: ["PENDING", "READY"] } },
   });
@@ -166,7 +178,8 @@ export async function runShopeeAchadinhosCron(
   //   envelhece e congela no que já existe.
   if (!force && !abaixoDoAlvo && (await shouldSkipShopeeTask(skipKey, intervalHours))) {
     log.info(
-      `Cron de achadinhos: pulando — alvo já atingido (${exibiveis}/${alvo}) e dentro da janela de ${intervalHours}h`,
+      `Cron de achadinhos: pulando — alvo já atingido (${exibiveis}/${alvo}) e dentro da janela de ${intervalHours}h` +
+        (archived > 0 ? ` · ${archived} antigos arquivados` : ""),
     );
     return -1;
   }
@@ -212,11 +225,6 @@ export async function runShopeeAchadinhosCron(
       count: Math.min(400, Math.max(20, (teto - exibiveis) * 10)),
       targetInventory: teto,
     });
-
-    // Rotação: o que passou do tamanho do feed sai. Só mexe em READY, então
-    // o feed nunca encolhe abaixo do alvo — um antigo só sai depois que um
-    // substituto já foi publicado pelo admin.
-    const archived = await trimAchadinhosToTarget(alvo);
 
     await finishIngestionRun(run.id, "SUCCESS", {
       found: result.found,

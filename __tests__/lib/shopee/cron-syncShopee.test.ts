@@ -357,3 +357,56 @@ describe("runShopeeAchadinhosCron — renovação", () => {
     expect(processAchadinhosBatch).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Rotação não depende de haver ingestão
+// ---------------------------------------------------------------------------
+describe("runShopeeAchadinhosCron — rotação", () => {
+  beforeEach(() => {
+    processAchadinhosBatch.mockResolvedValue(batchResult());
+    getSetting.mockImplementation(async (k: string) =>
+      k === "shopee.achadinhos_count" ? "100" : null,
+    );
+  });
+
+  it("poda mesmo quando o cron pula por estar no alvo e dentro da janela", async () => {
+    // Aconteceu em produção: o admin aprovou 3 achadinhos, o READY foi a
+    // 103/100 e ficou assim por horas — a poda estava DEPOIS do lote, e o
+    // gate retornava antes de chegar nela. Manter o tamanho do feed não pode
+    // depender de haver ingestão.
+    inventario(103);
+    recentCompleteRun();
+
+    const result = await runShopeeAchadinhosCron();
+
+    expect(result).toBe(-1); // pulou mesmo
+    expect(processAchadinhosBatch).not.toHaveBeenCalled();
+    expect(trimAchadinhosToTarget).toHaveBeenCalledWith(100); // mas podou
+  });
+
+  it("poda também quando o lote roda", async () => {
+    inventario(40); // abaixo do alvo → executa
+
+    await runShopeeAchadinhosCron();
+
+    expect(processAchadinhosBatch).toHaveBeenCalled();
+    expect(trimAchadinhosToTarget).toHaveBeenCalledWith(100);
+  });
+
+  it("poda antes do lote — o lote só cria PENDING e não muda o READY", async () => {
+    inventario(40);
+    const ordem: string[] = [];
+    trimAchadinhosToTarget.mockImplementation(async () => {
+      ordem.push("poda");
+      return 0;
+    });
+    processAchadinhosBatch.mockImplementation(async () => {
+      ordem.push("lote");
+      return batchResult();
+    });
+
+    await runShopeeAchadinhosCron();
+
+    expect(ordem).toEqual(["poda", "lote"]);
+  });
+});
