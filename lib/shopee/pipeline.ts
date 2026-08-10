@@ -205,154 +205,192 @@ export async function extractProductName(
  * @param count     - Quantidade desejada (clamp 20-400)
  * @returns Lista de vídeos únicos (deduplicados)
  */
-async function fetchVideosByHashtagPaginated(
+interface HashtagPageResult {
+  /** Vídeos da página que passaram nos filtros de views e idade */
+  videos: EchoTikVideoDTO[];
+  /** Itens brutos devolvidos — é por este número que o offset avança */
+  rawCount: number;
+  /** false quando a hashtag acabou, falhou ou sinalizou has_more=0 */
+  continua: boolean;
+}
+
+/**
+ * Busca UMA página de uma hashtag e aplica os filtros de relevância.
+ *
+ * Antes esta função paginava a hashtag inteira até completar uma cota. Isso
+ * fazia a descoberta consumir todo o orçamento nas primeiras hashtags da
+ * lista e nunca chegar nas últimas — com 8 hashtags configuradas, só ~3 eram
+ * visitadas, e sempre as mesmas, sempre desde a página 0. Daí a repetição:
+ * numa execução real, 33 dos 42 vídeos encontrados já tinham sido processados.
+ *
+ * Quem controla a paginação agora é o laço de round-robin em
+ * `descobrirVideos`, que dá uma página para cada hashtag por rodada.
+ */
+async function fetchHashtagPage(
   hashtagId: string,
   region: string,
-  count: number,
-  discoveryDeadline: number | undefined,
+  offset: number,
   minViews: number,
+  maxAgeCutoff: Date,
+): Promise<HashtagPageResult> {
+  const vazio: HashtagPageResult = { videos: [], rawCount: 0, continua: false };
+
+  let response;
+  try {
+    response = await fetchVideosByHashtag({
+      hashtagId,
+      region,
+      count: ECHOTIK_PAGE_SIZE,
+      offset,
+    });
+  } catch (error) {
+    log.warn(`Falha ao buscar página da hashtag (offset=${offset})`, {
+      hashtagId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return vazio;
+  }
+
+  const rawItems: EchotikHashtagVideoItem[] = response?.data?.aweme_list ?? [];
+  if (rawItems.length === 0) {
+    log.info("Hashtag sem mais vídeos", { hashtagId, offset });
+    return vazio;
+  }
+
+  const videos: EchoTikVideoDTO[] = [];
+
+  for (const video of mapAwemeListToVideos(rawItems)) {
+    // Extração EXTREMAMENTE segura do play_count via parseViewsFromEchoTikItem.
+    // A EchoTik pode devolver este campo em caminhos diferentes
+    // (statistics.play_count, play_count raiz, views) e como String ou Number.
+    const rawItem = rawItems.find((r) => r.aweme_id === video.video_id);
+    const views = rawItem
+      ? parseViewsFromEchoTikItem(rawItem)
+      : Number(video.views ?? 0);
+
+    if (isNaN(views) || views < minViews) continue;
+
+    // Guarda de idade: a EchoTik não resolve download-url para vídeos muito
+    // antigos. Sem isto, a cauda antiga da hashtag reaparece a cada execução,
+    // gasta orçamento e nunca gera transcrição.
+    const createdAt = tiktokVideoCreatedAt(video.video_id);
+    if (createdAt && createdAt < maxAgeCutoff) continue;
+
+    // Fixa o valor JÁ PARSEADO no DTO: é ele que ordena a fila por views mais
+    // adiante, e reparsear depois poderia divergir do que passou no filtro.
+    videos.push({ ...video, views });
+  }
+
+  // NÃO usar "página menor que o solicitado" como fim da lista: a EchoTik
+  // devolve rotineiramente menos itens do que o pedido (ex: 19 para count=20)
+  // e o fim prematuro fazia o cron parar na primeira página.
+  return {
+    videos,
+    rawCount: rawItems.length,
+    continua: response?.data?.has_more !== 0,
+  };
+}
+
+/** Teto de rodadas do round-robin — trava contra laço infinito. */
+const ACHADINHOS_MAX_ROUNDS = 10;
+
+/**
+ * Descobre vídeos varrendo TODAS as hashtags configuradas, em round-robin.
+ *
+ * POR QUE ROUND-ROBIN
+ * A descoberta tem orçamento de tempo próprio (DISCOVERY_BUDGET_MS). Varrendo
+ * hashtag por hashtag até o fim, o orçamento acabava nas primeiras e as
+ * últimas nunca eram lidas — a configuração aceitava 8 hashtags e na prática
+ * só ~3 contribuíam.
+ *
+ * Uma página por hashtag por rodada garante que todas sejam olhadas antes de
+ * qualquer uma ser aprofundada. Se o orçamento acabar no meio, o que se perde
+ * é profundidade, não abrangência.
+ */
+async function descobrirVideos(
+  hashtagIds: string[],
+  region: string,
+  alvo: number,
+  discoveryDeadline: number,
+  minViews: number,
+  pageDelayMs: number,
 ): Promise<EchoTikVideoDTO[]> {
-  const clampedCount = Math.min(ACHADINHOS_MAX_COUNT, Math.max(ACHADINHOS_MIN_COUNT, count));
   const maxAgeCutoff = new Date(
     Date.now() - SHOPEE_DEFAULTS.ACHADINHOS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
   );
-  const seenIds = new Set<string>();
-  const allVideos: EchoTikVideoDTO[] = [];
+  const vistos = new Set<string>();
+  const videos: EchoTikVideoDTO[] = [];
+  const cursores = hashtagIds.map((id) => ({
+    id,
+    offset: 0,
+    ativa: true,
+    /** Páginas seguidas sem nenhum vídeo novo */
+    secas: 0,
+  }));
+  let primeiraChamada = true;
 
   log.info(
-    `Paginação EchoTik: solicitando ${clampedCount} vídeos em blocos de ${ECHOTIK_PAGE_SIZE} (delay ${ECHOTIK_PAGE_DELAY_MS}ms)`,
-    { hashtagId, region },
+    `Descoberta em round-robin: ${hashtagIds.length} hashtags, alvo ${alvo} vídeos, ` +
+      `orçamento ${Math.round((discoveryDeadline - Date.now()) / 1000)}s`,
   );
 
-  let offset = 0;
-  let hasMore = true;
+  for (let rodada = 0; rodada < ACHADINHOS_MAX_ROUNDS; rodada++) {
+    const ativas = cursores.filter((c) => c.ativa);
+    if (ativas.length === 0) break;
 
-  while (hasMore && allVideos.length < clampedCount) {
-    // Orçamento de descoberta: parar de paginar se o tempo acabou. Melhor
-    // processar 40 vídeos do que gastar o lote inteiro montando a lista.
-    if (discoveryDeadline && Date.now() >= discoveryDeadline) {
-      log.warn(
-        `Orçamento de descoberta esgotado — seguindo com ${allVideos.length} vídeos`,
-        { hashtagId },
-      );
-      break;
-    }
+    for (const cursor of ativas) {
+      if (videos.length >= alvo) return videos;
+      if (Date.now() >= discoveryDeadline) {
+        log.warn(
+          `Orçamento de descoberta esgotado na rodada ${rodada + 1} — ` +
+            `seguindo com ${videos.length} vídeos`,
+        );
+        return videos;
+      }
 
-    // Quantidade a pedir neste bloco: no máximo 20, respeitando o total
-    const remaining = clampedCount - allVideos.length;
-    const pageCount = Math.min(ECHOTIK_PAGE_SIZE, remaining);
+      // Pausa ANTES de cada chamada, menos a primeira: a EchoTik aplica risk
+      // control por frequência. Dormir depois da última seria desperdício de
+      // orçamento sem nenhuma chamada para proteger.
+      if (!primeiraChamada) await sleep(pageDelayMs);
+      primeiraChamada = false;
 
-    let response;
-    try {
-      response = await fetchVideosByHashtag({
-        hashtagId,
+      const page = await fetchHashtagPage(
+        cursor.id,
         region,
-        count: pageCount,
-        offset,
-      });
-    } catch (error) {
-      log.warn(
-        `Falha na página ${offset / ECHOTIK_PAGE_SIZE + 1} da hashtag (offset=${offset}). Encerrando paginação.`,
-        {
-          hashtagId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+        cursor.offset,
+        minViews,
+        maxAgeCutoff,
       );
-      break;
-    }
 
-    const rawItems: EchotikHashtagVideoItem[] = response?.data?.aweme_list ?? [];
+      cursor.offset += page.rawCount;
+      if (!page.continua || page.rawCount === 0) cursor.ativa = false;
 
-    if (rawItems.length === 0) {
-      log.info("Nenhum vídeo adicional retornado — encerrando paginação", {
-        hashtagId,
-        offset,
-      });
-      break;
-    }
-
-    const pageVideos = mapAwemeListToVideos(rawItems);
-    let added = 0;
-
-    for (const video of pageVideos) {
-      // ── Filtro de relevância: apenas vídeos "em alta" com >= 30k views ──
-      // Extração EXTREMAMENTE segura do play_count via parseViewsFromEchoTikItem.
-      // A EchoTik pode retornar este campo em caminhos diferentes
-      // (statistics.play_count, play_count raiz, views) e como String ou Number.
-      // A função força Number e trata NaN/undefined (retorna 0) — qualquer
-      // valor inválido abaixo do threshold é descartado.
-      const rawItem = rawItems.find((r) => r.aweme_id === video.video_id);
-      const views = rawItem
-        ? parseViewsFromEchoTikItem(rawItem)
-        : Number(video.views ?? 0);
-
-      if (isNaN(views) || views < minViews) {
-        log.info(
-          `Vídeo ${video.video_id} DESCARTADO por relevância — ` +
-            `views=${isNaN(views) ? "NaN" : views}, threshold=${minViews}`,
-        );
-        continue;
+      let novos = 0;
+      for (const v of page.videos) {
+        // Dedup GLOBAL: o mesmo vídeo costuma aparecer em várias hashtags de
+        // achadinhos. Um repetido NÃO mata a hashtag de imediato — ele pode ter
+        // vindo de outra fonte e ela ainda ter conteúdo próprio adiante.
+        if (vistos.has(v.video_id)) continue;
+        vistos.add(v.video_id);
+        videos.push(v);
+        novos++;
+        if (videos.length >= alvo) break;
       }
 
-      // Guarda de idade: a EchoTik não resolve download-url para vídeos
-      // muito antigos. Sem isto, a cauda antiga da hashtag reaparece a cada
-      // execução, gasta orçamento e nunca gera transcrição.
-      const createdAt = tiktokVideoCreatedAt(video.video_id);
-      if (createdAt && createdAt < maxAgeCutoff) {
-        log.info(
-          `Vídeo ${video.video_id} DESCARTADO por idade — ` +
-            `publicado em ${createdAt.toISOString().slice(0, 10)}`,
-        );
-        continue;
-      }
+      // Duas páginas seguidas sem nada novo: a hashtag está sobreposta às
+      // outras ou já foi drenada. Continuar paginando gastaria orçamento (e
+      // requisições contra o risk control) sem trazer conteúdo.
+      cursor.secas = novos === 0 ? cursor.secas + 1 : 0;
+      if (cursor.secas >= 2) cursor.ativa = false;
 
-      if (seenIds.has(video.video_id)) continue;
-      seenIds.add(video.video_id);
-      allVideos.push(video);
-      added++;
-
-      if (allVideos.length >= clampedCount) break;
-    }
-
-    log.info(
-      `Página ${offset / ECHOTIK_PAGE_SIZE + 1}: ${pageVideos.length} vídeos retornados, ${added} novos (total acumulado: ${allVideos.length}/${clampedCount})`,
-    );
-
-    // NÃO usar "página menor que o solicitado" como fim da lista: a EchoTik
-    // devolve rotineiramente menos itens do que o pedido (ex: 19 para
-    // count=20) e o fim prematuro fazia o cron parar na primeira página —
-    // por isso execuções com requestedCount=50 registravam found=11.
-    //
-    // Critério de parada correto: a API sinalizar has_more=0, a página vir
-    // vazia (tratado acima), ou a página não trazer NENHUM vídeo novo
-    // (proteção contra offset que não avança e devolve sempre o mesmo bloco).
-    if (added === 0) {
       log.info(
-        "Página não trouxe vídeos novos — encerrando paginação",
-        { hashtagId, offset },
+        `Rodada ${rodada + 1} · hashtag ${cursor.id}: ${page.rawCount} brutos, ` +
+          `${page.videos.length} relevantes, ${novos} novos (total ${videos.length}/${alvo})`,
       );
-      break;
-    }
-
-    const hasMoreFlag = response?.data?.has_more;
-    if (hasMoreFlag === 0) {
-      hasMore = false;
-      break;
-    }
-
-    offset += rawItems.length;
-
-    // Delay de ~2s entre chamadas paginadas (evita Risk Control da EchoTik)
-    if (hasMore && allVideos.length < clampedCount) {
-      log.info(`Aguardando ${ECHOTIK_PAGE_DELAY_MS}ms antes da próxima página...`);
-      await sleep(ECHOTIK_PAGE_DELAY_MS);
     }
   }
 
-  log.info(
-    `Paginação EchoTik concluída: ${allVideos.length} vídeos únicos (solicitado: ${clampedCount})`,
-  );
-  return allVideos;
+  return videos;
 }
 
 // ─── Transcrição com fallback (Captions → Whisper Fast-Fail) ───────────────
@@ -852,6 +890,12 @@ export interface ProcessAchadinhosBatchOptions {
   targetInventory?: number;
   /** Região — default "BR" (evita vídeos EN/ES) */
   region?: string;
+  /**
+   * Pausa entre chamadas de descoberta, em ms. Default ECHOTIK_PAGE_DELAY_MS
+   * (2s), que é a proteção contra o risk control da EchoTik. Existe para os
+   * testes poderem zerar a pausa sem esperar de verdade.
+   */
+  pageDelayMs?: number;
   /** Quantidade de vídeos a considerar (20-400) */
   count?: number;
   /**
@@ -1018,42 +1062,21 @@ export async function processAchadinhosBatch(
       ? Math.max(0, parseInt(minViewsSetting, 10))
       : SHOPEE_DEFAULTS.ACHADINHOS_MIN_VIEWS;
 
-  // Descoberta em várias hashtags: o orçamento é dividido entre elas e os
-  // resultados deduplicados por video_id (um mesmo vídeo costuma aparecer em
-  // #achadinhosshopee e #achadinhoshopee ao mesmo tempo).
-  const porHashtag = Math.max(
-    ACHADINHOS_MIN_COUNT,
-    Math.ceil((options.count ?? SHOPEE_DEFAULTS.ACHADINHOS_COUNT) / hashtagIds.length),
+  // Descoberta em round-robin entre TODAS as hashtags, com dedup por video_id
+  // (o mesmo vídeo costuma aparecer em #achadinhosshopee e #achadinhoshopee).
+  const alvoDescoberta = Math.min(
+    ACHADINHOS_MAX_COUNT,
+    Math.max(ACHADINHOS_MIN_COUNT, options.count ?? SHOPEE_DEFAULTS.ACHADINHOS_COUNT),
   );
 
-  const vistos = new Set<string>();
-  const videos: EchoTikVideoDTO[] = [];
-
-  for (const hashtagId of hashtagIds) {
-    if (Date.now() >= discoveryDeadline) {
-      log.warn("Orçamento de descoberta esgotado — hashtags restantes ficam para a próxima", {
-        restantes: hashtagIds.length - hashtagIds.indexOf(hashtagId),
-      });
-      break;
-    }
-
-    const doHashtag = await fetchVideosByHashtagPaginated(
-      hashtagId,
-      region,
-      porHashtag,
-      discoveryDeadline,
-      minViews,
-    );
-
-    let novos = 0;
-    for (const v of doHashtag) {
-      if (vistos.has(v.video_id)) continue;
-      vistos.add(v.video_id);
-      videos.push(v);
-      novos++;
-    }
-    log.info(`Hashtag ${hashtagId}: ${doHashtag.length} vídeos, ${novos} novos`);
-  }
+  const videos = await descobrirVideos(
+    hashtagIds,
+    region,
+    alvoDescoberta,
+    discoveryDeadline,
+    minViews,
+    options.pageDelayMs ?? ECHOTIK_PAGE_DELAY_MS,
+  );
 
   if (videos.length === 0) {
     log.info("Nenhum vídeo retornado pelas hashtags", { hashtagIds, region });
@@ -1063,10 +1086,23 @@ export async function processAchadinhosBatch(
   // Passo 2: descartar o que já foi processado (torna o lote resumível)
   const { pending, alreadyProcessed } = await filterUnprocessedVideos(videos);
 
+  // Passo 2.1: os mais vistos primeiro.
+  //
+  // O orçamento de processamento é o recurso escasso — um vídeo custa até 90s
+  // entre Whisper, GPT e Shopee, e o lote só cabe ~10 por execução. Medido no
+  // acervo: vídeos com 200k+ views viram achadinho em 66% das vezes, contra
+  // 13% na faixa de 3k a 10k. Processar na ordem em que a hashtag devolveu
+  // gastava o orçamento em vídeos ruins enquanto os bons ficavam na fila.
+  //
+  // Com a fila ordenada, o piso de views deixa de ser crítico: o orçamento
+  // acaba antes de chegar nos fracos, sem precisar descartá-los por regra.
+  pending.sort((a, b) => Number(b.views ?? 0) - Number(a.views ?? 0));
+
   log.info(
     `Lote de achadinhos: ${videos.length} vídeos encontrados, ` +
       `${alreadyProcessed} já processados, ${pending.length} a processar ` +
-      `(orçamento ${Math.round(budgetMs / 1000)}s)`,
+      `(orçamento ${Math.round(budgetMs / 1000)}s). ` +
+      `Views do primeiro: ${Number(pending[0]?.views ?? 0).toLocaleString("pt-BR")}`,
   );
 
   // Passo 3: processar em série, persistindo a cada vídeo
