@@ -56,13 +56,22 @@ type RankingCycle = 1 | 2 | 3;
  *   "1d"  → rank_type 1 (daily)
  *   "7d"  → rank_type 2 (weekly, every Monday)
  *   "30d" → rank_type 3 (monthly, first day of month)
+ *
+ * Cada range tenta o próprio ciclo primeiro e cai nos outros quando não há
+ * snapshot. O ranklist é dado OFFLINE: a doc da EchoTik diz que ele "会有延迟"
+ * (tem atraso) e que resposta vazia significa apenas que a EchoTik ainda não
+ * coletou aquele dia — datas faltando são normais, não são erro.
+ *
+ * O "1d" era o único sem fallback, então um atraso do fornecedor no ranking
+ * diário deixava a tela completamente vazia em vez de mostrar o snapshot
+ * semanal. Quem consome recebe `effectiveRankingCycle` e sabe qual foi usado.
  */
 export function rangeToCycles(range: RangeParam): {
   requested: RankingCycle;
   candidates: RankingCycle[];
 } {
-  if (range === "1d") return { requested: 1, candidates: [1] };
-  if (range === "7d") return { requested: 2, candidates: [2, 1] };
+  if (range === "1d") return { requested: 1, candidates: [1, 2, 3] };
+  if (range === "7d") return { requested: 2, candidates: [2, 1, 3] };
   return { requested: 3, candidates: [3, 2, 1] };
 }
 

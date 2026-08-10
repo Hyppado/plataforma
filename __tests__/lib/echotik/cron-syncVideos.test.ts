@@ -279,6 +279,79 @@ describe("syncVideoRanklist()", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Prune — escopo por ciclo
+// ---------------------------------------------------------------------------
+describe("syncVideoRanklist() — prune", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** Ciclo 1 sem dados; ciclos 2 e 3 com dados. */
+  function cicloUmVazio() {
+    echotikRequestMock
+      // ciclo 1: as duas datas candidatas vêm vazias
+      .mockResolvedValueOnce(apiEmpty())
+      .mockResolvedValueOnce(apiEmpty())
+      // ciclo 2
+      .mockResolvedValueOnce(apiOk([videoItem("v2")]))
+      .mockResolvedValueOnce(apiOk([videoItem("v2")]))
+      .mockResolvedValueOnce(apiEmpty())
+      // ciclo 3
+      .mockResolvedValueOnce(apiOk([videoItem("v3")]))
+      .mockResolvedValueOnce(apiOk([videoItem("v3")]))
+      .mockResolvedValueOnce(apiEmpty());
+  }
+
+  it("não poda o ciclo que voltou vazio", async () => {
+    // ESTE é o bug que deixou a tela "Último dia" em branco: o ranklist é
+    // offline e o ciclo diário pode legitimamente vir vazio. Podando a região
+    // inteira, o último snapshot diário bom era apagado junto.
+    cicloUmVazio();
+
+    await syncVideoRanklist("run-1", "BR", stubLog());
+
+    const ciclosPodados = prismaMock.echotikVideoTrendDaily.deleteMany.mock.calls.map(
+      (c: any[]) => c[0].where.rankingCycle,
+    );
+    expect(ciclosPodados).not.toContain(1);
+  });
+
+  it("poda os ciclos que trouxeram dados", async () => {
+    cicloUmVazio();
+
+    await syncVideoRanklist("run-1", "BR", stubLog());
+
+    const ciclosPodados = prismaMock.echotikVideoTrendDaily.deleteMany.mock.calls.map(
+      (c: any[]) => c[0].where.rankingCycle,
+    );
+    expect(ciclosPodados).toEqual([2, 3]);
+  });
+
+  it("cada prune é restrito a região, ciclo e campo", async () => {
+    // Sem os três no where, o prune de um ciclo apagaria os outros.
+    cicloUmVazio();
+
+    await syncVideoRanklist("run-1", "BR", stubLog());
+
+    for (const call of prismaMock.echotikVideoTrendDaily.deleteMany.mock.calls) {
+      const where = (call as any[])[0].where;
+      expect(where.country).toBe("BR");
+      expect(where.rankingCycle).toBeDefined();
+      expect(where.rankField).toBeDefined();
+      expect(where.syncedAt).toBeDefined();
+    }
+  });
+
+  it("nada é podado quando nenhum ciclo trouxe dados", async () => {
+    echotikRequestMock.mockResolvedValue(apiEmpty());
+
+    await syncVideoRanklist("run-1", "BR", stubLog());
+
+    expect(prismaMock.echotikVideoTrendDaily.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // syncVideoProductDetails
 // ---------------------------------------------------------------------------
 describe("syncVideoProductDetails()", () => {
