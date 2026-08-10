@@ -3,6 +3,7 @@ import { requireAdmin, isAuthed } from "@/lib/auth";
 import { hotmartRequest } from "@/lib/hotmart/client";
 import { getSetting, SETTING_KEYS } from "@/lib/settings";
 import { createLogger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 
 const log = createLogger("api/admin/subscription-metrics");
 
@@ -108,7 +109,24 @@ export async function GET(req: Request) {
 
     const cancelled = cancelledByCustomer + cancelledBySeller;
     const refunded = cancelledByAdmin;
-    const pastDue = delayed + overdue;
+
+    // INADIMPLENTES VÊM DO NOSSO BANCO, NÃO DA HOTMART.
+    //
+    // A listagem /payments/api/v1/subscriptions OMITE assinaturas em atraso:
+    // `status=DELAYED` devolve total_results=0, e varrer a lista inteira (154
+    // assinaturas) não traz nenhuma DELAYED. As mesmas assinaturas, quando
+    // consultadas por `subscriber_code`, respondem `status: "DELAYED"`.
+    //
+    // Verificado em 2026-08-10: 58 inadimplentes no nosso banco, todos
+    // confirmados como DELAYED pela própria Hotmart em consulta individual —
+    // e a aba mostrava zero.
+    //
+    // O nosso banco é alimentado por webhook e é a fonte mais completa aqui.
+    const pastDueFromApi = delayed + overdue;
+    const pastDueLocal = await prisma.subscription.count({
+      where: { status: "PAST_DUE" },
+    });
+    const pastDue = Math.max(pastDueFromApi, pastDueLocal);
     // STARTED = boleto aguardando pagamento; INACTIVE = boleto expirado
     const pending = started + inactive;
     const total = active + cancelled + refunded + pastDue + pending;
