@@ -25,9 +25,61 @@
 
 import { prisma } from "@/lib/prisma";
 import { deleteBlobs, listBlobsByPrefix } from "@/lib/storage/blob";
+import {
+  getActiveRegionCodes,
+  getDisplayableProductIds,
+  getDisplayableCreatorIds,
+  getRetainableProductIds,
+} from "./scope";
+import { getEchotikConfig } from "./config";
+import { newProductDateWindow } from "@/lib/echotik/dates";
 import type { Logger } from "@/lib/logger";
 
 const DB_BATCH_SIZE = 200;
+
+// ---------------------------------------------------------------------------
+// Ranking de região desativada
+// ---------------------------------------------------------------------------
+
+/**
+ * Apaga linhas de ranking de regiões que não estão mais habilitadas.
+ *
+ * A poda normal roda dentro do sync, por região — então região que deixou de
+ * ser sincronizada nunca é podada por ninguém. Em produção sobraram 2904
+ * linhas de MX, GB e JP paradas desde março, que continuavam contando como
+ * "ativas" para os outros jobs e ainda apareciam no seletor de país da
+ * interface (getAvailableRegions lê os países distintos desta tabela).
+ */
+async function pruneInactiveRegions(log: Logger): Promise<number> {
+  const active = await getActiveRegionCodes();
+  if (active.length === 0) {
+    log.warn("Nenhuma região ativa configurada — pulando poda por região");
+    return 0;
+  }
+
+  const [produtos, videos, criadores] = await Promise.all([
+    prisma.echotikProductTrendDaily.deleteMany({
+      where: { country: { notIn: active } },
+    }),
+    prisma.echotikVideoTrendDaily.deleteMany({
+      where: { country: { notIn: active } },
+    }),
+    prisma.echotikCreatorTrendDaily.deleteMany({
+      where: { country: { notIn: active } },
+    }),
+  ]);
+
+  const total = produtos.count + videos.count + criadores.count;
+  if (total > 0) {
+    log.info("Ranking de regiões desativadas removido", {
+      produtos: produtos.count,
+      videos: videos.count,
+      criadores: criadores.count,
+      regioesAtivas: active,
+    });
+  }
+  return total;
+}
 
 // ---------------------------------------------------------------------------
 // Product detail cleanup
@@ -35,22 +87,17 @@ const DB_BATCH_SIZE = 200;
 
 async function cleanupOrphanedProductDetails(
   log: Logger,
+  activeIds: Set<string>,
 ): Promise<{ dbDeleted: number; blobsDeleted: number }> {
-  // Collect all product IDs that are currently in the trend table
-  const activeRows = await prisma.echotikProductTrendDaily.findMany({
-    select: { productExternalId: true },
-    distinct: ["productExternalId"],
-  });
-  const activeIds = new Set(
-    activeRows.map((r) => r.productExternalId).filter(Boolean),
-  );
+  // Escopo vazio = não sei o que está ativo. Tratar isso como "tudo é órfão"
+  // apagaria a base inteira durante um sync incompleto.
+  if (activeIds.size === 0) {
+    log.warn("Nenhum produto a preservar — pulando limpeza de detalhes");
+    return { dbDeleted: 0, blobsDeleted: 0 };
+  }
 
-  // Find detail records that are no longer referenced by any current trend row
   const orphans = await prisma.echotikProductDetail.findMany({
-    where:
-      activeIds.size > 0
-        ? { productExternalId: { notIn: Array.from(activeIds) } }
-        : {}, // if trend table is empty, everything is orphaned
+    where: { productExternalId: { notIn: Array.from(activeIds) } },
     select: { id: true, productExternalId: true, blobUrl: true },
   });
 
@@ -100,18 +147,110 @@ async function cleanupOrphanedProductDetails(
 }
 
 // ---------------------------------------------------------------------------
+// Product cover blob cleanup (varredura por prefixo)
+// ---------------------------------------------------------------------------
+
+/**
+ * Varre o prefixo products/ e apaga as capas que não pertencem a nenhum
+ * produto ativo no ranking.
+ *
+ * POR QUE ISTO EXISTE, se cleanupOrphanedProductDetails já apaga blobs
+ * A função acima parte da LINHA DO BANCO: acha o detalhe órfão e apaga o
+ * `blobUrl` dela. Só que um arquivo cuja linha já sumiu — ou cuja linha tem
+ * blobUrl null — fica inalcançável por esse caminho e nunca mais é apagado.
+ *
+ * Medido em produção antes desta correção: 1167 arquivos em products/, dos
+ * quais apenas 15 eram referenciados pelo banco. 99 MB invisíveis à limpeza,
+ * acumulando desde abril. O prefixo creators/, que sempre usou varredura,
+ * estava com zero órfãos no mesmo momento — a assimetria era a causa.
+ *
+ * A varredura é a fonte de verdade: o que deve ser preservado fica, o resto vai.
+ *
+ * Recebe o conjunto pronto para usar exatamente o mesmo critério da limpeza de
+ * linhas — se as duas divergirem, uma volta a apagar o que a outra preserva.
+ */
+async function cleanupOrphanedProductBlobs(
+  log: Logger,
+  activeIds: Set<string>,
+): Promise<number> {
+  // Sem escopo carregado não dá para saber o que é órfão — abortar é mais
+  // seguro do que interpretar "nada ativo" como "apagar tudo".
+  if (activeIds.size === 0) {
+    log.warn("Escopo de produtos vazio — pulando varredura de capas");
+    return 0;
+  }
+
+  let allProductBlobs: { url: string; pathname: string }[];
+  try {
+    allProductBlobs = await listBlobsByPrefix("products/");
+  } catch (err) {
+    log.warn("Falha ao listar capas — pulando varredura", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+
+  if (allProductBlobs.length === 0) return 0;
+
+  // pathname é "products/{productExternalId}.jpg".
+  // O filtro por prefixo é reafirmado aqui: apagar é irreversível, e um dia em
+  // que a listagem devolva algo de outro prefixo não pode virar exclusão em
+  // massa de arquivos que esta função nem deveria enxergar.
+  const orphanUrls = allProductBlobs
+    .filter((blob) => {
+      if (!blob.pathname.startsWith("products/")) return false;
+      const productId = blob.pathname
+        .replace("products/", "")
+        .replace(/\.jpg$/i, "");
+      return !activeIds.has(productId);
+    })
+    .map((blob) => blob.url);
+
+  if (orphanUrls.length === 0) {
+    log.info("Nenhuma capa órfã", {
+      totalBlobs: allProductBlobs.length,
+      activeProducts: activeIds.size,
+    });
+    return 0;
+  }
+
+  let deleted = 0;
+  try {
+    deleted = await deleteBlobs(orphanUrls);
+  } catch (err) {
+    log.warn("Falha ao apagar capas órfãs", {
+      error: err instanceof Error ? err.message : String(err),
+      orphanCount: orphanUrls.length,
+    });
+    return 0;
+  }
+
+  // Uma linha pode apontar para um arquivo recém-apagado; zerar o blobUrl
+  // devolve o produto à fila de upload em vez de deixá-lo com link quebrado.
+  await prisma.echotikProductDetail.updateMany({
+    where: { blobUrl: { in: orphanUrls } },
+    data: { blobUrl: null },
+  });
+
+  log.info("Capas órfãs apagadas", {
+    deleted,
+    totalBlobs: allProductBlobs.length,
+    activeProducts: activeIds.size,
+  });
+  return deleted;
+}
+
+// ---------------------------------------------------------------------------
 // Creator avatar blob cleanup
 // ---------------------------------------------------------------------------
 
 async function cleanupOrphanedCreatorBlobs(log: Logger): Promise<number> {
-  // Collect all creator IDs that are currently in the trend table
-  const activeRows = await prisma.echotikCreatorTrendDaily.findMany({
-    select: { userExternalId: true },
-    distinct: ["userExternalId"],
-  });
-  const activeIds = new Set(
-    activeRows.map((r) => r.userExternalId).filter(Boolean),
-  );
+  const activeIds = new Set(await getDisplayableCreatorIds());
+
+  if (activeIds.size === 0) {
+    log.warn("Nenhum criador exibível — pulando varredura de avatares");
+    return 0;
+  }
 
   // List all blobs stored under the creators/ prefix in Vercel Blob
   let allCreatorBlobs: { url: string; pathname: string }[];
@@ -174,6 +313,7 @@ export interface CleanupOrphansResult {
   productDetailsDeleted: number;
   productBlobsDeleted: number;
   creatorBlobsDeleted: number;
+  inactiveRegionRowsDeleted: number;
 }
 
 /**
@@ -184,12 +324,29 @@ export interface CleanupOrphansResult {
 export async function cleanupOrphanedBlobs(
   log: Logger,
 ): Promise<CleanupOrphansResult> {
-  const products = await cleanupOrphanedProductDetails(log);
+  // Primeiro tira do ranking o que não é mais elegível, para que as etapas
+  // seguintes já enxerguem o escopo correto do que é "ativo".
+  const inactiveRegionRowsDeleted = await pruneInactiveRegions(log);
+
+  // UM único conjunto de "o que preservar", compartilhado por todas as etapas.
+  // Enquanto cada etapa calculava o seu, elas divergiam e uma apagava o que a
+  // outra mantinha — foi o que estragou o vínculo entre capa e produto.
+  const config = await getEchotikConfig();
+  const { min } = newProductDateWindow(config.newProducts.daysBack);
+  const preservar = new Set<string>(
+    await getRetainableProductIds(parseInt(min, 10)),
+  );
+
+  const products = await cleanupOrphanedProductDetails(log, preservar);
+  // Roda DEPOIS da limpeza por linha: aquela apaga os arquivos que ainda têm
+  // dono no banco, esta varre o que sobrou sem referência nenhuma.
+  const sweptProductBlobs = await cleanupOrphanedProductBlobs(log, preservar);
   const creatorBlobsDeleted = await cleanupOrphanedCreatorBlobs(log);
 
   return {
     productDetailsDeleted: products.dbDeleted,
-    productBlobsDeleted: products.blobsDeleted,
+    productBlobsDeleted: products.blobsDeleted + sweptProductBlobs,
     creatorBlobsDeleted,
+    inactiveRegionRowsDeleted,
   };
 }

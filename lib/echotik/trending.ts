@@ -7,38 +7,45 @@
 import { prisma } from "@/lib/prisma";
 
 // ---------------------------------------------------------------------------
-// CDN proxy helper
+// Resolução de URL de imagem
 // ---------------------------------------------------------------------------
 
 export const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
 
 /**
- * Rewrites Echotik CDN image URLs through the local proxy to avoid CORS and
- * hotlinking issues. Returns the original URL for non-CDN URLs.
+ * Devolve uma URL de imagem que o navegador consegue carregar sozinho.
  *
- * NOTE: This is the FALLBACK path for images not yet uploaded to Vercel Blob.
- * Trending routes should prefer blobUrl/avatarBlobUrl when available.
- * Once all images are migrated to Blob, proxy calls should drop to zero.
+ * POR QUE A CAPA CRUA DA ECHOTIK NÃO SERVE
+ * O CDN deles responde 403 sem assinatura, e assinar custa 1 requisição de
+ * cota POR IMAGEM. O caminho antigo devolvia `/api/proxy/image?url=...`, que
+ * assinava sob demanda: uma tela de 24 cards gastava 24 requisições, e um F5
+ * gastava outras 24. Medido em produção, 2476 chamadas em 6 horas — foi o que
+ * esgotou a cota da conta e derrubou as imagens de toda a plataforma.
  *
- * @param url  Original image URL (may be null or undefined)
- * @param fallback  Value to return when url is empty (default: "")
+ * Agora a única fonte de imagem é o Vercel Blob, gravado uma vez pelo cron.
+ * Sem blob, a resposta é vazia e o card mostra "Sem imagem" — degradar um
+ * card é muito melhor do que queimar a cota que alimenta a plataforma inteira.
+ *
+ * URLs de outros CDNs (TikTok, Shopee) passam direto: abrem sem assinatura e
+ * não consomem nada.
+ *
+ * @param url       URL de origem (pode ser null/undefined)
+ * @param fallback  Valor devolvido quando não há imagem utilizável (default: "")
  */
-export function proxyIfEchotikCdn(url: string | null | undefined): string;
-export function proxyIfEchotikCdn(
+export function publicImageUrl(url: string | null | undefined): string;
+export function publicImageUrl(
   url: string | null | undefined,
   fallback: string,
 ): string;
-export function proxyIfEchotikCdn(
+export function publicImageUrl(
   url: string | null | undefined,
   fallback = "",
 ): string {
   if (!url) return fallback;
   try {
-    if (new URL(url).hostname === ECHOTIK_CDN) {
-      return `/api/proxy/image?url=${encodeURIComponent(url)}`;
-    }
+    if (new URL(url).hostname === ECHOTIK_CDN) return fallback;
   } catch {
-    // malformed URL — return as-is
+    return fallback; // URL malformada não carrega em lugar nenhum
   }
   return url;
 }

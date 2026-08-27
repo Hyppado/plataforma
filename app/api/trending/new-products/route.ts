@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { resolveUserAccess } from "@/lib/access/resolver";
 import { prisma } from "@/lib/prisma";
-import { proxyIfEchotikCdn } from "@/lib/echotik/trending";
+import { publicImageUrl } from "@/lib/echotik/trending";
 import type { ProductDTO } from "@/lib/types/dto";
 import { createLogger } from "@/lib/logger";
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const items: ProductDTO[] = rows.map((r) => ({
       id: r.productExternalId,
       name: r.productName || "",
-      imageUrl: r.blobUrl || proxyIfEchotikCdn(r.coverUrl ?? null),
+      imageUrl: r.blobUrl || publicImageUrl(r.coverUrl ?? null),
       category: r.categoryId ?? "",
       priceBRL: Number(r.avgPrice) / 100,
       launchDate: r.fetchedAt.toISOString(),

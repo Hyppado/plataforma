@@ -22,6 +22,7 @@ import {
   upsertProductDetail,
 } from "./helpers";
 import { newProductDateWindow } from "@/lib/echotik/dates";
+import { getDisplayableProductIds } from "./scope";
 import { prisma } from "@/lib/prisma";
 import { getEchotikConfig } from "./config";
 
@@ -86,13 +87,22 @@ export async function syncNewProductsForRegion(
     if (items.length < 10) break;
   }
 
-  // Purge rows outside the current window so the table only has the latest batch
+  // Purga o que saiu da janela de "novos" — MAS preserva quem o ranking ainda
+  // exibe. Sem essa ressalva, esta limpeza derrubava a linha de detalhe de
+  // produtos ranqueados (que quase sempre têm firstCrawlDt antigo) e, com ela,
+  // o vínculo com a capa já enviada ao Blob. O arquivo continuava lá, sem
+  // nenhuma linha apontando para ele: foi assim que 1152 capas viraram lixo
+  // inalcançável, e por que só 15 produtos ainda tinham blobUrl.
   const { min: minDt } = newProductDateWindow(daysBack);
   const minDtInt = parseInt(minDt, 10);
+  const exibiveis = await getDisplayableProductIds();
   const deleted = await prisma.echotikProductDetail.deleteMany({
     where: {
       region,
       firstCrawlDt: { lt: minDtInt },
+      ...(exibiveis.length > 0
+        ? { productExternalId: { notIn: exibiveis } }
+        : {}),
     },
   });
   if (deleted.count > 0) {

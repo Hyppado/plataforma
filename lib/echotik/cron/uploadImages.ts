@@ -17,6 +17,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { uploadImageToBlob, signEchotikCoverUrls } from "@/lib/storage/blob";
+import {
+  getDisplayableProductIds,
+  getDisplayableCreatorIds,
+} from "./scope";
 
 /**
  * Assinatura de capas é feita em lote (10 por chamada, sem consumir cota).
@@ -54,27 +58,16 @@ async function uploadProductImages(
   log: Logger,
   deadlineMs?: number,
 ): Promise<number> {
-  // Find the latest ranking date from EchotikProductTrendDaily
-  const latestRank = await prisma.echotikProductTrendDaily.findFirst({
-    orderBy: { date: "desc" },
-    select: { date: true },
-  });
-
-  if (!latestRank) {
-    log.info("No product ranking data — skipping product image upload");
-    return 0;
-  }
-
-  // Get distinct product IDs in the latest cycle
-  const activeRankRows = await prisma.echotikProductTrendDaily.findMany({
-    where: { date: latestRank.date },
-    select: { productExternalId: true },
-    distinct: ["productExternalId"],
-  });
-  const activeProductIds = activeRankRows.map((r) => r.productExternalId);
+  // Escopo = o que a tela alcança (região ativa + top 100), em TODOS os ciclos.
+  //
+  // Antes isto era "produtos na data mais recente". Como a data mais recente é
+  // sempre a do ranking diário, os produtos exclusivos do semanal e do mensal
+  // nunca entravam na fila e ficavam permanentemente sem capa — 347 dos 1000
+  // do ranking semanal, medido em produção.
+  const activeProductIds = await getDisplayableProductIds();
 
   if (activeProductIds.length === 0) {
-    log.info("No active products in latest ranking cycle");
+    log.info("Nenhum produto exibível — pulando upload de capas");
     return 0;
   }
 
@@ -100,7 +93,6 @@ async function uploadProductImages(
   log.info("Uploading product images", {
     count: products.length,
     activeProducts: activeProductIds.length,
-    latestDate: latestRank.date,
   });
   let uploaded = 0;
 
@@ -147,30 +139,27 @@ async function uploadProductImages(
 // ---------------------------------------------------------------------------
 
 /**
- * Uploads avatars only for creators present in the latest creator ranking
- * cycle. Historical creators from older dates are ignored.
+ * Sobe avatares dos criadores que a plataforma consegue exibir.
  *
- * @returns Number of images successfully uploaded
+ * Mesma correção de escopo aplicada aos produtos: filtrar pela data mais
+ * recente descartava quem só aparece nos ciclos semanal e mensal.
+ *
+ * @returns Número de imagens subidas com sucesso
  */
 async function uploadCreatorAvatars(
   log: Logger,
   deadlineMs?: number,
 ): Promise<number> {
-  // Find the latest ranking date from EchotikCreatorTrendDaily
-  const latestRank = await prisma.echotikCreatorTrendDaily.findFirst({
-    orderBy: { date: "desc" },
-    select: { date: true },
-  });
+  const activeCreatorIds = await getDisplayableCreatorIds();
 
-  if (!latestRank) {
-    log.info("No creator ranking data — skipping creator avatar upload");
+  if (activeCreatorIds.length === 0) {
+    log.info("Nenhum criador exibível — pulando upload de avatares");
     return 0;
   }
 
-  // Find distinct creators in the latest cycle that still need avatars
   const creators = await prisma.echotikCreatorTrendDaily.findMany({
     where: {
-      date: latestRank.date,
+      userExternalId: { in: activeCreatorIds },
       avatar: { not: null },
       avatarBlobUrl: null,
     },
@@ -180,13 +169,15 @@ async function uploadCreatorAvatars(
   });
 
   if (creators.length === 0) {
-    log.info("No creator avatars to upload", { latestDate: latestRank.date });
+    log.info("No creator avatars to upload", {
+      activeCreators: activeCreatorIds.length,
+    });
     return 0;
   }
 
   log.info("Uploading creator avatars", {
     count: creators.length,
-    latestDate: latestRank.date,
+    activeCreators: activeCreatorIds.length,
   });
   let uploaded = 0;
 

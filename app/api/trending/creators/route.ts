@@ -7,7 +7,7 @@ import {
   creatorSortToField,
 } from "@/lib/echotik/rankFields";
 import {
-  proxyIfEchotikCdn,
+  publicImageUrl,
   rangeToCycles,
   resolveCycleAndDate,
   getAvailableRegions,
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
         tiktokUrl: r.uniqueId ? `https://www.tiktok.com/@${r.uniqueId}` : "",
         dateRange: range,
         currency: r.currency,
-        avatarUrl: r.avatarBlobUrl || proxyIfEchotikCdn(r.avatar) || undefined,
+        avatarUrl: r.avatarBlobUrl || publicImageUrl(r.avatar) || undefined,
         ecScore: r.ecScore,
         category: r.category || undefined,
       };
