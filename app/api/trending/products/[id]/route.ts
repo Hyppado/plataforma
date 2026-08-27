@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { resolveUserAccess } from "@/lib/access/resolver";
 import { prisma } from "@/lib/prisma";
-import { proxyIfEchotikCdn } from "@/lib/echotik/trending";
+import { publicImageUrl } from "@/lib/echotik/trending";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api/trending/products/[id]");
@@ -120,21 +120,21 @@ export async function GET(
     const coverItems = safeParseJson<CoverUrlItem[]>(
       extra?.cover_url ?? detail?.coverUrl ?? null,
     );
+    // O blob vem primeiro: é a única cópia que carrega sem assinar (e sem
+    // gastar cota). As demais capas do JSON só entram se forem de um CDN
+    // aberto — as da EchoTik viram string vazia e são descartadas aqui.
     const images: string[] = [];
+    if (detail?.blobUrl) images.push(detail.blobUrl);
     if (Array.isArray(coverItems)) {
       const sorted = [...coverItems].sort((a, b) => a.index - b.index);
       for (const item of sorted) {
-        if (item.url) {
-          const proxied = proxyIfEchotikCdn(item.url);
-          if (proxied) images.push(proxied);
-        }
+        const usable = publicImageUrl(item.url);
+        if (usable && !images.includes(usable)) images.push(usable);
       }
     }
-    // Fallback to single cover
-    if (images.length === 0 && detail?.blobUrl) images.push(detail.blobUrl);
-    if (images.length === 0 && detail?.coverUrl) {
-      const proxied = proxyIfEchotikCdn(detail.coverUrl);
-      if (proxied) images.push(proxied);
+    if (images.length === 0) {
+      const usable = publicImageUrl(detail?.coverUrl);
+      if (usable) images.push(usable);
     }
 
     // Specification

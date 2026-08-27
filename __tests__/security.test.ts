@@ -150,16 +150,9 @@ describe("Auth bypass prevention", () => {
     expect(res.status).toBe(401);
   });
 
-  // Proxy and regions — require auth
-  it("proxy/image rejects unauthenticated", async () => {
-    mockUnauthenticated();
-    const { GET } = await import("@/app/api/proxy/image/route");
-    const req = makeGetRequest("/api/proxy/image", {
-      url: "https://echosell-images.tos-ap-southeast-1.volces.com/test.jpg",
-    }) as any;
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-  });
+  // /api/proxy/image foi removido: assinava a capa na EchoTik a cada
+  // carregamento, gastando 1 requisição de cota por imagem exibida. As capas
+  // agora vêm só do Vercel Blob. Ver publicImageUrl() em lib/echotik/trending.
 
   it("regions rejects unauthenticated", async () => {
     mockUnauthenticated();

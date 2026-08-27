@@ -7,7 +7,7 @@ import {
   productSortToField,
 } from "@/lib/echotik/rankFields";
 import {
-  proxyIfEchotikCdn,
+  publicImageUrl,
   rangeToCycles,
   resolveCycleAndDate,
   getAvailableRegions,
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         id: r.productExternalId,
         name: r.productName || "",
         imageUrl:
-          detail?.blobUrl || proxyIfEchotikCdn(detail?.coverUrl ?? null),
+          detail?.blobUrl || publicImageUrl(detail?.coverUrl ?? null),
         category: r.categoryId ?? "",
         priceBRL: r.avgPrice,
         launchDate: r.date.toISOString(),

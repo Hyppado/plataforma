@@ -7,7 +7,7 @@ import {
   rangeToCycles,
   resolveCycleAndDate,
   getAvailableRegions,
-  proxyIfEchotikCdn,
+  publicImageUrl,
 } from "@/lib/echotik/trending";
 import type { VideoDTO, ProductDTO } from "@/lib/types/dto";
 import { createLogger } from "@/lib/logger";
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
         sourceUrl: "",
         tiktokUrl: `https://www.tiktok.com/@${r.authorName || "user"}/video/${r.videoExternalId}`,
         thumbnailUrl:
-          proxyIfEchotikCdn(
+          publicImageUrl(
             (r.extra as Record<string, unknown> | null)?.reflow_cover as
               | string
               | null
