@@ -1,12 +1,27 @@
 /**
  * EchoTik API Client
  *
- * Cliente genérico para a API EchoTik com Basic Auth, timeout e retry.
+ * Cliente genérico para a API EchoTik com timeout e retry.
  *
- * Env vars necessárias:
- *   ECHOTIK_BASE_URL   — ex: "https://open.echotik.live"
- *   ECHOTIK_USERNAME   — fornecido pela EchoTik
- *   ECHOTIK_PASSWORD   — fornecido pela EchoTik
+ * DOIS PROVEDORES, MESMOS ENDPOINTS
+ * A EchoTik está migrando os planos personalizados para o RapidAPI. Segundo o
+ * fornecedor, os endpoints são "100% consistentes" — só mudam o host e o método
+ * de autenticação; paths, query-params e formato de resposta continuam iguais.
+ *
+ * Por isso a troca é uma chave de configuração, não uma reescrita: o provedor
+ * é escolhido por env var e o resto do código (24 call sites) não muda.
+ *
+ * Env vars:
+ *   ECHOTIK_PROVIDER       — "direct" (padrão) | "rapidapi"
+ *
+ *   # provider = "direct" — API EchoTik própria, Basic Auth
+ *   ECHOTIK_BASE_URL       — ex: "https://open.echotik.live"
+ *   ECHOTIK_USERNAME       — fornecido pela EchoTik
+ *   ECHOTIK_PASSWORD       — fornecido pela EchoTik
+ *
+ *   # provider = "rapidapi" — mesma API via marketplace RapidAPI
+ *   ECHOTIK_RAPIDAPI_KEY   — chave da conta RapidAPI (obrigatória)
+ *   ECHOTIK_RAPIDAPI_HOST  — ex: "tiktok-ultra-api1.p.rapidapi.com"
  */
 
 // ---------------------------------------------------------------------------
@@ -94,17 +109,69 @@ const log = createLogger("echotik/client");
 // Helpers internos
 // ---------------------------------------------------------------------------
 
+export type EchotikProvider = "direct" | "rapidapi";
+
+/**
+ * Provedor ativo. Default "direct" para que nada mude sem uma decisão
+ * explícita — trocar de provedor é sempre um ato deliberado de configuração.
+ */
+export function getProvider(): EchotikProvider {
+  const raw = (process.env.ECHOTIK_PROVIDER || "direct").trim().toLowerCase();
+  if (raw !== "direct" && raw !== "rapidapi") {
+    throw new Error(
+      `[echotik-client] ECHOTIK_PROVIDER inválido: "${raw}" (use "direct" ou "rapidapi")`,
+    );
+  }
+  return raw;
+}
+
+/** Host do RapidAPI, sem protocolo. Ex: "tiktok-ultra-api1.p.rapidapi.com" */
+function getRapidApiHost(): string {
+  const host = process.env.ECHOTIK_RAPIDAPI_HOST;
+  if (!host) {
+    throw new Error(
+      "[echotik-client] ECHOTIK_RAPIDAPI_HOST é obrigatória quando ECHOTIK_PROVIDER=rapidapi",
+    );
+  }
+  // Aceita com ou sem protocolo — normaliza para hostname puro, que é o valor
+  // exigido no header x-rapidapi-host.
+  return host.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
+
 function getBaseUrl(): string {
+  if (getProvider() === "rapidapi") {
+    return `https://${getRapidApiHost()}`;
+  }
+
   const url = process.env.ECHOTIK_BASE_URL;
   if (!url) throw new Error("[echotik-client] ECHOTIK_BASE_URL não definida");
   return url.replace(/\/+$/, ""); // remove trailing slash
 }
 
 /**
- * Gera o header Authorization: Basic <base64(username:password)>
- * Usa ECHOTIK_USERNAME + ECHOTIK_PASSWORD do .env
+ * Headers de autenticação do provedor ativo.
+ *
+ * - direct:   Authorization: Basic <base64(username:password)>
+ * - rapidapi: x-rapidapi-key + x-rapidapi-host
+ *
+ * O RapidAPI ignora o header Authorization, e a EchoTik ignora os x-rapidapi-*,
+ * então mandamos só o par correto — evita vazar credencial de um provedor para
+ * o outro.
  */
-function getBasicAuth(): string {
+function getAuthHeaders(): Record<string, string> {
+  if (getProvider() === "rapidapi") {
+    const key = process.env.ECHOTIK_RAPIDAPI_KEY;
+    if (!key) {
+      throw new Error(
+        "[echotik-client] ECHOTIK_RAPIDAPI_KEY é obrigatória quando ECHOTIK_PROVIDER=rapidapi",
+      );
+    }
+    return {
+      "x-rapidapi-key": key,
+      "x-rapidapi-host": getRapidApiHost(),
+    };
+  }
+
   const username = process.env.ECHOTIK_USERNAME;
   const password = process.env.ECHOTIK_PASSWORD;
 
@@ -114,7 +181,9 @@ function getBasicAuth(): string {
     );
   }
 
-  return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+  return {
+    Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`,
+  };
 }
 
 /** Espera `ms` milissegundos (para back-off entre retries) */
@@ -188,6 +257,11 @@ export async function echotikRequest<T = unknown>(
   const base = getBaseUrl();
   const url = new URL(path, base);
 
+  // Resolvido ANTES do loop: erro de configuração (chave ausente, provider
+  // inválido) não é falha transitória — re-tentar 3x com backoff só atrasaria
+  // o diagnóstico justamente na hora da troca de provedor.
+  const authHeaders = getAuthHeaders();
+
   // Adicionar query-string params
   if (params) {
     for (const [key, val] of Object.entries(params)) {
@@ -207,7 +281,7 @@ export async function echotikRequest<T = unknown>(
       const res = await fetch(url.toString(), {
         method: "GET",
         headers: {
-          Authorization: getBasicAuth(),
+          ...authHeaders,
           Accept: "application/json",
         },
         signal: controller.signal,
