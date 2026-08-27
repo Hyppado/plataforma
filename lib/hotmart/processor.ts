@@ -43,7 +43,24 @@ const log = createLogger("hotmart/processor");
 // Tabelas de eventos
 // ---------------------------------------------------------------------------
 
-const ACTIVATION_EVENTS = new Set(["PURCHASE_APPROVED", "PURCHASE_COMPLETE"]);
+// PURCHASE_COMPLETE NÃO ativa.
+//
+// Ele marca o fim do período antichargeback da compra — chega cerca de uma
+// semana DEPOIS do PURCHASE_APPROVED e não representa compra nova nem
+// renovação. Enquanto estava aqui, ele ressuscitava assinatura cancelada:
+//
+//   PURCHASE_APPROVED         → ACTIVE
+//   SUBSCRIPTION_CANCELLATION → CANCELLED (endedAt = fim do período pago)
+//   PURCHASE_COMPLETE         → ACTIVE    ← desfazia o cancelamento
+//
+// E como a reativação não limpava o endedAt, sobrava uma assinatura ACTIVE com
+// data de término no passado — que o resolver honra como acesso pleno para
+// sempre, porque ACTIVE não olha endedAt. Medido: 35 assinaturas receberam
+// COMPLETE depois de um cancelamento.
+//
+// O evento segue registrando a cobrança como PAID (CHARGE_STATUS_MAP), que é
+// o que ele realmente comunica.
+const ACTIVATION_EVENTS = new Set(["PURCHASE_APPROVED"]);
 
 const CANCELLATION_EVENTS = new Set([
   "PURCHASE_CANCELED",
@@ -78,6 +95,10 @@ const IMMEDIATE_REVOCATION_EVENTS = new Set([
 // Charge status pode ser atualizado, mas subscription status permanece inalterado.
 const STATUS_PRESERVING_EVENTS = new Set([
   "UPDATE_SUBSCRIPTION_CHARGE_DATE", // Nova data de cobrança
+  // Fim do período antichargeback da compra. Confirma o pagamento (a cobrança
+  // vira PAID por CHARGE_STATUS_MAP) mas não altera o estado da assinatura —
+  // ver o comentário em ACTIVATION_EVENTS.
+  "PURCHASE_COMPLETE",
 ]);
 
 // Eventos puramente informativos com notificação admin — sem criação de usuário, sem email
@@ -254,6 +275,11 @@ async function upsertSubscription(
         ...(isActivation && { renewedAt: occurredAt }),
         ...(isActivation &&
           fields.recurrenceNumber === 1 && { startedAt: occurredAt }),
+        // Ativação de verdade anula o cancelamento anterior: quem recomprou não
+        // pode carregar a data de término da assinatura antiga. Sem esta
+        // limpeza sobra uma ACTIVE com endedAt no passado — estado contraditório
+        // que o resolver agora recusa, e que cortaria um cliente pagante.
+        ...(isActivation && { endedAt: null, cancelledAt: null }),
         ...(isCancellation && { cancelledAt: effectiveCancelledAt }),
         ...((isExpiry || isCancellation) && {
           endedAt: effectiveEndedAt,
@@ -722,7 +748,14 @@ async function _processEvent(
         await prisma.hotmartSubscription.update({
           where: { id: hotmartSub.id },
           data: {
-            externalStatus: fields.subscriptionStatus ?? fields.eventType,
+            // Só sobrescreve com o que a Hotmart afirma sobre a assinatura.
+            // Sem isso, um evento sem `subscriptionStatus` gravaria o próprio
+            // nome do evento por cima de um "CANCELED" já conhecido — e a
+            // divergência com a Hotmart deixaria de ser detectável.
+            externalStatus:
+              fields.subscriptionStatus ??
+              hotmartSub.externalStatus ??
+              fields.eventType,
           },
         });
       }

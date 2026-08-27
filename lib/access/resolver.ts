@@ -133,6 +133,21 @@ export async function resolveUserAccess(
   });
 
   if (subscription?.status === "ACTIVE") {
+    // Rede de segurança: ACTIVE com data de término já vencida é contradição.
+    // Acontecia quando um evento tardio reativava uma assinatura cancelada sem
+    // limpar o endedAt — e, como ACTIVE não olhava essa data, o acesso nunca
+    // mais era cortado. Aqui a data manda: período encerrado, acesso encerrado.
+    if (subscription.endedAt && subscription.endedAt <= now) {
+      return {
+        status: "NO_ACCESS",
+        source: "none",
+        plan: null,
+        expiresAt: subscription.endedAt,
+        reason: `Período de acesso encerrado em ${subscription.endedAt.toLocaleDateString("pt-BR")}`,
+        quotas: null,
+      };
+    }
+
     return {
       status: "FULL_ACCESS",
       source: "subscription",

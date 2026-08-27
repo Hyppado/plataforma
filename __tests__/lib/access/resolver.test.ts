@@ -99,6 +99,39 @@ describe("resolveUserAccess()", () => {
     expect(result.plan).toBeTruthy();
   });
 
+  /**
+   * ACTIVE com endedAt vencido é estado contraditório, produzido quando um
+   * evento tardio (PURCHASE_COMPLETE) reativava uma assinatura cancelada sem
+   * limpar a data de término. Como ACTIVE não olhava essa data, o acesso nunca
+   * mais era cortado — 10 contas em produção caminhavam para acesso vitalício.
+   */
+  it("nega acesso a assinatura ACTIVE cujo período já terminou", async () => {
+    const plan = buildPlan();
+    const ontem = new Date(Date.now() - 86400000);
+    prismaMock.user.findUnique.mockResolvedValue(buildUser());
+    prismaMock.accessGrant.findFirst.mockResolvedValue(null);
+    prismaMock.subscription.findFirst.mockResolvedValue(
+      buildSubscription({ status: "ACTIVE", plan, endedAt: ontem }),
+    );
+
+    const result = await resolveUserAccess("user-1");
+    expect(result.status).toBe("NO_ACCESS");
+    expect(result.quotas).toBeNull();
+  });
+
+  it("mantém acesso a assinatura ACTIVE com término no futuro", async () => {
+    const plan = buildPlan();
+    const amanha = new Date(Date.now() + 86400000);
+    prismaMock.user.findUnique.mockResolvedValue(buildUser());
+    prismaMock.accessGrant.findFirst.mockResolvedValue(null);
+    prismaMock.subscription.findFirst.mockResolvedValue(
+      buildSubscription({ status: "ACTIVE", plan, endedAt: amanha }),
+    );
+
+    const result = await resolveUserAccess("user-1");
+    expect(result.status).toBe("FULL_ACCESS");
+  });
+
   it("returns GRACE_PERIOD for PAST_DUE subscription", async () => {
     prismaMock.user.findUnique.mockResolvedValue(buildUser());
     prismaMock.accessGrant.findFirst.mockResolvedValue(null);
