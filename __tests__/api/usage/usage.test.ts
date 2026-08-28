@@ -23,6 +23,13 @@ const {
   getPeriodBoundsMock: vi.fn(),
 }));
 
+// A cota de download da Shopee é diária: a rota conta UsageEvent do dia em
+// vez de ler o contador mensal.
+const contarDownloadsShopeeHoje = vi.fn().mockResolvedValue(0);
+vi.mock("@/lib/usage/enforce", () => ({
+  contarDownloadsShopeeHoje: () => contarDownloadsShopeeHoje(),
+}));
+
 vi.mock("@/lib/usage/quota", () => ({
   getUserActivePlan: getUserActivePlanMock,
   getQuotaLimits: getQuotaLimitsMock,
@@ -71,7 +78,7 @@ describe("GET /api/usage", () => {
       insightMaxOutputTokens: 900,
       scriptMaxOutputTokens: 1800,
       avatarVideoQuota: 0,
-      shopeeDownloadsPerMonth: 10,
+      shopeeDownloadsPerDay: 10,
     });
     getCurrentUsagePeriodMock.mockResolvedValue({
       transcriptsUsed: 7,

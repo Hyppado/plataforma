@@ -104,7 +104,7 @@ export function ShopeeAchadinhoCard({
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  // Cota mensal de downloads da Shopee. O servidor é quem decide (a rota
+  // Cota DIÁRIA de downloads da Shopee. O servidor é quem decide (a rota
   // recusa com 429); aqui é só para o usuário saber quanto resta antes de
   // clicar, em vez de descobrir no erro.
   const { shopeeDownloads } = useUserQuota();
@@ -651,10 +651,10 @@ export function ShopeeAchadinhoCard({
             title={
               downloadError ??
               (cotaEsgotada
-                ? `Você usou os ${shopeeDownloads.limit} downloads de vídeos da Shopee deste mês`
+                ? `Você usou os ${shopeeDownloads.limit} downloads de vídeos da Shopee de hoje — renova amanhã`
                 : semLimite
                   ? "Baixar o vídeo para repostar"
-                  : `Baixar o vídeo para repostar — ${restantes} de ${shopeeDownloads.limit} downloads restantes este mês`)
+                  : `Baixar o vídeo para repostar — ${restantes} de ${shopeeDownloads.limit} downloads restantes hoje`)
             }
             arrow
           >
@@ -693,14 +693,14 @@ export function ShopeeAchadinhoCard({
                 {downloading
                   ? "Baixando..."
                   : cotaEsgotada
-                    ? "Limite do mês atingido"
+                    ? "Limite de hoje atingido"
                     : "Baixar vídeo"}
               </Button>
             </span>
           </Tooltip>
 
           {/* Contador junto do botão: deixa claro que a cota é de vídeos da
-              Shopee e quanto sobrou, sem depender do header. */}
+              Shopee, que é diária, e quanto sobrou — sem depender do header. */}
           {!semLimite && (
             <Typography
               sx={{
@@ -716,8 +716,8 @@ export function ShopeeAchadinhoCard({
               }}
             >
               {cotaEsgotada
-                ? `Limite de ${shopeeDownloads.limit} downloads Shopee/mês atingido`
-                : `${restantes} de ${shopeeDownloads.limit} downloads Shopee restantes`}
+                ? `Limite de ${shopeeDownloads.limit} downloads Shopee/dia atingido`
+                : `${restantes} de ${shopeeDownloads.limit} downloads Shopee hoje`}
             </Typography>
           )}
 

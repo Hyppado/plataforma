@@ -35,7 +35,7 @@ export interface UserQuotaState {
   transcripts: { used: number; limit: number };
   scripts: { used: number; limit: number };
   avatarVideos: { used: number; limit: number };
-  /** Downloads de vídeo dos Achadinhos Shopee no mês. */
+  /** Downloads de vídeo dos Achadinhos Shopee HOJE (a cota é diária). */
   shopeeDownloads: { used: number; limit: number };
   isLoading: boolean;
   error: Error | undefined;

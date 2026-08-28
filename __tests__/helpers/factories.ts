@@ -54,7 +54,7 @@ export function buildPlan(overrides: Record<string, unknown> = {}) {
     scriptMaxOutputTokens: 4096,
     displayOrder: 1,
     avatarVideoQuota: 0,
-    shopeeDownloadsPerMonth: 10,
+    shopeeDownloadsPerDay: 10,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
