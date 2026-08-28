@@ -599,12 +599,11 @@ async function saveProductResult(
 
   const offer = await findValidShopeeProduct(productName);
 
-  // Categoria: productCatIds da Shopee quando houver oferta, com fallback
-  // para o nome do produto extraído pela IA. Fica null se nada for resolvido.
-  const { categoryName } = mapShopeeCategories(
-    offer?.productCatIds ?? [],
-    productName,
-  );
+  // Categoria: vem do próprio objeto do produto (productCatIds), traduzida
+  // pela dimensão oficial. Fica null quando não há oferta ou o ID é
+  // desconhecido — antes havia um fallback que inferia a categoria do nome
+  // extraído pela IA, o que produzia rótulo errado com aparência de certo.
+  const { categoryName } = await mapShopeeCategories(offer?.productCatIds ?? []);
 
   if (offer) {
     // LINK DIRETO DO PRODUTO — sem monetização.

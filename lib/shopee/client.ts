@@ -117,11 +117,11 @@ export async function syncShopeeRankings(): Promise<number> {
         if (seenIds.has(node.itemId)) continue;
         seenIds.add(node.itemId);
 
-        // Mapeia IDs de categoria da Shopee (productCatIds) para nomes legíveis.
-        // A API da Shopee retorna apenas IDs numéricos; usamos um mapa
-        // determinístico baseado em IDs conhecidos + fallback da keyword.
+        // A categoria vem no próprio objeto do produto (productCatIds) e é
+        // traduzida pela dimensão oficial. A keyword da busca NÃO participa:
+        // ela descrevia como o produto foi encontrado, não o que ele é.
         const { categoryId, subCategoryId, categoryName, subCategoryName } =
-          mapShopeeCategories(node.productCatIds, keyword);
+          await mapShopeeCategories(node.productCatIds);
 
         allProducts.push({
           product_id: String(node.itemId),

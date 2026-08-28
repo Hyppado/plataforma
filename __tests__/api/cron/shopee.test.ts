@@ -12,6 +12,12 @@ import { NextRequest } from "next/server";
 const runShopeeRankingsCron = vi.fn();
 const runShopeeAchadinhosCron = vi.fn();
 
+// A rota sincroniza a taxonomia de categorias antes do ranking; sem este mock
+// o teste tentaria alcançar o banco de verdade.
+vi.mock("@/lib/shopee/categories-sync", () => ({
+  syncShopeeCategoriesIfStale: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/shopee/cron/syncShopee", () => ({
   runShopeeRankingsCron: (...args: unknown[]) => runShopeeRankingsCron(...args),
   runShopeeAchadinhosCron: (...args: unknown[]) =>

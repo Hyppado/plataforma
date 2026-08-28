@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { runShopeeRankingsCron, runShopeeAchadinhosCron } from "@/lib/shopee/cron/syncShopee";
 import { createLogger } from "@/lib/logger";
+import { syncShopeeCategoriesIfStale } from "@/lib/shopee/categories-sync";
+import { invalidarCacheCategorias } from "@/lib/shopee/shopee-categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,6 +75,15 @@ export async function GET(request: NextRequest) {
     const results: Record<string, any> = {};
 
     if (task === "ranking" || task === "all") {
+      // A dimensão de categorias vem ANTES do ranking: é ela que traduz os
+      // productCatIds do produto em nome. Vazia, os produtos entram sem
+      // categoria e o filtro da tela fica cego.
+      const categorias = await syncShopeeCategoriesIfStale(log, force);
+      if (categorias) {
+        results.categories = categorias;
+        invalidarCacheCategorias();
+      }
+
       log.info("Running Shopee Rankings Cron sync...");
       const syncedRankings = await runShopeeRankingsCron(force);
       results.rankings = syncedRankings;
