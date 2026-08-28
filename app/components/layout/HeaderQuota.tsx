@@ -39,13 +39,21 @@ export function HeaderQuota() {
         borderRadius: 1.5,
         border: "1px solid rgba(255,255,255,0.08)",
         background: "rgba(255,255,255,0.03)",
-        // Com quatro contadores a faixa passa da largura do celular. Rolar na
-        // horizontal preserva todos; sem isso o header corta os da esquerda e
-        // o usuário não descobre que existem.
+        // Quatro contadores não cabem em tela estreita. A saída não é rolar —
+        // barra de rolagem dentro do header é invisível, e quem vê o corte
+        // conclui que o contador não existe (foi o que aconteceu com o de
+        // downloads da Shopee). Abaixo de `lg` os rótulos encurtam e as
+        // barrinhas somem: o conjunto cai de ~680px para ~360px e cabe até em
+        // janela estreita de desktop. A rolagem fica só como rede de segurança
+        // para telas extremas, com um desvanecer na borda avisando que há mais.
         minWidth: 0,
         overflowX: "auto",
         scrollbarWidth: "none",
         "&::-webkit-scrollbar": { display: "none" },
+        maskImage:
+          "linear-gradient(to right, #000 calc(100% - 14px), transparent)",
+        WebkitMaskImage:
+          "linear-gradient(to right, #000 calc(100% - 14px), transparent)",
       }}
     >
       <MiniQuotaBar
@@ -59,6 +67,7 @@ export function HeaderQuota() {
       {divider}
       <MiniQuotaBar
         label="Scripts"
+        shortLabel="Scripts"
         used={s.used}
         max={s.limit}
         pct={pct(s.used, s.limit)}
@@ -69,6 +78,7 @@ export function HeaderQuota() {
         // "Vídeos" sozinho ficaria ambíguo agora que há dois contadores de
         // vídeo lado a lado. Este é o de geração com avatar.
         label="Vídeos IA"
+        shortLabel="Vídeos IA"
         used={av.used}
         max={av.limit}
         pct={pct(av.used, av.limit)}
@@ -125,10 +135,10 @@ function MiniQuotaBar({
           whiteSpace: "nowrap",
         }}
       >
-        <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+        <Box component="span" sx={{ display: { xs: "none", lg: "inline" } }}>
           {label}
         </Box>
-        <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+        <Box component="span" sx={{ display: { xs: "inline", lg: "none" } }}>
           {shortLabel ?? label}
         </Box>
       </Typography>
@@ -140,7 +150,9 @@ function MiniQuotaBar({
           background: `${color}20`,
           overflow: "hidden",
           flexShrink: 0,
-          display: { xs: "none", sm: "block" },
+          // A barrinha é enfeite: o número já diz tudo. Some cedo, para o
+          // conjunto caber com folga em vez de depender de rolagem.
+          display: { xs: "none", lg: "block" },
         }}
       >
         <Box
