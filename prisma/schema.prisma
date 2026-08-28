@@ -127,6 +127,8 @@ model Plan {
   scriptMaxOutputTokens     Int  @default(1500)
   avatarVideoQuota          Int  @default(0)
   influencerIaDailyQuota    Int  @default(5)
+  /// Downloads de vídeo dos Achadinhos Shopee por mês. 0 = ilimitado.
+  shopeeDownloadsPerMonth   Int  @default(10)
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]
@@ -538,6 +540,7 @@ enum UsageEventType {
   SCRIPT
   INSIGHT
   AVATAR_VIDEO_GENERATION
+  SHOPEE_VIDEO_DOWNLOAD
 }
 
 /// Período de uso mensal por usuário (criado sob demanda na primeira ação do mês)
@@ -552,6 +555,7 @@ model UsagePeriod {
   insightsUsed       Int      @default(0)
   tokensUsed         Int      @default(0)
   avatarVideosUsed   Int      @default(0)
+  shopeeDownloadsUsed Int     @default(0)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

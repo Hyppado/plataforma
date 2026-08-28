@@ -22,9 +22,11 @@ export interface UserQuotaData {
   scriptsUsed: number;
   insightsUsed: number;
   avatarVideosUsed: number;
+  shopeeDownloadsUsed: number;
   transcriptsLimit: number;
   scriptsLimit: number;
   avatarVideoLimit: number;
+  shopeeDownloadsLimit: number;
   periodStart: string;
   periodEnd: string;
 }
@@ -33,6 +35,8 @@ export interface UserQuotaState {
   transcripts: { used: number; limit: number };
   scripts: { used: number; limit: number };
   avatarVideos: { used: number; limit: number };
+  /** Downloads de vídeo dos Achadinhos Shopee no mês. */
+  shopeeDownloads: { used: number; limit: number };
   isLoading: boolean;
   error: Error | undefined;
 }
@@ -69,6 +73,10 @@ export function useUserQuota(): UserQuotaState {
     avatarVideos: {
       used: data?.avatarVideosUsed ?? 0,
       limit: data?.avatarVideoLimit ?? 0,
+    },
+    shopeeDownloads: {
+      used: data?.shopeeDownloadsUsed ?? 0,
+      limit: data?.shopeeDownloadsLimit ?? 0,
     },
     isLoading,
     error,

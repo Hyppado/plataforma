@@ -9,6 +9,7 @@ export interface QuotaLimits {
   insightMaxOutputTokens: number;
   scriptMaxOutputTokens: number;
   avatarVideoQuota: number;
+  shopeeDownloadsPerMonth: number;
 }
 
 /**
@@ -75,6 +76,17 @@ export async function getUserActivePlan(userId: string): Promise<Plan | null> {
  * Maps a Plan row to the QuotaLimits interface.
  * Falls back to safe defaults if the plan is null.
  */
+/**
+ * Teto de downloads da Shopee quando não há plano resolvido.
+ *
+ * As demais cotas devolvem 0 nesse caso, e 0 significa ILIMITADO no
+ * assertQuota. Isso funciona para elas porque quem não tem plano normalmente
+ * nem chega ao check — mas há um caminho em que chega: cortesia (AccessGrant)
+ * sem plano vinculado concede acesso e deixa o plano nulo. Aplicar o mesmo 0
+ * aqui daria download ilimitado justo a quem não paga.
+ */
+const SHOPEE_DOWNLOADS_SEM_PLANO = 10;
+
 export function getQuotaLimits(plan: Plan | null): QuotaLimits {
   if (!plan) {
     return {
@@ -85,6 +97,7 @@ export function getQuotaLimits(plan: Plan | null): QuotaLimits {
       insightMaxOutputTokens: 0,
       scriptMaxOutputTokens: 0,
       avatarVideoQuota: 0,
+      shopeeDownloadsPerMonth: SHOPEE_DOWNLOADS_SEM_PLANO,
     };
   }
   return {
@@ -95,5 +108,6 @@ export function getQuotaLimits(plan: Plan | null): QuotaLimits {
     insightMaxOutputTokens: plan.insightMaxOutputTokens,
     scriptMaxOutputTokens: plan.scriptMaxOutputTokens,
     avatarVideoQuota: plan.avatarVideoQuota,
+    shopeeDownloadsPerMonth: plan.shopeeDownloadsPerMonth,
   };
 }

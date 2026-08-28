@@ -44,6 +44,7 @@ export async function consumeUsage(
   const scriptsIncrement = action === "SCRIPT" ? 1 : 0;
   const insightsIncrement = action === "INSIGHT" ? 1 : 0;
   const avatarVideosIncrement = action === "AVATAR_VIDEO_GENERATION" ? 1 : 0;
+  const shopeeDownloadsIncrement = action === "SHOPEE_VIDEO_DOWNLOAD" ? 1 : 0;
 
   // Execute in a transaction: create event + update period counters
   const [, event] = await prisma.$transaction([
@@ -55,6 +56,7 @@ export async function consumeUsage(
         insightsUsed: { increment: insightsIncrement },
         tokensUsed: { increment: tokens },
         avatarVideosUsed: { increment: avatarVideosIncrement },
+        shopeeDownloadsUsed: { increment: shopeeDownloadsIncrement },
       },
     }),
     prisma.usageEvent.create({

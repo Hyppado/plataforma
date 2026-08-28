@@ -47,6 +47,8 @@ import {
 import { alpha } from "@mui/material/styles";
 import type { ShopeeAchadinhoDTO } from "@/lib/swr/useShopee";
 import { formatNumber } from "@/lib/format";
+import { mutate } from "swr";
+import { useUserQuota, USER_QUOTA_KEY } from "@/lib/swr/useUserQuota";
 import { UI } from "@/app/components/cards/videoCardConfig";
 import { RankBadge } from "@/app/components/cards/RankBadge";
 import { TikTokPlayerModal } from "@/app/components/videos/TikTokPlayerModal";
@@ -101,6 +103,14 @@ export function ShopeeAchadinhoCard({
   const [insightError, setInsightError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // Cota mensal de downloads da Shopee. O servidor é quem decide (a rota
+  // recusa com 429); aqui é só para o usuário saber quanto resta antes de
+  // clicar, em vez de descobrir no erro.
+  const { shopeeDownloads } = useUserQuota();
+  const semLimite = shopeeDownloads.limit <= 0;
+  const restantes = Math.max(0, shopeeDownloads.limit - shopeeDownloads.used);
+  const cotaEsgotada = !semLimite && restantes === 0;
 
   // Salvar — reutiliza useSavedVideos (mesma lógica do "Vídeos em Alta")
   // Converte o Achadinho em VideoDTO para aparecer na aba "Vídeos Salvos"
@@ -166,6 +176,10 @@ export function ShopeeAchadinhoCard({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      // O download consumiu cota no servidor — atualiza o contador do header
+      // e o desta tela sem exigir refresh.
+      mutate(USER_QUOTA_KEY);
     } catch {
       setDownloadError("Falha de conexão ao baixar o vídeo.");
     } finally {
@@ -633,12 +647,22 @@ export function ShopeeAchadinhoCard({
             Transcrição
           </Button>
 
-          <Tooltip title={downloadError ?? "Baixar o vídeo para repostar"} arrow>
+          <Tooltip
+            title={
+              downloadError ??
+              (cotaEsgotada
+                ? `Você usou os ${shopeeDownloads.limit} downloads de vídeos da Shopee deste mês`
+                : semLimite
+                  ? "Baixar o vídeo para repostar"
+                  : `Baixar o vídeo para repostar — ${restantes} de ${shopeeDownloads.limit} downloads restantes este mês`)
+            }
+            arrow
+          >
             <span>
               <Button
                 fullWidth
                 variant="outlined"
-                disabled={downloading}
+                disabled={downloading || cotaEsgotada}
                 startIcon={
                   downloading ? (
                     <CircularProgress size={14} sx={{ color: "inherit" }} />
@@ -666,10 +690,36 @@ export function ShopeeAchadinhoCard({
                   "&:active": { transform: "scale(0.98)" },
                 }}
               >
-                {downloading ? "Baixando..." : "Baixar vídeo"}
+                {downloading
+                  ? "Baixando..."
+                  : cotaEsgotada
+                    ? "Limite do mês atingido"
+                    : "Baixar vídeo"}
               </Button>
             </span>
           </Tooltip>
+
+          {/* Contador junto do botão: deixa claro que a cota é de vídeos da
+              Shopee e quanto sobrou, sem depender do header. */}
+          {!semLimite && (
+            <Typography
+              sx={{
+                mt: -0.35,
+                textAlign: "center",
+                fontSize: { xs: "0.62rem", md: "0.66rem" },
+                fontWeight: 600,
+                color: cotaEsgotada
+                  ? "#EF4444"
+                  : restantes <= 2
+                    ? "#FF8A3D"
+                    : UI.text.muted,
+              }}
+            >
+              {cotaEsgotada
+                ? `Limite de ${shopeeDownloads.limit} downloads Shopee/mês atingido`
+                : `${restantes} de ${shopeeDownloads.limit} downloads Shopee restantes`}
+            </Typography>
+          )}
 
           <Button
             fullWidth

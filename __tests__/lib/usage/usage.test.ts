@@ -87,6 +87,21 @@ describe("getQuotaLimits()", () => {
     expect(limits.insightTokensMonthlyMax).toBe(0);
     expect(limits.scriptTokensMonthlyMax).toBe(0);
   });
+
+  it("lê o teto de downloads da Shopee do plano", () => {
+    const plan = buildPlan({ shopeeDownloadsPerMonth: 25 });
+    expect(getQuotaLimits(plan as any).shopeeDownloadsPerMonth).toBe(25);
+  });
+
+  /**
+   * As outras cotas devolvem 0 sem plano, e 0 significa ILIMITADO no
+   * assertQuota. Cortesia sem plano vinculado concede acesso e deixa o plano
+   * nulo — aplicar o mesmo 0 aqui daria download ilimitado a quem não paga.
+   */
+  it("sem plano, mantém teto de downloads da Shopee em vez de liberar", () => {
+    const limits = getQuotaLimits(null);
+    expect(limits.shopeeDownloadsPerMonth).toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
