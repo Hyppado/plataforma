@@ -8,6 +8,7 @@ import {
   Divider,
 } from "@mui/material";
 import { BrandLogo } from "@/app/components/BrandLogo";
+import { SupportContactButtons } from "@/app/components/SupportContactButtons";
 
 export function LandingFooter() {
   return (
@@ -98,6 +99,12 @@ export function LandingFooter() {
                 </Link>
               ))}
             </Stack>
+
+            {/* Contato direto no rodapé: é onde se procura como falar com a
+                empresa, e um link para outra página adiciona um passo. */}
+            <Box sx={{ mt: 2.5 }}>
+              <SupportContactButtons publica tamanho="small" />
+            </Box>
           </Grid>
 
           {/* Legal */}

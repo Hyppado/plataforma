@@ -100,6 +100,10 @@ export const SETTING_KEYS = {
   SHOPEE_ACHADINHOS_KEYWORD: "shopee.achadinhos_keyword",
   SHOPEE_AFFILIATE_APP_ID: "shopee.affiliate_app_id",
   SHOPEE_AFFILIATE_API_SECRET: "shopee.affiliate_api_secret",
+  SUPPORT_EMAIL: "support.email",
+  /// Número de WhatsApp do suporte. Separado do e-mail: viviam no mesmo campo,
+  /// o que quebrava o mailto: e impedia oferecer link de conversa.
+  SUPPORT_WHATSAPP: "support.whatsapp",
   /// Faixa de aviso no topo da plataforma (indisponibilidade/manutenção)
   MAINTENANCE_BANNER_ENABLED: "maintenance.banner_enabled",
   MAINTENANCE_BANNER_MESSAGE: "maintenance.banner_message",

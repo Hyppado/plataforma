@@ -10,7 +10,7 @@ import {
   Grid,
   Stack,
 } from "@mui/material";
-import { EmailOutlined } from "@mui/icons-material";
+import { WhatsApp, EmailOutlined } from "@mui/icons-material";
 
 const DEFAULT_SUPPORT_EMAIL = "suporte@hyppado.com";
 
@@ -40,12 +40,16 @@ const UI = {
 
 export default function SuportePage() {
   const [supportEmail, setSupportEmail] = useState(DEFAULT_SUPPORT_EMAIL);
+  const [whatsapp, setWhatsapp] = useState("");
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/support-email")
       .then((r) => r.json())
       .then((d) => {
         if (d.email) setSupportEmail(d.email);
+        if (d.whatsapp) setWhatsapp(d.whatsapp);
+        if (d.whatsappUrl) setWhatsappUrl(d.whatsappUrl);
       })
       .catch(() => {
         // keep default
@@ -130,6 +134,42 @@ export default function SuportePage() {
                   </Typography>
                 </Box>
               </Button>
+
+              {/* WhatsApp — só quando há número configurado. Botão que leva a
+                  uma conversa inexistente é pior do que botão ausente. */}
+              {whatsappUrl && (
+                <Button
+                  component="a"
+                  href={`${whatsappUrl}?text=${encodeURIComponent("Olá! Preciso de ajuda com a Hyppado.")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="outlined"
+                  fullWidth
+                  startIcon={<WhatsApp />}
+                  sx={{
+                    justifyContent: "flex-start",
+                    textTransform: "none",
+                    borderColor: "rgba(37,211,102,0.35)",
+                    color: UI.text.primary,
+                    py: 1.5,
+                    "&:hover": {
+                      borderColor: "#25D366",
+                      backgroundColor: "rgba(37,211,102,0.06)",
+                    },
+                  }}
+                >
+                  <Box sx={{ textAlign: "left", flex: 1 }}>
+                    <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                      WhatsApp
+                    </Typography>
+                    <Typography
+                      sx={{ fontSize: "0.75rem", color: UI.text.secondary }}
+                    >
+                      {whatsapp}
+                    </Typography>
+                  </Box>
+                </Button>
+              )}
             </Stack>
           </Card>
         </Grid>

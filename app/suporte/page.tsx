@@ -14,11 +14,13 @@ import { ThemeProvider } from "@mui/material/styles";
 import { Email, ArrowBack } from "@mui/icons-material";
 import { Logo } from "@/app/components/ui/Logo";
 import { appTheme } from "@/app/theme";
+import { SupportContactButtons } from "@/app/components/SupportContactButtons";
 
 const DEFAULT_EMAIL = "suporte@hyppado.com";
 
 export default function SuportePage() {
   const [supportEmail, setSupportEmail] = useState(DEFAULT_EMAIL);
+  const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,6 +28,7 @@ export default function SuportePage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.email) setSupportEmail(d.email);
+        if (d.whatsapp) setWhatsapp(d.whatsapp);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -106,47 +109,48 @@ export default function SuportePage() {
                   sx={{
                     color: "rgba(255,255,255,0.5)",
                     fontSize: "0.85rem",
-                    mb: 1,
+                    mb: 0.5,
                   }}
                 >
                   E-mail de suporte:
                 </Typography>
-
                 <Typography
                   sx={{
                     color: "#2DD4FF",
-                    fontSize: "1.1rem",
+                    fontSize: "1.05rem",
                     fontWeight: 600,
-                    mb: 3,
+                    mb: whatsapp ? 2 : 3,
                     wordBreak: "break-all",
                   }}
                 >
                   {supportEmail}
                 </Typography>
 
-                <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={<Email />}
-                  href={`mailto:${supportEmail}`}
-                  sx={{
-                    background:
-                      "linear-gradient(135deg, #2DD4FF 0%, #00B8E6 100%)",
-                    color: "#0A0F18",
-                    fontWeight: 600,
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 2,
-                    textTransform: "none",
-                    fontSize: "1rem",
-                    "&:hover": {
-                      background:
-                        "linear-gradient(135deg, #6BE0FF 0%, #2DD4FF 100%)",
-                    },
-                  }}
-                >
-                  Enviar e-mail
-                </Button>
+                {whatsapp && (
+                  <>
+                    <Typography
+                      sx={{
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "0.85rem",
+                        mb: 0.5,
+                      }}
+                    >
+                      WhatsApp:
+                    </Typography>
+                    <Typography
+                      sx={{
+                        color: "#25D366",
+                        fontSize: "1.05rem",
+                        fontWeight: 600,
+                        mb: 3,
+                      }}
+                    >
+                      {whatsapp}
+                    </Typography>
+                  </>
+                )}
+
+                <SupportContactButtons publica />
               </>
             )}
           </Paper>
