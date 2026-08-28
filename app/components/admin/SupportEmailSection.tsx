@@ -10,10 +10,19 @@ import {
   CircularProgress,
   Grid,
 } from "@mui/material";
-import { Check, EmailOutlined } from "@mui/icons-material";
+import { Check, SupportAgent, EmailOutlined, WhatsApp } from "@mui/icons-material";
+import { toWhatsAppNumber, formatWhatsApp } from "@/lib/support-contact";
 
+/**
+ * Contatos de suporte: e-mail e WhatsApp, em campos separados.
+ *
+ * Eram um campo só, preenchido como "email | whatsapp - (74) 99901-0441".
+ * Exibia, mas o `mailto:` levava a string inteira — não abria nada — e não
+ * havia como oferecer link de conversa.
+ */
 export function SupportEmailSection() {
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -24,11 +33,12 @@ export function SupportEmailSection() {
     try {
       const res = await fetch("/api/admin/settings/support");
       if (res.ok) {
-        const data = await res.json();
-        setEmail(data.email ?? "");
+        const d = await res.json();
+        setEmail(d.email ?? "");
+        setWhatsapp(d.whatsapp ?? "");
       }
     } catch {
-      // ignore
+      // silencioso: a seção carrega vazia e o admin pode tentar de novo
     } finally {
       setLoading(false);
     }
@@ -45,20 +55,36 @@ export function SupportEmailSection() {
       const res = await fetch("/api/admin/settings/support", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, whatsapp }),
       });
+      const d = await res.json();
       if (!res.ok) {
-        const d = await res.json();
         setError(d.error ?? "Erro ao salvar");
-      } else {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        return;
       }
+      setEmail(d.email);
+      setWhatsapp(d.whatsapp);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch {
       setError("Erro inesperado ao salvar");
     } finally {
       setSaving(false);
     }
+  };
+
+  const emailInvalido = email.length > 0 && !email.includes("@");
+  const zapInvalido = whatsapp.length > 0 && !toWhatsAppNumber(whatsapp);
+
+  const campoSx = {
+    "& .MuiOutlinedInput-root": {
+      background: "rgba(0,0,0,0.25)",
+      "& fieldset": { borderColor: "rgba(255,255,255,0.12)" },
+      "&:hover fieldset": { borderColor: "rgba(45,212,255,0.3)" },
+      "&.Mui-focused fieldset": { borderColor: "primary.main" },
+    },
+    "& input": { color: "#fff" },
+    "& .MuiFormHelperText-root": { color: "rgba(255,255,255,0.45)" },
   };
 
   return (
@@ -72,56 +98,94 @@ export function SupportEmailSection() {
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-          <EmailOutlined sx={{ color: "primary.main", fontSize: 20 }} />
+          <SupportAgent sx={{ color: "primary.main", fontSize: 20 }} />
           <Typography sx={{ fontWeight: 600, color: "#fff", fontSize: "1rem" }}>
-            Email de Suporte
+            Contatos de Suporte
           </Typography>
         </Box>
 
         <Typography
           sx={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.55)", mb: 2.5 }}
         >
-          Endereço exibido na página de suporte e nos links de contato da
-          plataforma.
+          Exibidos na página de suporte, no rodapé e na landing. O e-mail abre o
+          aplicativo de e-mail; o número abre uma conversa no WhatsApp.
         </Typography>
 
         {loading ? (
           <CircularProgress size={20} sx={{ color: "primary.main" }} />
         ) : (
-          <Box
-            sx={{
-              display: "flex",
-              gap: 2,
-              alignItems: "flex-start",
-              flexWrap: "wrap",
-            }}
-          >
-            <TextField
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setSaved(false);
-              }}
-              type="email"
-              size="small"
-              placeholder="suporte@hyppado.com"
-              inputProps={{ style: { fontSize: "1rem" } }}
-              sx={{
-                flex: 1,
-                minWidth: 240,
-                "& .MuiOutlinedInput-root": {
-                  background: "rgba(0,0,0,0.25)",
-                  "& fieldset": { borderColor: "rgba(255,255,255,0.12)" },
-                  "&:hover fieldset": { borderColor: "rgba(45,212,255,0.3)" },
-                  "&.Mui-focused fieldset": { borderColor: "primary.main" },
-                },
-                "& input": { color: "#fff" },
-              }}
-            />
+          <>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="E-mail"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setSaved(false);
+                  }}
+                  type="email"
+                  size="small"
+                  fullWidth
+                  placeholder="suporte@hyppado.com"
+                  error={emailInvalido}
+                  helperText={
+                    emailInvalido ? "Endereço inválido" : "Abre com mailto:"
+                  }
+                  InputProps={{
+                    startAdornment: (
+                      <EmailOutlined
+                        sx={{
+                          fontSize: 17,
+                          mr: 1,
+                          color: "rgba(255,255,255,0.35)",
+                        }}
+                      />
+                    ),
+                  }}
+                  sx={campoSx}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="WhatsApp"
+                  value={whatsapp}
+                  onChange={(e) => {
+                    setWhatsapp(e.target.value);
+                    setSaved(false);
+                  }}
+                  size="small"
+                  fullWidth
+                  placeholder="(74) 99901-0441"
+                  error={zapInvalido}
+                  helperText={
+                    zapInvalido
+                      ? "Informe com DDD"
+                      : whatsapp
+                        ? `Abrirá conversa com ${formatWhatsApp(whatsapp)}`
+                        : "Vazio esconde o botão de WhatsApp"
+                  }
+                  InputProps={{
+                    startAdornment: (
+                      <WhatsApp
+                        sx={{
+                          fontSize: 17,
+                          mr: 1,
+                          color: "rgba(255,255,255,0.35)",
+                        }}
+                      />
+                    ),
+                  }}
+                  sx={campoSx}
+                />
+              </Grid>
+            </Grid>
+
             <Button
               variant="contained"
               onClick={save}
-              disabled={saving || !email}
+              disabled={saving || !email || emailInvalido || zapInvalido}
               startIcon={
                 saving ? (
                   <CircularProgress size={16} color="inherit" />
@@ -139,7 +203,7 @@ export function SupportEmailSection() {
             >
               {saved ? "Salvo!" : "Salvar"}
             </Button>
-          </Box>
+          </>
         )}
 
         {error && (

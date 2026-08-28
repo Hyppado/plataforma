@@ -14,6 +14,7 @@ import {
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import { SectionShell } from "./SectionShell";
 import { Reveal } from "./Reveal";
+import { SupportContactButtons } from "@/app/components/SupportContactButtons";
 
 const FAQ_ITEMS = [
   {
@@ -95,31 +96,24 @@ export function FaqSection() {
                 >
                   Ainda com dúvidas? Fale com a gente.
                 </Typography>
+                {/* Contato direto na landing: quem chegou até o FAQ com
+                    dúvida quer falar agora, não navegar mais uma página. */}
+                <Box sx={{ mb: 2 }}>
+                  <SupportContactButtons publica tamanho="medium" />
+                </Box>
                 <Button
-                  variant="contained"
-                  size="medium"
+                  variant="text"
+                  size="small"
                   href="/suporte"
                   sx={{
-                    px: 3,
-                    py: 1.25,
-                    fontSize: "0.875rem",
+                    fontSize: "0.8rem",
                     fontWeight: 600,
-                    borderRadius: "999px",
-                    background: "#39D5FF",
-                    color: "#070B12",
+                    color: "#39D5FF",
                     textTransform: "none",
-                    boxShadow:
-                      "0 0 20px rgba(57, 213, 255, 0.35), 0 4px 12px rgba(0,0,0,0.2)",
-                    transition: "all 0.25s ease",
-                    "&:hover": {
-                      background: "#5BE0FF",
-                      boxShadow:
-                        "0 0 28px rgba(57, 213, 255, 0.5), 0 6px 16px rgba(0,0,0,0.25)",
-                      transform: "translateY(-2px)",
-                    },
+                    "&:hover": { background: "rgba(57,213,255,0.06)" },
                   }}
                 >
-                  Fale com nosso suporte
+                  Ver página de suporte
                 </Button>
               </Box>
             </Grid>

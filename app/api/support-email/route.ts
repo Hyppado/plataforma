@@ -1,25 +1,37 @@
 /**
  * GET /api/support-email
  *
- * Returns the configured support email for authenticated users.
- * Used by the /dashboard/suporte page.
+ * Contatos de suporte para usuários autenticados (/dashboard/suporte).
+ * Mesma forma da rota pública — ver app/api/public/support-email.
  */
 
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
-import { getSetting } from "@/lib/settings";
+import { getSetting, SETTING_KEYS } from "@/lib/settings";
+import {
+  extrairEmail,
+  whatsAppLink,
+  formatWhatsApp,
+} from "@/lib/support-contact";
 
 export const dynamic = "force-dynamic";
-
-const DEFAULT = "suporte@hyppado.com";
 
 export async function GET() {
   try {
     const auth = await requireAuth();
     if (!isAuthed(auth)) return auth;
 
-    const value = (await getSetting("support.email")) ?? DEFAULT;
-    return NextResponse.json({ email: value });
+    const [email, whatsapp] = await Promise.all([
+      getSetting(SETTING_KEYS.SUPPORT_EMAIL),
+      getSetting(SETTING_KEYS.SUPPORT_WHATSAPP),
+    ]);
+
+    return NextResponse.json({
+      email: extrairEmail(email),
+      // Enquanto o admin não separar, tenta o número que ficou no campo antigo.
+      whatsapp: formatWhatsApp(whatsapp ?? email),
+      whatsappUrl: whatsAppLink(whatsapp ?? email),
+    });
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
