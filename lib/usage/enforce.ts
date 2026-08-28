@@ -1,6 +1,37 @@
 import type { UsageEventType } from "@prisma/client";
 import { getUserActivePlan, getQuotaLimits } from "./quota";
 import { getCurrentUsagePeriod } from "./period";
+import { prisma } from "@/lib/prisma";
+
+// ---------------------------------------------------------------------------
+// Contagem diária
+// ---------------------------------------------------------------------------
+
+/** Início do dia corrente em UTC — mesma convenção do resto das cotas. */
+function inicioDoDiaUTC(): Date {
+  const agora = new Date();
+  return new Date(
+    Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()),
+  );
+}
+
+/**
+ * Downloads de vídeo da Shopee feitos pelo usuário hoje.
+ *
+ * Conta eventos em vez de ler UsagePeriod porque aquele contador é mensal:
+ * usá-lo faria o limite diário só zerar na virada do mês.
+ */
+export async function contarDownloadsShopeeHoje(
+  userId: string,
+): Promise<number> {
+  return prisma.usageEvent.count({
+    where: {
+      userId,
+      type: "SHOPEE_VIDEO_DOWNLOAD",
+      occurredAt: { gte: inicioDoDiaUTC() },
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Error
@@ -53,7 +84,6 @@ export async function assertQuota(
     insights: period?.insightsUsed ?? 0,
     tokens: period?.tokensUsed ?? 0,
     avatarVideos: period?.avatarVideosUsed ?? 0,
-    shopeeDownloads: period?.shopeeDownloadsUsed ?? 0,
   };
 
   switch (action) {
@@ -106,18 +136,17 @@ export async function assertQuota(
       }
       break;
 
-    case "SHOPEE_VIDEO_DOWNLOAD":
-      if (
-        limits.shopeeDownloadsPerMonth > 0 &&
-        used.shopeeDownloads >= limits.shopeeDownloadsPerMonth
-      ) {
-        throw new QuotaExceededError(
-          action,
-          used.shopeeDownloads,
-          limits.shopeeDownloadsPerMonth,
-        );
+    // Único limite DIÁRIO desta função. O contador de UsagePeriod é mensal e
+    // por isso não serve aqui — a contagem vem dos UsageEvent do dia.
+    case "SHOPEE_VIDEO_DOWNLOAD": {
+      if (limits.shopeeDownloadsPerDay <= 0) break;
+
+      const hoje = await contarDownloadsShopeeHoje(userId);
+      if (hoje >= limits.shopeeDownloadsPerDay) {
+        throw new QuotaExceededError(action, hoje, limits.shopeeDownloadsPerDay);
       }
       break;
+    }
 
     case "AVATAR_VIDEO_GENERATION":
       if (

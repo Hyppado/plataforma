@@ -127,8 +127,8 @@ model Plan {
   scriptMaxOutputTokens     Int  @default(1500)
   avatarVideoQuota          Int  @default(0)
   influencerIaDailyQuota    Int  @default(5)
-  /// Downloads de vídeo dos Achadinhos Shopee por mês. 0 = ilimitado.
-  shopeeDownloadsPerMonth   Int  @default(10)
+  /// Downloads de vídeo dos Achadinhos Shopee por DIA. 0 = ilimitado.
+  shopeeDownloadsPerDay     Int  @default(10)
 
   subscriptions       Subscription[]
   accessGrants        AccessGrant[]
@@ -555,6 +555,8 @@ model UsagePeriod {
   insightsUsed       Int      @default(0)
   tokensUsed         Int      @default(0)
   avatarVideosUsed   Int      @default(0)
+  /// Acumulado do mês. A checagem de limite é DIÁRIA (conta UsageEvent do
+  /// dia); este contador serve de visão mensal para relatório.
   shopeeDownloadsUsed Int     @default(0)
 
   createdAt       DateTime @default(now())

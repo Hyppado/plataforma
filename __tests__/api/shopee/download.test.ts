@@ -226,6 +226,36 @@ describe("cota de downloads da Shopee", () => {
   });
 
   /**
+   * O limite é diário, então a idempotência precisa ser por dia. Com chave
+   * mensal, rebaixar hoje um vídeo já baixado ontem não geraria evento — e o
+   * teto do dia nunca seria alcançado por quem repete downloads.
+   */
+  it("usa chave de idempotência do dia, não do mês", async () => {
+    mockAuthenticatedUser();
+
+    await GET(makeGetRequest("/download") as any, params);
+
+    const chave = (consumeUsage.mock.calls[0] as any[])[3].idempotencyKey;
+    const hoje = new Date().toISOString().slice(0, 10);
+    expect(chave).toContain(hoje);
+    // AAAA-MM-DD, não AAAA-MM
+    expect(chave).toMatch(/\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("a mensagem de recusa fala em hoje, não no mês", async () => {
+    mockAuthenticatedUser();
+    assertQuota.mockRejectedValue(
+      new QuotaExceededError("SHOPEE_VIDEO_DOWNLOAD", 10, 10),
+    );
+
+    const res = await GET(makeGetRequest("/download") as any, params);
+    const body = await res.json();
+
+    expect(body.error).toMatch(/hoje/i);
+    expect(body.error).not.toMatch(/m[êe]s/i);
+  });
+
+  /**
    * Se a EchoTik não resolve a URL, o usuário não recebe vídeo — então não
    * pode perder um download da cota.
    */

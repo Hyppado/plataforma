@@ -83,7 +83,7 @@ export async function GET(
       return NextResponse.json(
         {
           ok: false,
-          error: `Você atingiu o limite de ${error.limit} downloads de vídeos da Shopee neste mês.`,
+          error: `Você atingiu o limite de ${error.limit} downloads de vídeos da Shopee hoje. O limite renova amanhã.`,
           quota: { used: error.used, limit: error.limit },
         },
         { status: 429 },
@@ -140,12 +140,12 @@ export async function GET(
   // Chegou aqui: o CDN respondeu e o corpo será transmitido. Só agora o
   // download conta contra a cota.
   //
-  // A chave de idempotência inclui o mês: o mesmo vídeo pode ser baixado de
-  // novo dentro do mês sem consumir duas vezes (retentativa, conexão caída),
-  // mas volta a contar no período seguinte, quando a cota é renovada.
-  const periodo = new Date().toISOString().slice(0, 7);
+  // A chave de idempotência inclui o DIA, porque o limite é diário: baixar o
+  // mesmo vídeo de novo hoje (retentativa, conexão caída) não consome duas
+  // vezes, mas amanhã volta a contar. Com chave mensal, rebaixar os vídeos de
+  // ontem sairia de graça e o teto do dia nunca seria alcançado.
   await consumeUsage(auth.userId, "SHOPEE_VIDEO_DOWNLOAD", 0, {
-    idempotencyKey: `shopee-download:${auth.userId}:${achadinho.videoExternalId}:${periodo}`,
+    idempotencyKey: `shopee-download:${auth.userId}:${achadinho.videoExternalId}:${new Date().toISOString().slice(0, 10)}`,
     refTable: "ShopeeAchadinhoProduct",
     refId: params.id,
   }).catch((error) => {

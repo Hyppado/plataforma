@@ -18,7 +18,7 @@ import {
 // Must import after prisma mock is set up
 import { getPeriodBounds } from "@/lib/usage/period";
 import { getQuotaLimits, getUserActivePlan } from "@/lib/usage/quota";
-import { QuotaExceededError } from "@/lib/usage/enforce";
+import { QuotaExceededError, assertQuota } from "@/lib/usage/enforce";
 
 // ---------------------------------------------------------------------------
 // getPeriodBounds — pure function
@@ -88,9 +88,9 @@ describe("getQuotaLimits()", () => {
     expect(limits.scriptTokensMonthlyMax).toBe(0);
   });
 
-  it("lê o teto de downloads da Shopee do plano", () => {
-    const plan = buildPlan({ shopeeDownloadsPerMonth: 25 });
-    expect(getQuotaLimits(plan as any).shopeeDownloadsPerMonth).toBe(25);
+  it("lê o teto diário de downloads da Shopee do plano", () => {
+    const plan = buildPlan({ shopeeDownloadsPerDay: 25 });
+    expect(getQuotaLimits(plan as any).shopeeDownloadsPerDay).toBe(25);
   });
 
   /**
@@ -100,7 +100,7 @@ describe("getQuotaLimits()", () => {
    */
   it("sem plano, mantém teto de downloads da Shopee em vez de liberar", () => {
     const limits = getQuotaLimits(null);
-    expect(limits.shopeeDownloadsPerMonth).toBeGreaterThan(0);
+    expect(limits.shopeeDownloadsPerDay).toBeGreaterThan(0);
   });
 });
 
@@ -222,5 +222,75 @@ describe("consumeUsage()", () => {
 
     expect(result.duplicate).toBe(false);
     expect(prismaMock.$transaction).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cota diária de download da Shopee
+// ---------------------------------------------------------------------------
+
+/**
+ * É o único limite diário do assertQuota. O contador de UsagePeriod é mensal,
+ * então usá-lo faria a cota só zerar na virada do mês — por isso a contagem
+ * vem dos UsageEvent do dia.
+ */
+describe("assertQuota — SHOPEE_VIDEO_DOWNLOAD (diária)", () => {
+  function comPlano(shopeeDownloadsPerDay: number) {
+    prismaMock.accessGrant.findFirst.mockResolvedValue({
+      plan: buildPlan({ shopeeDownloadsPerDay }),
+    } as never);
+    // Acumulado mensal alto de propósito: não pode influenciar a decisão.
+    prismaMock.usagePeriod.findFirst.mockResolvedValue({
+      shopeeDownloadsUsed: 999,
+    } as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    comPlano(10);
+  });
+
+  it("libera quando o usuário ainda não bateu o teto do dia", async () => {
+    (prismaMock.usageEvent.count as any).mockResolvedValue(9);
+    await expect(
+      assertQuota("user-1", "SHOPEE_VIDEO_DOWNLOAD"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("bloqueia ao alcançar o teto do dia", async () => {
+    (prismaMock.usageEvent.count as any).mockResolvedValue(10);
+    await expect(
+      assertQuota("user-1", "SHOPEE_VIDEO_DOWNLOAD"),
+    ).rejects.toBeInstanceOf(QuotaExceededError);
+  });
+
+  /**
+   * O acumulado do mês não pode bloquear: com 10/dia, passar de 10 no mês é o
+   * comportamento esperado a partir do segundo dia.
+   */
+  it("ignora o acumulado mensal e olha só o dia", async () => {
+    (prismaMock.usageEvent.count as any).mockResolvedValue(2);
+    await expect(
+      assertQuota("user-1", "SHOPEE_VIDEO_DOWNLOAD"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("conta apenas eventos a partir do início do dia", async () => {
+    (prismaMock.usageEvent.count as any).mockResolvedValue(0);
+    await assertQuota("user-1", "SHOPEE_VIDEO_DOWNLOAD");
+
+    const where = (prismaMock.usageEvent.count as any).mock.calls[0][0].where;
+    expect(where.type).toBe("SHOPEE_VIDEO_DOWNLOAD");
+    const inicio = where.occurredAt.gte as Date;
+    expect(inicio.getUTCHours()).toBe(0);
+    expect(inicio.getUTCMinutes()).toBe(0);
+  });
+
+  it("teto 0 significa ilimitado e nem consulta os eventos", async () => {
+    comPlano(0);
+    await expect(
+      assertQuota("user-1", "SHOPEE_VIDEO_DOWNLOAD"),
+    ).resolves.toBeUndefined();
+    expect(prismaMock.usageEvent.count).not.toHaveBeenCalled();
   });
 });

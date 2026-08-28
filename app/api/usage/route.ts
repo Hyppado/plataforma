@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { getUserActivePlan, getQuotaLimits } from "@/lib/usage/quota";
+import { contarDownloadsShopeeHoje } from "@/lib/usage/enforce";
 import { getCurrentUsagePeriod, getPeriodBounds } from "@/lib/usage/period";
 
 export async function GET() {
@@ -27,6 +28,7 @@ export async function GET() {
     ]);
 
     const limits = getQuotaLimits(plan);
+    const downloadsShopeeHoje = await contarDownloadsShopeeHoje(auth.userId);
     const { start, end } = getPeriodBounds();
 
     return NextResponse.json({
@@ -34,11 +36,14 @@ export async function GET() {
       scriptsUsed: period?.scriptsUsed ?? 0,
       insightsUsed: period?.insightsUsed ?? 0,
       avatarVideosUsed: period?.avatarVideosUsed ?? 0,
-      shopeeDownloadsUsed: period?.shopeeDownloadsUsed ?? 0,
+      // Contagem do DIA, não do mês: esta cota é diária, e devolver o
+      // acumulado mensal faria a tela mostrar um número que não bate com o
+      // limite exibido ao lado.
+      shopeeDownloadsUsed: downloadsShopeeHoje,
       transcriptsLimit: limits.transcriptsPerMonth,
       scriptsLimit: limits.scriptsPerMonth,
       avatarVideoLimit: limits.avatarVideoQuota,
-      shopeeDownloadsLimit: limits.shopeeDownloadsPerMonth,
+      shopeeDownloadsLimit: limits.shopeeDownloadsPerDay,
       periodStart: start.toISOString(),
       periodEnd: end.toISOString(),
     });

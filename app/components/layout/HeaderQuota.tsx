@@ -68,7 +68,9 @@ export function HeaderQuota() {
       />
       {divider}
       <MiniQuotaBar
-        label="Downloads Shopee"
+        // "/dia" no rótulo porque este é o único contador do header que zera
+        // diariamente — sem isso, 0/10 ao lado de cotas mensais sugere mês.
+        label="Downloads Shopee/dia"
         used={sd.used}
         max={sd.limit}
         pct={pct(sd.used, sd.limit)}
