@@ -12,6 +12,7 @@ export function HeaderQuota() {
   const t = quota.transcripts;
   const s = quota.scripts;
   const av = quota.avatarVideos;
+  const sd = quota.shopeeDownloads;
 
   const pct = (used: number, limit: number) =>
     limit > 0 && used > 0 ? Math.min(1, used / limit) : 0;
@@ -57,11 +58,21 @@ export function HeaderQuota() {
       />
       {divider}
       <MiniQuotaBar
-        label="Vídeos"
+        // "Vídeos" sozinho ficaria ambíguo agora que há dois contadores de
+        // vídeo lado a lado. Este é o de geração com avatar.
+        label="Vídeos IA"
         used={av.used}
         max={av.limit}
         pct={pct(av.used, av.limit)}
         color="#FF2D78"
+      />
+      {divider}
+      <MiniQuotaBar
+        label="Downloads Shopee"
+        used={sd.used}
+        max={sd.limit}
+        pct={pct(sd.used, sd.limit)}
+        color="#FF8A3D"
       />
     </Box>
   );

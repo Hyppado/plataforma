@@ -22,6 +22,8 @@ import { requireAuth, isAuthed } from "@/lib/auth";
 import { getVideoDownloadUrl } from "@/lib/transcription/media";
 import { buildCanonicalTikTokUrl } from "@/lib/shopee/pipeline";
 import { createLogger } from "@/lib/logger";
+import { assertQuota, QuotaExceededError } from "@/lib/usage/enforce";
+import { consumeUsage } from "@/lib/usage/consume";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,6 +71,27 @@ export async function GET(
     );
   }
 
+  // Cota mensal de downloads. Checada ANTES de resolver a URL na EchoTik para
+  // não gastar requisição de cota externa num download que será recusado.
+  //
+  // O consumo só é registrado depois que o vídeo começa a ser entregue: se a
+  // EchoTik não resolver a URL ou o CDN falhar, o usuário não perde o direito.
+  try {
+    await assertQuota(auth.userId, "SHOPEE_VIDEO_DOWNLOAD");
+  } catch (error) {
+    if (error instanceof QuotaExceededError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Você atingiu o limite de ${error.limit} downloads de vídeos da Shopee neste mês.`,
+          quota: { used: error.used, limit: error.limit },
+        },
+        { status: 429 },
+      );
+    }
+    throw error;
+  }
+
   const tiktokUrl = buildCanonicalTikTokUrl(
     achadinho.videoExternalId,
     achadinho.authorName,
@@ -113,6 +136,24 @@ export async function GET(
       { status: 502 },
     );
   }
+
+  // Chegou aqui: o CDN respondeu e o corpo será transmitido. Só agora o
+  // download conta contra a cota.
+  //
+  // A chave de idempotência inclui o mês: o mesmo vídeo pode ser baixado de
+  // novo dentro do mês sem consumir duas vezes (retentativa, conexão caída),
+  // mas volta a contar no período seguinte, quando a cota é renovada.
+  const periodo = new Date().toISOString().slice(0, 7);
+  await consumeUsage(auth.userId, "SHOPEE_VIDEO_DOWNLOAD", 0, {
+    idempotencyKey: `shopee-download:${auth.userId}:${achadinho.videoExternalId}:${periodo}`,
+    refTable: "ShopeeAchadinhoProduct",
+    refId: params.id,
+  }).catch((error) => {
+    // Falhar a contabilidade não pode negar um download já autorizado.
+    log.warn("Falha ao registrar consumo de download", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 
   const filename = buildFilename(achadinho.productName, achadinho.videoExternalId);
 

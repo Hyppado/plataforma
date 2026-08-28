@@ -53,6 +53,7 @@ export async function assertQuota(
     insights: period?.insightsUsed ?? 0,
     tokens: period?.tokensUsed ?? 0,
     avatarVideos: period?.avatarVideosUsed ?? 0,
+    shopeeDownloads: period?.shopeeDownloadsUsed ?? 0,
   };
 
   switch (action) {
@@ -102,6 +103,19 @@ export async function assertQuota(
             limits.insightTokensMonthlyMax,
           );
         }
+      }
+      break;
+
+    case "SHOPEE_VIDEO_DOWNLOAD":
+      if (
+        limits.shopeeDownloadsPerMonth > 0 &&
+        used.shopeeDownloads >= limits.shopeeDownloadsPerMonth
+      ) {
+        throw new QuotaExceededError(
+          action,
+          used.shopeeDownloads,
+          limits.shopeeDownloadsPerMonth,
+        );
       }
       break;
 

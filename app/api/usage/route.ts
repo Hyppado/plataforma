@@ -34,9 +34,11 @@ export async function GET() {
       scriptsUsed: period?.scriptsUsed ?? 0,
       insightsUsed: period?.insightsUsed ?? 0,
       avatarVideosUsed: period?.avatarVideosUsed ?? 0,
+      shopeeDownloadsUsed: period?.shopeeDownloadsUsed ?? 0,
       transcriptsLimit: limits.transcriptsPerMonth,
       scriptsLimit: limits.scriptsPerMonth,
       avatarVideoLimit: limits.avatarVideoQuota,
+      shopeeDownloadsLimit: limits.shopeeDownloadsPerMonth,
       periodStart: start.toISOString(),
       periodEnd: end.toISOString(),
     });

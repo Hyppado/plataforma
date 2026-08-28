@@ -21,7 +21,20 @@ vi.mock("@/lib/transcription/media", () => ({
   getVideoDownloadUrl: (...a: unknown[]) => getVideoDownloadUrl(...a),
 }));
 
+const assertQuota = vi.fn();
+const consumeUsage = vi.fn();
+vi.mock("@/lib/usage/enforce", async () => {
+  const real = await vi.importActual<typeof import("@/lib/usage/enforce")>(
+    "@/lib/usage/enforce",
+  );
+  return { ...real, assertQuota: (...a: unknown[]) => assertQuota(...a) };
+});
+vi.mock("@/lib/usage/consume", () => ({
+  consumeUsage: (...a: unknown[]) => consumeUsage(...a),
+}));
+
 import { GET } from "@/app/api/shopee/achadinhos/[id]/download/route";
+import { QuotaExceededError } from "@/lib/usage/enforce";
 
 const params = { params: { id: "ach-1" } };
 
@@ -37,6 +50,8 @@ function achadinho(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  assertQuota.mockResolvedValue(undefined);
+  consumeUsage.mockResolvedValue({ duplicate: false });
   (prismaMock.shopeeAchadinhoProduct.findUnique as any).mockResolvedValue(achadinho());
   getVideoDownloadUrl.mockResolvedValue({
     noWatermarkUrl: "https://cdn/nowm.mp4",
@@ -157,5 +172,93 @@ describe("download", () => {
 
     const res = await GET(makeGetRequest("/download") as any, params);
     expect(res.status).toBe(502);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Cota mensal de downloads
+// ---------------------------------------------------------------------------
+
+describe("cota de downloads da Shopee", () => {
+  it("recusa com 429 quando o limite do mês foi atingido", async () => {
+    mockAuthenticatedUser();
+    assertQuota.mockRejectedValue(
+      new QuotaExceededError("SHOPEE_VIDEO_DOWNLOAD", 10, 10),
+    );
+
+    const res = await GET(makeGetRequest("/download") as any, params);
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toContain("10");
+    expect(body.quota).toEqual({ used: 10, limit: 10 });
+  });
+
+  /**
+   * A checagem vem antes de resolver a URL: cada resolução gasta uma
+   * requisição da cota da EchoTik, e gastá-la num download que será recusado
+   * é desperdício puro.
+   */
+  it("não chama a EchoTik quando a cota está esgotada", async () => {
+    mockAuthenticatedUser();
+    assertQuota.mockRejectedValue(
+      new QuotaExceededError("SHOPEE_VIDEO_DOWNLOAD", 10, 10),
+    );
+
+    await GET(makeGetRequest("/download") as any, params);
+
+    expect(getVideoDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("registra o consumo quando o download é entregue", async () => {
+    mockAuthenticatedUser();
+
+    const res = await GET(makeGetRequest("/download") as any, params);
+
+    expect(res.status).toBe(200);
+    expect(consumeUsage).toHaveBeenCalledWith(
+      expect.any(String),
+      "SHOPEE_VIDEO_DOWNLOAD",
+      0,
+      expect.objectContaining({ refTable: "ShopeeAchadinhoProduct" }),
+    );
+  });
+
+  /**
+   * Se a EchoTik não resolve a URL, o usuário não recebe vídeo — então não
+   * pode perder um download da cota.
+   */
+  it("não consome cota quando a EchoTik não resolve a URL", async () => {
+    mockAuthenticatedUser();
+    getVideoDownloadUrl.mockResolvedValue(null);
+
+    const res = await GET(makeGetRequest("/download") as any, params);
+
+    expect(res.status).toBe(503);
+    expect(consumeUsage).not.toHaveBeenCalled();
+  });
+
+  it("não consome cota quando o CDN falha", async () => {
+    mockAuthenticatedUser();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 403, body: null, headers: new Headers() }),
+    );
+
+    const res = await GET(makeGetRequest("/download") as any, params);
+
+    expect(res.status).toBe(502);
+    expect(consumeUsage).not.toHaveBeenCalled();
+  });
+
+  /** Falha de contabilidade não pode negar um download já autorizado. */
+  it("entrega o vídeo mesmo se registrar o consumo falhar", async () => {
+    mockAuthenticatedUser();
+    consumeUsage.mockRejectedValue(new Error("banco fora do ar"));
+
+    const res = await GET(makeGetRequest("/download") as any, params);
+
+    expect(res.status).toBe(200);
   });
 });
