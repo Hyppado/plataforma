@@ -39,10 +39,18 @@ export function HeaderQuota() {
         borderRadius: 1.5,
         border: "1px solid rgba(255,255,255,0.08)",
         background: "rgba(255,255,255,0.03)",
+        // Com quatro contadores a faixa passa da largura do celular. Rolar na
+        // horizontal preserva todos; sem isso o header corta os da esquerda e
+        // o usuário não descobre que existem.
+        minWidth: 0,
+        overflowX: "auto",
+        scrollbarWidth: "none",
+        "&::-webkit-scrollbar": { display: "none" },
       }}
     >
       <MiniQuotaBar
         label="Transcripts"
+        shortLabel="Transcr."
         used={t.used}
         max={t.limit}
         pct={pct(t.used, t.limit)}
@@ -71,6 +79,7 @@ export function HeaderQuota() {
         // "/dia" no rótulo porque este é o único contador do header que zera
         // diariamente — sem isso, 0/10 ao lado de cotas mensais sugere mês.
         label="Downloads Shopee/dia"
+        shortLabel="Shopee/dia"
         used={sd.used}
         max={sd.limit}
         pct={pct(sd.used, sd.limit)}
@@ -90,12 +99,15 @@ function formatDisplay(used: number | null, max: number | null): string {
 
 function MiniQuotaBar({
   label,
+  shortLabel,
   used,
   max,
   pct,
   color,
 }: {
   label: string;
+  /** Versão curta para telas estreitas — quatro contadores não cabem. */
+  shortLabel?: string;
   used: number | null;
   max: number | null;
   pct: number;
@@ -113,7 +125,12 @@ function MiniQuotaBar({
           whiteSpace: "nowrap",
         }}
       >
-        {label}
+        <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+          {label}
+        </Box>
+        <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+          {shortLabel ?? label}
+        </Box>
       </Typography>
       <Box
         sx={{
