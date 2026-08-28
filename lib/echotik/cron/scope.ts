@@ -89,6 +89,19 @@ export async function getRetainableProductIds(
   );
 }
 
+/** IDs de vídeo que a plataforma pode exibir hoje. */
+export async function getDisplayableVideoIds(): Promise<string[]> {
+  const regions = await getActiveRegionCodes();
+  if (regions.length === 0) return [];
+
+  const rows = await prisma.echotikVideoTrendDaily.findMany({
+    where: { country: { in: regions }, rankPosition: { lte: DISPLAY_LIMIT } },
+    select: { videoExternalId: true },
+    distinct: ["videoExternalId"],
+  });
+  return rows.map((r) => r.videoExternalId).filter(Boolean);
+}
+
 /** IDs de criador que a plataforma pode exibir hoje. */
 export async function getDisplayableCreatorIds(): Promise<string[]> {
   const regions = await getActiveRegionCodes();

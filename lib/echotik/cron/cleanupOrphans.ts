@@ -29,6 +29,7 @@ import {
   getActiveRegionCodes,
   getDisplayableProductIds,
   getDisplayableCreatorIds,
+  getDisplayableVideoIds,
   getRetainableProductIds,
 } from "./scope";
 import { getEchotikConfig } from "./config";
@@ -241,6 +242,69 @@ async function cleanupOrphanedProductBlobs(
 }
 
 // ---------------------------------------------------------------------------
+// Capas de vídeo (varredura por prefixo)
+// ---------------------------------------------------------------------------
+
+/** Apaga capas de vídeo que não pertencem a nenhum vídeo exibível. */
+async function cleanupOrphanedVideoBlobs(log: Logger): Promise<number> {
+  const activeIds = new Set(await getDisplayableVideoIds());
+
+  if (activeIds.size === 0) {
+    log.warn("Nenhum vídeo exibível — pulando varredura de capas de vídeo");
+    return 0;
+  }
+
+  let blobs: { url: string; pathname: string }[];
+  try {
+    blobs = await listBlobsByPrefix("videos/");
+  } catch (err) {
+    log.warn("Falha ao listar capas de vídeo — pulando varredura", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+
+  const orphanUrls = blobs
+    .filter((b) => {
+      if (!b.pathname.startsWith("videos/")) return false;
+      const id = b.pathname.replace("videos/", "").replace(/\.jpg$/i, "");
+      return !activeIds.has(id);
+    })
+    .map((b) => b.url);
+
+  if (orphanUrls.length === 0) {
+    log.info("Nenhuma capa de vídeo órfã", {
+      totalBlobs: blobs.length,
+      activeVideos: activeIds.size,
+    });
+    return 0;
+  }
+
+  let deleted = 0;
+  try {
+    deleted = await deleteBlobs(orphanUrls);
+  } catch (err) {
+    log.warn("Falha ao apagar capas de vídeo órfãs", {
+      error: err instanceof Error ? err.message : String(err),
+      orphanCount: orphanUrls.length,
+    });
+    return 0;
+  }
+
+  await prisma.echotikVideoTrendDaily.updateMany({
+    where: { coverBlobUrl: { in: orphanUrls } },
+    data: { coverBlobUrl: null },
+  });
+
+  log.info("Capas de vídeo órfãs apagadas", {
+    deleted,
+    totalBlobs: blobs.length,
+    activeVideos: activeIds.size,
+  });
+  return deleted;
+}
+
+// ---------------------------------------------------------------------------
 // Creator avatar blob cleanup
 // ---------------------------------------------------------------------------
 
@@ -297,6 +361,13 @@ async function cleanupOrphanedCreatorBlobs(log: Logger): Promise<number> {
     return 0;
   }
 
+  // Simetria com produtos e vídeos: linha que aponta para arquivo recém-apagado
+  // volta para a fila de upload em vez de ficar com link quebrado.
+  await prisma.echotikCreatorTrendDaily.updateMany({
+    where: { avatarBlobUrl: { in: orphanUrls } },
+    data: { avatarBlobUrl: null },
+  });
+
   log.info("Orphaned creator blobs cleaned", {
     deleted,
     totalBlobs: allCreatorBlobs.length,
@@ -313,6 +384,7 @@ export interface CleanupOrphansResult {
   productDetailsDeleted: number;
   productBlobsDeleted: number;
   creatorBlobsDeleted: number;
+  videoBlobsDeleted: number;
   inactiveRegionRowsDeleted: number;
 }
 
@@ -341,12 +413,14 @@ export async function cleanupOrphanedBlobs(
   // Roda DEPOIS da limpeza por linha: aquela apaga os arquivos que ainda têm
   // dono no banco, esta varre o que sobrou sem referência nenhuma.
   const sweptProductBlobs = await cleanupOrphanedProductBlobs(log, preservar);
+  const videoBlobsDeleted = await cleanupOrphanedVideoBlobs(log);
   const creatorBlobsDeleted = await cleanupOrphanedCreatorBlobs(log);
 
   return {
     productDetailsDeleted: products.dbDeleted,
     productBlobsDeleted: products.blobsDeleted + sweptProductBlobs,
     creatorBlobsDeleted,
+    videoBlobsDeleted,
     inactiveRegionRowsDeleted,
   };
 }

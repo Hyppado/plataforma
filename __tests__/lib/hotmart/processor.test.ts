@@ -1239,3 +1239,151 @@ describe("PURCHASE_PROTEST (pedido de reembolso)", () => {
     expect(json).toContain("REFUND_REQUEST");
   });
 });
+
+// ---------------------------------------------------------------------------
+// PURCHASE_COMPLETE — fim do período antichargeback, não é ativação
+// ---------------------------------------------------------------------------
+
+/**
+ * PURCHASE_COMPLETE chega cerca de uma semana DEPOIS da compra. Enquanto
+ * estava em ACTIVATION_EVENTS, ele desfazia cancelamentos:
+ *
+ *   PURCHASE_APPROVED         → ACTIVE
+ *   SUBSCRIPTION_CANCELLATION → CANCELLED
+ *   PURCHASE_COMPLETE         → ACTIVE   ← ressuscitava
+ *
+ * E como reativação não limpava endedAt, sobrava ACTIVE com término no
+ * passado — acesso que nunca mais era cortado. 35 assinaturas em produção
+ * receberam COMPLETE após um cancelamento.
+ */
+describe("PURCHASE_COMPLETE não ressuscita assinatura cancelada", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-cancelada",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+      externalStatus: "CANCELED",
+    } as never);
+  });
+
+  it("não altera o status da assinatura", async () => {
+    const fields = makeFields({ eventType: "PURCHASE_COMPLETE" });
+
+    const promise = processHotmartEvent("event-complete", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    const chamadas = prismaMock.subscription.update.mock.calls;
+    for (const [arg] of chamadas as any[]) {
+      expect(arg?.data?.status).toBeUndefined();
+    }
+    expect(prismaMock.subscription.create).not.toHaveBeenCalled();
+  });
+
+  it("não sobrescreve o externalStatus conhecido com o nome do evento", async () => {
+    const fields = makeFields({
+      eventType: "PURCHASE_COMPLETE",
+      subscriptionStatus: undefined,
+    });
+
+    const promise = processHotmartEvent("event-complete-2", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    const chamadas = prismaMock.hotmartSubscription.update.mock.calls;
+    for (const [arg] of chamadas as any[]) {
+      expect(arg?.data?.externalStatus).not.toBe("PURCHASE_COMPLETE");
+    }
+  });
+});
+
+describe("PURCHASE_APPROVED limpa o cancelamento anterior", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-recomprada",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+      externalStatus: "CANCELED",
+    } as never);
+  });
+
+  /**
+   * Recompra legítima após cancelamento. Sem esta limpeza a assinatura fica
+   * ACTIVE carregando o endedAt antigo — e o resolver, que agora recusa esse
+   * estado, cortaria um cliente pagante.
+   */
+  it("zera endedAt e cancelledAt ao reativar", async () => {
+    const fields = makeFields({ eventType: "PURCHASE_APPROVED" });
+
+    const promise = processHotmartEvent("event-approved", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    const update = (prismaMock.subscription.update.mock.calls as any[]).find(
+      ([a]) => a?.data?.status === "ACTIVE",
+    );
+    expect(update).toBeTruthy();
+    expect(update![0].data.endedAt).toBeNull();
+    expect(update![0].data.cancelledAt).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Nenhum evento é ignorado, e nenhum desconhecido concede acesso
+// ---------------------------------------------------------------------------
+
+/**
+ * O dispatch tinha fallback "ACTIVE" para qualquer evento sem classificação.
+ * Bastava a Hotmart passar a enviar um tipo novo para que ele ATIVASSE
+ * assinaturas — conceder acesso não pode ser o padrão de um evento que o
+ * código não entende. Agora a assinatura é preservada e o caso vira audit log
+ * + notificação, então nada passa em silêncio.
+ */
+describe("evento de tipo desconhecido", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-1",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+      externalStatus: "CANCELED",
+    } as never);
+  });
+
+  it("não ativa a assinatura", async () => {
+    const fields = makeFields({ eventType: "SOME_FUTURE_HOTMART_EVENT" });
+
+    const promise = processHotmartEvent("event-novo", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    for (const [arg] of prismaMock.subscription.update.mock.calls as any[]) {
+      expect(arg?.data?.status).not.toBe("ACTIVE");
+    }
+    expect(prismaMock.subscription.create).not.toHaveBeenCalled();
+  });
+
+  it("registra o evento em audit log em vez de ignorá-lo", async () => {
+    const fields = makeFields({ eventType: "SOME_FUTURE_HOTMART_EVENT" });
+
+    const promise = processHotmartEvent("event-novo-2", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    const acoes = (prismaMock.auditLog.create.mock.calls as any[]).map(
+      ([a]) => a?.data?.action,
+    );
+    expect(acoes).toContain("WEBHOOK_SOME_FUTURE_HOTMART_EVENT_UNMAPPED");
+  });
+});

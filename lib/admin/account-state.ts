@@ -19,7 +19,7 @@
 export type AccountState =
   | "ACTIVE" // has access via active paid subscription
   | "COURTESY" // has access via active admin grant (no paid sub)
-  | "PAST_DUE" // inadimplente — grace period, still has access
+  | "PAST_DUE" // inadimplente — SEM acesso até o pagamento entrar
   | "CANCELLING" // cancelled/expired but still within the paid period
   | "REFUNDED" // last charge refunded/chargeback — no access
   | "CANCELLED" // subscription cancelled — no access
@@ -45,11 +45,18 @@ const REFUND_CHARGE_STATUSES = new Set([
   "CHARGEBACK",
 ]);
 
-/** States in which the user currently has access to the product. */
+/**
+ * Estados em que o usuário tem acesso ao produto.
+ *
+ * PAST_DUE saiu daqui: inadimplência corta o acesso na hora, e volta sozinha
+ * quando o pagamento entra (PURCHASE_APPROVED devolve a assinatura para
+ * ACTIVE). Este conjunto precisa espelhar o resolveUserAccess — se divergir, o
+ * painel mostra um número de "com acesso" que não corresponde a quem realmente
+ * consegue entrar.
+ */
 const ACCESS_STATES = new Set<AccountState>([
   "ACTIVE",
   "COURTESY",
-  "PAST_DUE",
   "CANCELLING",
 ]);
 

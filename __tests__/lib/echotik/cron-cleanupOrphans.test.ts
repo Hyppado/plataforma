@@ -26,9 +26,12 @@ const prismaMock = vi.hoisted(() => ({
   echotikCreatorTrendDaily: {
     findMany: vi.fn().mockResolvedValue([]),
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   echotikVideoTrendDaily: {
+    findMany: vi.fn().mockResolvedValue([]),
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   echotikProductDetail: {
     findMany: vi.fn().mockResolvedValue([]),
@@ -43,7 +46,10 @@ function resetScopeMocks() {
   prismaMock.region.findMany.mockResolvedValue([{ code: "BR" }]);
   prismaMock.echotikProductTrendDaily.deleteMany.mockResolvedValue({ count: 0 });
   prismaMock.echotikCreatorTrendDaily.deleteMany.mockResolvedValue({ count: 0 });
+  prismaMock.echotikCreatorTrendDaily.updateMany.mockResolvedValue({ count: 0 });
   prismaMock.echotikVideoTrendDaily.deleteMany.mockResolvedValue({ count: 0 });
+  prismaMock.echotikVideoTrendDaily.updateMany.mockResolvedValue({ count: 0 });
+  prismaMock.echotikVideoTrendDaily.findMany.mockResolvedValue([]);
 }
 
 const deleteBlobsMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));

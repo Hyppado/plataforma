@@ -149,6 +149,7 @@ export async function syncVideoRanklistForRegion(
           country: item.region ?? region,
           categoryId,
           extra: item as any,
+          coverUrl: (item as { reflow_cover?: string }).reflow_cover ?? null,
         },
         update: {
           rankPosition,
@@ -169,6 +170,10 @@ export async function syncVideoRanklistForRegion(
           rankingCycle,
           categoryId: categoryId ?? undefined,
           extra: item as any,
+          // Não sobrescreve com null: capa ausente numa resposta não deve
+          // apagar a que já temos (e desvincular o blob já enviado).
+          coverUrl:
+            (item as { reflow_cover?: string }).reflow_cover ?? undefined,
           syncedAt: new Date(),
         },
       });

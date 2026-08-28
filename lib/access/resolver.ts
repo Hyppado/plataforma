@@ -18,11 +18,10 @@ import { getQuotaLimits, type QuotaLimits } from "@/lib/usage/quota";
 // Types
 // ---------------------------------------------------------------------------
 
-export type AccessStatus =
-  | "FULL_ACCESS"
-  | "GRACE_PERIOD"
-  | "NO_ACCESS"
-  | "SUSPENDED";
+// GRACE_PERIOD foi removido: inadimplência não concede mais carência — corta o
+// acesso na hora e devolve quando o pagamento entra. Manter o valor no tipo
+// deixaria um estado inalcançável sugerindo uma política que não existe.
+export type AccessStatus = "FULL_ACCESS" | "NO_ACCESS" | "SUSPENDED";
 
 export type AccessSource = "subscription" | "manual_grant" | "none";
 
@@ -133,6 +132,21 @@ export async function resolveUserAccess(
   });
 
   if (subscription?.status === "ACTIVE") {
+    // Rede de segurança: ACTIVE com data de término já vencida é contradição.
+    // Acontecia quando um evento tardio reativava uma assinatura cancelada sem
+    // limpar o endedAt — e, como ACTIVE não olhava essa data, o acesso nunca
+    // mais era cortado. Aqui a data manda: período encerrado, acesso encerrado.
+    if (subscription.endedAt && subscription.endedAt <= now) {
+      return {
+        status: "NO_ACCESS",
+        source: "none",
+        plan: null,
+        expiresAt: subscription.endedAt,
+        reason: `Período de acesso encerrado em ${subscription.endedAt.toLocaleDateString("pt-BR")}`,
+        quotas: null,
+      };
+    }
+
     return {
       status: "FULL_ACCESS",
       source: "subscription",
@@ -143,14 +157,23 @@ export async function resolveUserAccess(
     };
   }
 
+  // Inadimplência corta o acesso na hora.
+  //
+  // Antes PAST_DUE devolvia GRACE_PERIOD com acesso pleno e SEM prazo nenhum:
+  // quem parasse de pagar seguia usando indefinidamente, porque nada nesta
+  // função olhava há quanto tempo a cobrança estava vencida. Eram 93 contas
+  // nessa situação.
+  //
+  // O acesso volta sozinho quando o pagamento entra: PURCHASE_APPROVED devolve
+  // a assinatura para ACTIVE pelo caminho normal do webhook.
   if (subscription?.status === "PAST_DUE") {
     return {
-      status: "GRACE_PERIOD",
-      source: "subscription",
-      plan: subscription.plan,
+      status: "NO_ACCESS",
+      source: "none",
+      plan: null,
       expiresAt: subscription.nextChargeAt,
       reason: `Pagamento em atraso: ${subscription.plan.name}`,
-      quotas: getQuotaLimits(subscription.plan),
+      quotas: null,
     };
   }
 
@@ -176,7 +199,5 @@ export async function resolveUserAccess(
  */
 export async function hasAccess(userId: string): Promise<boolean> {
   const resolution = await resolveUserAccess(userId);
-  return (
-    resolution.status === "FULL_ACCESS" || resolution.status === "GRACE_PERIOD"
-  );
+  return resolution.status === "FULL_ACCESS";
 }
