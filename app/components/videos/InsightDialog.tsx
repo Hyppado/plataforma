@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   Dialog,
   DialogTitle,
@@ -123,7 +124,7 @@ export function InsightDialog({
 
   const handleCopy = async (key: string, text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
       setCopiedSection(key);
       setTimeout(() => setCopiedSection(null), 1500);
     } catch {
@@ -138,7 +139,7 @@ export function InsightDialog({
       return `## ${s.label}\n${text || "—"}`;
     }).join("\n\n");
     try {
-      await navigator.clipboard.writeText(full);
+      await copyTextToClipboard(full);
       setCopiedSection("__all__");
       setTimeout(() => setCopiedSection(null), 1500);
     } catch {

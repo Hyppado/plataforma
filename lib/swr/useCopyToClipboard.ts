@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 type CopyState = "idle" | "success" | "error";
 
@@ -24,14 +25,11 @@ export function useCopyToClipboard(resetMs = 2500): UseCopyToClipboardResult {
 
   const copy = useCallback(
     async (text: string) => {
-      try {
-        await navigator.clipboard.writeText(text);
-        setCopyState("success");
-      } catch {
-        setCopyState("error");
-      } finally {
-        setTimeout(() => setCopyState("idle"), resetMs);
-      }
+      // copyTextToClipboard já cobre contexto inseguro, permissão negada e
+      // navegador sem Clipboard API, caindo em execCommand quando preciso.
+      const ok = await copyTextToClipboard(text);
+      setCopyState(ok ? "success" : "error");
+      setTimeout(() => setCopyState("idle"), resetMs);
     },
     [resetMs],
   );

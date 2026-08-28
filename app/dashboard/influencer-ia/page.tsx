@@ -80,6 +80,7 @@ import type { VeoPart } from "@/lib/influencer-ia/veo-prompt";
 import { useAvatarProfiles } from "@/lib/swr/useAvatarProfiles";
 import { useTrendingProducts } from "@/lib/swr/useTrending";
 import { useExchangeRate } from "@/lib/swr/useExchangeRate";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { useAvatarUploads } from "@/lib/swr/useAvatarUploads";
 import type { AvatarUploadItem } from "@/lib/swr/useAvatarUploads";
 import {
@@ -1680,24 +1681,34 @@ function InfluencerIAWizard() {
     }
   }, [effectiveProductName, effectiveProductCategory, veoStyle, veoDuration]);
 
+  // Falha de cópia NÃO pode ser silenciosa: o usuário clicava no ícone, nada
+  // acontecia e não havia como saber por quê. copyTextToClipboard cobre
+  // contexto inseguro e permissão negada caindo em execCommand, e devolve
+  // false quando nem isso funciona — aí o erro aparece na tela.
   const handleVeoCopy = async (text: string, index: number) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setVeoCopiedIndex(index);
-      setTimeout(() => setVeoCopiedIndex(null), 2000);
-    } catch {
-      // clipboard not available — silent fail
+    const ok = await copyTextToClipboard(text);
+    if (!ok) {
+      setVeoError(
+        "Não foi possível copiar. Selecione o texto do prompt e copie manualmente.",
+      );
+      return;
     }
+    setVeoError(null);
+    setVeoCopiedIndex(index);
+    setTimeout(() => setVeoCopiedIndex(null), 2000);
   };
 
   const handleVeoCopyAll = async () => {
-    try {
-      await navigator.clipboard.writeText(veoPartsJson.join("\n\n"));
-      setVeoCopiedAll(true);
-      setTimeout(() => setVeoCopiedAll(false), 2000);
-    } catch {
-      // clipboard not available — silent fail
+    const ok = await copyTextToClipboard(veoPartsJson.join("\n\n"));
+    if (!ok) {
+      setVeoError(
+        "Não foi possível copiar. Selecione o texto dos prompts e copie manualmente.",
+      );
+      return;
     }
+    setVeoError(null);
+    setVeoCopiedAll(true);
+    setTimeout(() => setVeoCopiedAll(false), 2000);
   };
 
   const handleVeoManualSubmit = () => {
