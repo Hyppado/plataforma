@@ -6,6 +6,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { Menu as MenuIcon, Close as CloseIcon } from "@mui/icons-material";
 import { BrandLogo } from "@/app/components/BrandLogo";
 import { AppTopHeader } from "@/app/components/layout/AppTopHeader";
+import { MaintenanceBanner } from "@/app/components/layout/MaintenanceBanner";
 import { DashboardSidebar } from "@/app/components/dashboard/DashboardSidebar";
 import { PasswordChangeGuard } from "@/app/components/dashboard/PasswordChangeGuard";
 import { appTheme } from "@/app/theme";
@@ -128,6 +129,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Box>
             </Toolbar>
           </AppBar>
+
+          {/* Aviso de indisponibilidade — acima do header para ser a primeira
+              coisa lida, e fora da área rolável para não sumir ao descer. */}
+          <MaintenanceBanner />
 
           {/* Header global com seletor de país */}
           <Suspense fallback={null}>

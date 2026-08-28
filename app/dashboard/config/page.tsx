@@ -21,6 +21,7 @@ import { PromptsSection } from "@/app/components/admin/PromptsSection";
 import { PrivacyPolicySection } from "@/app/components/admin/PrivacyPolicySection";
 import { TermsOfUseSection } from "@/app/components/admin/TermsOfUseSection";
 import { SupportEmailSection } from "@/app/components/admin/SupportEmailSection";
+import { MaintenanceBannerSection } from "@/app/components/admin/MaintenanceBannerSection";
 import { EchotikTab } from "@/app/components/admin/echotik/EchotikTab";
 import { HotmartTab } from "@/app/components/admin/hotmart/HotmartTab";
 import { OpenAITab } from "@/app/components/admin/openai/OpenAITab";
@@ -143,6 +144,8 @@ export default function ConfigPage() {
         <>
           {loading && <LinearProgress sx={{ mb: 3 }} />}
           <Grid container spacing={3}>
+            {/* Primeiro da aba: é o que se procura no meio de uma queda. */}
+            <MaintenanceBannerSection />
             <SupportEmailSection />
             <PromptsSection
               promptConfig={promptConfig}
