@@ -146,7 +146,9 @@ export function ShopeeProductCard({ product, onClick }: ShopeeProductCardProps) 
       </Box>
 
       {/* Informações do produto */}
-      <Box sx={{ p: 1.5 }}>
+      {/* Padding menor no celular: com dois cards por linha sobram ~160px, e
+          12px de cada lado apertavam demais o rótulo dos botões. */}
+      <Box sx={{ p: { xs: 1.15, md: 1.5 } }}>
         {/* Nome do produto */}
         <Typography
           sx={{
@@ -246,18 +248,23 @@ export function ShopeeProductCard({ product, onClick }: ShopeeProductCardProps) 
           <Button
             fullWidth
             variant="contained"
-            startIcon={<FaceRetouchingNatural sx={{ fontSize: 14 }} />}
+            startIcon={
+              <FaceRetouchingNatural sx={{ fontSize: 14, flexShrink: 0 }} />
+            }
             onClick={handleCreateAvatarVideo}
             sx={{
               background: "linear-gradient(90deg, #FF2D78 0%, #E0256A 100%)",
               color: "#fff",
               fontWeight: 600,
-              fontSize: "0.7rem",
+              fontSize: { xs: "0.66rem", sm: "0.7rem" },
               textTransform: "none",
               borderRadius: 2,
               py: 0.75,
-              lineHeight: 1.3,
-              whiteSpace: "nowrap",
+              px: 1,
+              lineHeight: 1.25,
+              // Sem quebra, o rótulo transbordava o fundo do botão em card
+              // estreito — dois por linha no celular não cabem numa linha só.
+              whiteSpace: "normal",
               boxShadow: "none",
               "&:hover": {
                 background: "linear-gradient(90deg, #E0256A 0%, #c01d58 100%)",

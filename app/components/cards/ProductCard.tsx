@@ -472,18 +472,23 @@ export function ProductCard({
             variant="contained"
             component={Link}
             href={`/dashboard/influencer-ia?productId=${product.id}`}
-            startIcon={<FaceRetouchingNatural sx={{ fontSize: 14 }} />}
+            startIcon={
+              <FaceRetouchingNatural sx={{ fontSize: 14, flexShrink: 0 }} />
+            }
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
             sx={{
               background: "linear-gradient(90deg, #FF2D78 0%, #E0256A 100%)",
               color: "#fff",
               fontWeight: 600,
-              fontSize: { xs: "0.7rem", sm: "0.78rem" },
+              fontSize: { xs: "0.66rem", sm: "0.78rem" },
               textTransform: "none",
               borderRadius: 2,
               py: 0.75,
-              lineHeight: 1.3,
-              whiteSpace: "nowrap",
+              px: 1,
+              lineHeight: 1.25,
+              // Ver comentário equivalente em ShopeeProductCard: nowrap fazia
+              // o rótulo vazar o fundo do botão nos cards estreitos.
+              whiteSpace: "normal",
               boxShadow: "none",
               "&:hover": {
                 background: "linear-gradient(90deg, #E0256A 0%, #c01d58 100%)",

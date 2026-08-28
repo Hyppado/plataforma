@@ -102,7 +102,10 @@ export function AppTopHeader() {
       <Box sx={{ flex: 1 }} />
 
       {/* Quota usage */}
-      <Box sx={{ mr: { xs: 1, sm: 1.5 } }}>
+      {/* minWidth 0 + flexShrink deixam a faixa encolher no celular. Sem isso
+          ela mantém a largura natural e é cortada à esquerda pelo header, que
+          alinha tudo à direita. */}
+      <Box sx={{ mr: { xs: 1, sm: 1.5 }, minWidth: 0, flexShrink: 1 }}>
         <HeaderQuota />
       </Box>
 
