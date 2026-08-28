@@ -28,7 +28,13 @@ const PRODUTO = {
   rating: 4.8,
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // A rota monta a árvore de categorias a partir da dimensão oficial.
+  // O mock compartilhado devolve null por padrão, que o findMany real nunca
+  // devolve.
+  (prismaMock.shopeeCategory.findMany as any).mockResolvedValue([]);
+});
 
 describe("GET /api/shopee/ranking", () => {
   it("rejeita não autenticado", async () => {

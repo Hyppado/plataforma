@@ -34,7 +34,6 @@ import { ExpandMore, GridView, ViewList } from "@mui/icons-material";
 import { useViewMode } from "@/lib/useViewMode";
 import { useShopeeRanking } from "@/lib/swr/useShopee";
 import {
-  buildShopeeCategoryTree,
   matchesShopeeCategory,
 } from "@/lib/shopee/shopee-categories";
 import type { ShopeeProductTrendDTO } from "@/lib/swr/useShopee";
@@ -63,7 +62,7 @@ function ShopeeRankingContent() {
     setDisplayCount(PAGE_SIZE);
   }, [sort, categoryFilter]);
 
-  const { products, isLoading, error } = useShopeeRanking();
+  const { products, categories, isLoading, error } = useShopeeRanking();
 
   // Ordenação local usando dados brutos da Shopee
   const sortedItems = useMemo(() => {
@@ -84,13 +83,10 @@ function ShopeeRankingContent() {
     return sorted;
   }, [products, sort]);
 
-  // Árvore de categorias derivada dinamicamente dos produtos atuais.
-  // Persistente via URL — as categorias continuam existindo mesmo quando
-  // os produtos mudam (desde que a árvore ainda contenha os parents).
-  const categoryTree = useMemo(
-    () => buildShopeeCategoryTree(products),
-    [products],
-  );
+  // A árvore vem da dimensão oficial (servida pela rota), não é mais derivada
+  // dos produtos carregados — o dropdown mostrava só as categorias que por
+  // acaso estivessem nos 100 primeiros.
+  const categoryTree = categories;
 
   // Filtra por categoria selecionada (pai ou subcategoria)
   const filteredItems = useMemo(() => {

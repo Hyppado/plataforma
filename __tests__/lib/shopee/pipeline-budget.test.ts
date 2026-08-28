@@ -100,6 +100,10 @@ function mockDbWrites() {
     async ({ where }: any) => ({ id: `rec-${where.videoExternalId}` }),
   );
   (prismaMock.shopeeAchadinhoProduct.update as any).mockResolvedValue({});
+  // O pipeline traduz productCatIds pela dimensão de categorias. O mock
+  // compartilhado devolve null por padrão, forma que o findMany real nunca
+  // produz — sem isto, todo item falharia na classificação.
+  (prismaMock.shopeeCategory.findMany as any).mockResolvedValue([]);
 }
 
 describe("processAchadinhosBatch — retomada entre execuções", () => {

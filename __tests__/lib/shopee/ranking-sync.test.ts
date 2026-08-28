@@ -52,6 +52,10 @@ describe("syncShopeeRankings — proteção contra perda de dados", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (prismaMock.shopeeProductTrend.count as any).mockResolvedValue(0);
+    // A dimensão de categorias é consultada ao traduzir productCatIds.
+    // O mock compartilhado devolve null por padrão, que não é forma de retorno
+    // possível do findMany real.
+    (prismaMock.shopeeCategory.findMany as any).mockResolvedValue([]);
   });
 
   it("NÃO apaga o ranking quando a API não devolve nada", async () => {

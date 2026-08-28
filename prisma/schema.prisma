@@ -1183,6 +1183,29 @@ model InfluencerIADraft {
 // SHOPEE DOMAIN MODELS
 // ---------------------------------------------------------------------------
 
+/// Taxonomia oficial de categorias da Shopee BR.
+///
+/// É a MESMA numeração devolvida em `productCatIds` pela Affiliate API
+/// (L1, L2, L3 nessa ordem, com 0 quando o nível não existe), então serve de
+/// dimensão para traduzir os IDs do produto em nomes exibíveis.
+///
+/// Fonte: seller.shopee.com.br/help/api/v3/global_category/list (paginado por
+/// `page`/`size`) — 1459 folhas que, expandidas pelo caminho, dão 1700 nós.
+///
+/// Antes disto o código usava um mapa de 26 IDs escrito à mão que estava
+/// errado: dizia que 100016 era "Beleza e Saúde/Perfumes" quando é "Bolsas
+/// Femininas" — por isso bolsa aparecia ao filtrar saúde.
+model ShopeeCategory {
+  categoryId   Int      @id                    // productCatIds da Affiliate API
+  name         String                          // nome no idioma da loja (pt-BR)
+  level        Int                             // 1, 2 ou 3
+  parentId     Int?                            // categoria do nível acima
+  syncedAt     DateTime @default(now())
+
+  @@index([level])
+  @@index([parentId])
+}
+
 model ShopeeProductTrend {
   id                String    @id @default(uuid())
   date              DateTime  @db.Date

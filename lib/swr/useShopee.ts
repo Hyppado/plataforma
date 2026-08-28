@@ -87,6 +87,7 @@ export interface ShopeeAchadinhoDTO {
 interface RankingResponse {
   ok: boolean;
   products: ShopeeProductTrendDTO[];
+  categories: { parent: string; children: string[] }[];
 }
 
 interface AchadinhosFeedResponse {
@@ -123,6 +124,8 @@ export function useShopeeRanking() {
 
   return {
     products: data?.products ?? [],
+    // Árvore de categorias vinda da dimensão oficial (servida pela rota).
+    categories: data?.categories ?? [],
     isLoading,
     isValidating,
     error: error?.message ?? null,
