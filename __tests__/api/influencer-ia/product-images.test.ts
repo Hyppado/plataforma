@@ -138,7 +138,12 @@ describe("GET /api/influencer-ia/product-images", () => {
     expect(body.rawImages[1]).toBe("https://cdn.example.com/img2.jpg");
   });
 
-  it("wraps non-blob URLs in proxy for browser display", async () => {
+  /**
+   * A rota /api/proxy/image foi removida (assinava a capa na EchoTik a cada
+   * carregamento, gastando cota por imagem). CDN aberto passa direto; a capa
+   * crua da EchoTik é descartada por responder 403 sozinha.
+   */
+  it("entrega CDN aberto direto, sem envolver proxy", async () => {
     mockAuthenticatedUser();
     const coverUrlJson = JSON.stringify([
       { url: "https://cdn.example.com/img1.jpg", index: 0 },
@@ -159,7 +164,8 @@ describe("GET /api/influencer-ia/product-images", () => {
       rawImages: string[];
     };
 
-    expect(body.images[0]).toContain("/api/proxy/image?url=");
+    expect(body.images[0]).toBe("https://cdn.example.com/img1.jpg");
+    expect(body.images[0]).not.toContain("/api/proxy/image");
     expect(body.rawImages[0]).toBe("https://cdn.example.com/img1.jpg");
   });
 

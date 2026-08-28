@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   Alert,
   Box,
@@ -148,7 +149,7 @@ function WebhookEndpointCard() {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(webhookUrl);
+      await copyTextToClipboard(webhookUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

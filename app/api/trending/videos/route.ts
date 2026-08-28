@@ -168,12 +168,9 @@ export async function GET(request: NextRequest) {
         const pd = productMap.get(videoProductIds[0]);
         if (pd) {
           const price = Number(pd.avgPrice ?? pd.minPrice ?? 0) / 100;
-          const rawImg = pd.coverUrl || "";
-          const proxyImg = pd.blobUrl
-            ? pd.blobUrl
-            : rawImg
-              ? `/api/proxy/image?url=${encodeURIComponent(rawImg)}`
-              : "";
+          // Blob primeiro; capa crua da EchoTik é descartada por publicImageUrl
+          // (responde 403 sem assinatura, e assinar consome cota).
+          const proxyImg = pd.blobUrl || publicImageUrl(pd.coverUrl);
           product = {
             id: pd.productExternalId,
             name: pd.productName || "Produto",

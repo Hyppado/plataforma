@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publicImageUrl } from "@/lib/echotik/trending";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api/influencer-ia/product-images");
@@ -71,17 +72,17 @@ export async function GET(req: Request) {
       rawImages[0] = detail.blobUrl;
     }
 
-    // Wrap non-blob URLs in the image proxy so the browser can load them
-    const BLOB_HOST = "public.blob.vercel-storage.com";
-    const images = rawImages.map((url) => {
-      try {
-        const { hostname } = new URL(url);
-        if (hostname.endsWith(BLOB_HOST)) return url; // already a public blob URL
-      } catch {
-        return url;
-      }
-      return `/api/proxy/image?url=${encodeURIComponent(url)}`;
-    });
+    // URLs exibíveis no navegador.
+    //
+    // Antes as não-blob eram embrulhadas em /api/proxy/image, rota que foi
+    // removida por assinar a capa na EchoTik a cada carregamento — 1 requisição
+    // de cota por imagem. Sem a rota, esses links viravam 404 na tela.
+    //
+    // publicImageUrl mantém CDN aberto (TikTok, Shopee) e descarta a capa crua
+    // da EchoTik, que responde 403 sozinha. O blob continua passando direto.
+    const images = rawImages
+      .map((url) => publicImageUrl(url))
+      .filter((url) => url.length > 0);
 
     log.info("product-images fetched", { productId, count: images.length });
 

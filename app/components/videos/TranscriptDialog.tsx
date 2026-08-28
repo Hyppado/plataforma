@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   Dialog,
   DialogTitle,
@@ -65,7 +66,7 @@ export function TranscriptDialog({
   const handleCopy = async () => {
     if (!transcriptText) return;
     try {
-      await navigator.clipboard.writeText(transcriptText);
+      await copyTextToClipboard(transcriptText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
