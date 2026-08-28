@@ -89,7 +89,37 @@ export type IngestionTaskType =
   | "videos"
   | "products"
   | "creators"
-  | "new-products";
+  | "new-products"
+  // Tarefas de manutenção — não coletam ranking, mas sustentam o que a
+  // plataforma exibe. Ficavam fora do painel: o parse de `source` só
+  // reconhecia as cinco acima e descartava estas, então uma parada nelas
+  // passava despercebida.
+  | "details"
+  | "upload-images"
+  | "cache-download-urls"
+  | "cleanup-orphans";
+
+/** Tarefas sem recorte por região — rodam uma vez, globalmente. */
+export const GLOBAL_TASKS: IngestionTaskType[] = [
+  "categories",
+  "details",
+  "upload-images",
+  "cache-download-urls",
+  "cleanup-orphans",
+];
+
+/** Rótulo exibido no painel. */
+export const TASK_LABELS: Record<IngestionTaskType, string> = {
+  categories: "Categorias",
+  videos: "Vídeos",
+  products: "Produtos",
+  creators: "Criadores",
+  "new-products": "Novos Produtos",
+  details: "Detalhes",
+  "upload-images": "Imagens",
+  "cache-download-urls": "URLs de download",
+  "cleanup-orphans": "Limpeza",
+};
 
 export type HealthStatus =
   | "healthy"
@@ -137,6 +167,14 @@ export interface EchotikHealthSummary {
   failing: number;
   neverRun: number;
   inactive: number;
+  /**
+   * Total de falhas nas últimas 24h, somando todas as tarefas ativas.
+   *
+   * `failing` conta só quem está falhando AGORA (não recuperou), e por isso
+   * mostrava "0 falhas" num dia com 80 — as tarefas falhavam por horas e
+   * depois voltavam. Este número expõe o desgaste que o status atual esconde.
+   */
+  failures24hTotal: number;
   /** The most stale active combination. */
   mostStale: TaskRegionHealth | null;
   /** Active regions count. */

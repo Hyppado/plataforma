@@ -125,20 +125,15 @@ interface RegionRow {
   lastFailureAt: string | null;
   totalItems: number;
   taskBreakdown: {
-    task: string;
+    task: IngestionTaskType;
     status: HealthStatus;
     lastSuccessAt: string | null;
     items: number | null;
   }[];
 }
 
-const TASK_LABELS: Record<string, string> = {
-  categories: "Categorias",
-  videos: "Vídeos",
-  products: "Produtos",
-  creators: "Criadores",
-  "new-products": "Novos Produtos",
-};
+import { TASK_LABELS, GLOBAL_TASKS } from "@/lib/types/echotik-admin";
+import type { IngestionTaskType } from "@/lib/types/echotik-admin";
 
 const STATUS_PRIORITY: Record<HealthStatus, number> = {
   failing: 0,
@@ -160,9 +155,14 @@ function aggregateByRegion(tasks: TaskRegionHealth[]): RegionRow[] {
     groups[key].push(t);
   }
 
-  // Also include categories (region-agnostic) data
-  const catTask = tasks.find(
-    (t: TaskRegionHealth) => t.task === "categories" && t.isTaskEnabled,
+  // Tarefas sem região: categorias e as de manutenção (detalhes, imagens,
+  // URLs de download, limpeza). Antes só categorias aparecia — as demais
+  // rodavam sem qualquer sinal no painel.
+  const globalTasks = tasks.filter(
+    (t: TaskRegionHealth) =>
+      t.region === null &&
+      GLOBAL_TASKS.includes(t.task) &&
+      t.isTaskEnabled,
   );
   const rows: RegionRow[] = [];
   for (const code of Object.keys(groups)) {
@@ -211,25 +211,37 @@ function aggregateByRegion(tasks: TaskRegionHealth[]): RegionRow[] {
     });
   }
 
-  // If categories exists, prepend it as a special row
-  if (catTask) {
+  // Linha única para as globais, com o mesmo critério de pior-status usado
+  // nas regiões: uma tarefa de manutenção parada puxa a linha para falha.
+  if (globalTasks.length > 0) {
+    const sucessos = globalTasks
+      .map((t) => t.lastSuccessAt)
+      .filter(Boolean) as string[];
+    const falhas = globalTasks
+      .map((t) => t.lastFailureAt)
+      .filter(Boolean) as string[];
+
     rows.unshift({
       code: "—",
-      name: "Categorias (global)",
-      worstStatus: catTask.status,
-      lastSuccessAt: catTask.lastSuccessAt,
-      lastFailureAt: catTask.lastFailureAt,
-      totalItems: catTask.lastItemsProcessed ?? 0,
-      taskBreakdown: [
-        {
-          task: "categories",
-          status: catTask.status,
-          lastSuccessAt: catTask.lastSuccessAt,
-          items: catTask.lastItemsProcessed,
-        },
-      ],
+      name: "Tarefas globais",
+      worstStatus: globalTasks
+        .map((t) => t.status)
+        .sort((a, b) => STATUS_PRIORITY[a] - STATUS_PRIORITY[b])[0],
+      lastSuccessAt: sucessos.length ? sucessos.sort().reverse()[0] : null,
+      lastFailureAt: falhas.length ? falhas.sort().reverse()[0] : null,
+      totalItems: globalTasks.reduce(
+        (n, t) => n + (t.lastItemsProcessed ?? 0),
+        0,
+      ),
+      taskBreakdown: globalTasks.map((t) => ({
+        task: t.task,
+        status: t.status,
+        lastSuccessAt: t.lastSuccessAt,
+        items: t.lastItemsProcessed,
+      })),
     });
   }
+
 
   return rows;
 }
@@ -278,7 +290,18 @@ export function HealthSection({ data, loading }: HealthSectionProps) {
             >
               <span>
                 {summary.healthy} OK · {summary.stale} desatualizados ·{" "}
-                {summary.failing} falhas · {summary.neverRun} nunca rodaram
+                {summary.failing} falhando · {summary.neverRun} nunca rodaram
+                {summary.failures24hTotal > 0 && (
+                  <>
+                    {" · "}
+                    {/* `failing` conta só quem NÃO recuperou. Sem este número,
+                        um dia com 80 falhas que se resolveram sozinhas aparece
+                        como "0 falhas". */}
+                    <Box component="span" sx={{ color: "#FF8A3D" }}>
+                      {summary.failures24hTotal} falhas em 24h
+                    </Box>
+                  </>
+                )}
               </span>
             </Box>
           }

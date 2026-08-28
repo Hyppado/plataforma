@@ -29,6 +29,7 @@ const HEALTH_DATA: EchotikHealthResponse = {
     stale: 1,
     failing: 1,
     neverRun: 0,
+    failures24hTotal: 0,
     inactive: 0,
     mostStale: null,
     activeRegionsCount: 2,
