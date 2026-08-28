@@ -100,7 +100,14 @@ export const SETTING_KEYS = {
   SHOPEE_ACHADINHOS_KEYWORD: "shopee.achadinhos_keyword",
   SHOPEE_AFFILIATE_APP_ID: "shopee.affiliate_app_id",
   SHOPEE_AFFILIATE_API_SECRET: "shopee.affiliate_api_secret",
+  /// Faixa de aviso no topo da plataforma (indisponibilidade/manutenção)
+  MAINTENANCE_BANNER_ENABLED: "maintenance.banner_enabled",
+  MAINTENANCE_BANNER_MESSAGE: "maintenance.banner_message",
 } as const;
+
+/** Texto exibido quando o aviso é ligado sem mensagem própria. */
+export const MAINTENANCE_BANNER_DEFAULT_MESSAGE =
+  "Estamos com instabilidade em alguns recursos. Já estamos trabalhando nisso.";
 
 // ---------------------------------------------------------------------------
 // Secret Settings (encrypted at rest)
