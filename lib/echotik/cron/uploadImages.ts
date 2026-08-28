@@ -18,10 +18,12 @@
 import { prisma } from "@/lib/prisma";
 import { uploadImageToBlob, signEchotikCoverUrls } from "@/lib/storage/blob";
 import {
-  getDisplayableProductIds,
+  getRetainableProductIds,
   getDisplayableCreatorIds,
   getDisplayableVideoIds,
 } from "./scope";
+import { getEchotikConfig } from "./config";
+import { newProductDateWindow } from "@/lib/echotik/dates";
 
 /**
  * Assinatura de capas é feita em lote (10 por chamada, sem consumir cota).
@@ -58,22 +60,28 @@ const BATCH_SIZE = 60;
 // ---------------------------------------------------------------------------
 
 /**
- * Uploads cover images only for products currently present in the latest
- * product ranking cycle. Historical products are ignored.
+ * Sobe as capas dos produtos que alguma tela exibe.
  *
- * @returns Number of images successfully uploaded
+ * @returns Número de imagens subidas com sucesso
  */
 async function uploadProductImages(
   log: Logger,
   deadlineMs?: number,
 ): Promise<number> {
-  // Escopo = o que a tela alcança (região ativa + top 100), em TODOS os ciclos.
+  // MESMO escopo que a limpeza preserva: ranking exibível E janela de
+  // "Novos Produtos".
   //
-  // Antes isto era "produtos na data mais recente". Como a data mais recente é
-  // sempre a do ranking diário, os produtos exclusivos do semanal e do mensal
-  // nunca entravam na fila e ficavam permanentemente sem capa — 347 dos 1000
-  // do ranking semanal, medido em produção.
-  const activeProductIds = await getDisplayableProductIds();
+  // Usar só o ranking aqui criava um vão: a limpeza preservava a linha do
+  // produto novo, mas nada subia a capa dele. Medido em produção — a primeira
+  // página de Novos Produtos (BR) tinha 10 de 100 com imagem, e era a pior
+  // justamente por ordenar do mais recente para o mais antigo, que são os que
+  // o cron ainda não alcançou.
+  //
+  // A regra vale para os dois lados: o que é preservado precisa ser
+  // ilustrado, senão sobra linha sem capa para sempre.
+  const config = await getEchotikConfig();
+  const { min } = newProductDateWindow(config.newProducts.daysBack);
+  const activeProductIds = await getRetainableProductIds(parseInt(min, 10));
 
   if (activeProductIds.length === 0) {
     log.info("Nenhum produto exibível — pulando upload de capas");
@@ -121,8 +129,11 @@ async function uploadProductImages(
 
     for (const product of grupo) {
       const blobPath = `products/${product.productExternalId}.jpg`;
-      const signed = assinadas.get(product.coverUrl!);
-      const blobUrl = signed ? await uploadImageToBlob(signed, blobPath) : null;
+      // Sem assinatura, usa a URL crua: signEchotikCoverUrls só assina o CDN da
+      // EchoTik, então capa vinda de CDN aberto (TikTok, Shopee) não aparece no
+      // mapa — e pular nesse caso deixaria esses produtos sem capa para sempre.
+      const origem = assinadas.get(product.coverUrl!) ?? product.coverUrl!;
+      const blobUrl = await uploadImageToBlob(origem, blobPath);
 
       if (blobUrl) {
         await prisma.echotikProductDetail.update({
@@ -205,8 +216,9 @@ async function uploadCreatorAvatars(
 
     for (const creator of grupo) {
       const blobPath = `creators/${creator.userExternalId}.jpg`;
-      const signed = assinadas.get(creator.avatar!);
-      const blobUrl = signed ? await uploadImageToBlob(signed, blobPath) : null;
+      // Mesmo motivo dos produtos: avatar de CDN aberto não é assinado.
+      const origem = assinadas.get(creator.avatar!) ?? creator.avatar!;
+      const blobUrl = await uploadImageToBlob(origem, blobPath);
 
       if (blobUrl) {
         // Update ALL records for this creator (across dates/cycles) so older
