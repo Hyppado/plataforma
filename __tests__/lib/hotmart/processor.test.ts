@@ -1335,3 +1335,55 @@ describe("PURCHASE_APPROVED limpa o cancelamento anterior", () => {
     expect(update![0].data.cancelledAt).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Nenhum evento é ignorado, e nenhum desconhecido concede acesso
+// ---------------------------------------------------------------------------
+
+/**
+ * O dispatch tinha fallback "ACTIVE" para qualquer evento sem classificação.
+ * Bastava a Hotmart passar a enviar um tipo novo para que ele ATIVASSE
+ * assinaturas — conceder acesso não pode ser o padrão de um evento que o
+ * código não entende. Agora a assinatura é preservada e o caso vira audit log
+ * + notificação, então nada passa em silêncio.
+ */
+describe("evento de tipo desconhecido", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.hotmartSubscription.findFirst.mockResolvedValue({
+      id: "hs-1",
+      subscriptionId: "sub-1",
+      hotmartSubscriptionId: "SUB-1",
+      subscriberCode: "SC1",
+      hotmartPlanCode: "pro_mensal",
+      hotmartOfferCode: null,
+      externalStatus: "CANCELED",
+    } as never);
+  });
+
+  it("não ativa a assinatura", async () => {
+    const fields = makeFields({ eventType: "SOME_FUTURE_HOTMART_EVENT" });
+
+    const promise = processHotmartEvent("event-novo", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    for (const [arg] of prismaMock.subscription.update.mock.calls as any[]) {
+      expect(arg?.data?.status).not.toBe("ACTIVE");
+    }
+    expect(prismaMock.subscription.create).not.toHaveBeenCalled();
+  });
+
+  it("registra o evento em audit log em vez de ignorá-lo", async () => {
+    const fields = makeFields({ eventType: "SOME_FUTURE_HOTMART_EVENT" });
+
+    const promise = processHotmartEvent("event-novo-2", fields);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    const acoes = (prismaMock.auditLog.create.mock.calls as any[]).map(
+      ([a]) => a?.data?.action,
+    );
+    expect(acoes).toContain("WEBHOOK_SOME_FUTURE_HOTMART_EVENT_UNMAPPED");
+  });
+});

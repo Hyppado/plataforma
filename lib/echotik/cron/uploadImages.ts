@@ -20,6 +20,7 @@ import { uploadImageToBlob, signEchotikCoverUrls } from "@/lib/storage/blob";
 import {
   getDisplayableProductIds,
   getDisplayableCreatorIds,
+  getDisplayableVideoIds,
 } from "./scope";
 
 /**
@@ -41,8 +42,16 @@ import type { Logger } from "@/lib/logger";
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Max images to process per cron invocation (each takes ~1-3s) */
-const BATCH_SIZE = 20;
+/**
+ * Máximo de imagens por invocação, POR ENTIDADE.
+ *
+ * Era 20, o que não acompanhava a rotatividade: 931 criadores exibíveis a 20
+ * por execução, de 6 em 6 horas, levariam quase duas semanas para cobrir o
+ * conjunto — e até lá o ranking já teria girado. O gargalo real não é este
+ * número e sim o `deadlineMs`, que interrompe o lote antes do limite da função;
+ * subir o teto deixa o job aproveitar o tempo que sobra em vez de parar cedo.
+ */
+const BATCH_SIZE = 60;
 
 // ---------------------------------------------------------------------------
 // Product cover images
@@ -224,17 +233,108 @@ async function uploadCreatorAvatars(
 }
 
 // ---------------------------------------------------------------------------
+// Capas de vídeo
+// ---------------------------------------------------------------------------
+
+/**
+ * Sobe as capas dos vídeos exibíveis.
+ *
+ * A capa vem do CDN da EchoTik, que responde 403 sem assinatura — e assinar
+ * custa cota. Sem uma cópia permanente, "Vídeos em Alta" fica sem imagem
+ * nenhuma. Mesmo tratamento já dado a produtos e criadores.
+ *
+ * O mesmo vídeo aparece em várias linhas (uma por ciclo/campo/data), então a
+ * gravação é por videoExternalId, não por linha.
+ */
+async function uploadVideoCovers(
+  log: Logger,
+  deadlineMs?: number,
+): Promise<number> {
+  const activeVideoIds = await getDisplayableVideoIds();
+
+  if (activeVideoIds.length === 0) {
+    log.info("Nenhum vídeo exibível — pulando upload de capas");
+    return 0;
+  }
+
+  const videos = await prisma.echotikVideoTrendDaily.findMany({
+    where: {
+      videoExternalId: { in: activeVideoIds },
+      coverUrl: { not: null },
+      coverBlobUrl: null,
+    },
+    select: { videoExternalId: true, coverUrl: true },
+    distinct: ["videoExternalId"],
+    take: BATCH_SIZE,
+    orderBy: { syncedAt: "desc" },
+  });
+
+  if (videos.length === 0) {
+    log.info("No video covers to upload", {
+      activeVideos: activeVideoIds.length,
+    });
+    return 0;
+  }
+
+  log.info("Uploading video covers", {
+    count: videos.length,
+    activeVideos: activeVideoIds.length,
+  });
+  let uploaded = 0;
+
+  for (const grupo of chunk(videos, SIGN_CHUNK)) {
+    if (deadlineMs && Date.now() > deadlineMs) {
+      log.info("Deadline approaching, stopping video cover uploads", {
+        uploaded,
+        remaining: videos.length - uploaded,
+      });
+      break;
+    }
+
+    // Só as do CDN da EchoTik precisam de assinatura; as do TikTok abrem direto.
+    const assinadas = await signEchotikCoverUrls(
+      grupo.map((v) => v.coverUrl!).filter(Boolean),
+    );
+
+    for (const video of grupo) {
+      const origem = assinadas.get(video.coverUrl!) ?? video.coverUrl!;
+      const blobUrl = await uploadImageToBlob(
+        origem,
+        `videos/${video.videoExternalId}.jpg`,
+      );
+
+      if (blobUrl) {
+        // updateMany: o vídeo se repete em várias linhas de ranking.
+        await prisma.echotikVideoTrendDaily.updateMany({
+          where: { videoExternalId: video.videoExternalId },
+          data: { coverBlobUrl: blobUrl },
+        });
+        uploaded++;
+      } else {
+        log.warn("Video cover upload failed, will retry next run", {
+          videoExternalId: video.videoExternalId,
+        });
+      }
+    }
+  }
+
+  log.info("Video covers uploaded", { uploaded, total: videos.length });
+  return uploaded;
+}
+
+// ---------------------------------------------------------------------------
 // Public entrypoint
 // ---------------------------------------------------------------------------
 
 export interface UploadImagesResult {
   productImagesUploaded: number;
   creatorAvatarsUploaded: number;
+  videoCoversUploaded: number;
 }
 
 /**
  * Main entrypoint for the upload-images cron task.
- * Processes both product covers and creator avatars in a single invocation.
+ * Cobre as três entidades com imagem: produto, criador e vídeo.
  */
 export async function uploadPendingImages(
   log: Logger,
@@ -242,6 +342,11 @@ export async function uploadPendingImages(
 ): Promise<UploadImagesResult> {
   const productImagesUploaded = await uploadProductImages(log, deadlineMs);
   const creatorAvatarsUploaded = await uploadCreatorAvatars(log, deadlineMs);
+  const videoCoversUploaded = await uploadVideoCovers(log, deadlineMs);
 
-  return { productImagesUploaded, creatorAvatarsUploaded };
+  return {
+    productImagesUploaded,
+    creatorAvatarsUploaded,
+    videoCoversUploaded,
+  };
 }

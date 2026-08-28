@@ -180,8 +180,13 @@ export async function detectNextTask(
     }
   }
 
-  // 6. Upload images to Vercel Blob (runs after data ingestion)
-  if (force || !(await shouldSkip("echotik:upload-images", 6))) {
+  // 6. Upload images to Vercel Blob (runs after data ingestion).
+  //
+  // De 6 em 6 horas o job não acompanhava a rotatividade do ranking: entre uma
+  // execução e outra entravam mais itens novos do que um lote conseguia cobrir,
+  // e a plataforma ficava com cards sem imagem. De hora em hora ele encosta na
+  // rotação; quando não há nada pendente, sai de imediato.
+  if (force || !(await shouldSkip("echotik:upload-images", 1))) {
     return { task: "upload-images", region: null };
   }
 

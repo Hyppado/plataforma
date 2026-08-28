@@ -642,6 +642,8 @@ model EchotikVideoTrendDaily {
   country           String    @default("US")
   categoryId        String?                          // externalId da categoria
   extra             Json?
+  coverUrl          String?                          // reflow_cover da API (CDN EchoTik — exige assinatura)
+  coverBlobUrl      String?                          // Vercel Blob: cópia permanente da capa
   downloadUrl       String?                          // Cached video download URL (pre-fetched by cron)
   downloadUrlFetchedAt DateTime?                     // When the download URL was cached
   syncedAt          DateTime  @default(now())

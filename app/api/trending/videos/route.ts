@@ -216,13 +216,19 @@ export async function GET(request: NextRequest) {
         roas: 0,
         sourceUrl: "",
         tiktokUrl: `https://www.tiktok.com/@${r.authorName || "user"}/video/${r.videoExternalId}`,
+        // Blob primeiro: é a única cópia que carrega sem assinatura (e sem
+        // gastar cota). A capa crua da EchoTik responde 403 sozinha, então
+        // publicImageUrl a descarta — só passa CDN aberto, como o do TikTok.
         thumbnailUrl:
+          r.coverBlobUrl ||
           publicImageUrl(
-            (r.extra as Record<string, unknown> | null)?.reflow_cover as
-              | string
-              | null
-              | undefined,
-          ) || null,
+            r.coverUrl ??
+              ((r.extra as Record<string, unknown> | null)?.reflow_cover as
+                | string
+                | null
+                | undefined),
+          ) ||
+          null,
         dateRange: range,
         categoryId: r.categoryId ?? undefined,
         product,

@@ -120,11 +120,13 @@ describe("accountHasAccess", () => {
   it("grants access for active states", () => {
     expect(accountHasAccess("ACTIVE")).toBe(true);
     expect(accountHasAccess("COURTESY")).toBe(true);
-    expect(accountHasAccess("PAST_DUE")).toBe(true);
     expect(accountHasAccess("CANCELLING")).toBe(true);
   });
 
   it("denies access for loss states", () => {
+    // Inadimplente perde acesso na hora — precisa espelhar resolveUserAccess,
+    // senão o painel conta como "com acesso" quem não consegue entrar.
+    expect(accountHasAccess("PAST_DUE")).toBe(false);
     expect(accountHasAccess("CANCELLED")).toBe(false);
     expect(accountHasAccess("EXPIRED")).toBe(false);
     expect(accountHasAccess("REFUNDED")).toBe(false);

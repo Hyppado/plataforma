@@ -132,7 +132,12 @@ describe("resolveUserAccess()", () => {
     expect(result.status).toBe("FULL_ACCESS");
   });
 
-  it("returns GRACE_PERIOD for PAST_DUE subscription", async () => {
+  /**
+   * Inadimplência corta o acesso na hora. Antes devolvia GRACE_PERIOD com
+   * acesso pleno e sem prazo nenhum — 93 contas usavam o produto sem pagar,
+   * indefinidamente. O acesso volta sozinho quando o pagamento entra.
+   */
+  it("nega acesso a assinatura PAST_DUE", async () => {
     prismaMock.user.findUnique.mockResolvedValue(buildUser());
     prismaMock.accessGrant.findFirst.mockResolvedValue(null);
     prismaMock.subscription.findFirst.mockResolvedValue(
@@ -140,8 +145,8 @@ describe("resolveUserAccess()", () => {
     );
 
     const result = await resolveUserAccess("user-1");
-    expect(result.status).toBe("GRACE_PERIOD");
-    expect(result.source).toBe("subscription");
+    expect(result.status).toBe("NO_ACCESS");
+    expect(result.quotas).toBeNull();
   });
 
   // -----------------------------------------------------------------------
@@ -217,14 +222,14 @@ describe("hasAccess()", () => {
     expect(await hasAccess("user-1")).toBe(true);
   });
 
-  it("returns true for GRACE_PERIOD", async () => {
+  it("returns false for PAST_DUE (inadimplente perde acesso)", async () => {
     prismaMock.user.findUnique.mockResolvedValue(buildUser());
     prismaMock.accessGrant.findFirst.mockResolvedValue(null);
     prismaMock.subscription.findFirst.mockResolvedValue(
       buildSubscription({ status: "PAST_DUE" }),
     );
 
-    expect(await hasAccess("user-1")).toBe(true);
+    expect(await hasAccess("user-1")).toBe(false);
   });
 
   it("returns false for NO_ACCESS", async () => {

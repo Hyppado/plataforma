@@ -333,6 +333,48 @@ async function upsertSubscription(
 // Unresolved identity/plan — audit + admin notification
 // ---------------------------------------------------------------------------
 
+/**
+ * Evento cujo tipo o código não classifica.
+ *
+ * Antes esses caíam no fallback "ACTIVE" do dispatch e ativavam a assinatura —
+ * um tipo novo da Hotmart podia conceder acesso sem ninguém decidir isso.
+ * Agora a assinatura fica intocada e o caso vira audit log + notificação ao
+ * admin: nenhum evento é ignorado, mas nenhum evento desconhecido concede
+ * acesso. Ao mapear o tipo, ele passa a ser tratado normalmente.
+ */
+async function logUnmapped(
+  webhookEventId: string,
+  fields: HotmartWebhookFields,
+): Promise<void> {
+  await prisma.auditLog.create({
+    data: {
+      actorId: "system",
+      action: `WEBHOOK_${fields.eventType}_UNMAPPED`,
+      entityType: "HotmartWebhookEvent",
+      entityId: webhookEventId,
+      after: {
+        motivo:
+          "Tipo de evento não classificado — assinatura preservada por segurança",
+        eventType: fields.eventType,
+        subscriberCode: fields.subscriberCode,
+        buyerEmail: fields.buyerEmail ?? fields.subscriberEmail,
+        subscriptionStatus: fields.subscriptionStatus,
+      },
+    },
+  });
+
+  await createNotificationIfNeeded({
+    eventType: "EVENT_UNMAPPED",
+    email: fields.buyerEmail ?? fields.subscriberEmail,
+    reason: `Evento ${fields.eventType} não mapeado — nenhuma alteração de acesso aplicada`,
+    eventId: webhookEventId,
+    metadata: {
+      eventType: fields.eventType,
+      subscriberCode: fields.subscriberCode,
+    },
+  }).catch(() => {});
+}
+
 async function logUnresolved(
   webhookEventId: string,
   fields: HotmartWebhookFields,
@@ -867,7 +909,14 @@ async function _processEvent(
       identity.user.status = "ACTIVE";
     }
 
-    // Determina status da assinatura
+    // Determina status da assinatura.
+    //
+    // O fallback era "ACTIVE", então QUALQUER evento que chegasse aqui sem
+    // classificação — inclusive um tipo novo que a Hotmart passasse a enviar —
+    // ativava a assinatura. Concessão de acesso não pode ser o comportamento
+    // padrão de um evento que o código não entende. Agora só SWITCH_PLAN ativa
+    // por este caminho; `null` significa "não sei o que isso é" e cai no
+    // logUnmapped logo abaixo, que preserva a assinatura.
     const newStatus = isActivation
       ? "ACTIVE"
       : CANCELLATION_EVENTS.has(eventType)
@@ -876,18 +925,28 @@ async function _processEvent(
           ? "PAST_DUE"
           : EXPIRY_EVENTS.has(eventType)
             ? "EXPIRED"
-            : "ACTIVE"; // SWITCH_PLAN e outros
+            : eventType === "SWITCH_PLAN"
+              ? "ACTIVE"
+              : null;
 
-    subscriptionId = await upsertSubscription(
-      fields,
-      identity.userId,
-      plan.id,
-      newStatus,
-    );
+    if (newStatus === null) {
+      // Não classificado: registra e segue sem tocar na assinatura.
+      // Nada é ignorado em silêncio — o admin é notificado para mapear o tipo.
+      await logUnmapped(webhookEventId, fields);
+    } else {
+      subscriptionId = await upsertSubscription(
+        fields,
+        identity.userId,
+        plan.id,
+        newStatus,
+      );
+    }
 
-    // 3. Cria SubscriptionCharge se houver transação
+    // 3. Cria SubscriptionCharge se houver transação.
+    // Exige subscriptionId: evento não mapeado não cria assinatura, e a
+    // cobrança precisa de dono.
     const chargeStatus = CHARGE_STATUS_MAP[eventType];
-    if (chargeStatus && fields.transactionId) {
+    if (chargeStatus && fields.transactionId && subscriptionId) {
       await prisma.subscriptionCharge.upsert({
         where: { transactionId: fields.transactionId },
         update: {
