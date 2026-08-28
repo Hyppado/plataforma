@@ -71,6 +71,7 @@ const MOCK_HEALTH: EchotikHealthResponse = {
     stale: 0,
     failing: 0,
     neverRun: 0,
+    failures24hTotal: 0,
     inactive: 0,
     mostStale: null,
     activeRegionsCount: 2,

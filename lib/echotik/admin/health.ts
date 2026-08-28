@@ -14,6 +14,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getEchotikConfig } from "@/lib/echotik/cron/config";
+import { GLOBAL_TASKS } from "@/lib/types/echotik-admin";
 import type {
   EchotikHealthResponse,
   EchotikHealthSummary,
@@ -43,6 +44,10 @@ function parseSource(source: string): {
     "products",
     "creators",
     "new-products",
+    "details",
+    "upload-images",
+    "cache-download-urls",
+    "cleanup-orphans",
   ] as const;
   const task = knownTasks.includes(parts[0] as IngestionTaskType)
     ? (parts[0] as IngestionTaskType)
@@ -286,17 +291,34 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
         return config.intervals.creators;
       case "new-products":
         return config.newProducts.intervalHours;
+      // Intervalos fixos no orquestrador (não configuráveis pelo painel).
+      // Precisam espelhar lib/echotik/cron/orchestrator.ts — se divergirem, o
+      // painel marca como atrasada uma tarefa que está no ritmo certo.
+      case "details":
+        return 6;
+      case "upload-images":
+        return 1;
+      case "cache-download-urls":
+        return 6;
+      case "cleanup-orphans":
+        return 24;
     }
   };
 
-  // Categories (region-agnostic)
-  {
-    const source = "echotik:categories";
+  // Tarefas globais, sem recorte por região.
+  //
+  // Antes só "categories" entrava aqui; details, upload-images,
+  // cache-download-urls e cleanup-orphans rodavam sem aparecer no painel — uma
+  // parada nelas não gerava sinal, mesmo sustentando o que a tela exibe.
+  for (const task of GLOBAL_TASKS) {
+    const source = `echotik:${task}`;
     const lastSuccess = successMap.get(source) ?? null;
     const lastFailure = failureMap.get(source) ?? null;
     const failures24h = failures24hMap.get(source) ?? 0;
-    const interval = intervalFor("categories");
-    const isEnabled = config.enabledTasks.includes("categories");
+    const interval = intervalFor(task);
+    // As de manutenção não são desligáveis pelo painel: rodam sempre.
+    const isEnabled =
+      task === "categories" ? config.enabledTasks.includes("categories") : true;
     const ageMs = lastSuccess ? Date.now() - lastSuccess.getTime() : null;
     const hoursSinceSuccess = ageMs != null ? ageMs / (60 * 60 * 1000) : null;
     const stalenessRatio =
@@ -308,7 +330,7 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
 
     tasks.push({
       source,
-      task: "categories",
+      task,
       region: null,
       regionName: null,
       isRegionActive: true,
@@ -398,6 +420,7 @@ export async function getEchotikHealth(): Promise<EchotikHealthResponse> {
     stale: activeTasks.filter((t) => t.status === "stale").length,
     failing: activeTasks.filter((t) => t.status === "failing").length,
     neverRun: activeTasks.filter((t) => t.status === "never_run").length,
+    failures24hTotal: activeTasks.reduce((n, t) => n + t.failures24h, 0),
     inactive: tasks.filter((t) => t.status === "inactive").length,
     mostStale:
       activeTasks
