@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthed } from "@/lib/auth";
 import { resolveUserAccess } from "@/lib/access/resolver";
 import { prisma } from "@/lib/prisma";
+import { getEchotikConfig } from "@/lib/echotik/cron/config";
+import { newProductDateWindow } from "@/lib/echotik/dates";
 import { publicImageUrl } from "@/lib/echotik/trending";
 import type { ProductDTO } from "@/lib/types/dto";
 import { createLogger } from "@/lib/logger";
@@ -40,7 +42,18 @@ export async function GET(request: NextRequest) {
       100,
     );
 
-    const where = { region };
+    // Filtra pela MESMA janela que a tela anuncia ("novos nos últimos N
+    // dias") e que o sync usa para popular a tabela.
+    //
+    // Antes o filtro era só por região, então a página mostrava todo detalhe
+    // gravado — inclusive os produtos do ranking, que vivem na mesma tabela e
+    // têm data de descoberta antiga. Duas consequências: ela exibia como
+    // "novo" produto de um ano atrás, e esses produtos apareciam sem capa,
+    // porque o job de imagem cobre o que é exibível (ranking + janela de
+    // novos) e eles não estavam em nenhum dos dois.
+    const config = await getEchotikConfig();
+    const { min } = newProductDateWindow(config.newProducts.daysBack);
+    const where = { region, firstCrawlDt: { gte: parseInt(min, 10) } };
 
     const [rows, total] = await Promise.all([
       prisma.echotikProductDetail.findMany({
