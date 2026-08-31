@@ -399,3 +399,49 @@ describe("PATCH /api/shopee/achadinhos/[id] — link de afiliado", () => {
     expect(updateArgs.data.status).toBe("READY");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Teto de página
+// ---------------------------------------------------------------------------
+
+/**
+ * O painel admin pedia pageSize=1000 e recebia 100 sem aviso. Das 1253 linhas
+ * chegavam só as 100 mais recentes — quase todas FAILED — e os 238 PENDING
+ * nunca apareciam na tela. Parecia que a ingestão tinha parado de trazer
+ * vídeos para aprovação, quando eles estavam ali, invisíveis.
+ */
+describe("teto de itens por página", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (prismaMock.shopeeAchadinhoProduct.findMany as any).mockResolvedValue([]);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(0);
+  });
+
+  it("admin recebe a fila inteira quando pede", async () => {
+    mockAuthenticatedAdmin();
+
+    await GET(
+      makeGetRequest("/api/shopee/achadinhos", {
+        pageSize: "1000",
+        status: "all",
+      }) as any,
+    );
+
+    const take = (prismaMock.shopeeAchadinhoProduct.findMany as any).mock
+      .calls[0][0].take;
+    expect(take).toBe(1000);
+  });
+
+  /** O feed do usuário mostra poucos por vez; 100 continua sendo o bastante. */
+  it("usuário comum continua limitado a 100", async () => {
+    mockAuthenticatedUser();
+
+    await GET(
+      makeGetRequest("/api/shopee/achadinhos", { pageSize: "1000" }) as any,
+    );
+
+    const take = (prismaMock.shopeeAchadinhoProduct.findMany as any).mock
+      .calls[0][0].take;
+    expect(take).toBe(100);
+  });
+});

@@ -1146,11 +1146,20 @@ export async function processAchadinhosBatch(
   let succeeded = 0;
   let partial = false;
 
-  // Inventário atual de exibíveis — o alvo é sobre o que o usuário VÊ, não
-  // sobre quantos vídeos varremos.
+  // Inventário atual de exibíveis — o alvo é sobre o que o usuário VÊ.
+  //
+  // Conta SÓ os READY. Antes somava PENDING junto, e isso invertia o
+  // propósito do teto: PENDING é trabalho já feito aguardando decisão do
+  // admin, não conteúdo publicado. Com 238 pendentes e 100 publicados, o
+  // inventário dava 338 e o lote encerrava sem processar nada — um período
+  // sem revisão parava a esteira inteira, e de fora parecia que a ingestão
+  // tinha quebrado.
+  //
+  // O custo de processar com fila grande é limitado pelo orçamento de tempo
+  // do lote, que já corta a execução muito antes de a fila virar problema.
   let exibiveis = options.targetInventory
     ? await prisma.shopeeAchadinhoProduct.count({
-        where: { status: { in: ["PENDING", "READY"] } },
+        where: { status: "READY" },
       })
     : 0;
 
@@ -1183,7 +1192,11 @@ export async function processAchadinhosBatch(
     processed++;
     if (ok) {
       succeeded++;
-      exibiveis++; // chegou em PENDING, já conta como exibível
+      // O contador parte dos READY e sobe a cada item produzido nesta
+      // execução. Não é "virou exibível" — é o teto de produção por lote,
+      // medido a partir do acervo publicado. Sem isso um único lote poderia
+      // gerar transcrição e GPT sem limite até o orçamento de tempo acabar.
+      exibiveis++;
     }
   }
 

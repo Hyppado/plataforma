@@ -163,8 +163,15 @@ export async function runShopeeAchadinhosCron(
   // contagem de READY que a poda usa.
   const archived = await trimAchadinhosToTarget(alvo);
 
+  // Só READY conta como inventário: é o que o usuário vê no feed.
+  //
+  // Somar PENDING aqui invertia o propósito do alvo. PENDING é trabalho já
+  // feito esperando decisão do admin — contá-lo como acervo fazia a fila de
+  // revisão travar a produção: com 238 pendentes e 100 publicados o número
+  // dava 338, o lote encerrava sem processar nada, e de fora parecia que a
+  // ingestão tinha quebrado. Um período sem revisão parava a esteira inteira.
   const exibiveis = await prisma.shopeeAchadinhoProduct.count({
-    where: { status: { in: ["PENDING", "READY"] } },
+    where: { status: "READY" },
   });
   const abaixoDoAlvo = exibiveis < alvo;
 

@@ -457,6 +457,51 @@ describe("processAchadinhosBatch — alvo de inventário e múltiplas hashtags",
     expect(result.targetReached).toBe(true);
   });
 
+  /**
+   * O contador do inventário olhava PENDING junto com READY. Como PENDING é
+   * trabalho aguardando decisão do admin, um backlog de revisão travava a
+   * produção: 238 pendentes + 100 publicados davam 338 contra um teto de 200,
+   * e o lote encerrava sem processar nada — de fora, parecia ingestão
+   * quebrada.
+   */
+  it("conta apenas os publicados como inventário, não a fila de revisão", async () => {
+    mockHashtagPage(5);
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(10);
+
+    await processAchadinhosBatch({
+      pageDelayMs: 0,
+      count: 20,
+      targetInventory: 50,
+    });
+
+    const consultas = (prismaMock.shopeeAchadinhoProduct.count as any).mock
+      .calls as any[];
+    const inventario = consultas.find(([a]) => a?.where?.status);
+    expect(inventario).toBeTruthy();
+    expect(inventario![0].where.status).toBe("READY");
+  });
+
+  it("processa mesmo com fila de revisão grande, desde que o feed tenha espaço", async () => {
+    mockHashtagPage(5);
+    // 10 publicados contra teto 50 — a fila de PENDING não entra na conta.
+    (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(10);
+    findBestShopeeOffer.mockResolvedValue({
+      offerLink: "https://shopee.com.br/product/1",
+      productLink: "https://shopee.com.br/product/1",
+      priceMin: "10", priceMax: "20", sales: 5, commissionRate: "5",
+      imageUrl: "https://cdn/i.jpg", productName: "P", productCatIds: [100632],
+    });
+
+    const result = await processAchadinhosBatch({
+      pageDelayMs: 0,
+      count: 20,
+      targetInventory: 50,
+    });
+
+    expect(result.processed).toBeGreaterThan(0);
+    expect(result.targetReached).toBe(false);
+  });
+
   it("sem alvo definido, processa tudo que encontrar", async () => {
     mockHashtagPage(3);
     (prismaMock.shopeeAchadinhoProduct.count as any).mockResolvedValue(999);

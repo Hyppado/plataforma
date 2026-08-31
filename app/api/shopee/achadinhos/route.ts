@@ -90,7 +90,18 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get("pageSize") || "24", 10)));
+    // Teto de página. O feed do usuário mostra poucos por vez, então 100
+    // basta; o admin precisa da fila inteira de revisão numa tela só.
+    //
+    // O painel pedia pageSize=1000 e recebia 100 sem aviso: das 1253 linhas
+    // chegavam as 100 mais recentes, quase todas FAILED, e os 238 PENDING
+    // nunca apareciam. Parecia que a ingestão tinha parado de trazer vídeos —
+    // quando na verdade eles estavam ali, invisíveis.
+    const MAX_PAGE_SIZE = isAdmin ? 1000 : 100;
+    const pageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, parseInt(url.searchParams.get("pageSize") || "24", 10)),
+    );
     // ORDENAÇÃO FINAL: por padrão, os achadinhos são ordenados pela
     // quantidade de vendas em ordem decrescente (os de maior sucesso no topo).
     // O usuário pode sobrescrever com ?sort=createdAt (Recentes) etc.
