@@ -164,6 +164,13 @@ export async function uploadImageToBlob(
       access: "public",
       contentType,
       addRandomSuffix: false,
+      // O caminho é determinístico (products/{id}.jpg), então reprocessar o
+      // mesmo item cai no mesmo arquivo. Sem isto o Vercel Blob recusa com
+      // "This blob already exists" e o item fica com a URL crua do CDN, que
+      // expira em horas — foi o que deixou achadinhos reprocessados sem capa.
+      // Sobrescrever é o comportamento correto: a imagem nova substitui a
+      // antiga do mesmo item.
+      allowOverwrite: true,
     });
 
     return blob.url;
@@ -199,6 +206,9 @@ export async function uploadBufferToBlob(
       access: "public",
       contentType,
       addRandomSuffix: false,
+      // Mesmo motivo do upload por URL acima: caminho determinístico,
+      // reprocessar precisa sobrescrever em vez de falhar.
+      allowOverwrite: true,
     });
     return blob.url;
   } catch (error) {
