@@ -24,6 +24,7 @@ import {
 } from "./scope";
 import { getEchotikConfig } from "./config";
 import { newProductDateWindow } from "@/lib/echotik/dates";
+import { assinaturaVencida } from "@/lib/echotik/trending";
 
 /**
  * Assinatura de capas é feita em lote (10 por chamada, sem consumir cota).
@@ -31,6 +32,38 @@ import { newProductDateWindow } from "@/lib/echotik/dates";
  * chamada é o que dispara o risk control deles.
  */
 const SIGN_CHUNK = 10;
+
+/**
+ * Tira do lote as origens que não podem dar upload nenhum e apaga a URL morta.
+ *
+ * A EchoTik entrega a imagem de duas formas. Quase sempre é o CDN dela própria,
+ * permanente — dessas subiram 1179 de 1179 capas de vídeo e 946 de 946 avatares.
+ * Às vezes vem a URL crua do TikTok, assinada e com `x-expires`; aí só vingaram
+ * 3 de 21 e 2 de 17. Nas que sobraram a assinatura já estava vencida quando a
+ * linha foi gravada — mediana de 24h vencida — então não há janela a perseguir.
+ *
+ * Duas consequências se nada for feito: elas voltam para a fila a cada ciclo e,
+ * por serem re-sincronizadas, ficam no topo da ordenação ocupando vagas do lote;
+ * e a interface, que cai na URL crua quando não há blob, recebe um endereço que
+ * só pode virar imagem quebrada.
+ */
+async function descartarOrigensMortas<T>(
+  candidatos: T[],
+  origem: (item: T) => string,
+  apagarOrigem: (mortos: T[]) => Promise<void>,
+  log: Logger,
+): Promise<T[]> {
+  const mortos = candidatos.filter((c) => assinaturaVencida(origem(c)));
+
+  if (mortos.length > 0) {
+    await apagarOrigem(mortos);
+    log.info("Origens com assinatura vencida descartadas", {
+      count: mortos.length,
+    });
+  }
+
+  return candidatos.filter((c) => !assinaturaVencida(origem(c)));
+}
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -177,7 +210,9 @@ async function uploadCreatorAvatars(
     return 0;
   }
 
-  const creators = await prisma.echotikCreatorTrendDaily.findMany({
+  // Folga sobre o lote: parte das pendências é assinatura vencida, que não dá
+  // upload nenhum e sem a folga consumiria as vagas de quem ainda tem chance.
+  const candidatos = await prisma.echotikCreatorTrendDaily.findMany({
     where: {
       userExternalId: { in: activeCreatorIds },
       avatar: { not: null },
@@ -185,8 +220,24 @@ async function uploadCreatorAvatars(
     },
     select: { id: true, userExternalId: true, avatar: true },
     distinct: ["userExternalId"],
-    take: BATCH_SIZE,
+    take: BATCH_SIZE * 2,
   });
+
+  const creators = (
+    await descartarOrigensMortas(
+      candidatos,
+      (c) => c.avatar!,
+      async (mortos) => {
+        await prisma.echotikCreatorTrendDaily.updateMany({
+          where: {
+            userExternalId: { in: mortos.map((c) => c.userExternalId) },
+          },
+          data: { avatar: null },
+        });
+      },
+      log,
+    )
+  ).slice(0, BATCH_SIZE);
 
   if (creators.length === 0) {
     log.info("No creator avatars to upload", {
@@ -269,7 +320,9 @@ async function uploadVideoCovers(
     return 0;
   }
 
-  const videos = await prisma.echotikVideoTrendDaily.findMany({
+  // Busca além do lote porque parte das pendências é assinatura vencida, que
+  // não dá upload nenhum — sem a folga, elas consumiriam o lote inteiro.
+  const candidatos = await prisma.echotikVideoTrendDaily.findMany({
     where: {
       videoExternalId: { in: activeVideoIds },
       coverUrl: { not: null },
@@ -277,9 +330,24 @@ async function uploadVideoCovers(
     },
     select: { videoExternalId: true, coverUrl: true },
     distinct: ["videoExternalId"],
-    take: BATCH_SIZE,
+    take: BATCH_SIZE * 2,
     orderBy: { syncedAt: "desc" },
   });
+
+  // Se a EchoTik voltar a mandar uma URL válida, a sincronização regrava o campo.
+  const viaveis = await descartarOrigensMortas(
+    candidatos,
+    (v) => v.coverUrl!,
+    async (mortos) => {
+      await prisma.echotikVideoTrendDaily.updateMany({
+        where: { videoExternalId: { in: mortos.map((v) => v.videoExternalId) } },
+        data: { coverUrl: null },
+      });
+    },
+    log,
+  );
+
+  const videos = viaveis.slice(0, BATCH_SIZE);
 
   if (videos.length === 0) {
     log.info("No video covers to upload", {
@@ -352,9 +420,27 @@ export async function uploadPendingImages(
   log: Logger,
   deadlineMs?: number,
 ): Promise<UploadImagesResult> {
-  const productImagesUploaded = await uploadProductImages(log, deadlineMs);
-  const creatorAvatarsUploaded = await uploadCreatorAvatars(log, deadlineMs);
-  const videoCoversUploaded = await uploadVideoCovers(log, deadlineMs);
+  // ORÇAMENTO REPARTIDO, NÃO DISPUTADO
+  //
+  // As três etapas rodavam em sequência com o MESMO prazo. Produtos vinham
+  // primeiro, consumiam quase todo o tempo e vídeos, últimos da fila, ficavam
+  // com as sobras: 60 capas de produto por execução contra 8 a 21 de vídeo,
+  // com 238 vídeos esperando. A ordem no código virava prioridade de fato, e
+  // "Vídeos em Alta" ficava com card sem capa por horas.
+  //
+  // Cada etapa recebe agora a fatia do tempo que ainda resta dividida pelas
+  // etapas que faltam. Quem termina cedo devolve o tempo não usado para as
+  // seguintes, então repartir não desperdiça.
+  const fatia = (etapasRestantes: number): number | undefined => {
+    if (!deadlineMs) return undefined;
+    const restante = deadlineMs - Date.now();
+    if (restante <= 0) return deadlineMs;
+    return Date.now() + Math.floor(restante / etapasRestantes);
+  };
+
+  const productImagesUploaded = await uploadProductImages(log, fatia(3));
+  const creatorAvatarsUploaded = await uploadCreatorAvatars(log, fatia(2));
+  const videoCoversUploaded = await uploadVideoCovers(log, fatia(1));
 
   return {
     productImagesUploaded,

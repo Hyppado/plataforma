@@ -13,6 +13,28 @@ import { prisma } from "@/lib/prisma";
 export const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
 
 /**
+ * A capa que a EchoTik devolve às vezes é a URL crua do TikTok, assinada e com
+ * `x-expires`. Essas chegam vencidas: nas 18 capas de vídeo que nunca subiram,
+ * a assinatura já estava expirada quando a linha foi gravada — mediana de 24h
+ * vencida, a menos ruim com 9,5h. O CDN responde 403.
+ *
+ * Serve tanto para não enfileirar upload impossível quanto para não entregar
+ * ao card uma URL que só pode virar imagem quebrada.
+ */
+export function assinaturaVencida(url: string, agoraMs = Date.now()): boolean {
+  try {
+    const exp = new URL(url).searchParams.get("x-expires");
+    if (!exp) return false;
+    const segundos = Number(exp);
+    if (!Number.isFinite(segundos) || segundos <= 0) return false;
+    return segundos * 1000 <= agoraMs;
+  } catch {
+    // URL malformada não é questão de validade; quem chama já a descarta.
+    return false;
+  }
+}
+
+/**
  * Devolve uma URL de imagem que o navegador consegue carregar sozinho.
  *
  * POR QUE A CAPA CRUA DA ECHOTIK NÃO SERVE
@@ -27,7 +49,7 @@ export const ECHOTIK_CDN = "echosell-images.tos-ap-southeast-1.volces.com";
  * card é muito melhor do que queimar a cota que alimenta a plataforma inteira.
  *
  * URLs de outros CDNs (TikTok, Shopee) passam direto: abrem sem assinatura e
- * não consomem nada.
+ * não consomem nada — desde que a assinatura que trazem ainda valha.
  *
  * @param url       URL de origem (pode ser null/undefined)
  * @param fallback  Valor devolvido quando não há imagem utilizável (default: "")
@@ -47,6 +69,7 @@ export function publicImageUrl(
   } catch {
     return fallback; // URL malformada não carrega em lugar nenhum
   }
+  if (assinaturaVencida(url)) return fallback;
   return url;
 }
 

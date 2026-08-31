@@ -48,6 +48,9 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
   const [insightError, setInsightError] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
+  // Estado da capa: o card não deve aparecer sem imagem durante o download.
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  const [thumbErro, setThumbErro] = useState(false);
   const usdToBrl = useExchangeRate();
 
   const hasTikTokUrl = !!video?.tiktokUrl;
@@ -295,21 +298,53 @@ export function VideoCard({ video, rank, isLoading = false }: VideoCardProps) {
           },
         }}
       >
-        {hasThumbnail && (
+        {/* Enquanto a capa baixa, o card mostrava só o gradiente de fundo —
+            parecia um card quebrado durante a rolagem. O shimmer sinaliza que
+            há imagem a caminho, e a troca só acontece depois do onLoad, então
+            nunca se vê a imagem entrando pela metade. */}
+        {hasThumbnail && !thumbLoaded && !thumbErro && (
+          <Box
+            aria-hidden
+            sx={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(135deg, #0d1420 0%, #151c2a 100%)",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(45,212,255,0.06) 50%, transparent 100%)",
+                animation: "videoThumbShimmer 2.5s infinite ease-in-out",
+                transform: "translateX(-100%)",
+              },
+              "@keyframes videoThumbShimmer": {
+                "0%": { transform: "translateX(-100%)" },
+                "100%": { transform: "translateX(100%)" },
+              },
+            }}
+          />
+        )}
+
+        {hasThumbnail && !thumbErro && (
           <Box
             component="img"
             src={video.thumbnailUrl!}
             alt={video.title}
             loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
+            onLoad={() => setThumbLoaded(true)}
+            onError={() => setThumbErro(true)}
             sx={{
               position: "absolute",
               inset: 0,
               width: "100%",
               height: "100%",
               objectFit: "cover",
+              // Só aparece inteira. Antes a imagem era pintada progressivamente
+              // por cima do fundo, o que dava o efeito de card "meio carregado".
+              opacity: thumbLoaded ? 1 : 0,
+              transition: "opacity 220ms ease",
             }}
           />
         )}

@@ -136,3 +136,139 @@ describe("uploadProductImages — escopo", () => {
     expect(r.productImagesUploaded).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Repartição do orçamento entre as entidades
+// ---------------------------------------------------------------------------
+
+/**
+ * As três etapas rodavam em sequência com o MESMO prazo. Produtos vinham
+ * primeiro, consumiam quase todo o tempo, e vídeos — últimos — ficavam com as
+ * sobras: 60 capas de produto por execução contra 8 a 21 de vídeo, com 238
+ * vídeos na fila. A ordem no código virava prioridade de fato.
+ */
+describe("orçamento por etapa", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.setting.findUnique.mockResolvedValue(null);
+    prismaMock.region.findMany.mockResolvedValue([{ code: "BR" }]);
+    prismaMock.echotikProductTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikCreatorTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikVideoTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikProductDetail.findMany.mockResolvedValue([]);
+  });
+
+  it("não deixa uma etapa consumir o prazo inteiro", async () => {
+    const prazo = Date.now() + 30_000;
+    // Sem escopo não há upload; o que importa aqui é a etapa de vídeo ainda
+    // ser alcançada, em vez de morrer no prazo gasto pelas anteriores.
+    const r = await uploadPendingImages(log, prazo);
+
+    expect(r).toHaveProperty("videoCoversUploaded");
+    expect(r).toHaveProperty("productImagesUploaded");
+    expect(r).toHaveProperty("creatorAvatarsUploaded");
+  });
+
+  /** Sem prazo definido, nenhuma etapa deve inventar um limite de tempo. */
+  it("funciona sem prazo definido", async () => {
+    const r = await uploadPendingImages(log);
+    expect(r.videoCoversUploaded).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Capas de vídeo com assinatura vencida
+// ---------------------------------------------------------------------------
+
+/**
+ * A EchoTik às vezes devolve a URL crua do TikTok em vez da capa do CDN dela.
+ * Essas vêm assinadas e chegam vencidas — nas 18 medidas, a assinatura já
+ * tinha expirado quando a linha foi gravada. Elas nunca sobem, e como são
+ * re-sincronizadas a cada ciclo ficam no topo do `orderBy syncedAt`,
+ * empurrando para fora do lote as capas que ainda dava para salvar.
+ */
+describe("uploadVideoCovers — assinatura vencida", () => {
+  const vencida =
+    "https://p19-common-sign.tiktokcdn-eu.com/a.heic?x-expires=1000000000";
+  const valida =
+    "https://echosell-images.tos-ap-southeast-1.volces.com/video-cover/1.jpg";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.setting.findUnique.mockResolvedValue(null);
+    prismaMock.region.findMany.mockResolvedValue([{ code: "BR" }]);
+    prismaMock.echotikProductTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikCreatorTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikProductDetail.findMany.mockResolvedValue([]);
+    signEchotikCoverUrls.mockResolvedValue(new Map());
+    uploadImageToBlob.mockResolvedValue("https://blob/videos/v.jpg");
+    prismaMock.echotikVideoTrendDaily.findMany.mockImplementation(
+      async (args: any) =>
+        args?.where?.coverBlobUrl === null
+          ? [
+              { videoExternalId: "morto", coverUrl: vencida },
+              { videoExternalId: "vivo", coverUrl: valida },
+            ]
+          : [{ videoExternalId: "morto" }, { videoExternalId: "vivo" }],
+    );
+  });
+
+  it("não tenta subir capa cuja assinatura já expirou", async () => {
+    const r = await uploadPendingImages(log);
+
+    expect(uploadImageToBlob).toHaveBeenCalledTimes(1);
+    expect(uploadImageToBlob).toHaveBeenCalledWith(
+      expect.any(String),
+      "videos/vivo.jpg",
+    );
+    expect(r.videoCoversUploaded).toBe(1);
+  });
+
+  /**
+   * Zerar a origem morta tira a linha da fila de pendentes e impede o card de
+   * cair nela — o fallback de exibição usa coverUrl quando não há blob.
+   */
+  it("zera a origem morta para ela sair da fila", async () => {
+    await uploadPendingImages(log);
+
+    const limpeza = (
+      prismaMock.echotikVideoTrendDaily.updateMany.mock.calls as any[]
+    ).find(([a]) => a?.data?.coverUrl === null);
+
+    expect(limpeza).toBeTruthy();
+    expect(limpeza![0].where.videoExternalId.in).toEqual(["morto"]);
+  });
+
+  /**
+   * Avatar de criador sofre do mesmo mal — 946 de 946 sem assinatura viraram
+   * blob, contra 2 de 17 assinadas — e precisa do mesmo descarte.
+   */
+  it("aplica o mesmo descarte ao avatar de criador", async () => {
+    prismaMock.echotikCreatorTrendDaily.findMany.mockImplementation(
+      async (args: any) =>
+        args?.where?.avatarBlobUrl === null
+          ? [
+              { id: "c1", userExternalId: "morto", avatar: vencida },
+              { id: "c2", userExternalId: "vivo", avatar: valida },
+            ]
+          : [{ userExternalId: "morto" }, { userExternalId: "vivo" }],
+    );
+
+    await uploadPendingImages(log);
+
+    const limpeza = (
+      prismaMock.echotikCreatorTrendDaily.updateMany.mock.calls as any[]
+    ).find(([a]) => a?.data?.avatar === null);
+
+    expect(limpeza).toBeTruthy();
+    expect(limpeza![0].where.userExternalId.in).toEqual(["morto"]);
+    expect(uploadImageToBlob).toHaveBeenCalledWith(
+      expect.any(String),
+      "creators/vivo.jpg",
+    );
+    expect(uploadImageToBlob).not.toHaveBeenCalledWith(
+      expect.any(String),
+      "creators/morto.jpg",
+    );
+  });
+});
