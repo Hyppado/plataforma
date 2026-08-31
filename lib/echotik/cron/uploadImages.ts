@@ -352,9 +352,27 @@ export async function uploadPendingImages(
   log: Logger,
   deadlineMs?: number,
 ): Promise<UploadImagesResult> {
-  const productImagesUploaded = await uploadProductImages(log, deadlineMs);
-  const creatorAvatarsUploaded = await uploadCreatorAvatars(log, deadlineMs);
-  const videoCoversUploaded = await uploadVideoCovers(log, deadlineMs);
+  // ORÇAMENTO REPARTIDO, NÃO DISPUTADO
+  //
+  // As três etapas rodavam em sequência com o MESMO prazo. Produtos vinham
+  // primeiro, consumiam quase todo o tempo e vídeos, últimos da fila, ficavam
+  // com as sobras: 60 capas de produto por execução contra 8 a 21 de vídeo,
+  // com 238 vídeos esperando. A ordem no código virava prioridade de fato, e
+  // "Vídeos em Alta" ficava com card sem capa por horas.
+  //
+  // Cada etapa recebe agora a fatia do tempo que ainda resta dividida pelas
+  // etapas que faltam. Quem termina cedo devolve o tempo não usado para as
+  // seguintes, então repartir não desperdiça.
+  const fatia = (etapasRestantes: number): number | undefined => {
+    if (!deadlineMs) return undefined;
+    const restante = deadlineMs - Date.now();
+    if (restante <= 0) return deadlineMs;
+    return Date.now() + Math.floor(restante / etapasRestantes);
+  };
+
+  const productImagesUploaded = await uploadProductImages(log, fatia(3));
+  const creatorAvatarsUploaded = await uploadCreatorAvatars(log, fatia(2));
+  const videoCoversUploaded = await uploadVideoCovers(log, fatia(1));
 
   return {
     productImagesUploaded,

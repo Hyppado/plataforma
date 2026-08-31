@@ -136,3 +136,42 @@ describe("uploadProductImages — escopo", () => {
     expect(r.productImagesUploaded).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Repartição do orçamento entre as entidades
+// ---------------------------------------------------------------------------
+
+/**
+ * As três etapas rodavam em sequência com o MESMO prazo. Produtos vinham
+ * primeiro, consumiam quase todo o tempo, e vídeos — últimos — ficavam com as
+ * sobras: 60 capas de produto por execução contra 8 a 21 de vídeo, com 238
+ * vídeos na fila. A ordem no código virava prioridade de fato.
+ */
+describe("orçamento por etapa", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.setting.findUnique.mockResolvedValue(null);
+    prismaMock.region.findMany.mockResolvedValue([{ code: "BR" }]);
+    prismaMock.echotikProductTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikCreatorTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikVideoTrendDaily.findMany.mockResolvedValue([]);
+    prismaMock.echotikProductDetail.findMany.mockResolvedValue([]);
+  });
+
+  it("não deixa uma etapa consumir o prazo inteiro", async () => {
+    const prazo = Date.now() + 30_000;
+    // Sem escopo não há upload; o que importa aqui é a etapa de vídeo ainda
+    // ser alcançada, em vez de morrer no prazo gasto pelas anteriores.
+    const r = await uploadPendingImages(log, prazo);
+
+    expect(r).toHaveProperty("videoCoversUploaded");
+    expect(r).toHaveProperty("productImagesUploaded");
+    expect(r).toHaveProperty("creatorAvatarsUploaded");
+  });
+
+  /** Sem prazo definido, nenhuma etapa deve inventar um limite de tempo. */
+  it("funciona sem prazo definido", async () => {
+    const r = await uploadPendingImages(log);
+    expect(r.videoCoversUploaded).toBe(0);
+  });
+});
