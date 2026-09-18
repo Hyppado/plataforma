@@ -11,6 +11,7 @@ import {
   getFirstOfMonth,
   extractCategoryId,
   extractFirstCoverUrl,
+  resolveProductCoverUrl,
   getCandidateDates,
   REGION_CURRENCY,
 } from "@/lib/echotik/cron/helpers";
@@ -118,6 +119,78 @@ describe("extractFirstCoverUrl()", () => {
 
   it("returns null for invalid non-URL string", () => {
     expect(extractFirstCoverUrl("not-a-url")).toBeNull();
+  });
+});
+
+describe("resolveProductCoverUrl()", () => {
+  const saleProps = JSON.stringify([
+    {
+      prop_name: "Size",
+      sale_prop_values: [{ image: "https://cdn.com/sku.webp" }],
+    },
+  ]);
+
+  it("prefere cover_url quando preenchido", () => {
+    expect(
+      resolveProductCoverUrl({
+        cover_url: '[{"url":"https://cdn.com/capa.jpg","index":0}]',
+        original_cover_url: '["https://cdn.com/original.webp"]',
+        sale_props: saleProps,
+      }),
+    ).toBe("https://cdn.com/capa.jpg");
+  });
+
+  // O caso que quebrou "Novos Produtos": o endpoint de lista devolve o
+  // cover_url como array vazio literal.
+  it("cai para original_cover_url quando cover_url vem '[]'", () => {
+    expect(
+      resolveProductCoverUrl({
+        cover_url: "[]",
+        original_cover_url: '["https://cdn.com/original.webp"]',
+        sale_props: saleProps,
+      }),
+    ).toBe("https://cdn.com/original.webp");
+  });
+
+  it("aceita original_cover_url como lista de objetos", () => {
+    expect(
+      resolveProductCoverUrl({
+        cover_url: "[]",
+        original_cover_url: '[{"url":"https://cdn.com/o.webp","index":0}]',
+      }),
+    ).toBe("https://cdn.com/o.webp");
+  });
+
+  it("aceita original_cover_url como URL crua", () => {
+    expect(
+      resolveProductCoverUrl({
+        cover_url: "[]",
+        original_cover_url: "https://cdn.com/cru.webp",
+      }),
+    ).toBe("https://cdn.com/cru.webp");
+  });
+
+  it("cai para a imagem de sale_props quando não há capa nenhuma", () => {
+    expect(
+      resolveProductCoverUrl({ cover_url: "[]", sale_props: saleProps }),
+    ).toBe("https://cdn.com/sku.webp");
+  });
+
+  it("devolve null quando o payload não tem imagem alguma", () => {
+    expect(
+      resolveProductCoverUrl({ cover_url: "[]", sale_props: "[]" }),
+    ).toBeNull();
+    expect(resolveProductCoverUrl({})).toBeNull();
+  });
+
+  it("ignora campos malformados sem lançar", () => {
+    expect(
+      resolveProductCoverUrl({
+        cover_url: "{quebrado",
+        original_cover_url: "{quebrado",
+        sale_props: "{quebrado",
+      }),
+    ).toBeNull();
   });
 });
 

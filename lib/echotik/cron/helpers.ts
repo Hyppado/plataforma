@@ -88,6 +88,76 @@ export function extractFirstCoverUrl(
   return null;
 }
 
+/**
+ * Primeira URL http de um campo que a EchoTik entrega como JSON string —
+ * ora `[{url,index}]`, ora `["https://..."]`, ora a URL crua.
+ */
+function primeiraUrlDeCampo(campo: unknown): string | null {
+  if (typeof campo !== "string" || campo.length === 0) return null;
+  try {
+    const parsed = JSON.parse(campo);
+    const arr = Array.isArray(parsed) ? parsed : [parsed];
+    for (const item of arr) {
+      const url = typeof item === "string" ? item : item?.url;
+      if (typeof url === "string" && url.startsWith("http")) return url;
+    }
+    return null;
+  } catch {
+    return campo.startsWith("http") ? campo : null;
+  }
+}
+
+/**
+ * Primeira imagem de variação dentro de `sale_props`.
+ * Estrutura: [{ prop_name, sale_prop_values: [{ image: "https://..." }] }]
+ */
+function primeiraImagemDeSaleProps(saleProps: unknown): string | null {
+  if (typeof saleProps !== "string") return null;
+  try {
+    const props = JSON.parse(saleProps);
+    if (!Array.isArray(props)) return null;
+    for (const prop of props) {
+      for (const valor of prop?.sale_prop_values ?? []) {
+        const img = valor?.image;
+        if (typeof img === "string" && img.startsWith("http")) return img;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Resolve a capa de um produto percorrendo as fontes do payload em ordem.
+ *
+ * POR QUE MAIS DE UMA FONTE
+ * O endpoint de DETALHE devolve `cover_url` preenchido com o CDN da própria
+ * EchoTik. O de LISTA — o que alimenta "Novos Produtos" — devolve `cover_url`
+ * como `"[]"` literal: medido em produção, 316 de 316 linhas da janela BR.
+ * Como o código só olhava esse campo, a aba inteira gravava `coverUrl` nulo,
+ * o cron de imagens (que exige `coverUrl`) nunca via candidato, e todo card
+ * saía "Sem imagem" — sem erro em lugar nenhum.
+ *
+ * O mesmo payload traz a imagem em outros dois campos, ambos no CDN aberto do
+ * TikTok (`ibyteimg.com`): sem assinatura, sem `x-expires` e sem consumir
+ * cota. Cobertura medida na mesma janela: `original_cover_url` em 191 linhas,
+ * `sale_props` em outras 71 — 83% do total.
+ *
+ * A ordem importa: `cover_url` primeiro porque é a capa curada e o único campo
+ * que o restante do pipeline já sabia assinar; a imagem de variação por último,
+ * porque é a foto de um SKU específico, não a capa do produto.
+ */
+export function resolveProductCoverUrl(
+  item: Record<string, unknown>,
+): string | null {
+  return (
+    extractFirstCoverUrl(item.cover_url as string | undefined) ??
+    primeiraUrlDeCampo(item.original_cover_url) ??
+    primeiraImagemDeSaleProps(item.sale_props)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Moeda local de cada região suportada
 // ---------------------------------------------------------------------------
@@ -332,9 +402,9 @@ export async function upsertProductDetail(
     | import("./types").EchotikProductListItem,
   firstCrawlDt?: number,
 ): Promise<void> {
-  const coverUrl = extractFirstCoverUrl(
-    (item as { cover_url?: string }).cover_url,
-  );
+  // Não basta olhar `cover_url`: o endpoint de lista o entrega vazio e a capa
+  // vive em outro campo do mesmo payload. Ver resolveProductCoverUrl.
+  const coverUrl = resolveProductCoverUrl(item as Record<string, unknown>);
   const avgPriceCents = Math.round((item.spu_avg_price ?? 0) * 100);
   const minPriceCents = Math.round((item.min_price ?? 0) * 100);
   const maxPriceCents = Math.round((item.max_price ?? 0) * 100);

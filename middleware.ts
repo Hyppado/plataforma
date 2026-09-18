@@ -26,6 +26,11 @@ function buildCsp(nonce: string): string {
       "img-src 'self' data: blob:",
       "https://*.tiktokcdn.com",
       "https://*.tiktokcdn-us.com",
+      // CDN de imagem do TikTok Shop. A EchoTik entrega a capa dos produtos
+      // novos só por aqui (`original_cover_url`), e sem este host o navegador
+      // bloqueava a imagem — o card caía no onError e mostrava "Sem imagem"
+      // mesmo com a URL correta no banco.
+      "https://*.ibyteimg.com",
       "https://*.public.blob.vercel-storage.com",
       "https://*.img.susercontent.com",
       "https://*.shopee.com",

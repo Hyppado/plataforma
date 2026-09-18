@@ -216,3 +216,45 @@ inferência, não prova — sem documentação nem instrumentação dentro da pr
 fechar. Provado: o formato (1ª requisição, só US, só ranklist, desde 08-09) e o nosso volume.
 
 ---
+
+## Correção: capas ausentes em "Novos Produtos"
+**Timestamp**: 2026-09-18T20:55:00Z
+**User Input**: "https://hyppado.com/dashboard/products verify why the covers on the products arent appearing" / "primeiro atualize o banco e dps implemente. leia as skills e mcp da vercel aqui"
+**AI Response**: Diagnóstico + backfill do banco + correção na ingestão.
+**Context**: Construction — correção de bug
+
+### Causa raiz (medida em produção)
+O endpoint `/api/v3/echotik/product/list`, que alimenta "Novos Produtos", devolve
+`cover_url: "[]"` — 316 de 316 linhas da janela BR. `extractFirstCoverUrl` retornava
+null, `upsertProductDetail` gravava `coverUrl` nulo, `uploadImages` (que filtra por
+`coverUrl != null`) nunca via candidato e `publicImageUrl` devolvia "" — card "Sem
+imagem", sem erro em lugar algum. O endpoint de DETALHE preenche `cover_url`, por
+isso "Produtos em Alta" não foi afetada.
+
+A imagem existia no mesmo payload, em CDN aberto do TikTok (`ibyteimg.com`, sem
+assinatura e sem `x-expires`): `original_cover_url` (191/316) e
+`sale_props[].sale_prop_values[].image` (+71/316).
+
+### Ações
+1. Banco: `scripts/backfill-product-covers.ts` releu o `extra` já salvo — 550 de 690
+   linhas sem capa recuperadas (BR 263, US 287), 140 sem imagem no payload, 0 vencidas.
+   Janela BR passou de 0/316 para 262/316 com capa. Nenhuma chamada à EchoTik.
+2. Código: `resolveProductCoverUrl()` em `lib/echotik/cron/helpers.ts` percorre
+   cover_url → original_cover_url → sale_props; `upsertProductDetail` passou a usá-lo.
+3. Testes: 7 casos novos em `__tests__/lib/echotik/cron-helpers.test.ts`.
+   Suíte echotik: 241 testes, 16 arquivos, tudo verde. `tsc --noEmit` limpo.
+
+---
+
+### Segundo bloqueio (descoberto após o backfill)
+O backfill valeu em produção (mesmo banco Neon — `DATABASE_URL` da Vercel confere com
+o `.env` local), mas os cards continuaram "Sem imagem". Causa: o CSP não liberava o
+host. `ProductCard` usa `<img>` puro, então o navegador bloqueava a URL do
+`ibyteimg.com` e o `onError` caía no placeholder. Confirmado no header servido por
+produção — `img-src` sem `ibyteimg.com`.
+
+Correção: `https://*.ibyteimg.com` adicionado ao `img-src` em `middleware.ts` (CSP
+por requisição, é o que vale no dashboard) e em `next.config.js`, mais
+`remotePatterns` para o next/image. Suíte completa: 1382 testes, 102 arquivos, verde.
+
+---
