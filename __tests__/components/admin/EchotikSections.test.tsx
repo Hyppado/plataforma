@@ -275,7 +275,11 @@ describe("HealthSection", () => {
 
   it("renders summary counters in subheader", () => {
     render(<HealthSection data={HEALTH_DATA} loading={false} />);
-    const subheader = screen.getByText(/OK.*desatualizados.*falhas/);
+    // Confere os números do fixture, não só o formato: um regex frouxo deixou
+    // passar a troca de "falhas" por "falhando" e só quebrou depois, no CI.
+    const subheader = screen.getByText(
+      /4 OK · 1 desatualizados · 1 falhando · 0 nunca rodaram/,
+    );
     expect(subheader).toBeInTheDocument();
   });
 });
