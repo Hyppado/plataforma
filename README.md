@@ -6,9 +6,16 @@ Hyppado ajuda criadores de conteúdo, afiliados e vendedores a descobrir vídeos
 
 ## Visão do produto
 
+### Landing page
+
 <p align="center">
-  <img src="public/screenshots/landing.png" alt="Página inicial do Hyppado" width="49%">
-  <img src="public/screenshots/image.png" alt="Dashboard Hyppado com rankings de produtos e vídeos" width="49%">
+  <img src="public/screenshots/landing-full.png" alt="Landing page completa do Hyppado" width="100%">
+</p>
+
+### Dashboard
+
+<p align="center">
+  <img src="public/screenshots/image.png" alt="Dashboard Hyppado com rankings de produtos e vídeos" width="100%">
 </p>
 
 ---
