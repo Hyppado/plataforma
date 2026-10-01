@@ -4,6 +4,20 @@
 
 Hyppado ajuda criadores de conteúdo, afiliados e vendedores a descobrir vídeos virais, produtos em alta e creators de destaque — com dados reais, filtros por região e análises geradas por IA.
 
+## Visão do produto
+
+### Landing page
+
+<p align="center">
+  <img src="public/screenshots/landing-full.png" alt="Landing page completa do Hyppado" width="100%">
+</p>
+
+### Dashboard
+
+<p align="center">
+  <img src="public/screenshots/image.png" alt="Dashboard Hyppado com rankings de produtos e vídeos" width="100%">
+</p>
+
 ---
 
 ## O que é o Hyppado
